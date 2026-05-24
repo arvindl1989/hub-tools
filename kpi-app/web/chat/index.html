@@ -131,34 +131,7 @@
     .quick-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-faint); }
     .quick-btn i { font-size: 0.72rem; color: var(--blue); }
 
-    /* ── API key setup overlay ── */
-    .api-overlay {
-      position: fixed; inset: 0; background: rgba(15,23,42,0.7);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 500; backdrop-filter: blur(4px);
-    }
-    .api-overlay.hidden { display: none; }
-    .api-card {
-      background: var(--surface); border-radius: 16px;
-      padding: 2rem; max-width: 420px; width: 90%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-    }
-    .api-card h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .api-card p { font-size: 0.84rem; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.6; }
-    .api-input {
-      width: 100%; padding: 10px 12px; margin-bottom: 0.75rem;
-      border: 1px solid var(--border); border-radius: 8px;
-      font-family: 'Inter', sans-serif; font-size: 0.85rem; outline: none;
-      transition: border 0.2s;
-    }
-    .api-input:focus { border-color: var(--blue); }
-    .api-save-btn {
-      width: 100%; padding: 10px; background: var(--blue); color: white;
-      border: none; border-radius: 8px; font-family: 'Inter', sans-serif;
-      font-size: 0.9rem; font-weight: 600; cursor: pointer;
-      transition: filter 0.15s;
-    }
-    .api-save-btn:hover { filter: brightness(1.1); }
+    /* ── API key overlay removed — key is now server-side ── */
 
     /* ── Chat area ── */
     .chat-main {
@@ -291,16 +264,6 @@
     <button class="nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
   </nav>
 
-  <!-- API Key setup overlay -->
-  <div class="api-overlay" id="apiOverlay">
-    <div class="api-card">
-      <h2><i class="fa-solid fa-key" style="color:#1450f5;margin-right:8px;"></i>OpenAI API Key Required</h2>
-      <p>The Ticket Assistant uses OpenAI to answer your questions. Enter your API key below — it's stored only in your browser.</p>
-      <input type="password" class="api-input" id="apiKeyInput" placeholder="sk-proj-…">
-      <button class="api-save-btn" id="apiSaveBtn">Save & Continue</button>
-    </div>
-  </div>
-
   <div class="chat-layout">
 
     <!-- Sidebar -->
@@ -375,30 +338,10 @@
     });
 
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec';
-    const OPENAI_KEY_STORE = 'aegis_openai_key';
 
     let allTickets = [];
     let conversationHistory = [];
     let isStreaming = false;
-
-    // ── API Key ──────────────────────────────────────────────────────────────
-    function getApiKey() { return localStorage.getItem(OPENAI_KEY_STORE) || ''; }
-
-    const overlay = document.getElementById('apiOverlay');
-    const apiInput = document.getElementById('apiKeyInput');
-
-    if (!getApiKey()) {
-      overlay.classList.remove('hidden');
-    } else {
-      overlay.classList.add('hidden');
-    }
-
-    document.getElementById('apiSaveBtn').addEventListener('click', () => {
-      const key = apiInput.value.trim();
-      if (!key.startsWith('sk-')) { alert('That doesn\'t look like a valid OpenAI key.'); return; }
-      localStorage.setItem(OPENAI_KEY_STORE, key);
-      overlay.classList.add('hidden');
-    });
 
     // ── Date helpers ─────────────────────────────────────────────────────────
     function fmtDate(d) {
@@ -629,8 +572,6 @@ RULES:
     // ── Send message (streaming) ──────────────────────────────────────────────
     async function sendMessage(text) {
       if (!text.trim() || isStreaming) return;
-      const key = getApiKey();
-      if (!key) { overlay.classList.remove('hidden'); return; }
 
       isStreaming = true;
       document.getElementById('sendBtn').disabled = true;
@@ -650,15 +591,10 @@ RULES:
       conversationHistory.push({ role: 'user', content: text });
 
       try {
-        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        const resp = await fetch('/api/chat', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            stream: true,
             messages: [
               { role: 'system', content: buildSystemPrompt() },
               ...conversationHistory

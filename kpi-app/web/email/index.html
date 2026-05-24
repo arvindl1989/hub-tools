@@ -770,8 +770,6 @@
       window.location.replace('../login.html');
     }
 
-    // NOTE: Move this key to a backend proxy before sharing publicly.
-    const OPENAI_KEY = "YOUR_OPENAI_API_KEY_HERE";
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec';
     const SHEET_URL_KEY = 'aegis_sheet_url';
 
@@ -1429,14 +1427,14 @@ Thanks again!`;
         btn.disabled = true;
         try {
           const prompt = `Write a professional email subject line for a support ticket. Format: [Service] - Brief request - #Number. Service: "${currentTicket.subCategory}". Description: "${currentTicket.description}". Number: ${currentTicket.id}. Output only the subject line, no quotes.`;
-          const r = await fetch('https://api.openai.com/v1/chat/completions', {
+          const r = await fetch('/api/generate', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}` },
-            body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }], temperature: 0.4, max_tokens: 100 })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, max_tokens: 100 })
           });
           if (!r.ok) throw new Error('API Error');
           const d = await r.json();
-          document.getElementById('subjectInput').value = d.choices[0].message.content.trim().replace(/^["']|["']$/g, '');
+          document.getElementById('subjectInput').value = d.content.replace(/^["']|["']$/g, '');
         } catch { alert('AI subject generation failed. Check your API key.'); }
         finally { btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI Suggest'; btn.disabled = false; }
       });

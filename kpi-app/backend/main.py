@@ -7,10 +7,12 @@ import numpy as np
 import io
 import os
 import uuid
+import json
 from pathlib import Path
 from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime, date, timedelta
+from openai import AsyncOpenAI
 
 app = FastAPI(title="Ticket Analytics API", version="1.0.0")
 
@@ -1149,6 +1151,57 @@ def _filter_by_range(
         except Exception:
             pass
     return tmp
+
+
+# ── AI proxy endpoints ─────────────────────────────────────────────────────────
+# Key is read from the OPENAI_API_KEY environment variable set in Railway.
+# Never hardcode a key in this file.
+
+_OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
+
+class ChatBody(BaseModel):
+    messages: List[dict]
+
+class GenerateBody(BaseModel):
+    prompt: str
+    max_tokens: int = 150
+
+@app.post("/api/chat")
+async def chat_stream(body: ChatBody):
+    if not _OPENAI_KEY:
+        raise HTTPException(503, "OpenAI API key not configured on server")
+
+    async def stream_generator():
+        client = AsyncOpenAI(api_key=_OPENAI_KEY)
+        async_stream = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=body.messages,
+            stream=True,
+        )
+        async for chunk in async_stream:
+            content = chunk.choices[0].delta.content
+            if content:
+                yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+@app.post("/api/generate")
+async def generate_text(body: GenerateBody):
+    if not _OPENAI_KEY:
+        raise HTTPException(503, "OpenAI API key not configured on server")
+    client = AsyncOpenAI(api_key=_OPENAI_KEY)
+    resp = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": body.prompt}],
+        temperature=0.4,
+        max_tokens=body.max_tokens,
+    )
+    return {"content": resp.choices[0].message.content.strip()}
 
 
 # ── Serve KPI React app at /kpi/ and hub static tools at / ───────────────────
