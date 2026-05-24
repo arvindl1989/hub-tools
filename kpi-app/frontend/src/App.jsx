@@ -161,8 +161,7 @@ export default function App() {
   )
 }
 
-// â”€â”€ Hub URL comes from Railway env var VITE_HUB_URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const HUB_URL = import.meta.env.VITE_HUB_URL || ''
+const HUB_URL = '/'
 
 function AppHeader({ filename, totalRows, onReupload, onBack, onSlaConfig }) {
   return (
