@@ -1,5 +1,8 @@
-﻿import { useState, useCallback } from 'react'
+﻿import { useState, useCallback, useEffect } from 'react'
 import UploadZone        from './components/UploadZone'
+import { uploadFromSheetUrl } from './api'
+
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec'
 import DashboardPage     from './pages/DashboardPage'
 import PriorityPage      from './pages/PriorityPage'
 import AnalyticsPage     from './pages/AnalyticsPage'
@@ -20,9 +23,11 @@ export default function App() {
   const [uploadMeta, setUploadMeta] = useState(() => {
     try { return JSON.parse(localStorage.getItem('ticketMeta') || 'null') } catch { return null }
   })
-  const [activeTab,     setActiveTab]     = useState('dashboard')
-  const [showUpload,    setShowUpload]    = useState(false)
-  const [showSlaConfig, setShowSlaConfig] = useState(false)
+  const [activeTab,      setActiveTab]     = useState('dashboard')
+  const [showUpload,     setShowUpload]    = useState(false)
+  const [showSlaConfig,  setShowSlaConfig] = useState(false)
+  const [autoConnecting, setAutoConnecting] = useState(false)
+  const [autoError,      setAutoError]     = useState(null)
 
   const handleUpload = useCallback((result) => {
     localStorage.setItem('ticketSessionId', result.session_id)
@@ -40,10 +45,59 @@ export default function App() {
     setUploadMeta(null)
   }, [])
 
-  if (!sessionId || showUpload) {
+  // Auto-connect from Apps Script on every load (no session or manual refresh)
+  useEffect(() => {
+    if (showUpload) return
+    setAutoConnecting(true)
+    setAutoError(null)
+    uploadFromSheetUrl(APPS_SCRIPT_URL, () => {})
+      .then(result => {
+        handleUpload(result)
+        setAutoConnecting(false)
+      })
+      .catch(err => {
+        setAutoError(err.message || 'Could not load sheet data')
+        setAutoConnecting(false)
+      })
+  }, [showUpload])
+
+  if (autoConnecting) {
     return (
       <div style={{ minHeight: '100vh', background: '#f0f3fa', display: 'flex', flexDirection: 'column' }}>
-        <AppHeader hasSession={!!sessionId} onBack={sessionId ? () => setShowUpload(false) : null} onSlaConfig={() => setShowSlaConfig(true)} />
+        <AppHeader onSlaConfig={() => setShowSlaConfig(true)} />
+        <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            border: '3px solid #e5e7eb', borderTopColor: '#1450f5',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+          <p style={{ fontSize: 14, color: '#6b7280', fontFamily: 'Inter, sans-serif' }}>Loading ticket data…</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+        </main>
+      </div>
+    )
+  }
+
+  if (autoError && !sessionId) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f0f3fa', display: 'flex', flexDirection: 'column' }}>
+        <AppHeader onSlaConfig={() => setShowSlaConfig(true)} />
+        <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ textAlign: 'center', maxWidth: 420 }}>
+            <p style={{ fontSize: 15, color: '#c0305a', marginBottom: 16, fontFamily: 'Inter, sans-serif' }}>
+              Could not load sheet: {autoError}
+            </p>
+            <UploadZone onUpload={handleUpload} />
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (showUpload) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f0f3fa', display: 'flex', flexDirection: 'column' }}>
+        <AppHeader hasSession onBack={() => setShowUpload(false)} onSlaConfig={() => setShowSlaConfig(true)} />
         <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <UploadZone onUpload={handleUpload} />
         </main>

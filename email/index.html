@@ -772,6 +772,7 @@
 
     // NOTE: Move this key to a backend proxy before sharing publicly.
     const OPENAI_KEY = "YOUR_OPENAI_API_KEY_HERE";
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec';
     const SHEET_URL_KEY = 'aegis_sheet_url';
 
     // ── Constants ─────────────────────────────────────────────────────────
@@ -1304,13 +1305,9 @@ Thanks again!`;
         window.location.replace('../login.html');
       });
 
-      // Check for saved sheet URL
-      const savedUrl = localStorage.getItem(SHEET_URL_KEY);
-      if (savedUrl) {
-        loadTickets(savedUrl);
-      } else {
-        showView('setup');
-      }
+      // Always load from the hardcoded Apps Script URL
+      localStorage.setItem(SHEET_URL_KEY, APPS_SCRIPT_URL);
+      loadTickets(APPS_SCRIPT_URL);
 
       // Copy script button
       document.getElementById('copyScriptBtn').addEventListener('click', () => {
@@ -1356,11 +1353,9 @@ Thanks again!`;
 
       // Refresh
       document.getElementById('refreshBtn').addEventListener('click', async () => {
-        const url = localStorage.getItem(SHEET_URL_KEY);
-        if (!url) return;
         const btn = document.getElementById('refreshBtn');
         btn.classList.add('spinning');
-        await loadTickets(url, true);
+        await loadTickets(APPS_SCRIPT_URL, true);
         btn.classList.remove('spinning');
       });
 
