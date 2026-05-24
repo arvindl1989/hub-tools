@@ -496,26 +496,51 @@
 
   <!-- ── VIEW: Setup ── -->
   <div class="view active" id="view-setup">
-    <div class="setup-wrap">
-      <div class="setup-card">
+    <div class="setup-wrap" style="align-items:flex-start; padding-top:2.5rem;">
+      <div class="setup-card" style="max-width:680px;">
         <div class="icon">📊</div>
         <h1>Connect Your Ticket Sheet</h1>
-        <p>The Email Tracker pulls live data from a Google Sheet you maintain. Set it up once — from then on it loads automatically every time you open the tool.</p>
-        <div class="setup-steps">
-          <strong style="font-size:0.82rem; color:var(--text);">How to set up your Google Sheet:</strong>
-          <ol>
+        <p>Uses a Google Apps Script that sits inside your sheet and serves the data as JSON — no CORS issues, no API keys. One-time 3-minute setup, then it loads automatically every visit.</p>
+
+        <div class="setup-steps" style="margin-bottom:1.25rem;">
+          <strong style="font-size:0.82rem; color:var(--text); display:block; margin-bottom:0.6rem;">Step 1 — Add the script to your Google Sheet</strong>
+          <ol style="margin-top:0;">
             <li>Open your ticket spreadsheet in Google Sheets</li>
-            <li>Make sure columns include: <code>Number</code>, <code>Short description</code>, <code>Sub-Category</code>, <code>Requested by</code>, <code>Assigned to</code>, <code>State</code>, <code>Created</code></li>
-            <li>Click <strong>File → Share → Publish to web</strong></li>
-            <li>Select the sheet tab, choose <strong>Comma-separated values (.csv)</strong>, click <strong>Publish</strong></li>
-            <li>Copy the URL provided and paste it below</li>
+            <li>Click <strong>Extensions → Apps Script</strong></li>
+            <li>Delete everything in the editor and paste the script below</li>
+            <li>Click <strong>Save</strong> (💾), then <strong>Deploy → New deployment</strong></li>
+            <li>Set type: <strong>Web app</strong> · Execute as: <strong>Me</strong> · Access: <strong>Anyone</strong></li>
+            <li>Click <strong>Deploy</strong>, authorise when prompted, then copy the <strong>Web app URL</strong></li>
           </ol>
         </div>
+
+        <div style="background:#0f172a; border-radius:10px; padding:1.1rem 1.25rem; margin-bottom:1.5rem; position:relative;">
+          <button id="copyScriptBtn" style="position:absolute;top:0.75rem;right:0.75rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#94a3b8;border-radius:6px;padding:3px 10px;font-size:0.72rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:600;transition:all 0.2s;" onmouseover="this.style.color='#f1f5f9'" onmouseout="this.style.color='#94a3b8'"><i class="fa-regular fa-copy"></i> Copy</button>
+          <pre id="appScriptCode" style="margin:0;color:#e2e8f0;font-size:0.78rem;line-height:1.7;font-family:'Courier New',monospace;white-space:pre-wrap;overflow:auto;">function doGet() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var data  = sheet.getDataRange().getValues();
+  var keys  = data[0];
+  var rows  = data.slice(1).map(function(row) {
+    var obj = {};
+    keys.forEach(function(k, i) { obj[k] = row[i]; });
+    return obj;
+  });
+  return ContentService
+    .createTextOutput(JSON.stringify(rows))
+    .setMimeType(ContentService.MimeType.JSON);
+}</pre>
+        </div>
+
+        <div class="setup-steps" style="margin-bottom:1.5rem;">
+          <strong style="font-size:0.82rem; color:var(--text); display:block; margin-bottom:0.4rem;">Step 2 — Paste the Web app URL below</strong>
+          <p style="font-size:0.82rem; color:var(--muted); margin:0 0 0.3rem;">The URL looks like: <code>https://script.google.com/macros/s/…/exec</code></p>
+        </div>
+
         <div class="setup-input-row">
-          <input type="url" id="sheetUrlInput" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv">
+          <input type="url" id="sheetUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
           <button class="btn-primary" id="connectSheetBtn"><i class="fa-solid fa-plug"></i> Connect</button>
         </div>
-        <p class="setup-err" id="setupErr"><i class="fa-solid fa-circle-exclamation"></i> <span></span></p>
+        <p class="setup-err" id="setupErr" style="display:none;align-items:center;gap:6px;margin-top:0.75rem;color:#dc2626;font-size:0.82rem;"><i class="fa-solid fa-circle-exclamation"></i> <span></span></p>
       </div>
     </div>
   </div>
@@ -834,19 +859,21 @@
       return `<span class="days-badge days-ok">${days}d left</span>`;
     }
 
-    // ── CSV / Sheet loading ───────────────────────────────────────────────
+    // ── Sheet loading (Google Apps Script web app → JSON) ─────────────────
     async function fetchAndParse(url) {
-      const res = await fetch(url, { cache: 'no-cache' });
+      // Apps Script URLs redirect; follow them and request JSON
+      const res = await fetch(url, { cache: 'no-cache', redirect: 'follow' });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      const csv = await res.text();
-      return new Promise((resolve, reject) => {
-        Papa.parse(csv, {
-          header: true,
-          skipEmptyLines: true,
-          complete: r => resolve(r.data),
-          error: e => reject(e)
-        });
-      });
+      const text = await res.text();
+      // Parse as JSON (Apps Script response)
+      let rows;
+      try {
+        rows = JSON.parse(text);
+      } catch {
+        throw new Error('Response was not valid JSON. Make sure your Apps Script is deployed correctly and returns JSON.');
+      }
+      if (!Array.isArray(rows)) throw new Error('Expected an array of rows from the Apps Script. Check your script output.');
+      return rows;
     }
 
     async function loadTickets(url, silent = false) {
@@ -1244,16 +1271,26 @@ Thanks again!`;
         showView('setup');
       }
 
+      // Copy script button
+      document.getElementById('copyScriptBtn').addEventListener('click', () => {
+        const code = document.getElementById('appScriptCode').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          const btn = document.getElementById('copyScriptBtn');
+          btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+          btn.style.color = '#6ee7b7';
+          setTimeout(() => { btn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy'; btn.style.color = ''; }, 2000);
+        });
+      });
+
       // Setup connect
       document.getElementById('connectSheetBtn').addEventListener('click', () => {
         const url = document.getElementById('sheetUrlInput').value.trim();
-        const err = document.getElementById('setupErr');
-        if (!url) { showSetupErr('Please paste a Google Sheets CSV URL.'); return; }
-        if (!url.includes('google.com/spreadsheets') && !url.includes('docs.google.com')) {
-          showSetupErr('This doesn\'t look like a Google Sheets URL. Make sure to use File → Publish to web → CSV.');
+        if (!url) { showSetupErr('Please paste your Apps Script web app URL.'); return; }
+        if (!url.includes('script.google.com') && !url.includes('google.com')) {
+          showSetupErr('This doesn\'t look like a Google Apps Script URL. It should start with https://script.google.com/macros/s/…');
           return;
         }
-        err.style.display = 'none';
+        document.getElementById('setupErr').style.display = 'none';
         localStorage.setItem(SHEET_URL_KEY, url);
         loadTickets(url);
       });
@@ -1262,8 +1299,6 @@ Thanks again!`;
         const err = document.getElementById('setupErr');
         err.querySelector('span').textContent = msg;
         err.style.display = 'flex';
-        err.style.alignItems = 'center';
-        err.style.gap = '6px';
       }
 
       // Settings (re-configure sheet)
