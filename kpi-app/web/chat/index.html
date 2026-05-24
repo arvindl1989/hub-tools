@@ -368,7 +368,6 @@
       window.location.replace('../login.html');
     });
 
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec';
 
     let allTickets = [];
     let conversationHistory = [];
@@ -426,7 +425,8 @@
 
     async function loadTickets() {
       try {
-        const res = await fetch(APPS_SCRIPT_URL, { cache: 'no-cache', redirect: 'follow' });
+        const res = await fetch('/api/tickets', { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
         const rows = await res.json();
         allTickets = rows.filter(r => {
           const state = String(r['State'] || '').trim();

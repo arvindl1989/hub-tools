@@ -1153,6 +1153,22 @@ def _filter_by_range(
     return tmp
 
 
+# ── Ticket data proxy ─────────────────────────────────────────────────────────
+_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec"
+
+@app.get("/api/tickets")
+async def get_tickets():
+    """Proxy the Apps Script fetch server-side to avoid browser CORS/redirect issues."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+            resp = await client.get(_APPS_SCRIPT_URL)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as exc:
+        raise HTTPException(502, f"Could not fetch ticket data: {exc}")
+
+
 # ── AI proxy endpoints ─────────────────────────────────────────────────────────
 # Key is read from the OPENAI_API_KEY environment variable set in Railway.
 # Never hardcode a key in this file.
