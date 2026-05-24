@@ -136,7 +136,7 @@ function AppHeader({ filename, totalRows, onReupload, onBack, onSlaConfig }) {
               transition: 'all 0.15s',
               fontFamily: 'Inter, sans-serif',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#1450f5'; e.currentTarget.style.color = '#1450f5'; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#6b7280'; }}
           >
             {/* Shield icon */}

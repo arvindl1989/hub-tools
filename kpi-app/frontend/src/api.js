@@ -14,6 +14,19 @@ client.interceptors.response.use(
   }
 )
 
+export async function uploadFromSheetUrl(sheetUrl, onProgress) {
+  onProgress?.(10)
+  const res = await fetch(sheetUrl, { cache: 'no-cache', redirect: 'follow' })
+  if (!res.ok) throw new Error(`Sheet fetch failed: HTTP ${res.status}`)
+  const rows = await res.json()
+  if (!Array.isArray(rows)) throw new Error('Apps Script did not return a JSON array.')
+  onProgress?.(50)
+  const { data } = await client.post('/upload-json', { rows, source_label: 'Google Sheet' }, {
+    onUploadProgress: (e) => onProgress?.(50 + Math.round((e.loaded * 100) / (e.total || 1)) / 2),
+  })
+  return data
+}
+
 export async function uploadFile(file, onProgress) {
   const form = new FormData()
   form.append('file', file)

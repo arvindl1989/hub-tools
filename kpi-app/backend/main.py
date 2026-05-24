@@ -8,7 +8,8 @@ import io
 import os
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Any
+from pydantic import BaseModel
 from datetime import datetime, date, timedelta
 
 app = FastAPI(title="Ticket Analytics API", version="1.0.0")
@@ -261,6 +262,34 @@ async def upload_file(file: UploadFile = File(...)):
     return {
         "session_id": sid,
         "filename": file.filename,
+        "total_rows": len(df),
+        "total_active": int(len(active)),
+        "overdue_sla": int((active["days_to_sla"].dropna() < 0).sum()),
+        "due_within_5": int(
+            ((active["days_to_sla"].dropna() >= 0) & (active["days_to_sla"].dropna() <= 5)).sum()
+        ),
+        "columns_detected": list(df.columns),
+    }
+
+class JsonUploadBody(BaseModel):
+    rows: List[dict]
+    source_label: str = "Google Sheet"
+
+@app.post("/api/upload-json")
+async def upload_json(body: JsonUploadBody):
+    if not body.rows:
+        raise HTTPException(400, "rows array is empty")
+    try:
+        df = pd.DataFrame(body.rows)
+    except Exception as exc:
+        raise HTTPException(400, f"Could not build DataFrame: {exc}")
+    df = process_dataframe(df)
+    sid = str(uuid.uuid4())
+    sessions[sid] = df
+    active = df[df["is_active"]]
+    return {
+        "session_id": sid,
+        "filename": body.source_label,
         "total_rows": len(df),
         "total_active": int(len(active)),
         "overdue_sla": int((active["days_to_sla"].dropna() < 0).sum()),

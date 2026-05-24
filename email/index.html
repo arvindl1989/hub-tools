@@ -10,10 +10,10 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root {
-      --primary: #6366f1;
-      --primary-dark: #4f46e5;
-      --sky: #0ea5e9;
-      --bg: #f1f5f9;
+      --primary: #1450f5;
+      --primary-dark: #0d3fd4;
+      --sky: #3b70f7;
+      --bg: #faf9f6;
       --surface: #ffffff;
       --border: #e2e8f0;
       --text: #0f172a;
@@ -49,7 +49,7 @@
       border: 1px solid #334155; transition: all 0.2s;
     }
     .hub-nav a.back-link:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
-    .hub-nav a.back-link i { color: #6366f1; }
+    .hub-nav a.back-link i { color: #1450f5; }
     .nav-sep { width: 1px; height: 16px; background: #334155; }
     .nav-tool { font-size: 0.78rem; color: #64748b; font-weight: 500; }
     .nav-spacer { flex: 1; }
@@ -61,8 +61,8 @@
       cursor: pointer; transition: all 0.2s;
     }
     .nav-icon-btn:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
-    .nav-icon-btn.active { border-color: #6366f1; color: #a5b4fc; background: rgba(99,102,241,0.1); }
-    .nav-icon-btn i { color: #6366f1; }
+    .nav-icon-btn.active { border-color: #1450f5; color: #a5b4fc; background: rgba(20,80,245,0.1); }
+    .nav-icon-btn i { color: #1450f5; }
     .nav-signout {
       background: none; border: 1px solid #334155; color: #64748b;
       padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
@@ -104,16 +104,16 @@
       font-size: 0.9rem; font-family: 'Inter', sans-serif; outline: none;
       transition: border-color 0.2s;
     }
-    .setup-input-row input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+    .setup-input-row input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,80,245,0.1); }
     .btn-primary {
       padding: 0.75rem 1.5rem;
       background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       color: white; border: none; border-radius: 8px;
       font-size: 0.9rem; font-weight: 600; font-family: 'Inter', sans-serif;
       cursor: pointer; white-space: nowrap; transition: all 0.2s;
-      box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+      box-shadow: 0 4px 12px rgba(20,80,245,0.3);
     }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.4); }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(20,80,245,0.4); }
     .setup-err { margin-top: 0.75rem; color: #dc2626; font-size: 0.82rem; display: none; }
 
     /* ── Filter Bar ── */
@@ -130,7 +130,7 @@
       width: 220px; outline: none; background: #f8fafc;
       transition: all 0.2s; color: var(--text);
     }
-    .filter-bar input[type="text"]:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); }
+    .filter-bar input[type="text"]:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(20,80,245,0.08); }
     .search-wrap { position: relative; }
     .search-wrap i { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.8rem; pointer-events: none; }
     .filter-select {
@@ -141,7 +141,7 @@
       appearance: none; cursor: pointer; outline: none;
       color: var(--text); transition: all 0.2s; min-width: 140px;
     }
-    .filter-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.08); background-color: white; }
+    .filter-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,80,245,0.08); background-color: white; }
     .filter-bar-spacer { flex: 1; }
     .filter-count { font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
     .refresh-btn {
@@ -235,7 +235,7 @@
     .s-pending { background: #ffedd5; color: #9a3412; }
 
     /* Card accent colors */
-    .accent-wip { --card-accent: #6366f1; }
+    .accent-wip { --card-accent: #1450f5; }
     .accent-review { --card-accent: #9333ea; }
     .accent-hold { --card-accent: #f59e0b; }
     .accent-pending { --card-accent: #f97316; }
@@ -296,7 +296,7 @@
       background: var(--surface); color: var(--text); outline: none;
       transition: all 0.2s;
     }
-    .field-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+    .field-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,80,245,0.1); }
     .input-with-btn { display: flex; gap: 8px; }
     .input-with-btn .field-input { flex: 1; }
     .gen-btn {
@@ -417,9 +417,9 @@
       color: white; border: none; border-radius: var(--radius);
       font-size: 0.88rem; font-weight: 600; font-family: 'Inter', sans-serif;
       cursor: pointer; transition: all 0.2s;
-      box-shadow: 0 4px 12px rgba(99,102,241,0.25);
+      box-shadow: 0 4px 12px rgba(20,80,245,0.25);
     }
-    .lg-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.35); }
+    .lg-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(20,80,245,0.35); }
     .lg-result { display: none; margin-top: 0.75rem; }
     .lg-result.show { display: block; }
     .lg-success { display: inline-flex; align-items: center; gap: 5px; background: #d1fae5; color: #065f46; font-size: 0.72rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; margin-bottom: 0.5rem; }
@@ -710,6 +710,10 @@
         <div class="email-box"><div id="body-pendingconf" class="email-content"></div><button class="copy-email-btn" data-src="body-pendingconf"><i class="fa-regular fa-copy"></i> Copy</button></div>
       </div>
       <div id="tab-closed" class="tab-panel">
+        <div style="margin-bottom:0.85rem;">
+          <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Live Link URL</label>
+          <input type="url" class="field-input" id="liveInput" placeholder="https://… (published page / asset URL)" oninput="renderEmails()">
+        </div>
         <div class="email-box"><div id="body-closed" class="email-content"></div><button class="copy-email-btn" data-src="body-closed"><i class="fa-regular fa-copy"></i> Copy</button></div>
       </div>
 
@@ -1053,7 +1057,7 @@
       generatedFeedbackLink = '';
 
       // Reset inputs
-      ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'ohReasonInput', 'ohDateInput'].forEach(id => {
+      ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'ohReasonInput', 'ohDateInput', 'liveInput'].forEach(id => {
         document.getElementById(id).value = '';
       });
       ['caseOk', 'caseErr', 'feedbackOk', 'feedbackErr'].forEach(id => {
@@ -1103,7 +1107,7 @@
     }
 
     // ── Email templates ───────────────────────────────────────────────────
-    function buildEmails(ticket, caseLink, feedbackLink, previewLink, ohReason, ohDate) {
+    function buildEmails(ticket, caseLink, feedbackLink, previewLink, ohReason, ohDate, liveLink) {
       const { id, description, client, assignee, slaDays, slaDate, prefLive } = ticket;
       const slaStr = fmtDate(slaDate);
       const liveStr = fmtDate(prefLive);
@@ -1197,7 +1201,7 @@ Thank you for your support!`;
 
       const closed = `Hello ${client},
 
-Your ticket #${id} regarding "${description}" has been successfully closed.
+Great news — your ticket #${id} regarding "${description}" has been completed and is now live!${liveLink ? `\n\nYou can view it here: ${liveLink}` : ''}
 
 Thank you for working with us! We'd love to hear your thoughts on how we did so we can keep improving. Please take a moment to share your feedback <a href="${fHref}">here</a> — it's a quick survey and your input makes a real difference.
 
@@ -1211,7 +1215,8 @@ Thanks again!`;
       const preview = document.getElementById('previewInput').value.trim();
       const ohReason = document.getElementById('ohReasonInput').value.trim();
       const ohDate = document.getElementById('ohDateInput').value;
-      const e = buildEmails(currentTicket, generatedCaseLink, generatedFeedbackLink, preview, ohReason, ohDate);
+      const liveLink = document.getElementById('liveInput').value.trim();
+      const e = buildEmails(currentTicket, generatedCaseLink, generatedFeedbackLink, preview, ohReason, ohDate, liveLink);
       const set = (id, txt) => { document.getElementById(id).innerHTML = txt.replace(/\n/g, '<br>'); };
       set('body-assigned', e.assigned);
       set('body-confirmation', e.confirmation);
