@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aegis Hub — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Subtle background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    .glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      opacity: 0.15;
+    }
+    .glow-1 { background: #6366f1; top: -200px; left: -200px; }
+    .glow-2 { background: #0ea5e9; bottom: -200px; right: -200px; }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 20px;
+      padding: 3rem 2.5rem;
+      width: 100%;
+      max-width: 420px;
+      position: relative;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 2rem;
+    }
+
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #6366f1, #0ea5e9);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      color: white;
+      box-shadow: 0 4px 16px rgba(99,102,241,0.4);
+    }
+
+    .logo-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .logo-name {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.5px;
+    }
+
+    .logo-sub {
+      font-size: 0.75rem;
+      color: #64748b;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 0.9rem;
+      color: #64748b;
+      margin-bottom: 2rem;
+    }
+
+    .field { margin-bottom: 1.25rem; }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-wrap i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #475569;
+      font-size: 0.9rem;
+    }
+
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      padding: 0.85rem 1rem 0.85rem 2.75rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      color: #f8fafc;
+      font-size: 0.95rem;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+
+    input[type="password"]:focus,
+    input[type="text"]:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
+
+    .toggle-pw {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #475569;
+      cursor: pointer;
+      padding: 4px;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+
+    .toggle-pw:hover { color: #94a3b8; }
+
+    .error-msg {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: #fca5a5;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-login {
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(135deg, #6366f1, #0ea5e9);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 16px rgba(99,102,241,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(99,102,241,0.4);
+    }
+
+    .btn-login:active { transform: translateY(0); }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #475569;
+      margin-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
+      <div class="logo-text">
+        <span class="logo-name">Aegis Hub</span>
+        <span class="logo-sub">Marketing Operations</span>
+      </div>
+    </div>
+
+    <h1>Welcome Back</h1>
+    <p class="subtitle">Enter your access password to continue</p>
+
+    <div class="error-msg" id="errorMsg">
+      <i class="fa-solid fa-circle-exclamation"></i>
+      <span>Incorrect password. Please try again.</span>
+    </div>
+
+    <div class="field">
+      <label for="passwordInput">Password</label>
+      <div class="input-wrap">
+        <i class="fa-solid fa-lock"></i>
+        <input type="password" id="passwordInput" placeholder="Enter access password" autocomplete="current-password">
+        <button type="button" class="toggle-pw" id="togglePw" tabindex="-1">
+          <i class="fa-regular fa-eye" id="eyeIcon"></i>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn-login" id="loginBtn">
+      <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In
+    </button>
+
+    <p class="footer-note">Internal use only &middot; Digital Marketing Hub</p>
+  </div>
+
+  <script>
+    // ── Change this password to whatever the team uses ──
+    const AEGIS_PASSWORD = 'AegisHub@2025';
+
+    const input = document.getElementById('passwordInput');
+    const btn   = document.getElementById('loginBtn');
+    const err   = document.getElementById('errorMsg');
+    const toggle = document.getElementById('togglePw');
+    const eye    = document.getElementById('eyeIcon');
+
+    function attempt() {
+      if (input.value === AEGIS_PASSWORD) {
+        sessionStorage.setItem('aegis_auth', 'true');
+        window.location.replace('index.html');
+      } else {
+        err.style.display = 'flex';
+        input.value = '';
+        input.focus();
+        input.style.borderColor = '#ef4444';
+        setTimeout(() => { input.style.borderColor = ''; }, 1500);
+      }
+    }
+
+    btn.addEventListener('click', attempt);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') attempt(); });
+    toggle.addEventListener('click', () => {
+      const isHidden = input.type === 'password';
+      input.type = isHidden ? 'text' : 'password';
+      eye.className = isHidden ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
+    });
+
+    // If already authenticated, skip login
+    if (sessionStorage.getItem('aegis_auth') === 'true') {
+      window.location.replace('index.html');
+    }
+  </script>
+</body>
+</html>

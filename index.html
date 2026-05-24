@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aegis Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      color: #f8fafc;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glow {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(130px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.12;
+    }
+    .glow-1 { width: 700px; height: 700px; background: #6366f1; top: -300px; left: -200px; }
+    .glow-2 { width: 500px; height: 500px; background: #0ea5e9; bottom: -150px; right: -150px; }
+
+    /* ---- Top Nav ---- */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(15,23,42,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 0 2.5rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .nav-logo-icon {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, #6366f1, #0ea5e9);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      color: white;
+      box-shadow: 0 2px 8px rgba(99,102,241,0.4);
+    }
+
+    .nav-logo-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.3px;
+    }
+
+    .nav-logo-sub {
+      font-size: 0.7rem;
+      color: #475569;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .nav-spacer { flex: 1; }
+
+    .nav-date {
+      font-size: 0.8rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    .nav-signout {
+      background: none;
+      border: 1px solid #334155;
+      color: #64748b;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-signout:hover {
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
+    /* ---- Main Layout ---- */
+    .main {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 4rem 2rem 5rem;
+    }
+
+    /* ---- Hero ---- */
+    .hero {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.25);
+      color: #a5b4fc;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 20px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #f8fafc 40%, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      font-size: 1.1rem;
+      color: #64748b;
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    /* ---- Tool Grid ---- */
+    .tools-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1.25rem;
+    }
+
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .tool-card {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 1.75rem;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tool-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.3s;
+      border-radius: 16px;
+    }
+
+    .tool-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    }
+
+    .tool-card:hover::before { opacity: 1; }
+
+    /* Card accent colors */
+    .card-email::before  { background: linear-gradient(135deg, rgba(99,102,241,0.06), transparent 60%); }
+    .card-attend::before { background: linear-gradient(135deg, rgba(20,80,245,0.08), transparent 60%); }
+    .card-kpi::before    { background: linear-gradient(135deg, rgba(16,185,129,0.07), transparent 60%); }
+
+    .card-email:hover   { border-color: rgba(99,102,241,0.3); }
+    .card-attend:hover  { border-color: rgba(14,165,233,0.3); }
+    .card-kpi:hover     { border-color: rgba(16,185,129,0.3); }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+
+    .card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+
+    .icon-email   { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; box-shadow: 0 4px 16px rgba(99,102,241,0.35); }
+    .icon-attend  { background: linear-gradient(135deg, #0ea5e9, #1450f5); color: white; box-shadow: 0 4px 16px rgba(14,165,233,0.35); }
+    .icon-kpi     { background: linear-gradient(135deg, #10b981, #059669); color: white; box-shadow: 0 4px 16px rgba(16,185,129,0.35); }
+
+    .card-arrow {
+      color: #334155;
+      font-size: 1rem;
+      transition: color 0.2s, transform 0.2s;
+    }
+
+    .tool-card:hover .card-arrow {
+      color: #94a3b8;
+      transform: translateX(3px) translateY(-3px);
+    }
+
+    .card-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.4rem;
+      letter-spacing: -0.3px;
+    }
+
+    .card-desc {
+      font-size: 0.875rem;
+      color: #64748b;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .feature-tag {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #94a3b8;
+    }
+
+    .card-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.05);
+      margin: 1.25rem 0;
+    }
+
+    .card-launch {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .launch-text {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #64748b;
+    }
+
+    .tool-card:hover .launch-text-email  { color: #a5b4fc; }
+    .tool-card:hover .launch-text-attend { color: #7dd3fc; }
+    .tool-card:hover .launch-text-kpi    { color: #6ee7b7; }
+
+    .launch-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: #475569;
+      transition: all 0.2s;
+    }
+
+    .tool-card:hover .launch-icon-email  { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.3); color: #a5b4fc; }
+    .tool-card:hover .launch-icon-attend { background: rgba(14,165,233,0.15); border-color: rgba(14,165,233,0.3); color: #7dd3fc; }
+    .tool-card:hover .launch-icon-kpi    { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
+
+    /* ---- Footer ---- */
+    .footer {
+      text-align: center;
+      margin-top: 4rem;
+      color: #334155;
+      font-size: 0.78rem;
+      position: relative;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+
+  <!-- Top Nav -->
+  <nav class="top-nav">
+    <a href="index.html" class="nav-logo">
+      <div class="nav-logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
+      <div>
+        <div class="nav-logo-name">Aegis Hub</div>
+      </div>
+    </a>
+    <div class="nav-spacer"></div>
+    <span class="nav-date" id="navDate"></span>
+    <button class="nav-signout" id="signOutBtn">
+      <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+    </button>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <section class="hero">
+      <div class="hero-badge"><i class="fa-solid fa-shield-halved"></i> Digital Marketing Hub</div>
+      <h1>Your Operations<br>Command Centre</h1>
+      <p>All your team tools in one place — email generation, attendance tracking, KPI visibility, and more.</p>
+    </section>
+
+    <p class="tools-label">Available Tools</p>
+    <div class="tools-grid">
+
+      <!-- Email Tracker -->
+      <a href="email/index.html" class="tool-card card-email">
+        <div class="card-top">
+          <div class="card-icon icon-email"><i class="fa-solid fa-envelope-open-text"></i></div>
+          <i class="fa-solid fa-arrow-up-right card-arrow"></i>
+        </div>
+        <div class="card-name">Email Tracker</div>
+        <div class="card-desc">Generate perfectly formatted ticket emails with AI, manage your ticket pipeline, and create case & feedback links from ServiceNow.</div>
+        <div class="card-features">
+          <span class="feature-tag">AI Email Generation</span>
+          <span class="feature-tag">Ticket Management</span>
+          <span class="feature-tag">Link Generator</span>
+          <span class="feature-tag">Bulk Mode</span>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-launch">
+          <span class="launch-text launch-text-email">Launch tool</span>
+          <div class="launch-icon launch-icon-email"><i class="fa-solid fa-arrow-right"></i></div>
+        </div>
+      </a>
+
+      <!-- Attendance Tracker -->
+      <a href="attendance/index.html" class="tool-card card-attend">
+        <div class="card-top">
+          <div class="card-icon icon-attend"><i class="fa-solid fa-calendar-check"></i></div>
+          <i class="fa-solid fa-arrow-up-right card-arrow"></i>
+        </div>
+        <div class="card-name">Attendance Tracker</div>
+        <div class="card-desc">Track daily attendance for the full team with calendar view, status management, notes, and monthly & quarterly reports.</div>
+        <div class="card-features">
+          <span class="feature-tag">Calendar View</span>
+          <span class="feature-tag">Monthly Summary</span>
+          <span class="feature-tag">Quarterly Reports</span>
+          <span class="feature-tag">Activity Log</span>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-launch">
+          <span class="launch-text launch-text-attend">Launch tool</span>
+          <div class="launch-icon launch-icon-attend"><i class="fa-solid fa-arrow-right"></i></div>
+        </div>
+      </a>
+
+      <!-- KPI Tracker -->
+      <a href="kpi/index.html" class="tool-card card-kpi">
+        <div class="card-top">
+          <div class="card-icon icon-kpi"><i class="fa-solid fa-chart-line"></i></div>
+          <i class="fa-solid fa-arrow-up-right card-arrow"></i>
+        </div>
+        <div class="card-name">KPI & Visibility Tracker</div>
+        <div class="card-desc">Monitor key performance indicators and team visibility metrics. Track progress against targets with real-time dashboards.</div>
+        <div class="card-features">
+          <span class="feature-tag">KPI Dashboard</span>
+          <span class="feature-tag">Visibility Reports</span>
+          <span class="feature-tag">Target Tracking</span>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-launch">
+          <span class="launch-text launch-text-kpi">Launch tool</span>
+          <div class="launch-icon launch-icon-kpi"><i class="fa-solid fa-arrow-right"></i></div>
+        </div>
+      </a>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    Aegis Hub &middot; Digital Marketing Operations &middot; Internal Use Only
+  </footer>
+
+  <script>
+    if (sessionStorage.getItem('aegis_auth') !== 'true') {
+      window.location.replace('login.html');
+    }
+
+    document.getElementById('navDate').textContent =
+      new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    document.getElementById('signOutBtn').addEventListener('click', () => {
+      sessionStorage.removeItem('aegis_auth');
+      window.location.replace('login.html');
+    });
+  </script>
+</body>
+</html>

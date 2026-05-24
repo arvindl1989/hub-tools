@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Tracker — Aegis Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --color-primary: #6366f1;
+      --color-primary-dark: #4f46e5;
+      --color-secondary: #0ea5e9;
+      --sidebar-bg: #1e293b;
+      --sidebar-text: #94a3b8;
+      --sidebar-text-hover: #f8fafc;
+      --sidebar-active-bg: #334155;
+      --color-background: #f8fafc;
+      --color-surface: #ffffff;
+      --color-text-primary: #0f172a;
+      --color-text-secondary: #64748b;
+      --color-border: #e2e8f0;
+      --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --radius: 12px;
+    }
+    *, *:before, *:after { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--color-background);
+      margin: 0; padding: 0;
+      font-size: 15px;
+      color: var(--color-text-primary);
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Hub Nav ── */
+    .hub-nav {
+      height: 44px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      padding: 0 1.25rem;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 200;
+    }
+    .hub-nav a {
+      display: flex; align-items: center; gap: 6px;
+      text-decoration: none; color: #94a3b8;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px;
+      border: 1px solid #334155;
+      transition: all 0.2s;
+    }
+    .hub-nav a:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
+    .hub-nav a i { color: #6366f1; }
+    .hub-nav-sep { width: 1px; height: 16px; background: #334155; }
+    .hub-nav-tool { font-size: 0.78rem; color: #64748b; font-weight: 500; }
+    .hub-nav-spacer { flex: 1; }
+    .hub-nav-signout {
+      background: none; border: 1px solid #334155; color: #64748b;
+      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
+      font-family: 'Inter', sans-serif; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+    }
+    .hub-nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── App Layout ── */
+    .app-layout { display: flex; flex: 1; overflow: hidden; }
+
+    .sidebar {
+      width: 300px;
+      background-color: var(--sidebar-bg);
+      color: var(--sidebar-text);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      font-weight: 700; color: white; font-size: 1.1rem;
+      letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px;
+    }
+    .logo i { color: var(--color-primary); }
+    .create-btn-container { padding: 1.25rem 1.5rem 0.75rem; }
+    #createNewBtn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 0.75rem;
+      background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+      color: white; font-weight: 600; text-decoration: none;
+      border-radius: var(--radius); transition: all 0.3s ease;
+      border: none; cursor: pointer;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+    #createNewBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4); }
+    .sidebar-search { padding: 0 1.5rem 0.75rem; }
+    #searchInput {
+      width: 100%; padding: 0.65rem 1rem;
+      background-color: #334155; border: 1px solid #475569;
+      color: white; border-radius: 8px; font-size: 0.85rem; outline: none;
+      transition: border-color 0.2s;
+    }
+    #searchInput:focus { border-color: var(--color-secondary); }
+    .sidebar-sort { padding: 0 1.5rem 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
+    .sidebar-sort label { font-size: 0.7rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    #sortTicketsBy {
+      width: 100%; font-size: 0.82rem; padding: 0.5rem 0.75rem;
+      border: 1px solid #475569; border-radius: 6px;
+      background-color: #1e293b; color: #f1f5f9; cursor: pointer; outline: none;
+    }
+    .sidebar-link-btn { padding: 0 1.5rem 1rem; }
+    #linkToolsBtn {
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      width: 100%; padding: 0.6rem;
+      background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.25);
+      color: #a5b4fc; font-weight: 600; font-size: 0.82rem;
+      border-radius: 8px; cursor: pointer; transition: all 0.2s;
+    }
+    #linkToolsBtn:hover { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.4); }
+    #linkToolsBtn.active { background: rgba(99,102,241,0.25); border-color: #6366f1; color: white; }
+    #ticket-list {
+      padding: 0 1rem 1.5rem; margin: 0;
+      overflow-y: auto; flex-grow: 1;
+      scrollbar-width: thin; scrollbar-color: #475569 transparent;
+    }
+    .specialist-group { margin-bottom: 1.25rem; }
+    .specialist-header { display: flex; align-items: center; gap: 8px; padding: 0.4rem 0.5rem; margin-bottom: 0.4rem; }
+    .specialist-avatar {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: linear-gradient(135deg, #cbd5e1, #94a3b8);
+      color: #1e293b; display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700;
+    }
+    .specialist-name { color: #e2e8f0; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+    .ticket-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.75rem 0.9rem; margin-bottom: 0.5rem;
+      border-radius: 8px; cursor: pointer; transition: all 0.2s;
+      background-color: rgba(255,255,255,0.04); border: 1px solid transparent;
+    }
+    .ticket-item:hover { background-color: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.1); }
+    .ticket-item.active { background-color: var(--sidebar-active-bg); border: 1px solid #475569; border-left: 3px solid var(--color-secondary); }
+    .ticket-details { flex-grow: 1; overflow: hidden; padding-right: 0.5rem; }
+    .ticket-id { font-weight: 600; color: #f1f5f9; display: block; font-size: 0.9rem; margin-bottom: 1px; }
+    .ticket-title { font-size: 0.76rem; color: #94a3b8; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .actions { display: flex; align-items: center; gap: 5px; opacity: 0; transition: opacity 0.2s; }
+    .ticket-item:hover .actions, .ticket-item.active .actions { opacity: 1; }
+    .icon-btn { border: none; background: none; color: #cbd5e1; cursor: pointer; padding: 3px; font-size: 0.85rem; transition: color 0.2s; }
+    .icon-btn.edit:hover { color: var(--color-secondary); }
+    .icon-btn.delete:hover { color: #ef4444; }
+
+    /* ── Main Content ── */
+    .main-content { flex-grow: 1; padding: 0; overflow-y: auto; background-color: #f1f5f9; position: relative; }
+    .content-wrapper { max-width: 1000px; margin: 0 auto; padding: 2.5rem 3rem; }
+    .main-header { margin-bottom: 2rem; }
+    .main-header h1 { color: var(--color-text-primary); font-size: 1.75rem; font-weight: 700; margin: 0 0 0.4rem 0; letter-spacing: -0.02em; }
+    .main-header p { color: var(--color-text-secondary); font-size: 1rem; margin: 0; }
+    .form-section {
+      background: var(--color-surface); padding: 1.75rem; border-radius: var(--radius);
+      margin-bottom: 1.75rem; box-shadow: var(--shadow-sm); border: 1px solid var(--color-border);
+    }
+    h2 {
+      font-size: 1rem; font-weight: 600; color: var(--color-text-primary);
+      margin-top: 0; margin-bottom: 1.25rem; padding-bottom: 0.65rem;
+      border-bottom: 1px solid var(--color-border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    h2 i { color: var(--color-primary); }
+    .grid-3-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+    .grid-2-col { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+    .full-width { grid-column: 1 / -1; }
+    label { display: block; margin-bottom: 0.4rem; font-weight: 500; font-size: 0.85rem; color: var(--color-text-secondary); }
+    input, select, textarea {
+      width: 100%; padding: 0.7rem 0.9rem;
+      border: 1px solid var(--color-border); border-radius: 8px;
+      font-size: 0.9rem; transition: all 0.2s;
+      background-color: #fff; color: var(--color-text-primary);
+      font-family: 'Inter', sans-serif;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+    input[readonly] { background-color: #f8fafc; color: #94a3b8; cursor: not-allowed; }
+    .input-with-button { position: relative; display: flex; align-items: center; }
+    .suggest-btn {
+      position: absolute; right: 8px; top: 6px; bottom: 6px;
+      background: #eff6ff; border: none; color: var(--color-primary);
+      font-weight: 600; padding: 0 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+    }
+    .suggest-btn:hover { background: #dbeafe; }
+    #main-action-btn {
+      width: 100%; padding: 0.9rem; font-size: 1rem; font-weight: 600;
+      color: white; border: none; border-radius: var(--radius);
+      cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-md);
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    #main-action-btn.create-mode { background: linear-gradient(to right, #10b981, #059669); }
+    #main-action-btn.edit-mode { background: linear-gradient(to right, var(--color-primary), var(--color-primary-dark)); }
+    #main-action-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    #main-action-btn:disabled { background: #94a3b8; cursor: wait; transform: none; }
+    #loading { margin-top: 1rem; text-align: center; color: var(--color-text-secondary); font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .spinner { width: 18px; height: 18px; border: 2px solid #e2e8f0; border-top-color: var(--color-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .result-box { background-color: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 1.75rem; margin-bottom: 1.25rem; position: relative; box-shadow: var(--shadow-sm); }
+    .subject-box { background-color: #eff6ff; border-color: #dbeafe; padding: 1.1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
+    .subject-box pre { margin: 0; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 500; color: #1e3a8a; white-space: pre-wrap; flex-grow: 1; }
+    .email-content { white-space: pre-wrap; margin: 0; font-family: 'Inter', sans-serif; font-size: 0.95rem; line-height: 1.7; color: var(--color-text-primary); }
+    .email-content a { color: var(--color-primary); text-decoration: underline; font-weight: 500; }
+    .copy-btn {
+      position: absolute; top: 1rem; right: 1rem;
+      background: white; border: 1px solid var(--color-border); border-radius: 6px;
+      padding: 5px 10px; cursor: pointer; color: var(--color-text-secondary);
+      font-weight: 600; font-size: 0.8rem; transition: all 0.2s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .copy-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+    .enhance-btn { background: white; border: 1px solid #bfdbfe; color: var(--color-primary); border-radius: 6px; padding: 5px 10px; font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+    .enhance-btn:hover { background: #eff6ff; }
+    .tabs { display: flex; border-bottom: 1px solid var(--color-border); margin-bottom: 1.75rem; gap: 1.5rem; }
+    .tab-link { background: none; border: none; border-bottom: 2px solid transparent; padding: 0.65rem 0; cursor: pointer; font-size: 0.9rem; font-weight: 500; color: var(--color-text-secondary); transition: all 0.2s; font-family: 'Inter', sans-serif; }
+    .tab-link:hover { color: var(--color-primary); }
+    .tab-link.active { border-bottom-color: var(--color-primary); color: var(--color-primary); font-weight: 600; }
+    .sub-tabs { display: flex; background: #f1f5f9; padding: 4px; border-radius: 8px; margin-bottom: 1.25rem; width: fit-content; }
+    .sub-tab-link { background: transparent; border: none; padding: 5px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: var(--color-text-secondary); cursor: pointer; font-family: 'Inter', sans-serif; }
+    .sub-tab-link.active { background: white; color: var(--color-text-primary); box-shadow: var(--shadow-sm); font-weight: 600; }
+    .tab-content, .sub-tab-content { display: none; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .hidden { display: none !important; }
+    .mode-toggle-container { display: flex; align-items: center; gap: 10px; margin-top: 1.25rem; }
+
+    /* ── Link Generator ── */
+    .link-gen-btn {
+      display: flex; align-items: center; gap: 7px;
+      padding: 0.7rem 1.25rem;
+      background: linear-gradient(to right, var(--color-primary), var(--color-primary-dark));
+      color: white; border: none; border-radius: var(--radius);
+      cursor: pointer; font-weight: 600; font-size: 0.9rem;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.2s; box-shadow: var(--shadow-sm);
+    }
+    .link-gen-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .link-result-box {
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 8px; padding: 0.9rem 1rem;
+      margin-top: 1rem; position: relative;
+    }
+    .link-result-box code {
+      display: block; word-break: break-all;
+      font-size: 0.85rem; color: var(--color-primary);
+      padding-right: 70px; line-height: 1.5;
+      font-family: 'Courier New', monospace;
+    }
+    .link-copy-btn {
+      position: absolute; top: 0.7rem; right: 0.7rem;
+      background: white; border: 1px solid var(--color-border);
+      border-radius: 6px; padding: 4px 10px;
+      cursor: pointer; color: var(--color-text-secondary);
+      font-size: 0.78rem; font-weight: 600;
+      display: flex; align-items: center; gap: 4px;
+      transition: all 0.2s; font-family: 'Inter', sans-serif;
+    }
+    .link-copy-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+    .link-meta {
+      margin-top: 0.65rem; padding: 0.65rem 0.85rem;
+      background: white; border: 1px solid #e2e8f0;
+      border-radius: 6px; font-size: 0.8rem;
+      color: var(--color-text-secondary); line-height: 1.8;
+    }
+    .link-meta strong { color: var(--color-text-primary); }
+    .link-error {
+      margin-top: 0.75rem; padding: 0.65rem 0.85rem;
+      background: #fef2f2; border: 1px solid #fecaca;
+      border-radius: 6px; color: #dc2626;
+      font-size: 0.82rem; display: flex; align-items: flex-start; gap: 6px;
+    }
+    .link-success-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #d1fae5; color: #065f46;
+      font-size: 0.75rem; font-weight: 600;
+      padding: 3px 8px; border-radius: 20px; margin-bottom: 0.5rem;
+    }
+
+    /* Bulk row styles */
+    .bulk-row { padding: 1rem; border: 1px solid var(--color-border); border-radius: 8px; background: #f8fafc; position: relative; }
+  </style>
+</head>
+<body>
+
+  <!-- Hub Nav -->
+  <nav class="hub-nav">
+    <a href="../index.html"><i class="fa-solid fa-shield-halved"></i> Aegis Hub</a>
+    <div class="hub-nav-sep"></div>
+    <span class="hub-nav-tool">Email Tracker</span>
+    <div class="hub-nav-spacer"></div>
+    <button class="hub-nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
+  </nav>
+
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo"><i class="fa-solid fa-shield-halved"></i> Aegis Pro</div>
+      </div>
+
+      <div class="create-btn-container">
+        <a href="#" id="createNewBtn"><i class="fa-solid fa-plus"></i> Create New Ticket</a>
+      </div>
+
+      <div class="sidebar-search">
+        <input type="text" id="searchInput" placeholder="Search tickets...">
+      </div>
+
+      <div class="sidebar-sort">
+        <label for="sortTicketsBy">Sort By</label>
+        <select id="sortTicketsBy">
+          <option value="id_desc">Ticket ID (Highest first)</option>
+          <option value="id_asc">Ticket ID (Lowest first)</option>
+          <option value="sla_asc">SLA (Earliest first)</option>
+          <option value="sla_desc">SLA (Latest first)</option>
+        </select>
+      </div>
+
+      <div class="sidebar-link-btn">
+        <button type="button" id="linkToolsBtn">
+          <i class="fa-solid fa-link"></i> Link Generator
+        </button>
+      </div>
+
+      <div id="ticket-list"></div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Form Container -->
+      <div id="form-container">
+        <div class="content-wrapper">
+          <header class="main-header">
+            <h1 id="form-title">Create New Ticket</h1>
+            <p id="form-subtitle">Fill out the form to generate a new set of perfectly formatted emails.</p>
+            <div class="mode-toggle-container">
+              <span id="label-single" style="font-weight:600; color:var(--color-primary);">Single Ticket Mode</span>
+              <label style="position:relative; display:inline-block; width:46px; height:24px;">
+                <input type="checkbox" id="bulkModeToggle" style="opacity:0; width:0; height:0;">
+                <span style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#cbd5e1; transition:.4s; border-radius:24px;">
+                  <span class="slider-knob" style="position:absolute; height:18px; width:18px; left:3px; bottom:3px; background-color:white; transition:.4s; border-radius:50%;"></span>
+                </span>
+              </label>
+              <span id="label-bulk" style="color:var(--color-text-secondary);">Bulk Ticket Mode</span>
+            </div>
+          </header>
+
+          <form id="ticket-form">
+            <div id="single-mode-container">
+              <div class="form-section">
+                <h2><i class="fa-solid fa-globe"></i> Stakeholder & Location</h2>
+                <div class="grid-3-col">
+                  <div><label for="ticketCreator">Ticket Creator Name</label><input type="text" id="ticketCreator" placeholder="e.g. John Doe"></div>
+                  <div><label for="region">Region</label><input type="text" id="region" placeholder="e.g. EMEA"></div>
+                  <div><label for="country">Country</label><input type="text" id="country" placeholder="e.g. Finland"></div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h2><i class="fa-solid fa-circle-info"></i> Request Details</h2>
+                <div class="grid-2-col">
+                  <div><label for="ticketNumber">Ticket Number</label><input type="text" id="ticketNumber" placeholder="e.g. 12345"></div>
+                  <div>
+                    <label for="assignedSpecialist">Assigned Specialist</label>
+                    <select id="assignedSpecialist">
+                      <option>Arvind</option>
+                      <option>Akshayaa</option>
+                      <option>Akshaya</option>
+                    </select>
+                  </div>
+                  <div class="full-width"><label for="ticketTitle">Full Title of the Ticket</label><input type="text" id="ticketTitle" placeholder="The full subject from the hub"></div>
+                  <div>
+                    <label for="serviceType">Service Type (Auto-sets SLA)</label>
+                    <select id="serviceType">
+                      <option value="">Select Service Type...</option>
+                      <option value="Content Production – Graphic Design">Content Production – Graphic Design</option>
+                      <option value="Website Content Management">Website Content Management (10 days)</option>
+                      <option value="Demand Creation – Global">Demand Creation – Global (30 days)</option>
+                      <option value="Retention – Global">Retention – Global (30 days)</option>
+                      <option value="Email Local">Email Local (7 days)</option>
+                    </select>
+                  </div>
+                  <div id="serviceTierContainer" class="hidden">
+                    <label for="serviceTier">Service Tier</label>
+                    <select id="serviceTier">
+                      <option value="">Select Tier...</option>
+                      <option value="Tier One">Tier One (5 days)</option>
+                      <option value="Tier Two">Tier Two (10 days)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="requestType">Request Type</label>
+                    <select id="requestType">
+                      <option>New Page Creation</option>
+                      <option>Existing Page Updates</option>
+                      <option>Press Release Publishing</option>
+                      <option>SEO Optimization</option>
+                      <option>Global Journey Deployment</option>
+                      <option>Local Journey Deployment</option>
+                      <option>Brand Updates</option>
+                    </select>
+                  </div>
+                  <div><label for="slaDate">SLA Date (Calculated)</label><input type="date" id="slaDate"></div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h2><i class="fa-solid fa-link"></i> Stage-Specific Information</h2>
+                <div class="grid-2-col">
+                  <div class="full-width"><label for="preferredLiveDate">Preferred Live Date</label><input type="date" id="preferredLiveDate"></div>
+                  <div><label for="previewLinks">Preview Links (one per line)</label><textarea id="previewLinks" rows="3" placeholder="https://..."></textarea></div>
+                  <div><label for="liveSiteLinks">Live Site Links (one per line)</label><textarea id="liveSiteLinks" rows="3" placeholder="https://..."></textarea></div>
+                  <div class="full-width"><label for="changeRequestFormLink">Change Request Form Link</label><input type="url" id="changeRequestFormLink" placeholder="https://..." value="https://forms.office.com/Pages/ResponsePage.aspx?id=ExampleChangeFormLink"></div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h2><i class="fa-solid fa-pause"></i> On Hold Information (Optional)</h2>
+                <div class="grid-3-col">
+                  <div><label for="onHoldDate">On Hold Date</label><input type="date" id="onHoldDate"></div>
+                  <div><label for="closureDate">Closure Date (Auto +13 days)</label><input type="date" id="closureDate" readonly></div>
+                  <div class="full-width">
+                    <label for="onHoldReason">Reason for Hold</label>
+                    <div class="input-with-button">
+                      <input type="text" id="onHoldReason" placeholder="e.g., awaiting additional information">
+                      <button type="button" class="suggest-btn" id="suggestReasonBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Suggest</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bulk Mode -->
+            <div id="bulk-mode-container" class="hidden">
+              <div class="form-section">
+                <h2><i class="fa-solid fa-layer-group"></i> Bulk Ticket Entry (Up to 10)</h2>
+                <p style="margin-bottom:1rem; color:var(--color-text-secondary); font-size:0.88rem;">Enter multiple tickets. Remaining fields (Links, On Hold) apply to all.</p>
+                <div id="bulk-rows" style="display:flex; flex-direction:column; gap:1rem;"></div>
+                <button type="button" id="add-bulk-row-btn" style="margin-top:1rem; background:#eff6ff; color:var(--color-primary); border:1px dashed var(--color-primary); padding:0.5rem 1rem; border-radius:6px; cursor:pointer; font-weight:500; font-family:'Inter',sans-serif;">
+                  <i class="fa-solid fa-plus"></i> Add Ticket Row
+                </button>
+              </div>
+            </div>
+
+            <div style="margin-top:1.75rem;">
+              <button type="button" id="main-action-btn" class="create-mode">
+                <i class="fa-solid fa-rocket"></i> Create Ticket & Generate Emails
+              </button>
+              <div id="loading" class="hidden">
+                <div class="spinner"></div>
+                <span>Communicating with the AI... please wait.</span>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Display Area -->
+      <div id="ticket-display-area" class="hidden">
+        <div class="content-wrapper">
+          <header class="main-header">
+            <h1 id="display-ticket-title">Generated Emails</h1>
+            <button class="enhance-btn" onclick="document.getElementById('ticket-display-area').classList.add('hidden'); document.getElementById('form-container').classList.remove('hidden');" style="margin-top:8px;">
+              <i class="fa-solid fa-arrow-left"></i> Back to Form
+            </button>
+          </header>
+          <h3 style="margin-bottom:0.75rem; font-size:1rem;">Subject Line Options</h3>
+          <div id="subject-options-container"></div>
+          <div id="bulkTabsContainer" class="tabs hidden"></div>
+          <div class="tabs" id="stageTabsContainer">
+            <button class="tab-link active" onclick="window.openStage(event, 'Assigned')">Assigned</button>
+            <button class="tab-link" onclick="window.openStage(event, 'Confirmation')">Confirmation</button>
+            <button class="tab-link" onclick="window.openStage(event, 'Preview')">Preview</button>
+            <button class="tab-link" onclick="window.openStage(event, 'OnHold')">On Hold</button>
+            <button class="tab-link" onclick="window.openStage(event, 'Live')">Live</button>
+          </div>
+          <div id="Assigned" class="tab-content" style="display:block;"><div class="result-box"><div id="emailBodyAssigned" class="email-content"></div><button class="copy-btn" onclick="window.copyToClipboard('emailBodyAssigned')"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+          <div id="Confirmation" class="tab-content"><div class="result-box"><div id="emailBodyConfirmation" class="email-content"></div><button class="copy-btn" onclick="window.copyToClipboard('emailBodyConfirmation')"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+          <div id="Preview" class="tab-content"><div class="result-box"><div id="emailBodyPreview" class="email-content"></div><button class="copy-btn" onclick="window.copyToClipboard('emailBodyPreview')"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+          <div id="OnHold" class="tab-content">
+            <div class="sub-tabs">
+              <button class="sub-tab-link active" onclick="window.openOnHoldStage(event,'Initial')">Initial</button>
+              <button class="sub-tab-link" onclick="window.openOnHoldStage(event,'Reminder1')">1st Reminder</button>
+              <button class="sub-tab-link" onclick="window.openOnHoldStage(event,'Reminder2')">Final Reminder</button>
+              <button class="sub-tab-link" onclick="window.openOnHoldStage(event,'Closure')">Closure</button>
+            </div>
+            <div id="Initial" class="sub-tab-content" style="display:block;"><div class="result-box"><div id="emailBodyOnHoldInitial" class="email-content"></div><button class="copy-btn" onclick="window.copyToClipboard('emailBodyOnHoldInitial')"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+            <div id="Reminder1" class="sub-tab-content"><div class="result-box"><div id="emailBodyOnHoldReminder1" class="email-content"></div><button class="copy-btn" onclick="window.copyToClipboard('emailBodyOnHoldReminder1')"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+            <div id="Reminder2" class="sub-tab-content"><div class="result-box"><div id="emailBodyOnHoldReminder2" class="email-content"></div><button class="copy-btn" onclick="window.copyToClipboard('emailBodyOnHoldReminder2')"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+            <div id="Closure" class="sub-tab-content"><div class="result-box"><div id="emailBodyOnHoldClosure" class="email-content"></div><button class="copy-btn" onclick="window.copyToClipboard('emailBodyOnHoldClosure')"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+          </div>
+          <div id="Live" class="tab-content"><div class="result-box"><div id="emailBodyLive" class="email-content"></div><button class="copy-btn" onclick="window.copyToClipboard('emailBodyLive')"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+        </div>
+      </div>
+
+      <!-- Link Tools Container -->
+      <div id="link-tools-container" class="hidden">
+        <div class="content-wrapper">
+          <header class="main-header">
+            <h1><i class="fa-solid fa-link" style="color:var(--color-primary); font-size:1.5rem;"></i> Link Generator</h1>
+            <p>Convert internal ServiceNow URLs into clean, shareable case and feedback links.</p>
+          </header>
+
+          <div class="grid-2-col">
+            <!-- Case Link -->
+            <div class="form-section">
+              <h2><i class="fa-solid fa-ticket"></i> Case Link</h2>
+              <div style="margin-bottom:1rem;">
+                <label for="caseUrlInput">Paste ServiceNow Case URL</label>
+                <textarea id="caseUrlInput" rows="5" placeholder="https://koneprod.service-now.com/now/nav/ui/classic/params/target/..."></textarea>
+              </div>
+              <button type="button" class="link-gen-btn" id="genCaseBtn">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Case Link
+              </button>
+              <div id="caseError" class="link-error hidden"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+              <div id="caseResult" class="hidden">
+                <div style="margin-top:0.75rem;">
+                  <div class="link-success-badge"><i class="fa-solid fa-check"></i> Link Generated</div>
+                  <div class="link-result-box">
+                    <code id="caseOutput"></code>
+                    <button class="link-copy-btn" id="caseCopyBtn"><i class="fa-regular fa-copy"></i> Copy</button>
+                  </div>
+                  <div class="link-meta" id="caseMeta"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Feedback Link -->
+            <div class="form-section">
+              <h2><i class="fa-solid fa-star"></i> Feedback Survey Link</h2>
+              <div style="margin-bottom:1rem;">
+                <label for="feedbackUrlInput">Paste ServiceNow Survey URL</label>
+                <textarea id="feedbackUrlInput" rows="5" placeholder="https://koneprod.service-now.com/asmt_assessment_instance.do?sys_id=..."></textarea>
+              </div>
+              <button type="button" class="link-gen-btn" id="genFeedbackBtn">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Feedback Link
+              </button>
+              <div id="feedbackError" class="link-error hidden"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+              <div id="feedbackResult" class="hidden">
+                <div style="margin-top:0.75rem;">
+                  <div class="link-success-badge"><i class="fa-solid fa-check"></i> Link Generated</div>
+                  <div class="link-result-box">
+                    <code id="feedbackOutput"></code>
+                    <button class="link-copy-btn" id="feedbackCopyBtn"><i class="fa-regular fa-copy"></i> Copy</button>
+                  </div>
+                  <div class="link-meta" id="feedbackMeta"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- How it works -->
+          <div class="form-section" style="background: #f8fafc;">
+            <h2><i class="fa-solid fa-circle-question"></i> How It Works</h2>
+            <div class="grid-2-col" style="font-size:0.85rem; color:var(--color-text-secondary); line-height:1.7;">
+              <div>
+                <strong style="color:var(--color-text-primary);">Case Link</strong><br>
+                Copy the full URL from the ServiceNow agent view (the long <code style="background:#e2e8f0; padding:1px 5px; border-radius:3px;">/now/nav/ui/classic/params/target/</code> URL). The generator extracts the table name and sys_id to build a clean ESC link.
+              </div>
+              <div>
+                <strong style="color:var(--color-text-primary);">Feedback Survey Link</strong><br>
+                Copy the URL from the ServiceNow survey instance view (the <code style="background:#e2e8f0; padding:1px 5px; border-radius:3px;">asmt_assessment_instance.do</code> URL). The generator extracts the instance ID to build a direct survey link for the end user.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+    import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+    if (sessionStorage.getItem('aegis_auth') !== 'true') {
+      window.location.replace('../login.html');
+    }
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCNl9DZviuY_nhsT2caL_EoX-TbxgCJlJE",
+      authDomain: "aegis-email-generator.firebaseapp.com",
+      projectId: "aegis-email-generator",
+      storageBucket: "aegis-email-generator.firebasestorage.app",
+      messagingSenderId: "796021338760",
+      appId: "1:796021338760:web:f90a8fda19e2ebced7e53d"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // NOTE: Move this key to a backend proxy before sharing publicly.
+    const API_KEY = "YOUR_OPENAI_API_KEY_HERE";
+
+    let tickets = []; let activeTicketId = null; let appMode = 'create';
+    const DOM = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+      Object.assign(DOM, {
+        ticketList: document.getElementById('ticket-list'),
+        displayArea: document.getElementById('ticket-display-area'),
+        formContainer: document.getElementById('form-container'),
+        linkToolsContainer: document.getElementById('link-tools-container'),
+        ticketForm: document.getElementById('ticket-form'),
+        mainActionBtn: document.getElementById('main-action-btn'),
+        loading: document.getElementById('loading'),
+        createNewBtn: document.getElementById('createNewBtn'),
+        formTitle: document.getElementById('form-title'),
+        formSubtitle: document.getElementById('form-subtitle'),
+        ticketNumberInput: document.getElementById('ticketNumber'),
+        subjectOptionsContainer: document.getElementById('subject-options-container'),
+        onHoldDateInput: document.getElementById('onHoldDate'),
+        suggestReasonBtn: document.getElementById('suggestReasonBtn'),
+        onHoldReasonInput: document.getElementById('onHoldReason'),
+        searchInput: document.getElementById('searchInput'),
+        serviceTypeInput: document.getElementById('serviceType'),
+        slaDateInput: document.getElementById('slaDate'),
+        bulkModeToggle: document.getElementById('bulkModeToggle'),
+        singleModeContainer: document.getElementById('single-mode-container'),
+        bulkModeContainer: document.getElementById('bulk-mode-container'),
+        bulkRowsContainer: document.getElementById('bulk-rows'),
+        addBulkRowBtn: document.getElementById('add-bulk-row-btn'),
+        serviceTierContainer: document.getElementById('serviceTierContainer'),
+        serviceTierInput: document.getElementById('serviceTier'),
+        bulkTabsContainer: document.getElementById('bulkTabsContainer'),
+        stageTabsContainer: document.getElementById('stageTabsContainer'),
+        sortTicketsBy: document.getElementById('sortTicketsBy'),
+        linkToolsBtn: document.getElementById('linkToolsBtn')
+      });
+
+      DOM.mainActionBtn.addEventListener('click', onMainActionClick);
+      DOM.createNewBtn.addEventListener('click', showNewTicketForm);
+      DOM.onHoldDateInput.addEventListener('change', updateClosureDate);
+      DOM.serviceTypeInput.addEventListener('change', (e) => {
+        handleServiceTypeChange(e.target.value, DOM.serviceTierContainer, DOM.serviceTierInput);
+        calculateSLA(e.target.value, DOM.serviceTierInput.value, DOM.slaDateInput);
+      });
+      DOM.serviceTierInput.addEventListener('change', (e) => {
+        calculateSLA(DOM.serviceTypeInput.value, e.target.value, DOM.slaDateInput);
+      });
+      DOM.suggestReasonBtn.addEventListener('click', onSuggestReason);
+      DOM.searchInput.addEventListener('input', handleSearch);
+      DOM.sortTicketsBy.addEventListener('change', () => renderTicketList());
+      DOM.bulkModeToggle.addEventListener('change', toggleBulkMode);
+      DOM.addBulkRowBtn.addEventListener('click', addBulkRow);
+      DOM.linkToolsBtn.addEventListener('click', showLinkTools);
+
+      document.getElementById('signOutBtn').addEventListener('click', () => {
+        sessionStorage.removeItem('aegis_auth');
+        window.location.replace('../login.html');
+      });
+
+      loadTicketsFromFirebase();
+      showNewTicketForm();
+    });
+
+    function showLinkTools() {
+      DOM.formContainer.classList.add('hidden');
+      DOM.displayArea.classList.add('hidden');
+      DOM.linkToolsContainer.classList.remove('hidden');
+      DOM.linkToolsBtn.classList.add('active');
+      activeTicketId = null;
+      renderTicketList();
+    }
+
+    function hideLinkTools() {
+      DOM.linkToolsContainer.classList.add('hidden');
+      DOM.linkToolsBtn.classList.remove('active');
+    }
+
+    let isBulkMode = false;
+    function toggleBulkMode(e) {
+      isBulkMode = e.target.checked;
+      if (isBulkMode) {
+        DOM.singleModeContainer.classList.add('hidden');
+        DOM.bulkModeContainer.classList.remove('hidden');
+        document.getElementById('label-single').style.color = 'var(--color-text-secondary)';
+        document.getElementById('label-bulk').style.color = 'var(--color-primary)';
+        document.getElementById('label-bulk').style.fontWeight = '600';
+        if (DOM.bulkRowsContainer.children.length === 0) addBulkRow();
+      } else {
+        DOM.bulkModeContainer.classList.add('hidden');
+        DOM.singleModeContainer.classList.remove('hidden');
+        document.getElementById('label-bulk').style.color = 'var(--color-text-secondary)';
+        document.getElementById('label-bulk').style.fontWeight = '500';
+        document.getElementById('label-single').style.color = 'var(--color-primary)';
+        document.getElementById('label-single').style.fontWeight = '600';
+      }
+    }
+
+    function addBulkRow() {
+      if (DOM.bulkRowsContainer.children.length >= 10) { alert("Maximum 10 tickets in bulk mode."); return; }
+      const rowCount = DOM.bulkRowsContainer.children.length + 1;
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'bulk-row grid-3-col';
+      rowDiv.innerHTML = `
+        <div style="position:absolute; top:10px; right:10px;">
+          <button type="button" class="icon-btn delete" onclick="this.parentElement.parentElement.remove(); updateBulkRowNumbers();" style="color:#ef4444;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="full-width" style="font-weight:600; color:var(--color-text-secondary); margin-bottom:-0.5rem; font-size:0.82rem; text-transform:uppercase;">Ticket <span class="row-num">${rowCount}</span></div>
+        <div><label>Ticket Number</label><input type="text" class="bulk-ticketNumber" placeholder="e.g. 12345"></div>
+        <div><label>Ticket Creator</label><input type="text" class="bulk-ticketCreator" placeholder="e.g. John Doe"></div>
+        <div><label>Region / Country</label><div style="display:flex; gap:0.5rem;"><input type="text" class="bulk-region" placeholder="Region" style="width:50%;"><input type="text" class="bulk-country" placeholder="Country" style="width:50%;"></div></div>
+        <div class="full-width"><label>Full Title of the Ticket</label><input type="text" class="bulk-ticketTitle" placeholder="The full subject from the hub"></div>
+        <div>
+          <label>Service Type</label>
+          <select class="bulk-serviceType">
+            <option value="">Select Service Type...</option>
+            <option value="Content Production – Graphic Design">Content Production – Graphic Design</option>
+            <option value="Website Content Management">Website Content Management (10 days)</option>
+            <option value="Demand Creation – Global">Demand Creation – Global (30 days)</option>
+            <option value="Retention – Global">Retention – Global (30 days)</option>
+            <option value="Email Local">Email Local (7 days)</option>
+          </select>
+        </div>
+        <div class="bulk-tier-container hidden"><label>Service Tier</label><select class="bulk-serviceTier"><option value="">Select Tier...</option><option value="Tier One">Tier One (5 days)</option><option value="Tier Two">Tier Two (10 days)</option></select></div>
+        <div><label>SLA Date</label><input type="date" class="bulk-slaDate" readonly style="background:#e2e8f0;"></div>
+        <div><label>Preferred Live Date</label><input type="date" class="bulk-preferredLiveDate"></div>`;
+
+      const stEl = rowDiv.querySelector('.bulk-serviceType');
+      const tcEl = rowDiv.querySelector('.bulk-tier-container');
+      const tiEl = rowDiv.querySelector('.bulk-serviceTier');
+      const slEl = rowDiv.querySelector('.bulk-slaDate');
+      stEl.addEventListener('change', (e) => { handleServiceTypeChange(e.target.value, tcEl, tiEl); calculateSLA(e.target.value, tiEl.value, slEl); });
+      tiEl.addEventListener('change', (e) => { calculateSLA(stEl.value, e.target.value, slEl); });
+      DOM.bulkRowsContainer.appendChild(rowDiv);
+      updateBulkRowNumbers();
+    }
+
+    function updateBulkRowNumbers() {
+      DOM.bulkRowsContainer.querySelectorAll('.bulk-row').forEach((r, i) => { r.querySelector('.row-num').innerText = i + 1; });
+    }
+
+    function handleServiceTypeChange(val, tcEl, tiEl) {
+      if (val === "Content Production – Graphic Design") { tcEl.classList.remove('hidden'); }
+      else { tcEl.classList.add('hidden'); tiEl.value = ""; }
+      const rtEl = document.getElementById('requestType');
+      if (rtEl) {
+        const gdOpts = ["Brochures","Social Media","Videos","Illustrations and animations","Powerpoint","Print","Digital Assets","Reference Case"];
+        const defOpts = ["New Page Creation","Existing Page Updates","Press Release Publishing","SEO Optimization","Global Journey Deployment","Local Journey Deployment","Brand Updates"];
+        const opts = val === "Content Production – Graphic Design" ? gdOpts : defOpts;
+        const cur = rtEl.value;
+        rtEl.innerHTML = '';
+        opts.forEach(o => { const op = document.createElement('option'); op.value = op.innerText = o; rtEl.appendChild(op); });
+        if (opts.includes(cur)) rtEl.value = cur;
+      }
+    }
+
+    function getInitials(name) { return name ? name.substring(0, 2).toUpperCase() : "??"; }
+
+    function calculateSLA(serviceTypeValue, tierValue, targetInputEl) {
+      const today = new Date();
+      let daysToAdd = 0;
+      if (serviceTypeValue === "Content Production – Graphic Design") {
+        if (tierValue === "Tier One") daysToAdd = 5;
+        else if (tierValue === "Tier Two") daysToAdd = 10;
+        else return;
+      } else if (serviceTypeValue === "Website Content Management") { daysToAdd = 10; }
+      else if (serviceTypeValue === "Email Local") { daysToAdd = 7; }
+      else if (serviceTypeValue === "Demand Creation – Global" || serviceTypeValue === "Retention – Global") { daysToAdd = 30; }
+      else return;
+      targetInputEl.value = formatDateForInput(addWorkingDays(formatDateForInput(today), daysToAdd));
+    }
+
+    function switchAppMode(mode, ticketId = null) {
+      appMode = mode; activeTicketId = ticketId;
+      hideLinkTools();
+      if (mode === 'create') {
+        DOM.formTitle.innerHTML = 'Create New Ticket';
+        DOM.formSubtitle.innerText = 'Fill out the form to generate a new set of ticket emails.';
+        DOM.mainActionBtn.innerHTML = '<i class="fa-solid fa-rocket"></i> Create Ticket & Generate Emails';
+        DOM.mainActionBtn.className = 'create-mode';
+        DOM.ticketNumberInput.readOnly = false;
+        DOM.displayArea.classList.add('hidden');
+        DOM.formContainer.classList.remove('hidden');
+      } else if (mode === 'edit') {
+        const ticket = tickets.find(t => t.id === ticketId);
+        DOM.formTitle.innerHTML = `Editing Ticket <b>#${ticket.id}</b>`;
+        DOM.formSubtitle.innerText = 'Update the details below and save to regenerate the emails.';
+        DOM.mainActionBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes & Regenerate';
+        DOM.mainActionBtn.className = 'edit-mode';
+        DOM.ticketNumberInput.readOnly = true;
+        DOM.displayArea.classList.add('hidden');
+        DOM.formContainer.classList.remove('hidden');
+      } else if (mode === 'view') {
+        DOM.formContainer.classList.add('hidden');
+        DOM.displayArea.classList.remove('hidden');
+      }
+      renderTicketList();
+    }
+
+    function showNewTicketForm(e) {
+      if (e) e.preventDefault();
+      DOM.ticketForm.reset();
+      DOM.bulkRowsContainer.innerHTML = '';
+      DOM.serviceTierContainer.classList.add('hidden');
+      switchAppMode('create');
+      if (isBulkMode) toggleBulkMode({ target: { checked: false } });
+      DOM.bulkModeToggle.checked = false;
+    }
+
+    window.copyToClipboard = (elementId) => {
+      const el = document.getElementById(elementId);
+      navigator.clipboard.writeText(el.textContent).then(() => alert('Copied!'), () => alert('Copy failed.'));
+    };
+    window.openStage = (evt, name) => {
+      const da = document.getElementById('ticket-display-area');
+      da.querySelectorAll('.tab-content').forEach(tc => tc.style.display = 'none');
+      da.querySelectorAll('.tab-link').forEach(tl => tl.classList.remove('active'));
+      document.getElementById(name).style.display = 'block';
+      evt.currentTarget.classList.add('active');
+    };
+    window.openOnHoldStage = (evt, name) => {
+      const oh = document.getElementById('OnHold');
+      oh.querySelectorAll('.sub-tab-content').forEach(tc => tc.style.display = 'none');
+      oh.querySelectorAll('.sub-tab-link').forEach(tl => tl.classList.remove('active'));
+      document.getElementById(name).style.display = 'block';
+      evt.currentTarget.classList.add('active');
+    };
+    window.openBulkMainTab = (evt, ticketId) => {
+      document.querySelectorAll('.bulk-main-tab-link').forEach(t => { t.classList.remove('active'); t.style.borderBottomColor = 'transparent'; });
+      evt.currentTarget.classList.add('active');
+      evt.currentTarget.style.borderBottomColor = 'var(--color-primary)';
+      displayTicketDetails(ticketId, true);
+    };
+
+    function renderTicketList(ticketsToRender = tickets) {
+      DOM.ticketList.innerHTML = '';
+      const grouped = ticketsToRender.reduce((acc, t) => {
+        const s = t.inputs.assignedSpecialist || 'Unassigned';
+        if (!acc[s]) acc[s] = [];
+        acc[s].push(t);
+        return acc;
+      }, {});
+      const sortMethod = DOM.sortTicketsBy ? DOM.sortTicketsBy.value : 'id_desc';
+      for (const specialist of Object.keys(grouped).sort()) {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'specialist-group';
+        groupDiv.innerHTML = `<div class="specialist-header"><div class="specialist-avatar">${getInitials(specialist)}</div><h4 class="specialist-name">${specialist}</h4></div>`;
+        const sublist = document.createElement('div');
+        grouped[specialist].sort((a, b) => {
+          if (sortMethod === 'id_desc') return b.id.localeCompare(a.id, undefined, { numeric: true });
+          if (sortMethod === 'id_asc') return a.id.localeCompare(b.id, undefined, { numeric: true });
+          const da = new Date(a.inputs.slaDate || 0), db2 = new Date(b.inputs.slaDate || 0);
+          return sortMethod === 'sla_asc' ? da - db2 : db2 - da;
+        }).forEach(ticket => {
+          const div = document.createElement('div');
+          div.className = 'ticket-item' + (ticket.id === activeTicketId ? ' active' : '');
+          div.innerHTML = `<div class="ticket-details"><span class="ticket-id"><i class="fa-solid fa-hashtag" style="font-size:0.75em; opacity:0.7; margin-right:2px;"></i>${ticket.id}</span><span class="ticket-title">${ticket.generatedContent.shortenedTitle || 'No Title'}</span><span style="display:block; font-size:0.72rem; color:#94a3b8; margin-top:3px;"><i class="fa-regular fa-calendar-check" style="margin-right:3px;"></i>SLA: ${formatDateWithSuffix(ticket.inputs.slaDate)}</span></div><div class="actions"><button class="icon-btn edit" title="Edit"><i class="fa-solid fa-pen"></i></button><button class="icon-btn delete" title="Delete"><i class="fa-solid fa-trash"></i></button></div>`;
+          sublist.appendChild(div);
+          div.querySelector('.ticket-details').addEventListener('click', () => displayTicketDetails(ticket.id));
+          div.querySelector('.edit').addEventListener('click', (e) => { e.stopPropagation(); switchToEditMode(ticket.id); });
+          div.querySelector('.delete').addEventListener('click', (e) => { e.stopPropagation(); deleteTicket(ticket.id); });
+        });
+        groupDiv.appendChild(sublist);
+        DOM.ticketList.appendChild(groupDiv);
+      }
+    }
+
+    function handleSearch() {
+      const q = DOM.searchInput.value.toLowerCase();
+      if (!q) { renderTicketList(tickets); return; }
+      renderTicketList(tickets.filter(t =>
+        t.id.toLowerCase().includes(q) ||
+        t.inputs.ticketCreator.toLowerCase().includes(q) ||
+        (t.generatedContent.shortenedTitle || '').toLowerCase().includes(q)
+      ));
+    }
+
+    window.enhanceSubject = async (ticketId, subjectIndex, button) => {
+      const ticket = tickets.find(t => t.id === ticketId); if (!ticket) return;
+      const orig = button.innerHTML; button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; button.disabled = true;
+      const prompt = `Enhance this email subject line. Preserve the structure (Action - Description with Location - Hub Ticket #Number). Only rephrase the action and description parts.\n\nOriginal: ${ticket.generatedContent.subjectOptions[subjectIndex]}\nEnhanced:`;
+      try {
+        const enhanced = await callSimpleAIApi(prompt);
+        ticket.generatedContent.subjectOptions[subjectIndex] = enhanced.trim().replace(/"/g, '');
+        await updateDoc(doc(db, "tickets", ticketId), { "generatedContent.subjectOptions": ticket.generatedContent.subjectOptions });
+        displayTicketDetails(ticketId);
+      } catch (e) { alert("Failed to enhance."); } finally { button.innerHTML = orig; button.disabled = false; }
+    };
+
+    async function onSuggestReason() {
+      const title = document.getElementById('ticketTitle').value;
+      if (!title) { alert('Enter a ticket title first.'); return; }
+      const orig = DOM.suggestReasonBtn.innerHTML;
+      DOM.suggestReasonBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; DOM.suggestReasonBtn.disabled = true;
+      try {
+        const reason = await callSimpleAIApi(`A support ticket titled "${title}" needs to be put on hold. Current reason: "${DOM.onHoldReasonInput.value}". Write a professional, concise hold reason. Output only the reason text.`);
+        DOM.onHoldReasonInput.value = reason.trim().replace(/"/g, '');
+      } catch (e) { alert("Failed to suggest reason."); } finally { DOM.suggestReasonBtn.innerHTML = orig; DOM.suggestReasonBtn.disabled = false; }
+    }
+
+    function switchToEditMode(ticketId) {
+      const ticket = tickets.find(t => t.id === ticketId); if (!ticket) return;
+      switchAppMode('edit', ticketId);
+      Object.keys(ticket.inputs).forEach(key => { const el = document.getElementById(key); if (el) el.value = ticket.inputs[key]; });
+      updateClosureDate();
+    }
+
+    function displayTicketDetails(ticketData, isBulkTabSwitch = false) {
+      let ticketsToShow = Array.isArray(ticketData) ? ticketData : [tickets.find(t => t.id === ticketData)].filter(Boolean);
+      if (!ticketsToShow.length) return;
+      const first = ticketsToShow[0];
+      switchAppMode('view', first.id);
+      if (ticketsToShow.length > 1) {
+        DOM.bulkTabsContainer.classList.remove('hidden');
+        if (!isBulkTabSwitch) {
+          DOM.bulkTabsContainer.innerHTML = '';
+          ticketsToShow.forEach((t, i) => {
+            const btn = document.createElement('button');
+            btn.className = `tab-link bulk-main-tab-link ${i === 0 ? 'active' : ''}`;
+            btn.innerText = `${t.id} - ${t.generatedContent.shortenedTitle || 'Ticket'}`;
+            if (i === 0) btn.style.borderBottomColor = 'var(--color-primary)';
+            btn.onclick = (e) => window.openBulkMainTab(e, t.id);
+            DOM.bulkTabsContainer.appendChild(btn);
+          });
+        }
+      } else { DOM.bulkTabsContainer.classList.add('hidden'); }
+
+      const td = isBulkTabSwitch ? tickets.find(t => t.id === ticketData) : first;
+      if (!td) return;
+      const { subjectOptions, assignedEmail, confirmationEmail, previewEmail, onHoldInitialEmail, onHoldReminder1Email, onHoldReminder2Email, onHoldClosureEmail, liveEmail } = td.generatedContent;
+      document.getElementById('display-ticket-title').innerHTML = `Emails for Ticket <span style="color:var(--color-primary)">#${td.id}</span>`;
+      DOM.subjectOptionsContainer.innerHTML = '';
+      subjectOptions.forEach((subject, index) => {
+        const sid = `subjectOption-${td.id}-${index}`;
+        const rb = document.createElement('div');
+        rb.className = 'result-box subject-box';
+        rb.innerHTML = `<pre id="${sid}">${subject}</pre><div><button class="enhance-btn" onclick="window.enhanceSubject('${td.id}', ${index}, this)">Enhance ✨</button><button class="copy-btn" style="position:relative; top:auto; right:auto;" onclick="window.copyToClipboard('${sid}')">Copy</button></div>`;
+        DOM.subjectOptionsContainer.appendChild(rb);
+      });
+      document.getElementById('emailBodyAssigned').innerHTML = assignedEmail.replace(/\n/g, '<br>');
+      document.getElementById('emailBodyConfirmation').innerHTML = confirmationEmail.replace(/\n/g, '<br>');
+      document.getElementById('emailBodyPreview').innerHTML = previewEmail.replace(/\n/g, '<br>');
+      document.getElementById('emailBodyOnHoldInitial').innerHTML = onHoldInitialEmail.replace(/\n/g, '<br>');
+      document.getElementById('emailBodyOnHoldReminder1').innerHTML = onHoldReminder1Email.replace(/\n/g, '<br>');
+      document.getElementById('emailBodyOnHoldReminder2').innerHTML = onHoldReminder2Email.replace(/\n/g, '<br>');
+      document.getElementById('emailBodyOnHoldClosure').innerHTML = onHoldClosureEmail.replace(/\n/g, '<br>');
+      document.getElementById('emailBodyLive').innerHTML = liveEmail.replace(/\n/g, '<br>');
+      window.openStage({ currentTarget: DOM.displayArea.querySelector('#stageTabsContainer .tab-link') }, 'Assigned');
+      window.openOnHoldStage({ currentTarget: document.querySelector('#OnHold .sub-tab-link') }, 'Initial');
+    }
+
+    async function onMainActionClick() {
+      if (API_KEY.includes("PASTE_YOUR")) { alert("Add your OpenAI API Key."); return; }
+      const commonData = {
+        assignedSpecialist: document.getElementById('assignedSpecialist').value,
+        requestType: document.getElementById('requestType').value,
+        previewLinks: document.getElementById('previewLinks').value,
+        liveSiteLinks: document.getElementById('liveSiteLinks').value,
+        changeRequestFormLink: document.getElementById('changeRequestFormLink').value,
+        onHoldDate: document.getElementById('onHoldDate').value,
+        closureDate: document.getElementById('closureDate').value,
+        onHoldReason: document.getElementById('onHoldReason').value,
+      };
+      let requestsToProcess = [];
+      if (isBulkMode) {
+        const rows = DOM.bulkRowsContainer.querySelectorAll('.bulk-row');
+        for (let row of rows) {
+          const tn = row.querySelector('.bulk-ticketNumber').value;
+          const cr = row.querySelector('.bulk-ticketCreator').value;
+          const tt = row.querySelector('.bulk-ticketTitle').value;
+          if (!tn || !cr || !tt) { alert("Fill in Ticket Number, Creator, and Title for all rows."); return; }
+          if (tickets.some(t => t.id === tn)) { alert(`Ticket ID ${tn} already exists.`); return; }
+          requestsToProcess.push({ ...commonData, ticketNumber: tn, ticketCreator: cr, region: row.querySelector('.bulk-region').value, country: row.querySelector('.bulk-country').value, ticketTitle: tt, serviceType: row.querySelector('.bulk-serviceType').value, serviceTier: row.querySelector('.bulk-serviceTier').value, slaDate: row.querySelector('.bulk-slaDate').value, preferredLiveDate: row.querySelector('.bulk-preferredLiveDate').value });
+        }
+        if (!requestsToProcess.length) { alert("Add at least one row in Bulk Mode."); return; }
+      } else {
+        const inputs = { ...commonData, ticketCreator: document.getElementById('ticketCreator').value, region: document.getElementById('region').value, country: document.getElementById('country').value, ticketNumber: document.getElementById('ticketNumber').value, ticketTitle: document.getElementById('ticketTitle').value, serviceType: document.getElementById('serviceType').value, serviceTier: document.getElementById('serviceTier').value, slaDate: document.getElementById('slaDate').value, preferredLiveDate: document.getElementById('preferredLiveDate').value };
+        if (!inputs.ticketNumber || !inputs.ticketCreator || !inputs.ticketTitle) { alert("Fill in Ticket Number, Creator, and Title."); return; }
+        if (appMode === 'create' && tickets.some(t => t.id === inputs.ticketNumber)) { alert(`Ticket ID ${inputs.ticketNumber} already exists.`); return; }
+        requestsToProcess.push(inputs);
+      }
+      DOM.loading.classList.remove('hidden'); DOM.mainActionBtn.disabled = true;
+      try {
+        const generated = [];
+        for (let inputs of requestsToProcess) {
+          const content = await callAIApi(buildAIApiPrompt(inputs));
+          if (!content.subjectOptions || !content.assignedEmail) throw new Error("Malformed AI response.");
+          const data = { inputs, generatedContent: content };
+          await setDoc(doc(db, "tickets", inputs.ticketNumber), data);
+          generated.push({ id: inputs.ticketNumber, ...data });
+        }
+        await loadTicketsFromFirebase();
+        isBulkMode ? displayTicketDetails(generated) : displayTicketDetails(requestsToProcess[0].ticketNumber);
+      } catch (e) { alert(`Error: ${e.message}`); console.error(e); }
+      finally { DOM.loading.classList.add('hidden'); DOM.mainActionBtn.disabled = false; }
+    }
+
+    async function loadTicketsFromFirebase() {
+      const snap = await getDocs(collection(db, "tickets"));
+      tickets = [];
+      snap.forEach(d => tickets.push({ id: d.id, ...d.data() }));
+      renderTicketList();
+    }
+
+    async function deleteTicket(ticketId) {
+      if (confirm(`Delete Ticket #${ticketId}?`)) {
+        try { await deleteDoc(doc(db, "tickets", ticketId)); if (activeTicketId === ticketId) showNewTicketForm(); await loadTicketsFromFirebase(); }
+        catch (e) { alert("Error deleting ticket."); }
+      }
+    }
+
+    function formatDateWithSuffix(dateString) {
+      if (!dateString) return 'NA';
+      const date = new Date(dateString.replace(/-/g, '/'));
+      const day = date.getDate();
+      const month = date.toLocaleString('en-US', { month: 'long' });
+      let suffix = 'th';
+      if (day % 10 === 1 && day !== 11) suffix = 'st';
+      if (day % 10 === 2 && day !== 12) suffix = 'nd';
+      if (day % 10 === 3 && day !== 13) suffix = 'rd';
+      return `${month} ${day}${suffix}`;
+    }
+
+    function addWorkingDays(startDate, days) {
+      let d = new Date(startDate.replace(/-/g, '/')), added = 0;
+      while (added < days) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) added++; }
+      return d;
+    }
+
+    function formatDateForInput(date) {
+      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    }
+
+    function updateClosureDate() {
+      const v = document.getElementById('onHoldDate').value;
+      document.getElementById('closureDate').value = v ? formatDateForInput(addWorkingDays(v, 13)) : '';
+    }
+
+    function buildAIApiPrompt(data) {
+      const isLiveDateEarlier = data.preferredLiveDate && data.slaDate && (new Date(data.preferredLiveDate) < new Date(data.slaDate));
+      const assignedTemplateA = `Hello Ticket Creator,\n\nThank you for submitting your request to the Digital Marketing Hub team. We've received your request to "Title Of The Ticket" and your ticket number is #Ticket Number. You can track its progress <a href="Ticket Progress Link">here</a>.\n\nI'm Assigned Specialist, and I will be handling your ticket. You can contact me anytime via email or MS Teams.\n\nNext steps: I'll review your request to ensure we have all the necessary information to begin and will confirm via email within 24 hours. If I need any clarification or additional details, I'll reach out promptly.\n\nWe usually have a 10-working-day turnaround, so we're targeting SLA Date to have everything wrapped up. I saw that you'd prefer a completion date of Preferred Live Date, which is a bit sooner than our usual timeframe. We'll do our best to meet that earlier date and will keep you updated along the way.`;
+      const assignedTemplateB = `Hello Ticket Creator,\n\nThank you for submitting your request to the Digital Marketing Hub team. We've received your request to "Title Of The Ticket" and your ticket number is #Ticket Number. You can track its progress <a href="Ticket Progress Link">here</a>.\n\nI'm Assigned Specialist, and I will be handling your ticket. You can contact me anytime via email or MS Teams.\n\nNext steps: I'll review your request to ensure we have all the necessary information to begin and will confirm via email within 24 hours. If I need any clarification or additional details, I'll reach out to you promptly.\n\nWe usually have a 10-working-day turnaround, so we're targeting SLA Date to have everything wrapped up. We have also noted your preferred completion date of Preferred Live Date.`;
+      const confirmationTemplate = `Hello Ticket Creator,\n\nI've reviewed the brief and I have all the necessary information to begin work.\n\nOnce I have a preview link ready, I'll promptly send it to you via email.`;
+      const previewTemplate = `Hello Ticket Creator,\n\nExciting news!\n\nI've got a sneak peek of your request #Ticket Number regarding the "Title Of The Ticket", ready for your review.\n\nCheck out the preview here:\nPreview Links\n\nIf the preview meets your expectations and doesn't require any changes, please reply to this email with your approval to proceed with the page going live. I'll then schedule it to be published on your preferred live date, Preferred Live Date, at 08:00 AM IST. Alternatively, if you prefer to go live at the earliest possible time, please specify the date and time.\n\nIf you have any amends you want to make, or you have a change to your request to submit, please use the form at this link here to do so: <a href="Change Request Form Link">Change Request Form</a>. Please do not reply to this email with any amends – we will only collect them from the form above.`;
+      const liveTemplate = `Hello Ticket Creator,\n\nGreat news! Your request number #Ticket Number has been successfully processed and is now live at the URL(s) provided:\n\nLive Site Link\n\nThis ticket is now considered closed. If you need any tweaks, just open a new ticket.\n\nWe'd love to hear your thoughts on how we did so we can keep getting better. Share your feedback with us <a href="Service Feedback Form Link">here</a>.`;
+      const onHoldInitial = `As per your confirmation, your ticket is on hold due to On Hold Reason.\n\nWe are happy to wait, but every day counts toward meeting your preferred live date Preferred Live Date.\n\nWe can hold your ticket for up to 14 working days, until Closure Date. If we don't have the necessary information to work on your ticket by then, we'll have to close the ticket, and you can create a new ticket when you have the required details.\n\nThank you for your support on this!`;
+      const onHoldReminder1 = `Just a quick heads-up that your ticket has been on hold since On Hold Date due to "On Hold Reason." We can keep it on hold for up to 14 working days.\n\nWith only a few days left, we wanted to check if you have any updates or info for us.\n\nWe're aiming to resolve this ticket as soon as possible, so let us know if there's anything you can share.\n\nThanks!`;
+      const onHoldReminder2 = `Just a final reminder that your ticket has been on hold since On Hold Date due to "On Hold Reason." We're nearing the 14-day mark, with the deadline on Closure Date.\n\nIf we don't hear from you by then, we'll need to close the ticket. However, you can always open a new one when you're ready with the details.\n\nThanks for your quick attention!`;
+      const onHoldClosure = `We've had your ticket on hold since On Hold Date due to "On Hold Reason." Since we haven't received a response, we've gone ahead and closed it as of Closure Date.\n\nIf you still need help, just create a new ticket with the details, and we'll get right on it.\n\nThanks for understanding!`;
+
+      return `You are an AI assistant who creates subject lines and fills in email templates with perfect accuracy.
+
+TASK 1: GENERATE SUBJECT LINES
+Generate 3 creative but structured variations. Structure: Request Type - Shortened Title with Country/Region - Hub Ticket #Ticket Number
+Your JSON output: array named "subjectOptions".
+
+TASK 2: POPULATE EMAIL TEMPLATES
+Replace all placeholders with the provided data. For link placeholders with multiple lines, format as HTML unordered list. Single links as <a href='...'> tags.
+
+PROVIDED DATA:
+- Ticket Creator: ${data.ticketCreator} | Region: ${data.region} | Country: ${data.country}
+- Ticket Number: ${data.ticketNumber} | Title Of The Ticket: ${data.ticketTitle}
+- Request Type: ${data.requestType} | Assigned Specialist: ${data.assignedSpecialist}
+- SLA Date: ${formatDateWithSuffix(data.slaDate)} | Preferred Live Date: ${formatDateWithSuffix(data.preferredLiveDate)}
+- On Hold Date: ${formatDateWithSuffix(data.onHoldDate)} | Closure Date: ${formatDateWithSuffix(data.closureDate)} | On Hold Reason: ${data.onHoldReason || 'awaiting information'}
+- Preview Links: ${data.previewLinks.trim() || '[Preview Link To Be Provided]'}
+- Live Site Link: ${data.liveSiteLinks.trim() || '[Live Link To Be Provided]'}
+- Ticket Progress Link: https://kone.555488.monday.com/boards/1422094316/views/12559057
+- Change Request Form Link: ${data.changeRequestFormLink || 'https://forms.office.com/Pages/ResponsePage.aspx?id=Example'}
+- Service Feedback Form Link: https://wkf.ms/4bmX9Ja
+
+TEMPLATES:
+### ASSIGNED EMAIL ###
+${isLiveDateEarlier ? assignedTemplateA : assignedTemplateB}
+### CONFIRMATION EMAIL ###
+${confirmationTemplate}
+### PREVIEW EMAIL ###
+${previewTemplate}
+### ON HOLD INITIAL ###
+${onHoldInitial}
+### ON HOLD REMINDER 1 ###
+${onHoldReminder1}
+### ON HOLD REMINDER 2 ###
+${onHoldReminder2}
+### ON HOLD CLOSURE ###
+${onHoldClosure}
+### LIVE EMAIL ###
+${liveTemplate}
+
+OUTPUT: Single valid JSON object with keys: subjectOptions, shortenedTitle, assignedEmail, confirmationEmail, previewEmail, onHoldInitialEmail, onHoldReminder1Email, onHoldReminder2Email, onHoldClosureEmail, liveEmail`;
+    }
+
+    async function callAIApi(prompt) {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` }, body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }], temperature: 0.2, response_format: { type: "json_object" } }) });
+      if (!r.ok) { const e = await r.json().catch(() => ({ error: { message: "Unknown error" } })); throw new Error(`API Error (${r.status}): ${e.error.message}`); }
+      const d = await r.json(); return JSON.parse(d.choices[0].message.content);
+    }
+
+    async function callSimpleAIApi(prompt) {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` }, body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }], temperature: 0.5, max_tokens: 80 }) });
+      if (!r.ok) { const e = await r.json().catch(() => ({ error: { message: "Unknown error" } })); throw new Error(`API Error (${r.status}): ${e.error.message}`); }
+      const d = await r.json(); return d.choices[0].message.content;
+    }
+  </script>
+
+  <!-- Link Generator Logic (separate from Firebase module) -->
+  <script>
+    window.addEventListener('load', () => {
+      function parseCaseLink(raw) {
+        const idx = raw.indexOf('/target/');
+        if (idx === -1) throw new Error('URL does not contain /target/ — make sure you copy the full agent URL.');
+        const afterTarget = raw.slice(idx + '/target/'.length);
+        const decoded = decodeURIComponent(afterTarget);
+        const qIdx = decoded.indexOf('?');
+        if (qIdx === -1) throw new Error('Could not find query parameters after /target/.');
+        const table = decoded.slice(0, qIdx).replace(/\.do$/, '');
+        const params = new URLSearchParams(decoded.slice(qIdx + 1));
+        const sysId = params.get('sys_id');
+        if (!sysId) throw new Error('sys_id not found in URL parameters.');
+        return { url: `https://koneprod.service-now.com/esc?id=standard_ticket&table=${table}&sys_id=${sysId}`, table, sysId };
+      }
+
+      function parseFeedbackLink(raw) {
+        let parsed;
+        try { parsed = new URL(raw.trim()); } catch { throw new Error('Invalid URL — make sure you copy the complete survey URL.'); }
+        const sysId = parsed.searchParams.get('sys_id');
+        if (!sysId) throw new Error('sys_id not found in URL parameters.');
+        return { url: `https://koneprod.service-now.com/esc?id=take_survey&instance_id=${sysId}`, instanceId: sysId };
+      }
+
+      function showError(errEl, msg) {
+        errEl.classList.remove('hidden');
+        errEl.querySelector('span').textContent = msg;
+      }
+
+      function hideError(errEl) { errEl.classList.add('hidden'); }
+
+      // Case Link
+      document.getElementById('genCaseBtn').addEventListener('click', () => {
+        const raw = document.getElementById('caseUrlInput').value.trim();
+        const errEl = document.getElementById('caseError');
+        const resEl = document.getElementById('caseResult');
+        hideError(errEl); resEl.classList.add('hidden');
+        if (!raw) { showError(errEl, 'Please paste a ServiceNow URL.'); return; }
+        try {
+          const { url, table, sysId } = parseCaseLink(raw);
+          document.getElementById('caseOutput').textContent = url;
+          document.getElementById('caseMeta').innerHTML = `<strong>Table:</strong> ${table}<br><strong>Sys ID:</strong> ${sysId}`;
+          resEl.classList.remove('hidden');
+        } catch (e) { showError(errEl, e.message); }
+      });
+
+      document.getElementById('caseCopyBtn').addEventListener('click', () => {
+        const text = document.getElementById('caseOutput').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = document.getElementById('caseCopyBtn');
+          const orig = btn.innerHTML;
+          btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+          btn.style.color = '#059669';
+          setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 2000);
+        });
+      });
+
+      // Feedback Link
+      document.getElementById('genFeedbackBtn').addEventListener('click', () => {
+        const raw = document.getElementById('feedbackUrlInput').value.trim();
+        const errEl = document.getElementById('feedbackError');
+        const resEl = document.getElementById('feedbackResult');
+        hideError(errEl); resEl.classList.add('hidden');
+        if (!raw) { showError(errEl, 'Please paste a ServiceNow survey URL.'); return; }
+        try {
+          const { url, instanceId } = parseFeedbackLink(raw);
+          document.getElementById('feedbackOutput').textContent = url;
+          document.getElementById('feedbackMeta').innerHTML = `<strong>Instance ID:</strong> ${instanceId}`;
+          resEl.classList.remove('hidden');
+        } catch (e) { showError(errEl, e.message); }
+      });
+
+      document.getElementById('feedbackCopyBtn').addEventListener('click', () => {
+        const text = document.getElementById('feedbackOutput').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = document.getElementById('feedbackCopyBtn');
+          const orig = btn.innerHTML;
+          btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+          btn.style.color = '#059669';
+          setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 2000);
+        });
+      });
+    });
+  </script>
+
+</body>
+</html>

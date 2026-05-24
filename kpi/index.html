@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPI Tracker — Aegis Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: linear-gradient(rgba(16,185,129,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(16,185,129,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none; z-index: 0;
+    }
+    .glow { position: fixed; border-radius: 50%; filter: blur(130px); pointer-events: none; z-index: 0; opacity: 0.1; }
+    .glow-1 { width: 600px; height: 600px; background: #10b981; top: -200px; right: -100px; }
+    .glow-2 { width: 400px; height: 400px; background: #6366f1; bottom: -100px; left: -100px; }
+
+    .hub-nav {
+      height: 44px; background: rgba(15,23,42,0.9); backdrop-filter: blur(12px);
+      border-bottom: 1px solid #1e293b;
+      display: flex; align-items: center; padding: 0 1.25rem; gap: 10px;
+      flex-shrink: 0; z-index: 200; position: relative;
+    }
+    .hub-nav a {
+      display: flex; align-items: center; gap: 6px; text-decoration: none;
+      color: #94a3b8; font-size: 0.78rem; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px; border: 1px solid #334155; transition: all 0.2s;
+    }
+    .hub-nav a:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
+    .hub-nav a i { color: #6366f1; }
+    .hub-nav-sep { width: 1px; height: 16px; background: #334155; }
+    .hub-nav-tool { font-size: 0.78rem; color: #64748b; font-weight: 500; }
+    .hub-nav-spacer { flex: 1; }
+    .hub-nav-signout {
+      background: none; border: 1px solid #334155; color: #64748b;
+      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
+      font-family: 'Inter', sans-serif; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+    }
+    .hub-nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+
+    .main {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 3rem 2rem; position: relative; z-index: 1;
+    }
+    .card {
+      background: #1e293b; border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 24px; padding: 3.5rem 3rem;
+      max-width: 520px; width: 100%; text-align: center;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+    }
+    .icon-wrap {
+      width: 72px; height: 72px; margin: 0 auto 1.75rem;
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-radius: 20px; display: flex; align-items: center; justify-content: center;
+      font-size: 1.8rem; color: white;
+      box-shadow: 0 8px 24px rgba(16,185,129,0.35);
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25);
+      color: #6ee7b7; font-size: 0.72rem; font-weight: 600;
+      padding: 4px 12px; border-radius: 20px; letter-spacing: 0.05em;
+      text-transform: uppercase; margin-bottom: 1.25rem;
+    }
+    h1 { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.75rem; }
+    p { font-size: 0.95rem; color: #64748b; line-height: 1.7; margin-bottom: 2rem; }
+    .divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 0 2rem; }
+    .instructions {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px; padding: 1.25rem 1.5rem;
+      text-align: left; margin-bottom: 1.75rem;
+    }
+    .instructions p { margin: 0 0 0.75rem; font-size: 0.82rem; color: #94a3b8; }
+    .instructions p:last-child { margin: 0; }
+    .instructions strong { color: #e2e8f0; }
+    .instructions code {
+      background: rgba(99,102,241,0.15); color: #a5b4fc;
+      padding: 2px 6px; border-radius: 4px; font-size: 0.78rem;
+    }
+    .btn-back {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 0.75rem 1.5rem;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; color: #94a3b8;
+      text-decoration: none; font-size: 0.9rem; font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-back:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.18); color: #f1f5f9; }
+  </style>
+</head>
+<body>
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+
+  <nav class="hub-nav">
+    <a href="../index.html"><i class="fa-solid fa-shield-halved"></i> Aegis Hub</a>
+    <div class="hub-nav-sep"></div>
+    <span class="hub-nav-tool">KPI & Visibility Tracker</span>
+    <div class="hub-nav-spacer"></div>
+    <button class="hub-nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
+  </nav>
+
+  <main class="main">
+    <div class="card">
+      <div class="icon-wrap"><i class="fa-solid fa-chart-line"></i></div>
+      <div class="badge"><i class="fa-solid fa-clock"></i> Coming Soon</div>
+      <h1>KPI & Visibility Tracker</h1>
+      <p>This tool is being migrated into Aegis Hub. Share the GitHub repository URL and it will be integrated here with the same consistent design and shared authentication.</p>
+      <div class="divider"></div>
+      <div class="instructions">
+        <p><strong>To integrate your KPI tracker:</strong></p>
+        <p>Share the GitHub repo URL with Claude Code. The source will be pulled in, restyled to match the hub, and the hub nav + auth guard will be added — just like the other tools.</p>
+        <p>The existing Railway deployment continues to work in the meantime at its current URL.</p>
+      </div>
+      <a href="../index.html" class="btn-back">
+        <i class="fa-solid fa-arrow-left"></i> Back to Hub
+      </a>
+    </div>
+  </main>
+
+  <script>
+    if (sessionStorage.getItem('aegis_auth') !== 'true') {
+      window.location.replace('../login.html');
+    }
+    document.getElementById('signOutBtn').addEventListener('click', () => {
+      sessionStorage.removeItem('aegis_auth');
+      window.location.replace('../login.html');
+    });
+  </script>
+</body>
+</html>
