@@ -13,5 +13,6 @@ COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
 COPY --from=frontend-builder /frontend/dist ./dist
+COPY web/ ./web
 EXPOSE 8080
 CMD ["python", "start.py"]

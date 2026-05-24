@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance Tracker — Aegis Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --kone-blue: #1450f5;
+      --white: #ffffff;
+      --black: #141414;
+      --sand: #f3eee6;
+      --p-sand: #f3eee6;
+      --p-yellow: #ffe141;
+      --p-blue: #d2f5ff;
+      --p-pink: #ffcdd7;
+      --p-green: #aae1c8;
+      --status-wfh: #1450f5;
+      --status-od: #f3eee6;
+      --status-half-leave: #ffe141;
+      --status-travel: #a1a1a1;
+      --status-leave: #ffcdd7;
+      --status-present: #aae1c8;
+      --bg-body: #faf9f6;
+      --sidebar-width: 300px;
+      --border-radius: 12px;
+      --shadow: 0 4px 20px rgba(0,0,0,0.05);
+      --font-main: 'Inter', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background-color: var(--bg-body);
+      font-family: var(--font-main);
+      color: var(--black);
+      overflow: hidden;
+    }
+
+    /* ── Hub Nav ── */
+    .hub-nav {
+      height: 44px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      padding: 0 1.25rem;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 200;
+    }
+    .hub-nav a {
+      display: flex; align-items: center; gap: 6px;
+      text-decoration: none; color: #94a3b8;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px;
+      border: 1px solid #334155; transition: all 0.2s;
+    }
+    .hub-nav a:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
+    .hub-nav a .nav-icon { color: #6366f1; }
+    .hub-nav-sep { width: 1px; height: 16px; background: #334155; }
+    .hub-nav-tool { font-size: 0.78rem; color: #64748b; font-weight: 500; }
+    .hub-nav-spacer { flex: 1; }
+    .hub-nav-signout {
+      background: none; border: 1px solid #334155; color: #64748b;
+      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
+      font-family: 'Inter', sans-serif; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+    }
+    .hub-nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── App Layout ── */
+    .app-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* --- Sidebar --- */
+    #sidebar {
+      width: var(--sidebar-width);
+      background-color: var(--sand);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid rgba(0,0,0,0.05);
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    #sidebar h2 { color: var(--kone-blue); margin-bottom: 18px; font-weight: 700; letter-spacing: -0.5px; font-size: 1.3rem; }
+    .control-group { margin-bottom: 13px; }
+    .control-group label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #666; margin-bottom: 5px; font-weight: 600; }
+    select, input[type="text"] { width: 100%; padding: 9px; border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; font-family: inherit; background: var(--white); font-size: 0.88rem; transition: border 0.2s; }
+    select:focus, input:focus { border-color: var(--kone-blue); }
+    button { width: 100%; padding: 9px; margin-bottom: 9px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.1s, filter 0.2s; font-size: 0.82rem; color: var(--black); display: flex; align-items: center; justify-content: center; gap: 7px; font-family: inherit; }
+    button:hover { transform: translateY(-2px); filter: brightness(95%); }
+    .btn-primary { background-color: var(--kone-blue); color: white; }
+    .btn-yellow { background-color: var(--p-yellow); }
+    .btn-blue { background-color: var(--p-blue); }
+    .btn-pink { background-color: var(--p-pink); }
+    .btn-green { background-color: var(--p-green); }
+    #noteEditorContainer { background: var(--white); padding: 13px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 13px; display: none; border: 1px solid rgba(0,0,0,0.05); }
+    .note-input { margin-bottom: 7px; }
+    .color-options { display: flex; gap: 7px; margin-top: 7px; flex-wrap: wrap; }
+    .color-opt { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .color-opt:hover { transform: scale(1.1); }
+    .color-opt.active { border-color: var(--black); transform: scale(1.15); }
+    .holiday-list-box { background: rgba(255,255,255,0.6); padding: 13px; border-radius: 10px; margin-top: 13px; }
+    .holiday-row { display: flex; justify-content: space-between; font-size: 0.78rem; padding: 5px 0; border-bottom: 1px dashed rgba(0,0,0,0.1); }
+    .holiday-row:last-child { border-bottom: none; }
+    .lw-card { background: var(--white); padding: 9px; border-radius: 8px; margin-bottom: 7px; border-left: 4px solid var(--kone-blue); box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+
+    /* --- Main --- */
+    #main-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #top-bar { background: var(--white); padding: 13px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); min-height: 60px; flex-shrink: 0; flex-wrap: wrap; gap: 12px; }
+    #currentDateDisplay { font-weight: 700; color: var(--kone-blue); font-size: 1rem; }
+    #statusTicker { display: flex; gap: 13px; align-items: center; flex-wrap: wrap; }
+    .status-group { display: flex; align-items: center; gap: 5px; }
+    .status-label { font-size: 0.78rem; font-weight: 600; color: var(--black); margin-right: 3px; }
+    .name-block { background-color: var(--kone-blue); color: white; padding: 2px 7px; border-radius: 5px; font-size: 0.72rem; font-weight: 600; box-shadow: 0 2px 4px rgba(20,80,245,0.2); }
+    #scroll-area { flex: 1; overflow: auto; padding: 25px 35px; }
+    #calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; min-width: 600px; }
+    .nav-btn { width: auto; background: white; border: 1px solid #ddd; margin: 0; padding: 7px 13px; }
+    #monthYearDisplay { font-size: 1.5rem; font-weight: 700; text-align: center; }
+    .legend-container { display: flex; flex-wrap: wrap; gap: 13px; margin-bottom: 18px; padding: 9px 13px; background: white; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05); align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.02); min-width: 600px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 600; color: #555; }
+    .legend-box { width: 13px; height: 13px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); }
+    #calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px; margin-bottom: 25px; min-width: 1000px; }
+    .cal-head { text-align: center; font-size: 0.78rem; font-weight: 700; color: #999; padding-bottom: 7px; }
+    .day-cell { background: var(--white); border-radius: var(--border-radius); min-height: 110px; padding: 9px; border: 1px solid transparent; box-shadow: var(--shadow); display: flex; flex-direction: column; cursor: pointer; transition: all 0.2s; position: relative; }
+    .day-cell:hover:not(.empty):not(.holiday-cell) { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(0,0,0,0.08); border-color: var(--p-blue); }
+    .day-cell.selected { background-color: rgba(170,225,200,0.5) !important; border: 1px solid #aae1c8; z-index: 5; }
+    .day-cell.empty { background: transparent; box-shadow: none; cursor: default; }
+    .day-cell.today { border: 2px solid var(--kone-blue); position: relative; z-index: 4; }
+    .day-cell.holiday-cell { background: var(--kone-blue); color: white; align-items: center; justify-content: center; text-align: center; padding: 5px; }
+    .day-cell.holiday-cell .date-num { color: rgba(255,255,255,0.8); }
+    .date-num { font-size: 0.9rem; font-weight: 700; color: #999; margin-bottom: 5px; }
+    .day-cell.all-present { border: 2px solid var(--status-present); }
+    .all-present-badge { position: absolute; top: 7px; right: 7px; background: var(--status-present); color: #1b5e20; font-size: 0.58rem; font-weight: 800; padding: 2px 4px; border-radius: 4px; }
+    .status-rows { flex-grow: 1; }
+    .status-row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); flex-shrink: 0; }
+    .cal-notes-container { display: flex; flex-direction: column; gap: 2px; margin-top: 5px; }
+    .cal-note-marker { font-size: 0.62rem; padding: 2px 4px; border-radius: 3px; background: var(--p-yellow); color: var(--black); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #importantNotesSection { background: white; border-radius: 14px; padding: 22px; box-shadow: var(--shadow); margin-bottom: 25px; border-left: 5px solid var(--kone-blue); display: none; }
+    .notes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-top: 18px; }
+    .sticky-note { padding: 18px; border-radius: 10px; font-size: 0.88rem; box-shadow: 0 4px 12px rgba(0,0,0,0.06); position: relative; width: 100%; display: flex; flex-direction: column; }
+    .sticky-date { font-weight: 700; font-size: 0.82rem; margin-bottom: 9px; opacity: 0.8; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 5px; }
+    .sticky-content { font-size: 0.95rem; font-weight: 500; line-height: 1.4; }
+    .table-card { background: var(--white); border-radius: var(--border-radius); overflow: hidden; margin-bottom: 25px; box-shadow: var(--shadow); overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 600px; }
+    th { background: var(--kone-blue); padding: 11px; text-align: left; font-size: 0.82rem; font-weight: 600; color: var(--white); }
+    td { padding: 11px; border-bottom: 1px solid #f0f0f0; font-size: 0.88rem; color: #555; }
+    td:first-child { font-weight: 600; color: var(--black); }
+    .quarterly-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 100; }
+    .modal-box { background: var(--white); width: 90%; max-width: 700px; margin: 5vh auto; padding: 28px; border-radius: 18px; position: relative; max-height: 85vh; display: flex; flex-direction: column; }
+    .close-modal { position: absolute; top: 18px; right: 18px; font-size: 1.4rem; cursor: pointer; color: #aaa; z-index: 10; }
+    #logListContainer { overflow-y: auto; flex: 1; padding-right: 8px; margin-top: 9px; margin-bottom: 18px; }
+    .timeline-wrapper { position: relative; padding-left: 18px; margin-left: 9px; border-left: 2px solid #eee; }
+    .timeline-entry { position: relative; margin-bottom: 22px; }
+    .timeline-dot { position: absolute; left: -25px; top: 5px; width: 11px; height: 11px; background: var(--kone-blue); border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 1px #eee; }
+    .timeline-time { font-size: 0.72rem; color: #888; font-weight: 600; margin-bottom: 5px; display: block; }
+    .timeline-card { background: #f8f9fa; padding: 11px 13px; border-radius: 8px; font-size: 0.88rem; color: #333; border: 1px solid rgba(0,0,0,0.05); }
+    #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 200; display: flex; justify-content: center; align-items: center; font-weight: 600; color: var(--kone-blue); }
+
+    @media (max-width: 900px) {
+      .app-body { flex-direction: column; overflow: visible; }
+      #sidebar { width: 100%; max-height: 380px; }
+      #main-container { overflow: visible; height: auto; }
+      #scroll-area { padding: 18px; overflow: visible; }
+      .quarterly-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hub Nav -->
+  <nav class="hub-nav">
+    <a href="../index.html"><span class="nav-icon">&#x2302;</span> Aegis Hub</a>
+    <div class="hub-nav-sep"></div>
+    <span class="hub-nav-tool">Attendance Tracker</span>
+    <div class="hub-nav-spacer"></div>
+    <button class="hub-nav-signout" id="signOutBtn">&#x2192; Sign Out</button>
+  </nav>
+
+  <div class="app-body">
+    <div id="sidebar">
+      <h2>Marketing Hub</h2>
+      <div class="control-group">
+        <label>Select Employee</label>
+        <select id="employeeSelect"></select>
+      </div>
+      <div class="control-group">
+        <label>Set Status</label>
+        <select id="statusSelect">
+          <option value="present">Present</option>
+          <option value="wfh">WFH</option>
+          <option value="leave">Leave</option>
+          <option value="halfDayLeave">Half Day Leave</option>
+          <option value="onDuty">On Duty</option>
+          <option value="travel">Travel</option>
+        </select>
+      </div>
+      <button id="applyStatusBtn" class="btn-primary">Apply Status</button>
+      <button id="clearBtn" class="btn-pink">Clear Selection</button>
+      <button id="toggleMultiSelectBtn" class="btn-yellow">Multi-Select Mode</button>
+      <div style="height:1px; background:rgba(0,0,0,0.1); margin:18px 0;"></div>
+      <button id="toggleNoteEditBtn" class="btn-green">Add / Edit Note</button>
+      <div id="noteEditorContainer">
+        <label style="font-size:0.72rem; font-weight:700; margin-bottom:4px; display:block;">Add up to 3 notes for selected day(s)</label>
+        <input type="text" id="noteInput1" class="note-input" placeholder="Note 1">
+        <input type="text" id="noteInput2" class="note-input" placeholder="Note 2">
+        <input type="text" id="noteInput3" class="note-input" placeholder="Note 3">
+        <div class="control-group">
+          <label>Note Color</label>
+          <div class="color-options" id="noteColorOptions"></div>
+        </div>
+        <div style="display:flex; gap:9px; margin-top:13px;">
+          <button id="saveImpNoteBtn" class="btn-primary" style="margin:0;">Save</button>
+          <button id="clearImpNoteBtn" class="btn-pink" style="margin:0;">Delete</button>
+        </div>
+      </div>
+      <button id="viewAnnualBtn" class="btn-blue">Annual Report</button>
+      <button id="viewLogBtn" class="btn-blue">Activity Log</button>
+      <div class="holiday-list-box">
+        <h4 style="margin-bottom:13px; color:var(--black); font-size:0.92rem;"><span id="holidayListYear">2025</span> Holidays</h4>
+        <div id="sidebarHolidayList"></div>
+      </div>
+      <div style="margin-top:18px;">
+        <h4 style="margin-bottom:9px; color:var(--black); font-size:0.92rem;">Long Weekends</h4>
+        <div id="lwContainer"></div>
+      </div>
+    </div>
+
+    <div id="main-container">
+      <div id="top-bar">
+        <div id="currentDateDisplay">Loading...</div>
+        <div id="statusTicker"></div>
+      </div>
+      <div id="scroll-area">
+        <div id="calendar-header">
+          <button class="nav-btn" id="prevMonth">&lt; Prev</button>
+          <div id="monthYearDisplay">January 2025</div>
+          <button class="nav-btn" id="nextMonth">Next &gt;</button>
+        </div>
+        <div class="legend-container">
+          <div class="legend-item"><div class="legend-box" style="background:var(--status-wfh);"></div><span>WFH</span></div>
+          <div class="legend-item"><div class="legend-box" style="background:var(--status-od);"></div><span>On Duty</span></div>
+          <div class="legend-item"><div class="legend-box" style="background:var(--status-half-leave);"></div><span>Half Day</span></div>
+          <div class="legend-item"><div class="legend-box" style="background:var(--status-travel);"></div><span>Travel</span></div>
+          <div class="legend-item"><div class="legend-box" style="background:var(--status-leave);"></div><span>Leave</span></div>
+          <div class="legend-item"><div class="legend-box" style="background:var(--status-present);"></div><span>Present</span></div>
+        </div>
+        <div id="calendar-grid"></div>
+        <h3 style="margin-bottom:13px; color:var(--kone-blue);">Daily Breakdown <span id="dailySummaryTitle" style="font-weight:400; font-size:0.88rem; color:#888;"></span></h3>
+        <div class="table-card">
+          <table id="dailyTable">
+            <thead><tr><th>Status</th><th>Employees</th></tr></thead>
+            <tbody><tr><td colspan="2" style="text-align:center; padding:18px; color:#999;">Select a day to view breakdown</td></tr></tbody>
+          </table>
+        </div>
+        <div id="importantNotesSection">
+          <h3 style="margin:0; font-size:1.05rem; color:var(--black);">&#128161; Important Notes (This Month)</h3>
+          <div id="notesGrid" class="notes-grid"></div>
+        </div>
+        <h3 style="margin-bottom:13px; color:var(--kone-blue);">Monthly Summary</h3>
+        <div class="table-card">
+          <table id="monthlyTable">
+            <thead><tr><th>Employee</th><th>Working Days</th><th>Present</th><th>WFH</th><th>Leave</th><th>OD/Travel</th><th>Capacity</th></tr></thead>
+            <tbody id="monthlyBody"></tbody>
+          </table>
+        </div>
+        <h3 style="margin:25px 0 13px; color:var(--kone-blue);">Quarterly Overview</h3>
+        <div class="quarterly-grid">
+          <div class="table-card"><div style="background:var(--kone-blue); color:white; padding:9px; font-weight:600;">Q1 (Jan-Mar)</div><table id="q1Table"><thead><tr><th>Employee</th><th>Days</th><th>Pres</th><th>WFH</th><th>Lve</th><th>OD</th><th>Cap</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-card"><div style="background:var(--kone-blue); color:white; padding:9px; font-weight:600;">Q2 (Apr-Jun)</div><table id="q2Table"><thead><tr><th>Employee</th><th>Days</th><th>Pres</th><th>WFH</th><th>Lve</th><th>OD</th><th>Cap</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-card"><div style="background:var(--kone-blue); color:white; padding:9px; font-weight:600;">Q3 (Jul-Sep)</div><table id="q3Table"><thead><tr><th>Employee</th><th>Days</th><th>Pres</th><th>WFH</th><th>Lve</th><th>OD</th><th>Cap</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-card"><div style="background:var(--kone-blue); color:white; padding:9px; font-weight:600;">Q4 (Oct-Dec)</div><table id="q4Table"><thead><tr><th>Employee</th><th>Days</th><th>Pres</th><th>WFH</th><th>Lve</th><th>OD</th><th>Cap</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loader">Initializing Marketing Hub...</div>
+
+  <div id="logModal" class="modal-overlay">
+    <div class="modal-box">
+      <span class="close-modal">&times;</span>
+      <h3 style="margin-bottom:9px; color:var(--kone-blue);">Activity Log</h3>
+      <div style="font-size:0.78rem; color:#888; margin-bottom:13px;">Most recent actions listed first.</div>
+      <div id="logListContainer"><div id="logList"></div></div>
+      <button id="wipeLogBtn" class="btn-pink" style="width:auto; margin-top:9px; align-self:flex-start;">Clear Log History</button>
+    </div>
+  </div>
+
+  <div id="annualModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:900px;">
+      <span class="close-modal">&times;</span>
+      <h3 style="margin-bottom:18px; color:var(--kone-blue);">Annual Report (<span id="annualReportYear"></span>)</h3>
+      <div id="annualTableContainer"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue, remove, push } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+    if (sessionStorage.getItem('aegis_auth') !== 'true') {
+      window.location.replace('../login.html');
+    }
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCM77MoIDCUUNvwQQtBv77zRagK-9ijQ4c",
+      authDomain: "shared-attendance-tracker.firebaseapp.com",
+      databaseURL: "https://shared-attendance-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "shared-attendance-tracker",
+      storageBucket: "shared-attendance-tracker.firebasestorage.app",
+      messagingSenderId: "996562036544",
+      appId: "1:996562036544:web:2089e2b6ae7d4d42997ca5"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let attendanceData = {}, notesData = {}, logsData = [];
+    let currentYear = new Date().getFullYear(), currentMonth = new Date().getMonth();
+    let selectedDates = [], multiSelectMode = false, editMode = false, noteColorSelected = 'yellow';
+
+    const employees = ['Ajith A','Akshaya P','Akshayaa R','Arvind L','JK Nitish','Pooja V','Ranjithkumar'];
+    const empValidity = {
+      'Ajith A': { start: '2025-03-05' },
+      'Akshayaa R': { start: '2025-05-08' },
+      'Akshaya P': { start: '2025-05-21' },
+      'JK Nitish': { start: '2026-03-30' },
+      'Pooja V': { end: '2026-01-30' },
+      'Ranjithkumar': { start: '2026-03-02' }
+    };
+    const holidays = {
+      '2025-01-01':"New Year's Day",'2025-01-14':'Pongal','2025-01-26':'Republic Day',
+      '2025-04-14':'Tamil New Year','2025-05-01':'May Day','2025-08-15':'Independence Day',
+      '2025-08-27':'Ganesh Chaturthi','2025-10-01':'Ayudha Pooja','2025-10-02':'Gandhi Jayanti',
+      '2025-10-20':'Diwali','2025-12-25':'Christmas',
+      '2026-01-01':"New Year's Day",'2026-01-15':'Pongal','2026-01-26':'Republic Day',
+      '2026-04-14':'Tamil New Year','2026-04-23':'Tamil Nadu Elections','2026-05-01':'May Day',
+      '2026-08-15':'Independence Day','2026-09-14':'Ganesh Chaturthi','2026-10-02':'Gandhi Jayanti',
+      '2026-10-19':'Ayudha Pooja','2026-11-09':'Diwali','2026-12-25':'Christmas'
+    };
+    const statusColors = { present:'#aae1c8', wfh:'#1450f5', leave:'#ffcdd7', halfDayLeave:'#ffe141', onDuty:'#f3eee6', travel:'#a1a1a1' };
+    const noteColors = { sand:{hex:'#f3eee6'}, yellow:{hex:'#ffe141'}, blue:{hex:'#d2f5ff'}, pink:{hex:'#ffcdd7'}, green:{hex:'#aae1c8'} };
+
+    function formatDate(y,m,d) { return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+    function isValidEmp(emp, dateStr) { const v = empValidity[emp]; if (!v) return true; if (v.start && dateStr < v.start) return false; if (v.end && dateStr > v.end) return false; return true; }
+    function isWorkDay(dateStr) { const d = new Date(dateStr); return d.getDay() !== 0 && d.getDay() !== 6 && !holidays[dateStr]; }
+
+    function renderCalendar() {
+      const grid = document.getElementById('calendar-grid');
+      grid.innerHTML = '';
+      ['SUN','MON','TUE','WED','THU','FRI','SAT'].forEach(d => grid.innerHTML += `<div class="cal-head">${d}</div>`);
+      document.getElementById('monthYearDisplay').textContent = new Date(currentYear, currentMonth).toLocaleDateString('en-US', { month:'long', year:'numeric' });
+      const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+      const daysInMonth = new Date(currentYear, currentMonth+1, 0).getDate();
+      for (let i = 0; i < firstDay; i++) grid.appendChild(createCell('empty'));
+      for (let d = 1; d <= daysInMonth; d++) grid.appendChild(createCell('day', d));
+      updateSidebarHolidays(); renderStats(); renderImportantNotesSummary(); updateTopBar();
+    }
+
+    function createCell(type, day) {
+      const cell = document.createElement('div');
+      cell.className = `day-cell ${type}`;
+      if (type === 'empty') return cell;
+      const t = new Date();
+      if (day === t.getDate() && currentMonth === t.getMonth() && currentYear === t.getFullYear()) cell.classList.add('today');
+      const dateKey = formatDate(currentYear, currentMonth, day);
+      const dateNum = document.createElement('div');
+      dateNum.className = 'date-num';
+      dateNum.textContent = day;
+      cell.appendChild(dateNum);
+      if (holidays[dateKey]) {
+        cell.classList.add('holiday-cell');
+        cell.innerHTML += `<div style="font-size:0.78rem">${holidays[dateKey]}</div>`;
+      } else if (!isWorkDay(dateKey)) {
+        cell.style.background = '#f9f9f9';
+      } else {
+        cell.onclick = () => handleDayClick(dateKey);
+        if (selectedDates.includes(dateKey)) cell.classList.add('selected');
+        const activeEmps = employees.filter(e => isValidEmp(e, dateKey));
+        const dayData = attendanceData[dateKey] || {};
+        if (activeEmps.length > 0) {
+          const allPresent = activeEmps.every(e => ((dayData[e] || {}).status || 'present') === 'present');
+          if (allPresent) { cell.classList.add('all-present'); cell.innerHTML += `<div class="all-present-badge">ALL</div>`; }
+        }
+        const sc = document.createElement('div'); sc.className = 'status-rows';
+        activeEmps.forEach(e => {
+          const s = (dayData[e] || {}).status || 'present';
+          const row = document.createElement('div'); row.className = 'status-row';
+          row.innerHTML = `<span class="status-dot" style="background:${statusColors[s] || statusColors['present']}"></span>${e}`;
+          sc.appendChild(row);
+        });
+        cell.appendChild(sc);
+        if (notesData[dateKey]?.notes?.length > 0) {
+          const n = notesData[dateKey];
+          const nc = document.createElement('div'); nc.className = 'cal-notes-container';
+          n.notes.forEach(noteText => {
+            if (noteText?.trim()) {
+              const nd = document.createElement('div'); nd.className = 'cal-note-marker';
+              nd.style.backgroundColor = (noteColors[n.colorKey || 'yellow'] || noteColors['yellow']).hex;
+              nd.textContent = noteText; nc.appendChild(nd);
+            }
+          });
+          cell.appendChild(nc);
+        }
+      }
+      return cell;
+    }
+
+    function updateSidebarHolidays() {
+      document.getElementById('holidayListYear').textContent = currentYear;
+      const hc = document.getElementById('sidebarHolidayList');
+      const lw = document.getElementById('lwContainer');
+      hc.innerHTML = ''; lw.innerHTML = '';
+      const relevant = Object.entries(holidays).filter(([d]) => d.startsWith(currentYear)).sort();
+      if (!relevant.length) { hc.innerHTML = '<div style="font-size:0.78rem; color:#888;">No holidays for this year.</div>'; return; }
+      relevant.forEach(([dateStr, name]) => {
+        const d = new Date(dateStr);
+        const pretty = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+        const dayName = d.toLocaleDateString('en-US', { weekday:'short' });
+        hc.innerHTML += `<div class="holiday-row"><span style="font-weight:600; color:var(--kone-blue)">${pretty} (${dayName})</span><span>${name}</span></div>`;
+        const di = d.getDay();
+        if (di === 5 || di === 1) lw.innerHTML += `<div class="lw-card"><div style="font-weight:700; color:var(--kone-blue); font-size:0.88rem;">${pretty}</div><div style="font-size:0.82rem; margin:2px 0;">${name}</div><div style="font-size:0.72rem; color:#888;">${di===5?'Fri-Sun':'Sat-Mon'} Weekend</div></div>`;
+      });
+    }
+
+    function calculateStats(emp, startStr, endStr) {
+      let stats = { wd:0, wfh:0, l:0, od:0, present:0 };
+      let curr = new Date(startStr), end = new Date(endStr);
+      curr.setHours(0,0,0,0); end.setHours(0,0,0,0);
+      while (curr <= end) {
+        const k = formatDate(curr.getFullYear(), curr.getMonth(), curr.getDate());
+        if (isWorkDay(k) && isValidEmp(emp, k)) {
+          stats.wd++;
+          const s = attendanceData[k]?.[emp]?.status || 'present';
+          if (s==='wfh') stats.wfh++;
+          else if (s==='leave') stats.l++;
+          else if (s==='halfDayLeave') stats.l += 0.5;
+          else if (s==='onDuty'||s==='travel') stats.od++;
+        }
+        curr.setDate(curr.getDate()+1);
+      }
+      stats.present = Math.max(0, stats.wd - stats.wfh - stats.l - stats.od);
+      const productive = stats.wd - stats.l - stats.od;
+      stats.capacity = stats.wd ? ((productive/stats.wd)*100).toFixed(0) : '0';
+      return stats;
+    }
+
+    function renderStats() {
+      const mTbody = document.getElementById('monthlyBody');
+      mTbody.innerHTML = '';
+      const dim = new Date(currentYear, currentMonth+1, 0).getDate();
+      const mStart = formatDate(currentYear, currentMonth, 1);
+      const mEnd = formatDate(currentYear, currentMonth, dim);
+      employees.forEach(emp => {
+        if (!isValidEmp(emp, mEnd) && !isValidEmp(emp, mStart)) return;
+        const st = calculateStats(emp, mStart, mEnd);
+        mTbody.innerHTML += `<tr><td>${emp}</td><td>${st.wd}</td><td>${st.present}</td><td>${st.wfh}</td><td>${st.l}</td><td>${st.od}</td><td><strong>${st.capacity}%</strong></td></tr>`;
+      });
+      [{ id:'q1',start:`${currentYear}-01-01`,end:`${currentYear}-03-31`},{ id:'q2',start:`${currentYear}-04-01`,end:`${currentYear}-06-30`},{ id:'q3',start:`${currentYear}-07-01`,end:`${currentYear}-09-30`},{ id:'q4',start:`${currentYear}-10-01`,end:`${currentYear}-12-31`}].forEach(q => {
+        const qTable = document.getElementById(`${q.id}Table`); if (!qTable) return;
+        const qBody = qTable.querySelector('tbody'); qBody.innerHTML = '';
+        employees.forEach(emp => {
+          if (!isValidEmp(emp, q.end) && !isValidEmp(emp, q.start)) return;
+          const st = calculateStats(emp, q.start, q.end);
+          qBody.innerHTML += `<tr><td>${emp}</td><td>${st.wd}</td><td>${st.present}</td><td>${st.wfh}</td><td>${st.l}</td><td>${st.od}</td><td><strong>${st.capacity}%</strong></td></tr>`;
+        });
+      });
+    }
+
+    function renderImportantNotesSummary() {
+      const section = document.getElementById('importantNotesSection');
+      const grid = document.getElementById('notesGrid');
+      grid.innerHTML = '';
+      const prefix = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}`;
+      let flatNotes = [];
+      Object.entries(notesData).forEach(([dateStr, data]) => {
+        if (dateStr.startsWith(prefix) && data.notes?.length) {
+          data.notes.forEach(noteText => { if (noteText?.trim()) flatNotes.push({ date:dateStr, text:noteText, color:data.colorKey||'yellow' }); });
+        }
+      });
+      flatNotes.sort((a,b) => a.date.localeCompare(b.date));
+      if (!flatNotes.length) { section.style.display='none'; return; }
+      const groups = [];
+      let cg = { text:flatNotes[0].text, color:flatNotes[0].color, startDate:flatNotes[0].date, endDate:flatNotes[0].date };
+      for (let i=1; i<flatNotes.length; i++) {
+        const note = flatNotes[i];
+        const diff = (new Date(note.date) - new Date(cg.endDate)) / 86400000;
+        if (note.text===cg.text && diff===1) { cg.endDate=note.date; }
+        else { groups.push(cg); cg={text:note.text, color:note.color, startDate:note.date, endDate:note.date}; }
+      }
+      groups.push(cg);
+      groups.forEach(g => {
+        const sD = new Date(g.startDate), eD = new Date(g.endDate);
+        let ds = sD.toLocaleDateString('en-US',{day:'numeric',month:'short'});
+        if (g.startDate!==g.endDate) ds += ' - '+eD.toLocaleDateString('en-US',{day:'numeric',month:'short'});
+        grid.innerHTML += `<div class="sticky-note" style="background:${(noteColors[g.color]||noteColors['yellow']).hex}"><div class="sticky-date">${ds}</div><div class="sticky-content">${g.text}</div></div>`;
+      });
+      section.style.display='block';
+    }
+
+    function updateTopBar() {
+      const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+      document.getElementById('currentDateDisplay').textContent = new Date().toDateString();
+      const ticker = document.getElementById('statusTicker');
+      ticker.innerHTML = '';
+      if (!isWorkDay(today)) { ticker.innerHTML='<span style="color:#888;">Today is a Holiday/Weekend</span>'; return; }
+      const wfh=[], leave=[], od=[];
+      employees.filter(e=>isValidEmp(e,today)).forEach(e => {
+        const s = attendanceData[today]?.[e]?.status;
+        if (s==='wfh') wfh.push(e);
+        if (s==='leave'||s==='halfDayLeave') leave.push(e);
+        if (s==='onDuty') od.push(e);
+      });
+      const block = (label,names,icon) => { if (!names.length) return ''; return `<div class="status-group"><span class="status-label">${icon} ${label}:</span>${names.map(n=>`<span class="name-block">${n}</span>`).join('')}</div>`; };
+      ticker.innerHTML += block("WFH",wfh,"🏠") + block("Leave",leave,"🌴") + block("On Duty",od,"💼");
+    }
+
+    function renderAnnualReport() {
+      document.getElementById('annualReportYear').textContent = currentYear;
+      let html = `<table style="width:100%"><thead><tr><th>Employee</th><th>Working Days</th><th>Present</th><th>WFH</th><th>Leave</th><th>OD/Travel</th><th>Capacity</th></tr></thead><tbody>`;
+      employees.forEach(emp => {
+        const st = calculateStats(emp, `${currentYear}-01-01`, `${currentYear}-12-31`);
+        if (st.wd>0) html += `<tr><td>${emp}</td><td>${st.wd}</td><td>${st.present}</td><td>${st.wfh}</td><td>${st.l}</td><td>${st.od}</td><td><strong>${st.capacity}%</strong></td></tr>`;
+      });
+      document.getElementById('annualTableContainer').innerHTML = html + '</tbody></table>';
+    }
+
+    function handleDayClick(dateKey) {
+      if (multiSelectMode) { const i=selectedDates.indexOf(dateKey); i>-1?selectedDates.splice(i,1):selectedDates.push(dateKey); }
+      else { selectedDates = selectedDates[0]===dateKey ? [] : [dateKey]; }
+      renderCalendar(); renderDailyBreakdown(); updateEditor();
+    }
+
+    function renderDailyBreakdown() {
+      const title = document.getElementById('dailySummaryTitle');
+      const tbody = document.querySelector('#dailyTable tbody');
+      if (selectedDates.length!==1) { title.textContent=''; tbody.innerHTML='<tr><td colspan="2" style="text-align:center; padding:18px; color:#999;">Select a single day</td></tr>'; return; }
+      const k=selectedDates[0]; title.textContent=`(${k})`; tbody.innerHTML='';
+      if (!isWorkDay(k)) { tbody.innerHTML='<tr><td colspan="2" style="text-align:center">Non-working Day</td></tr>'; return; }
+      const groups={};
+      employees.filter(e=>isValidEmp(e,k)).forEach(e => { const s=attendanceData[k]?.[e]?.status||'present'; if (!groups[s]) groups[s]=[]; groups[s].push(e); });
+      Object.entries(groups).forEach(([s,arr]) => { tbody.innerHTML += `<tr><td style="text-transform:capitalize; font-weight:600">${s}</td><td>${arr.join(', ')}</td></tr>`; });
+    }
+
+    function updateEditor() {
+      const div = document.getElementById('noteEditorContainer');
+      if (editMode && selectedDates.length>0) {
+        div.style.display='block';
+        const i1=document.getElementById('noteInput1'), i2=document.getElementById('noteInput2'), i3=document.getElementById('noteInput3');
+        if (selectedDates.length===1 && notesData[selectedDates[0]]) {
+          const n=notesData[selectedDates[0]], arr=n.notes||[];
+          i1.value=arr[0]||''; i2.value=arr[1]||''; i3.value=arr[2]||'';
+          selectColor(n.colorKey||'yellow');
+        } else { i1.value=''; i2.value=''; i3.value=''; }
+      } else { div.style.display='none'; }
+    }
+
+    document.getElementById('prevMonth').onclick = () => { currentMonth--; if (currentMonth<0){currentMonth=11;currentYear--;} selectedDates=[]; renderCalendar(); };
+    document.getElementById('nextMonth').onclick = () => { currentMonth++; if (currentMonth>11){currentMonth=0;currentYear++;} selectedDates=[]; renderCalendar(); };
+    document.getElementById('applyStatusBtn').onclick = () => {
+      if (!selectedDates.length) return alert('Select days first');
+      const emp=document.getElementById('employeeSelect').value, stat=document.getElementById('statusSelect').value;
+      selectedDates.forEach(k => { if (isWorkDay(k)&&isValidEmp(emp,k)) set(ref(db,`attendance/${k}/${emp}`),{status:stat}); });
+      push(ref(db,'logs'),{timestamp:Date.now(),details:`${emp} marked as ${stat} on ${selectedDates.sort().join(', ')}`});
+    };
+    document.getElementById('clearBtn').onclick = () => { selectedDates=[]; renderCalendar(); renderDailyBreakdown(); updateEditor(); };
+    document.getElementById('toggleMultiSelectBtn').onclick = function() { multiSelectMode=!multiSelectMode; selectedDates=[]; renderCalendar(); };
+    document.getElementById('toggleNoteEditBtn').onclick = function() { editMode=!editMode; updateEditor(); };
+    document.getElementById('saveImpNoteBtn').onclick = () => {
+      const notes=[document.getElementById('noteInput1').value,document.getElementById('noteInput2').value,document.getElementById('noteInput3').value];
+      selectedDates.forEach(k=>set(ref(db,`importantNotes/${k}`),{notes,colorKey:noteColorSelected}));
+      push(ref(db,'logs'),{timestamp:Date.now(),details:`Notes updated on ${selectedDates.sort().join(', ')}`});
+      alert('Note Saved'); renderCalendar();
+    };
+    document.getElementById('clearImpNoteBtn').onclick = () => { selectedDates.forEach(k=>remove(ref(db,`importantNotes/${k}`))); renderCalendar(); };
+    document.getElementById('viewAnnualBtn').onclick = () => { renderAnnualReport(); document.getElementById('annualModal').style.display='block'; };
+    document.getElementById('viewLogBtn').onclick = () => {
+      const list=document.getElementById('logList'); list.innerHTML='';
+      if (!logsData?.length) { list.innerHTML='<div style="text-align:center;color:#999;padding:18px;">No recent activity.</div>'; }
+      else {
+        const sorted=[...logsData].sort((a,b)=>b.timestamp-a.timestamp);
+        const wrapper=document.createElement('div'); wrapper.className='timeline-wrapper';
+        sorted.forEach(log => {
+          const d=new Date(log.timestamp);
+          const fd=d.toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+          const item=document.createElement('div'); item.className='timeline-entry';
+          item.innerHTML=`<div class="timeline-dot"></div><span class="timeline-time">${fd}</span><div class="timeline-card">${log.details}</div>`;
+          wrapper.appendChild(item);
+        });
+        list.appendChild(wrapper);
+      }
+      document.getElementById('logModal').style.display='flex';
+    };
+    document.getElementById('wipeLogBtn').onclick = () => { if(confirm("Clear activity history?")) { set(ref(db,'logs'),null); document.getElementById('logModal').style.display='none'; } };
+    document.querySelectorAll('.close-modal').forEach(b=>b.onclick=e=>e.target.closest('.modal-overlay').style.display='none');
+    document.getElementById('signOutBtn').addEventListener('click', () => { sessionStorage.removeItem('aegis_auth'); window.location.replace('../login.html'); });
+
+    const colorDiv=document.getElementById('noteColorOptions');
+    const selectColor=(key)=>{ noteColorSelected=key; document.querySelectorAll('.color-opt').forEach(el=>el.classList.remove('active')); document.querySelector(`.color-opt[data-key="${key}"]`)?.classList.add('active'); };
+    Object.entries(noteColors).forEach(([k,v])=>{ const d=document.createElement('div'); d.className=`color-opt ${k==='yellow'?'active':''}`; d.style.backgroundColor=v.hex; d.dataset.key=k; d.onclick=()=>selectColor(k); colorDiv.appendChild(d); });
+
+    employees.forEach(e => { if (e!=='Pooja V') document.getElementById('employeeSelect').add(new Option(e,e)); });
+    onValue(ref(db,'attendance'),s=>{ attendanceData=s.val()||{}; document.getElementById('loader').style.display='none'; renderCalendar(); });
+    onValue(ref(db,'importantNotes'),s=>{ notesData=s.val()||{}; renderCalendar(); });
+    onValue(ref(db,'logs'),s=>{ logsData=[]; if(s.exists()){ const v=s.val(); logsData=Array.isArray(v)?v:Object.values(v); } });
+  </script>
+</body>
+</html>

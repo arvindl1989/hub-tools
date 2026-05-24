@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Tracker — Aegis Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #1450f5;
+      --primary-dark: #0d3fd4;
+      --sky: #3b70f7;
+      --bg: #faf9f6;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --nav-bg: #0f172a;
+      --nav-border: #1e293b;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.06);
+      --shadow-md: 0 4px 12px rgb(0 0 0 / 0.1);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg); color: var(--text);
+      margin: 0; padding: 0;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    /* ── Hub Nav ── */
+    .hub-nav {
+      position: sticky; top: 0; z-index: 300;
+      height: 44px; background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-border);
+      display: flex; align-items: center;
+      padding: 0 1.5rem; gap: 10px;
+    }
+    .hub-nav a.back-link {
+      display: flex; align-items: center; gap: 6px;
+      text-decoration: none; color: #94a3b8;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px;
+      border: 1px solid #334155; transition: all 0.2s;
+    }
+    .hub-nav a.back-link:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
+    .hub-nav a.back-link i { color: #1450f5; }
+    .nav-sep { width: 1px; height: 16px; background: #334155; }
+    .nav-tool { font-size: 0.78rem; color: #64748b; font-weight: 500; }
+    .nav-spacer { flex: 1; }
+    .nav-icon-btn {
+      display: flex; align-items: center; gap: 6px;
+      background: none; border: 1px solid #334155; color: #94a3b8;
+      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
+      font-family: 'Inter', sans-serif; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .nav-icon-btn:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
+    .nav-icon-btn.active { border-color: #1450f5; color: #a5b4fc; background: rgba(20,80,245,0.1); }
+    .nav-icon-btn i { color: #1450f5; }
+    .nav-signout {
+      background: none; border: 1px solid #334155; color: #64748b;
+      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
+      font-family: 'Inter', sans-serif; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+    }
+    .nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── Views ── */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* ── Setup Screen ── */
+    .setup-wrap {
+      display: flex; align-items: center; justify-content: center;
+      min-height: calc(100vh - 44px); padding: 2rem;
+    }
+    .setup-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 3rem; max-width: 600px; width: 100%;
+      box-shadow: var(--shadow-md);
+    }
+    .setup-card .icon { font-size: 2.5rem; margin-bottom: 1.25rem; }
+    .setup-card h1 { font-size: 1.6rem; font-weight: 800; margin: 0 0 0.5rem; letter-spacing: -0.03em; }
+    .setup-card p { color: var(--muted); line-height: 1.7; margin: 0 0 1.75rem; }
+    .setup-steps {
+      background: #f8fafc; border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 1.75rem;
+    }
+    .setup-steps ol { margin: 0; padding-left: 1.25rem; color: var(--muted); font-size: 0.875rem; line-height: 2; }
+    .setup-steps code {
+      background: #e2e8f0; padding: 1px 6px; border-radius: 4px;
+      font-size: 0.8rem; color: var(--primary);
+    }
+    .setup-input-row { display: flex; gap: 10px; }
+    .setup-input-row input {
+      flex: 1; padding: 0.75rem 1rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 0.9rem; font-family: 'Inter', sans-serif; outline: none;
+      transition: border-color 0.2s;
+    }
+    .setup-input-row input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,80,245,0.1); }
+    .btn-primary {
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white; border: none; border-radius: 8px;
+      font-size: 0.9rem; font-weight: 600; font-family: 'Inter', sans-serif;
+      cursor: pointer; white-space: nowrap; transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(20,80,245,0.3);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(20,80,245,0.4); }
+    .setup-err { margin-top: 0.75rem; color: #dc2626; font-size: 0.82rem; display: none; }
+
+    /* ── Filter Bar ── */
+    .filter-bar {
+      position: sticky; top: 44px; z-index: 200;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0.75rem 2rem;
+      display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+    }
+    .filter-bar input[type="text"] {
+      padding: 0.5rem 0.85rem 0.5rem 2.1rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 0.85rem; font-family: 'Inter', sans-serif;
+      width: 220px; outline: none; background: #f8fafc;
+      transition: all 0.2s; color: var(--text);
+    }
+    .filter-bar input[type="text"]:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(20,80,245,0.08); }
+    .search-wrap { position: relative; }
+    .search-wrap i { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.8rem; pointer-events: none; }
+    .filter-select {
+      padding: 0.5rem 2rem 0.5rem 0.85rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 0.82rem; font-family: 'Inter', sans-serif;
+      background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E") no-repeat right 0.7rem center;
+      appearance: none; cursor: pointer; outline: none;
+      color: var(--text); transition: all 0.2s; min-width: 140px;
+    }
+    .filter-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,80,245,0.08); background-color: white; }
+    .filter-bar-spacer { flex: 1; }
+    .filter-count { font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
+    .refresh-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0.5rem 0.9rem;
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 0.82rem; font-family: 'Inter', sans-serif;
+      font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.2s;
+    }
+    .refresh-btn:hover { border-color: #22c55e; color: #16a34a; background: #f0fdf4; }
+    .refresh-btn.spinning i { animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .settings-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 0.5rem 0.9rem;
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 0.82rem; font-family: 'Inter', sans-serif;
+      font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.2s;
+    }
+    .settings-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── Ticket Grid ── */
+    .list-wrap {
+      max-width: 1300px; margin: 0 auto;
+      padding: 2rem 2rem 4rem;
+    }
+    .empty-msg {
+      text-align: center; padding: 5rem 2rem;
+      color: var(--muted);
+    }
+    .empty-msg i { font-size: 2.5rem; margin-bottom: 1rem; display: block; color: #cbd5e1; }
+    .empty-msg h3 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.4rem; color: #94a3b8; }
+    .empty-msg p { font-size: 0.85rem; margin: 0; }
+    .ticket-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 1rem;
+    }
+    .ticket-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.25rem 1.4rem;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: var(--shadow);
+      display: flex; flex-direction: column; gap: 0.75rem;
+      position: relative; overflow: hidden;
+    }
+    .ticket-card::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px; border-radius: 12px 0 0 12px;
+      background: var(--card-accent, #e2e8f0);
+    }
+    .ticket-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: #cbd5e1; }
+    .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .ticket-num { font-size: 0.78rem; font-weight: 700; color: var(--primary); letter-spacing: 0.02em; }
+    .ticket-desc {
+      font-size: 0.9rem; font-weight: 600; color: var(--text);
+      line-height: 1.4; margin: 0;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .card-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .meta-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.72rem; font-weight: 500; color: var(--muted);
+      background: #f1f5f9; border: 1px solid #e2e8f0;
+      padding: 2px 8px; border-radius: 20px;
+    }
+    .meta-chip i { font-size: 0.65rem; color: #94a3b8; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; }
+    .sla-info { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); }
+    .sla-info i { font-size: 0.72rem; }
+    .days-badge {
+      font-size: 0.7rem; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px; letter-spacing: 0.02em;
+    }
+    .days-ok { background: #d1fae5; color: #065f46; }
+    .days-warn { background: #fef3c7; color: #92400e; }
+    .days-urgent { background: #fee2e2; color: #991b1b; }
+    .days-overdue { background: #fce7f3; color: #9d174d; }
+
+    /* State badges */
+    .state-badge {
+      display: inline-block; font-size: 0.68rem; font-weight: 700;
+      padding: 2px 9px; border-radius: 20px; letter-spacing: 0.04em;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    .s-open { background: #f1f5f9; color: #64748b; }
+    .s-assigned { background: #e0f2fe; color: #0369a1; }
+    .s-wip { background: #ede9fe; color: #5b21b6; }
+    .s-review { background: #f3e8ff; color: #7e22ce; }
+    .s-hold { background: #fef9c3; color: #854d0e; }
+    .s-pending { background: #ffedd5; color: #9a3412; }
+
+    /* Card accent colors */
+    .accent-wip { --card-accent: #1450f5; }
+    .accent-review { --card-accent: #9333ea; }
+    .accent-hold { --card-accent: #f59e0b; }
+    .accent-pending { --card-accent: #f97316; }
+    .accent-assigned { --card-accent: #0ea5e9; }
+    .accent-open { --card-accent: #94a3b8; }
+
+    /* ── Email View ── */
+    #view-email { background: var(--bg); }
+    .email-nav {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 2rem; height: 52px;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .btn-back-list {
+      display: flex; align-items: center; gap: 6px;
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 12px;
+      font-size: 0.82rem; font-weight: 600; color: var(--muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-back-list:hover { border-color: var(--primary); color: var(--primary); }
+    .email-nav-ticket { font-size: 0.85rem; font-weight: 700; color: var(--primary); }
+    .email-nav-desc { font-size: 0.82rem; color: var(--muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .email-body { max-width: 1000px; margin: 0 auto; padding: 2rem 2rem 4rem; }
+
+    .ticket-header-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+    .th-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 0.75rem; }
+    .th-num { font-size: 1.2rem; font-weight: 800; color: var(--primary); letter-spacing: -0.02em; }
+    .th-desc { font-size: 1rem; font-weight: 600; color: var(--text); line-height: 1.45; flex: 1; }
+    .th-meta { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.82rem; color: var(--muted); }
+    .th-meta span { display: flex; align-items: center; gap: 5px; }
+    .th-meta strong { color: var(--text); }
+
+    .form-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.4rem 1.6rem;
+      margin-bottom: 1.25rem; box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 0.85rem; font-weight: 700; color: var(--text);
+      margin: 0 0 1.1rem; display: flex; align-items: center; gap: 8px;
+      padding-bottom: 0.65rem; border-bottom: 1px solid var(--border);
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .card-title i { color: var(--primary); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
+    label { display: block; margin-bottom: 0.3rem; font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .field-input {
+      width: 100%; padding: 0.65rem 0.85rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 0.88rem; font-family: 'Inter', sans-serif;
+      background: var(--surface); color: var(--text); outline: none;
+      transition: all 0.2s;
+    }
+    .field-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,80,245,0.1); }
+    .input-with-btn { display: flex; gap: 8px; }
+    .input-with-btn .field-input { flex: 1; }
+    .gen-btn {
+      padding: 0.65rem 1rem; background: var(--primary); color: white;
+      border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      white-space: nowrap; transition: all 0.2s; flex-shrink: 0;
+    }
+    .gen-btn:hover { background: var(--primary-dark); }
+    .link-ok {
+      margin-top: 0.4rem; padding: 0.45rem 0.75rem;
+      background: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: 6px; font-size: 0.75rem;
+      display: none; align-items: center; gap: 8px;
+    }
+    .link-ok.show { display: flex; }
+    .link-ok i { color: #16a34a; flex-shrink: 0; }
+    .link-ok a { color: var(--primary); text-decoration: none; word-break: break-all; flex: 1; }
+    .link-ok a:hover { text-decoration: underline; }
+    .copy-sm {
+      background: white; border: 1px solid #d1fae5; border-radius: 5px;
+      padding: 2px 8px; cursor: pointer; font-size: 0.72rem; font-weight: 600;
+      color: #16a34a; font-family: 'Inter', sans-serif; flex-shrink: 0; transition: all 0.2s;
+    }
+    .copy-sm:hover { background: #d1fae5; }
+    .field-err {
+      margin-top: 0.4rem; padding: 0.4rem 0.75rem;
+      background: #fef2f2; border: 1px solid #fecaca;
+      border-radius: 6px; color: #dc2626; font-size: 0.75rem;
+      display: none; align-items: flex-start; gap: 6px;
+    }
+    .field-err.show { display: flex; }
+    .subject-row { display: flex; gap: 8px; }
+    .subject-row .field-input { flex: 1; }
+    .ai-btn {
+      padding: 0.65rem 1rem; background: #eff6ff;
+      border: 1px solid #bfdbfe; color: var(--primary);
+      border-radius: 8px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      white-space: nowrap; transition: all 0.2s; flex-shrink: 0;
+    }
+    .ai-btn:hover { background: #dbeafe; }
+    .ai-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    /* Email tabs */
+    .email-tabs {
+      display: flex; flex-wrap: wrap; gap: 0;
+      border-bottom: 2px solid var(--border); margin-bottom: 1.25rem;
+    }
+    .etab {
+      background: none; border: none; border-bottom: 2px solid transparent;
+      padding: 0.65rem 1.1rem; font-size: 0.83rem; font-weight: 500;
+      color: var(--muted); cursor: pointer; font-family: 'Inter', sans-serif;
+      white-space: nowrap; margin-bottom: -2px; transition: all 0.15s;
+    }
+    .etab:hover { color: var(--primary); }
+    .etab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 700; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: fadeUp 0.2s ease; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .sub-tabs {
+      display: inline-flex; background: #f1f5f9; padding: 3px;
+      border-radius: 8px; margin-bottom: 1rem;
+    }
+    .stab {
+      background: none; border: none; padding: 4px 14px; border-radius: 6px;
+      font-size: 0.82rem; font-weight: 500; color: var(--muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s;
+    }
+    .stab.active { background: white; color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); }
+    .sub-panel { display: none; }
+    .sub-panel.active { display: block; }
+
+    .email-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem; position: relative;
+      box-shadow: var(--shadow);
+    }
+    .email-content {
+      white-space: pre-wrap; font-family: 'Inter', sans-serif;
+      font-size: 0.9rem; line-height: 1.75; color: var(--text);
+    }
+    .email-content a { color: var(--primary); text-decoration: underline; }
+    .copy-email-btn {
+      position: absolute; top: 1rem; right: 1rem;
+      background: white; border: 1px solid var(--border); border-radius: 6px;
+      padding: 5px 11px; cursor: pointer; font-size: 0.78rem; font-weight: 600;
+      color: var(--muted); font-family: 'Inter', sans-serif;
+      display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+    }
+    .copy-email-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── Link Generator View ── */
+    #view-linkgen { background: var(--bg); }
+    .linkgen-body { max-width: 960px; margin: 0 auto; padding: 2rem 2rem 4rem; }
+    .linkgen-body h1 { font-size: 1.5rem; font-weight: 800; margin: 0 0 0.35rem; letter-spacing: -0.02em; }
+    .linkgen-body .subtitle { color: var(--muted); font-size: 0.9rem; margin: 0 0 2rem; }
+    .lg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    .lg-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+    .lg-card h2 {
+      font-size: 0.9rem; font-weight: 700; margin: 0 0 1.1rem;
+      padding-bottom: 0.6rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .lg-card h2 i { color: var(--primary); }
+    textarea.field-input {
+      resize: vertical; line-height: 1.5; font-size: 0.85rem;
+    }
+    .lg-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 0.7rem 1.25rem; margin-top: 0.75rem;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white; border: none; border-radius: var(--radius);
+      font-size: 0.88rem; font-weight: 600; font-family: 'Inter', sans-serif;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(20,80,245,0.25);
+    }
+    .lg-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(20,80,245,0.35); }
+    .lg-result { display: none; margin-top: 0.75rem; }
+    .lg-result.show { display: block; }
+    .lg-success { display: inline-flex; align-items: center; gap: 5px; background: #d1fae5; color: #065f46; font-size: 0.72rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; margin-bottom: 0.5rem; }
+    .lg-url-box {
+      background: #f8fafc; border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.85rem 1rem; position: relative;
+    }
+    .lg-url-box code { display: block; word-break: break-all; font-size: 0.82rem; color: var(--primary); padding-right: 70px; line-height: 1.5; font-family: 'Courier New', monospace; }
+    .lg-copy {
+      position: absolute; top: 0.65rem; right: 0.65rem;
+      background: white; border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 10px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
+      color: var(--muted); font-family: 'Inter', sans-serif;
+      display: flex; align-items: center; gap: 4px; transition: all 0.2s;
+    }
+    .lg-copy:hover { border-color: var(--primary); color: var(--primary); }
+    .lg-meta { margin-top: 0.5rem; padding: 0.6rem 0.85rem; background: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.78rem; color: var(--muted); line-height: 1.8; }
+    .lg-meta strong { color: var(--text); }
+    .lg-err { display: none; margin-top: 0.6rem; padding: 0.5rem 0.85rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; color: #dc2626; font-size: 0.78rem; align-items: flex-start; gap: 6px; }
+    .lg-err.show { display: flex; }
+    .how-card {
+      background: #f8fafc; border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.4rem 1.6rem;
+      margin-top: 1.25rem; box-shadow: var(--shadow);
+    }
+    .how-card h2 { font-size: 0.88rem; font-weight: 700; margin: 0 0 1rem; display: flex; align-items: center; gap: 8px; }
+    .how-card h2 i { color: var(--primary); }
+    .how-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; font-size: 0.83rem; color: var(--muted); line-height: 1.7; }
+    .how-grid strong { color: var(--text); }
+    .how-grid code { background: #e2e8f0; padding: 1px 5px; border-radius: 3px; font-size: 0.78rem; }
+
+    /* ── Loading overlay ── */
+    .loading-overlay {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      background: rgba(15,23,42,0.6); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+    }
+    .loading-overlay.show { display: flex; }
+    .loading-box {
+      background: white; border-radius: 16px; padding: 2.5rem 3rem;
+      text-align: center; box-shadow: var(--shadow-md);
+    }
+    .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 1rem; }
+    .loading-box p { color: var(--muted); font-size: 0.9rem; margin: 0; }
+
+    @media (max-width: 768px) {
+      .ticket-grid { grid-template-columns: 1fr; }
+      .grid-2, .lg-grid, .how-grid { grid-template-columns: 1fr; }
+      .grid-4 { grid-template-columns: 1fr 1fr; }
+      .filter-bar { gap: 0.5rem; }
+      .filter-bar input[type="text"] { width: 150px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hub Nav -->
+  <nav class="hub-nav">
+    <a href="../index.html" class="back-link"><i class="fa-solid fa-shield-halved"></i> Aegis Hub</a>
+    <div class="nav-sep"></div>
+    <span class="nav-tool">Email Tracker</span>
+    <div class="nav-spacer"></div>
+    <button class="nav-icon-btn" id="navLinkGenBtn"><i class="fa-solid fa-link"></i> Link Generator</button>
+    <button class="nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
+  </nav>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <p id="loadingMsg">Fetching ticket data…</p>
+    </div>
+  </div>
+
+  <!-- ── VIEW: Setup ── -->
+  <div class="view active" id="view-setup">
+    <div class="setup-wrap" style="align-items:flex-start; padding-top:2.5rem;">
+      <div class="setup-card" style="max-width:680px;">
+        <div class="icon">📊</div>
+        <h1>Connect Your Ticket Sheet</h1>
+        <p>Uses a Google Apps Script that sits inside your sheet and serves the data as JSON — no CORS issues, no API keys. One-time 3-minute setup, then it loads automatically every visit.</p>
+
+        <div class="setup-steps" style="margin-bottom:1.25rem;">
+          <strong style="font-size:0.82rem; color:var(--text); display:block; margin-bottom:0.6rem;">Step 1 — Add the script to your Google Sheet</strong>
+          <ol style="margin-top:0;">
+            <li>Open your ticket spreadsheet in Google Sheets</li>
+            <li>Click <strong>Extensions → Apps Script</strong></li>
+            <li>Delete everything in the editor and paste the script below</li>
+            <li>Click <strong>Save</strong> (💾), then <strong>Deploy → New deployment</strong></li>
+            <li>Set type: <strong>Web app</strong> · Execute as: <strong>Me</strong> · Access: <strong>Anyone</strong></li>
+            <li>Click <strong>Deploy</strong>, authorise when prompted, then copy the <strong>Web app URL</strong></li>
+          </ol>
+        </div>
+
+        <div style="background:#0f172a; border-radius:10px; padding:1.1rem 1.25rem; margin-bottom:1.5rem; position:relative;">
+          <button id="copyScriptBtn" style="position:absolute;top:0.75rem;right:0.75rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#94a3b8;border-radius:6px;padding:3px 10px;font-size:0.72rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:600;transition:all 0.2s;" onmouseover="this.style.color='#f1f5f9'" onmouseout="this.style.color='#94a3b8'"><i class="fa-regular fa-copy"></i> Copy</button>
+          <pre id="appScriptCode" style="margin:0;color:#e2e8f0;font-size:0.78rem;line-height:1.7;font-family:'Courier New',monospace;white-space:pre-wrap;overflow:auto;">function doGet() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var data  = sheet.getDataRange().getValues();
+  var keys  = data[0];
+  var rows  = data.slice(1).map(function(row) {
+    var obj = {};
+    keys.forEach(function(k, i) {
+      var val = row[i];
+      if (val instanceof Date) {
+        // Explicit YYYY-MM-DD avoids timezone serialisation issues
+        var y = val.getFullYear();
+        var m = String(val.getMonth() + 1).padStart(2, '0');
+        var d = String(val.getDate()).padStart(2, '0');
+        obj[k] = y + '-' + m + '-' + d;
+      } else {
+        obj[k] = val;
+      }
+    });
+    return obj;
+  });
+  return ContentService
+    .createTextOutput(JSON.stringify(rows))
+    .setMimeType(ContentService.MimeType.JSON);
+}</pre>
+        </div>
+
+        <div class="setup-steps" style="margin-bottom:1.5rem;">
+          <strong style="font-size:0.82rem; color:var(--text); display:block; margin-bottom:0.4rem;">Step 2 — Paste the Web app URL below</strong>
+          <p style="font-size:0.82rem; color:var(--muted); margin:0 0 0.3rem;">The URL looks like: <code>https://script.google.com/macros/s/…/exec</code></p>
+        </div>
+
+        <div class="setup-input-row">
+          <input type="url" id="sheetUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
+          <button class="btn-primary" id="connectSheetBtn"><i class="fa-solid fa-plug"></i> Connect</button>
+        </div>
+        <p class="setup-err" id="setupErr" style="display:none;align-items:center;gap:6px;margin-top:0.75rem;color:#dc2626;font-size:0.82rem;"><i class="fa-solid fa-circle-exclamation"></i> <span></span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── VIEW: Ticket List ── -->
+  <div class="view" id="view-list">
+    <!-- Filter Bar -->
+    <div class="filter-bar" id="filterBar">
+      <div class="search-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="searchInput" placeholder="Search tickets…">
+      </div>
+      <select class="filter-select" id="filterAssignee">
+        <option value="">All Assignees</option>
+      </select>
+      <select class="filter-select" id="filterService">
+        <option value="">All Services</option>
+      </select>
+      <select class="filter-select" id="filterState">
+        <option value="">All States</option>
+      </select>
+      <select class="filter-select" id="sortBy">
+        <option value="sla_asc">SLA: Closest First</option>
+        <option value="sla_desc">SLA: Furthest First</option>
+        <option value="created_desc">Created: Newest First</option>
+        <option value="created_asc">Created: Oldest First</option>
+        <option value="id_desc">Ticket ID: Desc</option>
+        <option value="id_asc">Ticket ID: Asc</option>
+      </select>
+      <div class="filter-bar-spacer"></div>
+      <span class="filter-count" id="filterCount"></span>
+      <button class="refresh-btn" id="refreshBtn"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
+      <button class="settings-btn" id="settingsBtn"><i class="fa-solid fa-gear"></i></button>
+    </div>
+
+    <!-- Ticket Grid -->
+    <div class="list-wrap">
+      <div id="ticketGrid" class="ticket-grid"></div>
+      <div id="emptyMsg" class="empty-msg hidden">
+        <i class="fa-solid fa-inbox"></i>
+        <h3>No tickets match your filters</h3>
+        <p>Try adjusting or clearing your filters</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── VIEW: Email Composition ── -->
+  <div class="view" id="view-email">
+    <div class="email-nav">
+      <button class="btn-back-list" id="backToListBtn"><i class="fa-solid fa-arrow-left"></i> Back to tickets</button>
+      <div class="nav-sep" style="background:var(--border); height:20px;"></div>
+      <span class="email-nav-ticket" id="enTicketNum"></span>
+      <span class="email-nav-desc" id="enTicketDesc"></span>
+    </div>
+    <div class="email-body">
+
+      <!-- Ticket Header -->
+      <div class="ticket-header-card">
+        <div class="th-top">
+          <span class="th-num" id="ethNum"></span>
+          <p class="th-desc" id="ethDesc"></p>
+          <span class="state-badge" id="ethState"></span>
+        </div>
+        <div class="th-meta">
+          <span><i class="fa-solid fa-user"></i> <strong id="ethAssignee"></strong></span>
+          <span><i class="fa-solid fa-building"></i> <span id="ethClient"></span></span>
+          <span><i class="fa-solid fa-layer-group"></i> <span id="ethService"></span></span>
+          <span><i class="fa-regular fa-calendar-check"></i> SLA: <strong id="ethSLA"></strong></span>
+          <span id="ethDaysBadgeWrap"></span>
+        </div>
+      </div>
+
+      <!-- Links -->
+      <div class="form-card">
+        <div class="card-title"><i class="fa-solid fa-link"></i> ServiceNow Links</div>
+        <div class="grid-2">
+          <div>
+            <label>Case URL <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— agent view URL</span></label>
+            <div class="input-with-btn">
+              <input type="text" class="field-input" id="caseUrlInput" placeholder="https://koneprod.service-now.com/now/nav/ui/classic/params/target/…">
+              <button class="gen-btn" id="genCaseBtn">Generate</button>
+            </div>
+            <div class="link-ok" id="caseOk"><i class="fa-solid fa-check-circle"></i><a id="caseLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="caseCopyBtn">Copy</button></div>
+            <div class="field-err" id="caseErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+          </div>
+          <div>
+            <label>Feedback URL <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— survey instance URL</span></label>
+            <div class="input-with-btn">
+              <input type="text" class="field-input" id="feedbackUrlInput" placeholder="https://koneprod.service-now.com/asmt_assessment_instance.do?sys_id=…">
+              <button class="gen-btn" id="genFeedbackBtn">Generate</button>
+            </div>
+            <div class="link-ok" id="feedbackOk"><i class="fa-solid fa-check-circle"></i><a id="feedbackLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="feedbackCopyBtn">Copy</button></div>
+            <div class="field-err" id="feedbackErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+          </div>
+          <div>
+            <label>Preview Link</label>
+            <input type="url" class="field-input" id="previewInput" placeholder="https://…">
+          </div>
+        </div>
+      </div>
+
+      <!-- Subject -->
+      <div class="form-card">
+        <div class="card-title"><i class="fa-solid fa-heading"></i> Subject Line</div>
+        <div class="subject-row" style="margin-bottom:0.6rem;">
+          <select class="field-input" id="taskTypeSelect" style="flex:0 0 auto;width:220px;"></select>
+        </div>
+        <div class="subject-row">
+          <input type="text" class="field-input" id="subjectInput" placeholder="Email subject line">
+          <button class="ai-btn" id="aiSubjectBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Suggest</button>
+        </div>
+      </div>
+
+      <!-- Email Tabs -->
+      <div class="email-tabs" id="emailTabs">
+        <button class="etab active" data-tab="assigned">Assigned</button>
+        <button class="etab" data-tab="confirmation">Confirmation</button>
+        <button class="etab" data-tab="preview">Preview</button>
+        <button class="etab" data-tab="onhold">On Hold</button>
+        <button class="etab" data-tab="pendingconf">Pending Confirmation</button>
+        <button class="etab" data-tab="closed">Closed Completed</button>
+      </div>
+
+      <div id="tab-assigned" class="tab-panel active">
+        <div class="email-box"><div id="body-assigned" class="email-content"></div><button class="copy-email-btn" data-src="body-assigned"><i class="fa-regular fa-copy"></i> Copy</button></div>
+      </div>
+      <div id="tab-confirmation" class="tab-panel">
+        <div class="email-box"><div id="body-confirmation" class="email-content"></div><button class="copy-email-btn" data-src="body-confirmation"><i class="fa-regular fa-copy"></i> Copy</button></div>
+      </div>
+      <div id="tab-preview" class="tab-panel">
+        <div class="email-box"><div id="body-preview" class="email-content"></div><button class="copy-email-btn" data-src="body-preview"><i class="fa-regular fa-copy"></i> Copy</button></div>
+      </div>
+      <div id="tab-onhold" class="tab-panel">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+          <div>
+            <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">On Hold Reason</label>
+            <input type="text" class="field-input" id="ohReasonInput" placeholder="e.g. Awaiting client assets" oninput="renderEmails()">
+          </div>
+          <div>
+            <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">On Hold Start Date</label>
+            <input type="date" class="field-input" id="ohDateInput" oninput="renderEmails()">
+          </div>
+        </div>
+        <div class="sub-tabs">
+          <button class="stab active" data-sub="oh-initial">Initial</button>
+          <button class="stab" data-sub="oh-r1">1st Reminder</button>
+          <button class="stab" data-sub="oh-r2">Final Reminder</button>
+          <button class="stab" data-sub="oh-closure">Closure</button>
+        </div>
+        <div id="sub-oh-initial" class="sub-panel active"><div class="email-box"><div id="body-oh-initial" class="email-content"></div><button class="copy-email-btn" data-src="body-oh-initial"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+        <div id="sub-oh-r1" class="sub-panel"><div class="email-box"><div id="body-oh-r1" class="email-content"></div><button class="copy-email-btn" data-src="body-oh-r1"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+        <div id="sub-oh-r2" class="sub-panel"><div class="email-box"><div id="body-oh-r2" class="email-content"></div><button class="copy-email-btn" data-src="body-oh-r2"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+        <div id="sub-oh-closure" class="sub-panel"><div class="email-box"><div id="body-oh-closure" class="email-content"></div><button class="copy-email-btn" data-src="body-oh-closure"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
+      </div>
+      <div id="tab-pendingconf" class="tab-panel">
+        <div class="email-box"><div id="body-pendingconf" class="email-content"></div><button class="copy-email-btn" data-src="body-pendingconf"><i class="fa-regular fa-copy"></i> Copy</button></div>
+      </div>
+      <div id="tab-closed" class="tab-panel">
+        <div style="margin-bottom:0.85rem;">
+          <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Live Link URL</label>
+          <input type="url" class="field-input" id="liveInput" placeholder="https://… (published page / asset URL)" oninput="renderEmails()">
+        </div>
+        <div class="email-box"><div id="body-closed" class="email-content"></div><button class="copy-email-btn" data-src="body-closed"><i class="fa-regular fa-copy"></i> Copy</button></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── VIEW: Link Generator ── -->
+  <div class="view" id="view-linkgen">
+    <div class="linkgen-body">
+      <h1><i class="fa-solid fa-link" style="color:var(--primary);margin-right:8px;"></i>Link Generator</h1>
+      <p class="subtitle">Convert internal ServiceNow URLs into clean, shareable case and feedback links.</p>
+      <div class="lg-grid">
+        <div class="lg-card">
+          <h2><i class="fa-solid fa-ticket"></i> Case Link</h2>
+          <label>Paste ServiceNow Case URL</label>
+          <textarea class="field-input" id="lgCaseInput" rows="5" placeholder="https://koneprod.service-now.com/now/nav/ui/classic/params/target/…"></textarea>
+          <button class="lg-btn" id="lgGenCaseBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Case Link</button>
+          <div class="lg-err" id="lgCaseErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+          <div class="lg-result" id="lgCaseResult">
+            <div class="lg-success"><i class="fa-solid fa-check"></i> Generated</div>
+            <div class="lg-url-box"><code id="lgCaseOut"></code><button class="lg-copy" id="lgCaseCopy"><i class="fa-regular fa-copy"></i> Copy</button></div>
+            <div class="lg-meta" id="lgCaseMeta"></div>
+          </div>
+        </div>
+        <div class="lg-card">
+          <h2><i class="fa-solid fa-star"></i> Feedback Survey Link</h2>
+          <label>Paste ServiceNow Survey URL</label>
+          <textarea class="field-input" id="lgFeedbackInput" rows="5" placeholder="https://koneprod.service-now.com/asmt_assessment_instance.do?sys_id=…"></textarea>
+          <button class="lg-btn" id="lgGenFeedbackBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Feedback Link</button>
+          <div class="lg-err" id="lgFeedbackErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+          <div class="lg-result" id="lgFeedbackResult">
+            <div class="lg-success"><i class="fa-solid fa-check"></i> Generated</div>
+            <div class="lg-url-box"><code id="lgFeedbackOut"></code><button class="lg-copy" id="lgFeedbackCopy"><i class="fa-regular fa-copy"></i> Copy</button></div>
+            <div class="lg-meta" id="lgFeedbackMeta"></div>
+          </div>
+        </div>
+      </div>
+      <div class="how-card">
+        <h2><i class="fa-solid fa-circle-question"></i> How It Works</h2>
+        <div class="how-grid">
+          <div><strong>Case Link</strong><br>Copy the full URL from the ServiceNow agent view (the long <code>/now/nav/ui/classic/params/target/</code> URL). Extracts the table and sys_id to build a clean ESC link.</div>
+          <div><strong>Feedback Survey Link</strong><br>Copy the URL from the ServiceNow survey instance view (<code>asmt_assessment_instance.do</code> URL). Extracts the instance ID to build a direct survey link for the end user.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <script>
+    // ── Auth ──────────────────────────────────────────────────────────────
+    if (sessionStorage.getItem('aegis_auth') !== 'true') {
+      window.location.replace('../login.html');
+    }
+
+    // NOTE: Move this key to a backend proxy before sharing publicly.
+    const OPENAI_KEY = "YOUR_OPENAI_API_KEY_HERE";
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec';
+    const SHEET_URL_KEY = 'aegis_sheet_url';
+
+    // ── Constants ─────────────────────────────────────────────────────────
+    function getSLADays(subCat) {
+      const n = subCat.toLowerCase().replace(/\s*[-–—]\s*/g, ' ').trim();
+      if (n.startsWith('website content')) return 10;
+      if (n.includes('graphic design'))   return 10;
+      if (n.includes('demand creation'))  return 30;
+      if (n.includes('retention'))        return 30;
+      if (n.startsWith('email'))          return 7;
+      return 10;
+    }
+
+    const TASK_TYPES = {
+      'website content': ['New Page Creation', 'Existing Page Updates', 'Page Removal', 'Page Translation', 'Content Refresh'],
+      'graphic design':  ['Social Media Asset', 'Banner / Display Ad', 'Brochure / Flyer', 'Infographic', 'Email Template Design'],
+      'demand creation': ['Global Journey Deployment', 'Campaign Setup', 'Landing Page', 'Form Creation'],
+      'retention':       ['Retention Campaign', 'Activation Email', 'Lifecycle Email', 'Nurture Sequence'],
+      'email':           ['Email – Local Send', 'Newsletter', 'Triggered Email', 'Template Update'],
+      '_default':        ['New Page Creation', 'Existing Page Updates', 'Press Release', 'Global Journey Deployment', 'Other']
+    };
+
+    const ACTIVE_STATES = new Set([
+      'Open', 'Assigned', 'Work in progress', 'In review', 'On Hold', 'Pending Confirmation'
+    ]);
+
+    const STATE_CLASS = {
+      'Open': 's-open',
+      'Assigned': 's-assigned',
+      'Work in progress': 's-wip',
+      'In review': 's-review',
+      'On Hold': 's-hold',
+      'Pending Confirmation': 's-pending'
+    };
+
+    const ACCENT_CLASS = {
+      'Open': 'accent-open',
+      'Assigned': 'accent-assigned',
+      'Work in progress': 'accent-wip',
+      'In review': 'accent-review',
+      'On Hold': 'accent-hold',
+      'Pending Confirmation': 'accent-pending'
+    };
+
+    // ── State ─────────────────────────────────────────────────────────────
+    let allTickets = [];
+    let filteredTickets = [];
+    let currentTicket = null;
+    let generatedCaseLink = '';
+    let generatedFeedbackLink = '';
+    let previousView = 'list';
+
+    // ── View routing ──────────────────────────────────────────────────────
+    function showView(name) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + name).classList.add('active');
+      document.getElementById('navLinkGenBtn').classList.toggle('active', name === 'linkgen');
+    }
+
+    // ── Date utilities ────────────────────────────────────────────────────
+    function parseFlexDate(val) {
+      if (!val || val === '') return null;
+      if (typeof val === 'number') {
+        // Excel/Sheets serial number
+        const d = new Date((val - 25569) * 86400 * 1000);
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+      }
+      const s = String(val).trim();
+      if (!s) return null;
+      // ISO: 2025-05-18 or 2025-05-18T...
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const d = new Date(s.substring(0, 10) + 'T00:00:00');
+        return isNaN(d) ? null : d;
+      }
+      // ServiceNow format: 2025-05-18 08:30:00
+      // Already handled above
+      // US format: 5/18/2025
+      const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (usMatch) {
+        const d = new Date(+usMatch[3], +usMatch[1] - 1, +usMatch[2]);
+        return isNaN(d) ? null : d;
+      }
+      const d = new Date(s);
+      return isNaN(d) ? null : d;
+    }
+
+    function addWorkDays(date, days) {
+      const d = new Date(date);
+      let added = 0;
+      while (added < days) {
+        d.setDate(d.getDate() + 1);
+        if (d.getDay() !== 0 && d.getDay() !== 6) added++;
+      }
+      return d;
+    }
+
+    function daysFromToday(date) {
+      if (!date) return null;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const ms = date - today;
+      return Math.ceil(ms / 86400000);
+    }
+
+    function fmtDate(date) {
+      if (!date) return 'TBD';
+      const d = date.getDate(), m = date.toLocaleString('en-US', { month: 'long' });
+      const sfx = [, 'st', 'nd', 'rd'][d % 100 > 10 && d % 100 < 14 ? 0 : d % 10] || 'th';
+      return `${m} ${d}${sfx}`;
+    }
+
+    function daysBadge(days) {
+      if (days === null) return '';
+      if (days < 0) return `<span class="days-badge days-overdue">${Math.abs(days)}d overdue</span>`;
+      if (days <= 3) return `<span class="days-badge days-urgent">${days}d left</span>`;
+      if (days <= 7) return `<span class="days-badge days-warn">${days}d left</span>`;
+      return `<span class="days-badge days-ok">${days}d left</span>`;
+    }
+
+    // ── Sheet loading (Google Apps Script web app → JSON) ─────────────────
+    async function fetchAndParse(url) {
+      // Apps Script URLs redirect; follow them and request JSON
+      const res = await fetch(url, { cache: 'no-cache', redirect: 'follow' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const text = await res.text();
+      // Parse as JSON (Apps Script response)
+      let rows;
+      try {
+        rows = JSON.parse(text);
+      } catch {
+        throw new Error('Response was not valid JSON. Make sure your Apps Script is deployed correctly and returns JSON.');
+      }
+      if (!Array.isArray(rows)) throw new Error('Expected an array of rows from the Apps Script. Check your script output.');
+      return rows;
+    }
+
+    async function loadTickets(url, silent = false) {
+      if (!silent) showLoading('Fetching ticket data…');
+      try {
+        const rows = await fetchAndParse(url);
+        allTickets = rows
+          .filter(r => ACTIVE_STATES.has((r['State'] || '').trim()))
+          .map(r => {
+            const created = parseFlexDate(r['Created']);
+            const prefLive = parseFlexDate(r['Preferred Live Date']);
+            const subCat = (r['Sub-Category'] || '').trim();
+            const slaDays = getSLADays(subCat);
+            const slaDate = created ? addWorkDays(created, slaDays - 1) : null;
+            return {
+              id: String(r['Number'] || '').trim(),
+              description: String(r['Short description'] || '').trim(),
+              subCategory: subCat,
+              client: String(r['Requested by'] || '').trim(),
+              team: String(r['Team'] || '').trim(),
+              area: String(r['Area'] || '').trim(),
+              assignee: String(r['Assigned to'] || '').trim(),
+              state: String(r['State'] || '').trim(),
+              tags: String(r['Tags'] || '').trim(),
+              created, prefLive, slaDays, slaDate,
+              daysLeft: daysFromToday(slaDate)
+            };
+          })
+          .filter(t => t.id);
+        populateFilterOptions();
+        applyFilters();
+        showView('list');
+      } catch (e) {
+        if (!silent) alert('Could not load sheet data: ' + e.message + '\n\nMake sure the sheet is published to the web as CSV.');
+        else console.error('Sheet refresh failed:', e);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // ── Filters ───────────────────────────────────────────────────────────
+    function populateFilterOptions() {
+      const assignees = [...new Set(allTickets.map(t => t.assignee).filter(Boolean))].sort();
+      const services = [...new Set(allTickets.map(t => t.subCategory).filter(Boolean))].sort();
+      const states = [...new Set(allTickets.map(t => t.state).filter(Boolean))].sort();
+
+      const assign = document.getElementById('filterAssignee');
+      const cur = assign.value;
+      assign.innerHTML = '<option value="">All Assignees</option>' +
+        assignees.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+      if (assignees.includes(cur)) assign.value = cur;
+
+      const svc = document.getElementById('filterService');
+      const curS = svc.value;
+      svc.innerHTML = '<option value="">All Services</option>' +
+        services.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+      if (services.includes(curS)) svc.value = curS;
+
+      const st = document.getElementById('filterState');
+      const curSt = st.value;
+      st.innerHTML = '<option value="">All States</option>' +
+        states.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+      if (states.includes(curSt)) st.value = curSt;
+    }
+
+    function applyFilters() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const assignee = document.getElementById('filterAssignee').value;
+      const service = document.getElementById('filterService').value;
+      const state = document.getElementById('filterState').value;
+      const sort = document.getElementById('sortBy').value;
+
+      filteredTickets = allTickets.filter(t => {
+        if (assignee && t.assignee !== assignee) return false;
+        if (service && t.subCategory !== service) return false;
+        if (state && t.state !== state) return false;
+        if (q && !t.id.toLowerCase().includes(q) &&
+            !t.description.toLowerCase().includes(q) &&
+            !t.client.toLowerCase().includes(q) &&
+            !t.assignee.toLowerCase().includes(q)) return false;
+        return true;
+      });
+
+      filteredTickets.sort((a, b) => {
+        if (sort === 'sla_asc') return (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999);
+        if (sort === 'sla_desc') return (b.daysLeft ?? -9999) - (a.daysLeft ?? -9999);
+        if (sort === 'created_desc') return (b.created || 0) - (a.created || 0);
+        if (sort === 'created_asc') return (a.created || 0) - (b.created || 0);
+        if (sort === 'id_desc') return b.id.localeCompare(a.id, undefined, { numeric: true });
+        if (sort === 'id_asc') return a.id.localeCompare(b.id, undefined, { numeric: true });
+        return 0;
+      });
+
+      renderGrid();
+    }
+
+    // ── Card rendering ────────────────────────────────────────────────────
+    function renderGrid() {
+      const grid = document.getElementById('ticketGrid');
+      const empty = document.getElementById('emptyMsg');
+      const count = document.getElementById('filterCount');
+      count.textContent = `${filteredTickets.length} ticket${filteredTickets.length !== 1 ? 's' : ''}`;
+
+      if (!filteredTickets.length) {
+        grid.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      grid.innerHTML = filteredTickets.map(t => {
+        const stateClass = STATE_CLASS[t.state] || 's-open';
+        const accentClass = ACCENT_CLASS[t.state] || 'accent-open';
+        const badge = daysBadge(t.daysLeft);
+        const shortAssignee = t.assignee.split(' ')[0];
+        const shortService = t.subCategory.split('–')[0].trim();
+        return `
+          <div class="ticket-card ${accentClass}" data-id="${esc(t.id)}" role="button" tabindex="0">
+            <div class="card-top">
+              <span class="ticket-num">${esc(t.id)}</span>
+              <span class="state-badge ${stateClass}">${esc(t.state)}</span>
+            </div>
+            <p class="ticket-desc">${esc(t.description)}</p>
+            <div class="card-meta">
+              <span class="meta-chip"><i class="fa-solid fa-user"></i>${esc(shortAssignee)}</span>
+              <span class="meta-chip"><i class="fa-solid fa-building"></i>${esc(t.client || '—')}</span>
+              <span class="meta-chip"><i class="fa-solid fa-layer-group"></i>${esc(shortService)}</span>
+            </div>
+            <div class="card-footer">
+              <span class="sla-info"><i class="fa-regular fa-calendar-check"></i> SLA: ${fmtDate(t.slaDate)}</span>
+              ${badge}
+            </div>
+          </div>`;
+      }).join('');
+
+      grid.querySelectorAll('.ticket-card').forEach(card => {
+        const handler = () => {
+          const t = allTickets.find(t => t.id === card.dataset.id);
+          if (t) selectTicket(t);
+        };
+        card.addEventListener('click', handler);
+        card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') handler(); });
+      });
+    }
+
+    // ── Ticket selection + email view ─────────────────────────────────────
+    function selectTicket(ticket) {
+      currentTicket = ticket;
+      generatedCaseLink = '';
+      generatedFeedbackLink = '';
+
+      // Reset inputs
+      ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'ohReasonInput', 'ohDateInput', 'liveInput'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      ['caseOk', 'caseErr', 'feedbackOk', 'feedbackErr'].forEach(id => {
+        document.getElementById(id).classList.remove('show');
+      });
+
+      // Populate header
+      document.getElementById('enTicketNum').textContent = '#' + ticket.id;
+      document.getElementById('enTicketDesc').textContent = ticket.description;
+      document.getElementById('ethNum').textContent = '#' + ticket.id;
+      document.getElementById('ethDesc').textContent = ticket.description;
+      document.getElementById('ethAssignee').textContent = ticket.assignee;
+      document.getElementById('ethClient').textContent = ticket.client;
+      document.getElementById('ethService').textContent = ticket.subCategory;
+      document.getElementById('ethSLA').textContent = ticket.slaDate ? fmtDate(ticket.slaDate) : 'N/A';
+
+      const stateBadge = document.getElementById('ethState');
+      stateBadge.textContent = ticket.state;
+      stateBadge.className = 'state-badge ' + (STATE_CLASS[ticket.state] || 's-open');
+
+      document.getElementById('ethDaysBadgeWrap').innerHTML = daysBadge(ticket.daysLeft);
+
+      // Populate task type dropdown
+      const taskSel = document.getElementById('taskTypeSelect');
+      const normKey = ticket.subCategory.toLowerCase().replace(/\s*[-–—]\s*/g, ' ').trim();
+      let taskOpts = TASK_TYPES._default;
+      for (const [key, opts] of Object.entries(TASK_TYPES)) {
+        if (key !== '_default' && normKey.includes(key)) { taskOpts = opts; break; }
+      }
+      taskSel.innerHTML = taskOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+
+      function buildSubject() {
+        const type = taskSel.value;
+        const desc = ticket.description.length > 60 ? ticket.description.slice(0, 60) + '…' : ticket.description;
+        document.getElementById('subjectInput').value = `${type} - ${desc} - Hub Ticket #${ticket.id}`;
+      }
+      taskSel.onchange = buildSubject;
+      buildSubject();
+
+      // Reset to first tab
+      switchETab('assigned');
+      switchSubTab('oh-initial');
+
+      renderEmails();
+      showView('email');
+      window.scrollTo(0, 0);
+    }
+
+    // ── Email templates ───────────────────────────────────────────────────
+    function buildEmails(ticket, caseLink, feedbackLink, previewLink, ohReason, ohDate, liveLink) {
+      const { id, description, client, assignee, slaDays, slaDate, prefLive } = ticket;
+      const slaStr = fmtDate(slaDate);
+      const liveStr = fmtDate(prefLive);
+      const cHref = caseLink || '#';
+      const fHref = feedbackLink || '#';
+      const isEarlier = prefLive && slaDate && prefLive < slaDate;
+      const prevText = previewLink ? `\n${previewLink}` : '\n[Preview Link To Be Provided]';
+      const ohReasonStr = ohReason || '[On Hold Reason]';
+      const ohDateStr = ohDate ? fmtDate(new Date(ohDate + 'T00:00:00')) : '[On Hold Date]';
+      const closureDate = ohDate ? fmtDate(addWorkDays(new Date(ohDate + 'T00:00:00'), 14)) : '[Closure Date]';
+
+      const assigned = `Hello ${client},
+
+Thank you for submitting your request to the Digital Marketing Hub team. We've received your request to "${description}" and your ticket number is #${id}. You can track its progress <a href="${cHref}">here</a>.
+
+I'm ${assignee}, and I will be handling your ticket. You can contact me anytime via email or MS Teams.
+
+Next steps: I'll review your request to ensure we have all the necessary information to begin and will confirm via email within 24 hours. If I need any clarification or additional details, I'll reach out promptly.
+
+We usually have a ${slaDays}-working-day turnaround, so we're targeting ${slaStr} to have everything wrapped up.${
+  isEarlier
+    ? ` I saw that you'd prefer a completion date of ${liveStr}, which is a bit sooner than our usual timeframe. We'll do our best to meet that earlier date and will keep you updated along the way.`
+    : liveStr !== 'TBD'
+      ? ` We have also noted your preferred completion date of ${liveStr}.`
+      : ''
+}`;
+
+      const confirmation = `Hello ${client},
+
+I've reviewed the brief and I have all the necessary information to begin work.
+
+Once I have a preview link ready, I'll promptly send it to you via email.`;
+
+      const preview = `Hello ${client},
+
+Exciting news!
+
+I've got a sneak peek of your request #${id} regarding the "${description}", ready for your review.
+
+Check out the preview here:${prevText}
+
+If the preview meets your expectations and doesn't require any changes, please reply to this email with your approval to proceed with the page going live. I'll then schedule it to be published on your preferred live date, ${liveStr}, at 08:00 AM IST. Alternatively, if you prefer to go live at the earliest possible time, please specify the date and time.
+
+If you have any amends to submit, please use <a href="${cHref}">our ticket</a> to submit them. Please do not reply to this email with amends.`;
+
+      const ohInitial = `Hello ${client},
+
+As per your confirmation, your ticket is on hold due to ${ohReasonStr}.
+
+We are happy to wait, but every day counts toward meeting your preferred live date ${liveStr}.
+
+We can hold your ticket for up to 14 working days, until ${closureDate}. If we don't have the necessary information to work on your ticket by then, we'll have to close the ticket, and you can create a new ticket when you have the required details.
+
+Thank you for your support on this!`;
+
+      const ohR1 = `Hello ${client},
+
+Just a quick heads-up that your ticket has been on hold since ${ohDateStr} due to "${ohReasonStr}." We can keep it on hold for up to 14 working days.
+
+With only a few days left, we wanted to check if you have any updates or info for us.
+
+We're aiming to resolve this ticket as soon as possible, so let us know if there's anything you can share.
+
+Thanks!`;
+
+      const ohR2 = `Hello ${client},
+
+Just a final reminder that your ticket has been on hold since ${ohDateStr} due to "${ohReasonStr}." We're nearing the 14-day mark, with the deadline on ${closureDate}.
+
+If we don't hear from you by then, we'll need to close the ticket. However, you can always open a new one when you're ready with the details.
+
+Thanks for your quick attention!`;
+
+      const ohClosure = `Hello ${client},
+
+We've had your ticket on hold since ${ohDateStr} due to "${ohReasonStr}." Since we haven't received a response, we've gone ahead and closed it as of ${closureDate}.
+
+If you still need help, just create a new ticket with the details, and we'll get right on it.
+
+Thanks for understanding!`;
+
+      const pendingConf = `Hello ${client},
+
+Your request #${id} regarding "${description}" has been completed and is ready to be closed.
+
+Could you please log in to the portal and mark the ticket as "Closed Completed"? You can access your ticket <a href="${cHref}">here</a>.
+
+Once you confirm, we'll get the ticket officially closed on our end.
+
+Thank you for your support!`;
+
+      const closed = `Hello ${client},
+
+Great news — your ticket #${id} regarding "${description}" has been completed and is now live!${liveLink ? `\n\nYou can view it here: ${liveLink}` : ''}
+
+Thank you for working with us! We'd love to hear your thoughts on how we did so we can keep improving. Please take a moment to share your feedback <a href="${fHref}">here</a> — it's a quick survey and your input makes a real difference.
+
+Thanks again!`;
+
+      return { assigned, confirmation, preview, ohInitial, ohR1, ohR2, ohClosure, pendingConf, closed };
+    }
+
+    function renderEmails() {
+      if (!currentTicket) return;
+      const preview = document.getElementById('previewInput').value.trim();
+      const ohReason = document.getElementById('ohReasonInput').value.trim();
+      const ohDate = document.getElementById('ohDateInput').value;
+      const liveLink = document.getElementById('liveInput').value.trim();
+      const e = buildEmails(currentTicket, generatedCaseLink, generatedFeedbackLink, preview, ohReason, ohDate, liveLink);
+      const set = (id, txt) => { document.getElementById(id).innerHTML = txt.replace(/\n/g, '<br>'); };
+      set('body-assigned', e.assigned);
+      set('body-confirmation', e.confirmation);
+      set('body-preview', e.preview);
+      set('body-oh-initial', e.ohInitial);
+      set('body-oh-r1', e.ohR1);
+      set('body-oh-r2', e.ohR2);
+      set('body-oh-closure', e.ohClosure);
+      set('body-pendingconf', e.pendingConf);
+      set('body-closed', e.closed);
+    }
+
+    // ── Tab switching ─────────────────────────────────────────────────────
+    function switchETab(name) {
+      document.querySelectorAll('#emailTabs .etab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelector(`#emailTabs .etab[data-tab="${name}"]`).classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+    }
+
+    function switchSubTab(name) {
+      document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+      document.querySelector(`.stab[data-sub="${name}"]`).classList.add('active');
+      document.getElementById('sub-' + name).classList.add('active');
+    }
+
+    // ── Link parsers ──────────────────────────────────────────────────────
+    function parseCaseLink(raw) {
+      const idx = raw.indexOf('/target/');
+      if (idx === -1) throw new Error('URL does not contain /target/ — copy the full agent URL.');
+      const decoded = decodeURIComponent(raw.slice(idx + 8));
+      const qIdx = decoded.indexOf('?');
+      if (qIdx === -1) throw new Error('No query parameters found after /target/.');
+      const table = decoded.slice(0, qIdx).replace(/\.do$/, '');
+      const params = new URLSearchParams(decoded.slice(qIdx + 1));
+      const sysId = params.get('sys_id');
+      if (!sysId) throw new Error('sys_id not found in URL.');
+      return { url: `https://koneprod.service-now.com/esc?id=standard_ticket&table=${table}&sys_id=${sysId}`, table, sysId };
+    }
+
+    function parseFeedbackLink(raw) {
+      let parsed;
+      try { parsed = new URL(raw.trim()); } catch { throw new Error('Invalid URL — copy the complete survey URL.'); }
+      const sysId = parsed.searchParams.get('sys_id');
+      if (!sysId) throw new Error('sys_id not found in URL.');
+      return { url: `https://koneprod.service-now.com/esc?id=take_survey&instance_id=${sysId}`, instanceId: sysId };
+    }
+
+    // ── Utilities ─────────────────────────────────────────────────────────
+    function esc(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function showLoading(msg = 'Loading…') {
+      document.getElementById('loadingMsg').textContent = msg;
+      document.getElementById('loadingOverlay').classList.add('show');
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.remove('show');
+    }
+
+    function flashBtn(btn, text = '✓ Copied!') {
+      const orig = btn.innerHTML;
+      btn.innerHTML = text;
+      btn.style.color = '#059669';
+      setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 2000);
+    }
+
+    function copyEmailText(srcId, btn) {
+      const el = document.getElementById(srcId);
+      const clone = el.cloneNode(true);
+      // Convert links to "text (url)" in plain text
+      clone.querySelectorAll('a').forEach(a => { a.textContent = `${a.textContent} (${a.href})`; });
+      navigator.clipboard.writeText(clone.innerText).then(() => flashBtn(btn, '<i class="fa-solid fa-check"></i> Copied!'));
+    }
+
+    // ── DOMContentLoaded ──────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+
+      // Sign out
+      document.getElementById('signOutBtn').addEventListener('click', () => {
+        sessionStorage.removeItem('aegis_auth');
+        window.location.replace('../login.html');
+      });
+
+      // Always load from the hardcoded Apps Script URL
+      localStorage.setItem(SHEET_URL_KEY, APPS_SCRIPT_URL);
+      loadTickets(APPS_SCRIPT_URL);
+
+      // Copy script button
+      document.getElementById('copyScriptBtn').addEventListener('click', () => {
+        const code = document.getElementById('appScriptCode').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          const btn = document.getElementById('copyScriptBtn');
+          btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+          btn.style.color = '#6ee7b7';
+          setTimeout(() => { btn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy'; btn.style.color = ''; }, 2000);
+        });
+      });
+
+      // Setup connect
+      document.getElementById('connectSheetBtn').addEventListener('click', () => {
+        const url = document.getElementById('sheetUrlInput').value.trim();
+        if (!url) { showSetupErr('Please paste your Apps Script web app URL.'); return; }
+        if (!url.includes('script.google.com') && !url.includes('google.com')) {
+          showSetupErr('This doesn\'t look like a Google Apps Script URL. It should start with https://script.google.com/macros/s/…');
+          return;
+        }
+        document.getElementById('setupErr').style.display = 'none';
+        localStorage.setItem(SHEET_URL_KEY, url);
+        loadTickets(url);
+      });
+
+      function showSetupErr(msg) {
+        const err = document.getElementById('setupErr');
+        err.querySelector('span').textContent = msg;
+        err.style.display = 'flex';
+      }
+
+      // Settings (re-configure sheet)
+      document.getElementById('settingsBtn').addEventListener('click', () => {
+        const current = localStorage.getItem(SHEET_URL_KEY) || '';
+        document.getElementById('sheetUrlInput').value = current;
+        showView('setup');
+      });
+
+      // Filters
+      ['searchInput', 'filterAssignee', 'filterService', 'filterState', 'sortBy'].forEach(id => {
+        document.getElementById(id).addEventListener(id === 'searchInput' ? 'input' : 'change', applyFilters);
+      });
+
+      // Refresh
+      document.getElementById('refreshBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('refreshBtn');
+        btn.classList.add('spinning');
+        await loadTickets(APPS_SCRIPT_URL, true);
+        btn.classList.remove('spinning');
+      });
+
+      // Back to list
+      document.getElementById('backToListBtn').addEventListener('click', () => {
+        showView('list');
+        renderGrid(); // re-highlight if needed
+      });
+
+      // Email tab links
+      document.querySelectorAll('#emailTabs .etab').forEach(btn => {
+        btn.addEventListener('click', () => switchETab(btn.dataset.tab));
+      });
+
+      // Sub-tab links
+      document.querySelectorAll('.stab').forEach(btn => {
+        btn.addEventListener('click', () => switchSubTab(btn.dataset.sub));
+      });
+
+      // Copy email buttons
+      document.querySelectorAll('.copy-email-btn').forEach(btn => {
+        btn.addEventListener('click', () => copyEmailText(btn.dataset.src, btn));
+      });
+
+      // Preview input → re-render
+      document.getElementById('previewInput').addEventListener('input', renderEmails);
+
+      // Case link generator
+      document.getElementById('genCaseBtn').addEventListener('click', () => {
+        const raw = document.getElementById('caseUrlInput').value.trim();
+        document.getElementById('caseOk').classList.remove('show');
+        document.getElementById('caseErr').classList.remove('show');
+        if (!raw) { showFieldErr('caseErr', 'Please paste a ServiceNow URL.'); return; }
+        try {
+          const { url, table, sysId } = parseCaseLink(raw);
+          generatedCaseLink = url;
+          const linkEl = document.getElementById('caseLinkEl');
+          linkEl.href = url; linkEl.textContent = url;
+          document.getElementById('caseOk').classList.add('show');
+          renderEmails();
+        } catch (e) { showFieldErr('caseErr', e.message); }
+      });
+      document.getElementById('caseCopyBtn').addEventListener('click', e => {
+        navigator.clipboard.writeText(generatedCaseLink).then(() => flashBtn(e.currentTarget, '✓'));
+      });
+
+      // Feedback link generator
+      document.getElementById('genFeedbackBtn').addEventListener('click', () => {
+        const raw = document.getElementById('feedbackUrlInput').value.trim();
+        document.getElementById('feedbackOk').classList.remove('show');
+        document.getElementById('feedbackErr').classList.remove('show');
+        if (!raw) { showFieldErr('feedbackErr', 'Please paste a ServiceNow survey URL.'); return; }
+        try {
+          const { url, instanceId } = parseFeedbackLink(raw);
+          generatedFeedbackLink = url;
+          const linkEl = document.getElementById('feedbackLinkEl');
+          linkEl.href = url; linkEl.textContent = url;
+          document.getElementById('feedbackOk').classList.add('show');
+          renderEmails();
+        } catch (e) { showFieldErr('feedbackErr', e.message); }
+      });
+      document.getElementById('feedbackCopyBtn').addEventListener('click', e => {
+        navigator.clipboard.writeText(generatedFeedbackLink).then(() => flashBtn(e.currentTarget, '✓'));
+      });
+
+      // AI subject
+      document.getElementById('aiSubjectBtn').addEventListener('click', async () => {
+        if (!currentTicket) return;
+        const btn = document.getElementById('aiSubjectBtn');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+        try {
+          const prompt = `Write a professional email subject line for a support ticket. Format: [Service] - Brief request - #Number. Service: "${currentTicket.subCategory}". Description: "${currentTicket.description}". Number: ${currentTicket.id}. Output only the subject line, no quotes.`;
+          const r = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}` },
+            body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }], temperature: 0.4, max_tokens: 100 })
+          });
+          if (!r.ok) throw new Error('API Error');
+          const d = await r.json();
+          document.getElementById('subjectInput').value = d.choices[0].message.content.trim().replace(/^["']|["']$/g, '');
+        } catch { alert('AI subject generation failed. Check your API key.'); }
+        finally { btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI Suggest'; btn.disabled = false; }
+      });
+
+      // Nav: Link Generator
+      document.getElementById('navLinkGenBtn').addEventListener('click', () => {
+        const current = document.querySelector('.view.active')?.id;
+        previousView = current || 'list';
+        if (current === 'view-linkgen') {
+          showView(previousView === 'view-linkgen' ? 'list' : previousView.replace('view-', ''));
+        } else {
+          showView('linkgen');
+        }
+      });
+
+      // Standalone Link Generator panel
+      document.getElementById('lgGenCaseBtn').addEventListener('click', () => {
+        const raw = document.getElementById('lgCaseInput').value.trim();
+        document.getElementById('lgCaseErr').classList.remove('show');
+        document.getElementById('lgCaseResult').classList.remove('show');
+        if (!raw) { showLgErr('lgCaseErr', 'Please paste a ServiceNow URL.'); return; }
+        try {
+          const { url, table, sysId } = parseCaseLink(raw);
+          document.getElementById('lgCaseOut').textContent = url;
+          document.getElementById('lgCaseMeta').innerHTML = `<strong>Table:</strong> ${esc(table)}<br><strong>Sys ID:</strong> ${esc(sysId)}`;
+          document.getElementById('lgCaseResult').classList.add('show');
+        } catch (e) { showLgErr('lgCaseErr', e.message); }
+      });
+      document.getElementById('lgCaseCopy').addEventListener('click', e => {
+        navigator.clipboard.writeText(document.getElementById('lgCaseOut').textContent).then(() => flashBtn(e.currentTarget, '✓ Copied!'));
+      });
+
+      document.getElementById('lgGenFeedbackBtn').addEventListener('click', () => {
+        const raw = document.getElementById('lgFeedbackInput').value.trim();
+        document.getElementById('lgFeedbackErr').classList.remove('show');
+        document.getElementById('lgFeedbackResult').classList.remove('show');
+        if (!raw) { showLgErr('lgFeedbackErr', 'Please paste a ServiceNow survey URL.'); return; }
+        try {
+          const { url, instanceId } = parseFeedbackLink(raw);
+          document.getElementById('lgFeedbackOut').textContent = url;
+          document.getElementById('lgFeedbackMeta').innerHTML = `<strong>Instance ID:</strong> ${esc(instanceId)}`;
+          document.getElementById('lgFeedbackResult').classList.add('show');
+        } catch (e) { showLgErr('lgFeedbackErr', e.message); }
+      });
+      document.getElementById('lgFeedbackCopy').addEventListener('click', e => {
+        navigator.clipboard.writeText(document.getElementById('lgFeedbackOut').textContent).then(() => flashBtn(e.currentTarget, '✓ Copied!'));
+      });
+    });
+
+    function showFieldErr(id, msg) {
+      const el = document.getElementById(id);
+      el.querySelector('span').textContent = msg;
+      el.classList.add('show');
+    }
+
+    function showLgErr(id, msg) {
+      const el = document.getElementById(id);
+      el.querySelector('span').textContent = msg;
+      el.classList.add('show');
+    }
+  </script>
+</body>
+</html>

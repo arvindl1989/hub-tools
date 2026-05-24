@@ -1151,17 +1151,22 @@ def _filter_by_range(
     return tmp
 
 
-# ── Serve built React app (production) ────────────────────────────────────────
-_STATIC_DIR = Path(__file__).parent / "dist"
+# ── Serve KPI React app at /kpi/ and hub static tools at / ───────────────────
+from fastapi.responses import FileResponse
 
-if _STATIC_DIR.is_dir():
-    _INDEX_HTML = (_STATIC_DIR / "index.html").read_text()
-    app.mount("/assets", StaticFiles(directory=str(_STATIC_DIR / "assets")), name="assets")
+_KPI_DIR = Path(__file__).parent / "dist"
+_WEB_DIR = Path(__file__).parent / "web"
 
-    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_root():
-        return _INDEX_HTML
+if _KPI_DIR.is_dir() and (_KPI_DIR / "assets").is_dir():
+    app.mount("/kpi/assets", StaticFiles(directory=str(_KPI_DIR / "assets")), name="kpi-assets")
 
-    @app.get("/{full_path:path}", response_class=HTMLResponse, include_in_schema=False)
-    async def spa_fallback(full_path: str):
-        return _INDEX_HTML
+@app.get("/kpi", response_class=FileResponse, include_in_schema=False)
+async def kpi_root():
+    return FileResponse(str(_KPI_DIR / "index.html"))
+
+@app.get("/kpi/{path:path}", response_class=FileResponse, include_in_schema=False)
+async def kpi_spa(path: str):
+    return FileResponse(str(_KPI_DIR / "index.html"))
+
+if _WEB_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(_WEB_DIR), html=True), name="web")
