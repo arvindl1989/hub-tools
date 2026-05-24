@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Assistant — Aegis Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --blue: #1450f5;
+      --blue-faint: rgba(20,80,245,0.08);
+      --bg: #faf9f6;
+      --sand: #f3eee6;
+      --surface: #ffffff;
+      --border: #e8e3db;
+      --text: #141414;
+      --muted: #64748b;
+      --nav-bg: #0f172a;
+      --nav-border: #1e293b;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Nav ── */
+    .hub-nav {
+      height: 44px; background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-border);
+      display: flex; align-items: center;
+      padding: 0 1.5rem; gap: 10px; flex-shrink: 0; z-index: 100;
+    }
+    .hub-nav a.back-link {
+      display: flex; align-items: center; gap: 6px;
+      text-decoration: none; color: #94a3b8;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px;
+      border: 1px solid #334155; transition: all 0.2s;
+    }
+    .hub-nav a.back-link:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
+    .hub-nav a.back-link i { color: var(--blue); }
+    .nav-sep { width: 1px; height: 16px; background: #334155; }
+    .nav-tool { font-size: 0.78rem; color: #64748b; font-weight: 500; }
+    .nav-spacer { flex: 1; }
+    .nav-status {
+      font-size: 0.75rem; font-weight: 600;
+      padding: 3px 10px; border-radius: 20px;
+      border: 1px solid #334155; color: #64748b;
+    }
+    .nav-status.loaded { border-color: #166534; color: #4ade80; background: rgba(74,222,128,0.08); }
+    .nav-signout {
+      background: none; border: 1px solid #334155; color: #64748b;
+      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
+      font-family: 'Inter', sans-serif; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+    }
+    .nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── Layout ── */
+    .chat-layout {
+      display: flex; flex: 1; overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 280px; flex-shrink: 0;
+      background: var(--sand);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+      padding: 1.25rem;
+      gap: 1.25rem;
+    }
+    .sidebar-section { display: flex; flex-direction: column; gap: 0.6rem; }
+    .sidebar-label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--muted);
+    }
+    .stat-pill {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px;
+      font-size: 0.82rem;
+    }
+    .stat-pill span:last-child { font-weight: 700; color: var(--blue); }
+    .stat-pill.warn span:last-child { color: #d97706; }
+    .stat-pill.danger span:last-child { color: #dc2626; }
+
+    .ticket-search {
+      width: 100%; padding: 8px 10px;
+      border: 1px solid var(--border); border-radius: 8px;
+      font-family: 'Inter', sans-serif; font-size: 0.82rem;
+      background: var(--surface); outline: none; transition: border 0.2s;
+    }
+    .ticket-search:focus { border-color: var(--blue); }
+
+    .ticket-card-mini {
+      background: var(--surface); border: 1px solid var(--border);
+      border-left: 3px solid var(--blue); border-radius: 8px;
+      padding: 10px 12px; display: none; flex-direction: column; gap: 5px;
+    }
+    .ticket-card-mini.show { display: flex; }
+    .tcm-id { font-size: 0.75rem; font-weight: 700; color: var(--blue); }
+    .tcm-desc { font-size: 0.78rem; color: var(--text); font-weight: 500; line-height: 1.4; }
+    .tcm-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tcm-badge {
+      font-size: 0.68rem; font-weight: 600; padding: 2px 7px;
+      border-radius: 20px; background: var(--sand); color: var(--muted);
+    }
+    .tcm-badge.sla-ok { background: #dcfce7; color: #166534; }
+    .tcm-badge.sla-warn { background: #fef9c3; color: #854d0e; }
+    .tcm-badge.sla-urgent { background: #fee2e2; color: #991b1b; }
+    .tcm-badge.sla-od { background: #fce7f3; color: #9d174d; }
+
+    .quick-btn {
+      width: 100%; padding: 7px 10px; text-align: left;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; font-family: 'Inter', sans-serif;
+      font-size: 0.78rem; color: var(--text); cursor: pointer;
+      transition: all 0.15s; display: flex; align-items: center; gap: 7px;
+    }
+    .quick-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-faint); }
+    .quick-btn i { font-size: 0.72rem; color: var(--blue); }
+
+    /* ── API key setup overlay ── */
+    .api-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 500; backdrop-filter: blur(4px);
+    }
+    .api-overlay.hidden { display: none; }
+    .api-card {
+      background: var(--surface); border-radius: 16px;
+      padding: 2rem; max-width: 420px; width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .api-card h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .api-card p { font-size: 0.84rem; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.6; }
+    .api-input {
+      width: 100%; padding: 10px 12px; margin-bottom: 0.75rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      font-family: 'Inter', sans-serif; font-size: 0.85rem; outline: none;
+      transition: border 0.2s;
+    }
+    .api-input:focus { border-color: var(--blue); }
+    .api-save-btn {
+      width: 100%; padding: 10px; background: var(--blue); color: white;
+      border: none; border-radius: 8px; font-family: 'Inter', sans-serif;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      transition: filter 0.15s;
+    }
+    .api-save-btn:hover { filter: brightness(1.1); }
+
+    /* ── Chat area ── */
+    .chat-main {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .messages {
+      flex: 1; overflow-y: auto; padding: 1.5rem;
+      display: flex; flex-direction: column; gap: 1rem;
+    }
+    .msg { display: flex; gap: 10px; max-width: 80%; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .msg.ai { align-self: flex-start; }
+
+    .msg-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700; flex-shrink: 0;
+    }
+    .msg.user .msg-avatar { background: var(--blue); color: white; }
+    .msg.ai .msg-avatar {
+      background: linear-gradient(135deg, #1450f5, #3b70f7);
+      color: white;
+    }
+
+    .msg-bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 0.75rem 1rem;
+      font-size: 0.875rem; line-height: 1.65;
+      position: relative;
+    }
+    .msg.user .msg-bubble {
+      background: var(--blue); color: white;
+      border-color: var(--blue); border-radius: 14px 4px 14px 14px;
+    }
+    .msg.ai .msg-bubble {
+      border-left: 3px solid var(--blue);
+      border-radius: 4px 14px 14px 14px;
+    }
+
+    .msg-bubble b, .msg-bubble strong { font-weight: 600; }
+    .msg-bubble ul { padding-left: 1.25rem; margin: 0.4rem 0; }
+    .msg-bubble li { margin-bottom: 0.2rem; }
+    .msg-bubble .email-block {
+      background: #f8fafc; border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.75rem 1rem; margin-top: 0.6rem;
+      font-size: 0.82rem; white-space: pre-wrap; font-family: 'Inter', sans-serif;
+    }
+    .copy-msg-btn {
+      margin-top: 0.6rem; padding: 4px 10px;
+      background: none; border: 1px solid var(--border);
+      border-radius: 6px; font-size: 0.72rem; font-weight: 600;
+      color: var(--muted); cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: all 0.15s;
+    }
+    .copy-msg-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+    .typing-dot {
+      display: inline-block; width: 6px; height: 6px;
+      border-radius: 50%; background: var(--muted);
+      animation: blink 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%,80%,100% { opacity: 0.2; } 40% { opacity: 1; } }
+
+    /* ── Input ── */
+    .chat-input-area {
+      border-top: 1px solid var(--border);
+      padding: 0.875rem 1.25rem;
+      background: var(--surface);
+      display: flex; gap: 0.75rem; align-items: flex-end;
+    }
+    .chat-textarea {
+      flex: 1; padding: 10px 14px;
+      border: 1px solid var(--border); border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 0.875rem;
+      resize: none; min-height: 42px; max-height: 160px;
+      outline: none; transition: border 0.2s; line-height: 1.5;
+      background: var(--bg);
+    }
+    .chat-textarea:focus { border-color: var(--blue); background: var(--surface); }
+    .send-btn {
+      width: 42px; height: 42px; border-radius: 10px;
+      background: var(--blue); border: none; color: white;
+      cursor: pointer; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0;
+      transition: filter 0.15s; font-size: 0.85rem;
+    }
+    .send-btn:hover { filter: brightness(1.1); }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+
+    /* ── Welcome card ── */
+    .welcome-wrap {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 2rem;
+    }
+    .welcome-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2rem; max-width: 440px; text-align: center;
+    }
+    .welcome-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: linear-gradient(135deg, #1450f5, #3b70f7);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem; font-size: 1.4rem; color: white;
+      box-shadow: 0 4px 14px rgba(20,80,245,0.3);
+    }
+    .welcome-card h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .welcome-card p { font-size: 0.84rem; color: var(--muted); line-height: 1.7; margin-bottom: 1.25rem; }
+    .welcome-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+    .welcome-chip {
+      background: var(--blue-faint); border: 1px solid rgba(20,80,245,0.2);
+      color: var(--blue); font-size: 0.75rem; font-weight: 600;
+      padding: 5px 12px; border-radius: 20px; cursor: pointer;
+      transition: all 0.15s; font-family: 'Inter', sans-serif;
+    }
+    .welcome-chip:hover { background: rgba(20,80,245,0.15); }
+  </style>
+</head>
+<body>
+
+  <!-- Hub Nav -->
+  <nav class="hub-nav">
+    <a href="../index.html" class="back-link"><i class="fa-solid fa-shield-halved"></i> Hub</a>
+    <div class="nav-sep"></div>
+    <span class="nav-tool">Ticket Assistant</span>
+    <div class="nav-spacer"></div>
+    <span class="nav-status" id="navStatus">Loading…</span>
+    <button class="nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
+  </nav>
+
+  <!-- API Key setup overlay -->
+  <div class="api-overlay" id="apiOverlay">
+    <div class="api-card">
+      <h2><i class="fa-solid fa-key" style="color:#1450f5;margin-right:8px;"></i>OpenAI API Key Required</h2>
+      <p>The Ticket Assistant uses OpenAI to answer your questions. Enter your API key below — it's stored only in your browser.</p>
+      <input type="password" class="api-input" id="apiKeyInput" placeholder="sk-proj-…">
+      <button class="api-save-btn" id="apiSaveBtn">Save & Continue</button>
+    </div>
+  </div>
+
+  <div class="chat-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Ticket Data</div>
+        <div class="stat-pill" id="statTotal"><span>Total active</span><span id="valTotal">—</span></div>
+        <div class="stat-pill warn" id="statWarn"><span>Due ≤ 5 days</span><span id="valWarn">—</span></div>
+        <div class="stat-pill danger" id="statOd"><span>Overdue</span><span id="valOd">—</span></div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Ticket Lookup</div>
+        <input type="text" class="ticket-search" id="ticketSearch" placeholder="Type ticket # e.g. INC001">
+        <div class="ticket-card-mini" id="ticketMini">
+          <div class="tcm-id" id="tcmId"></div>
+          <div class="tcm-desc" id="tcmDesc"></div>
+          <div class="tcm-row" id="tcmBadges"></div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Quick Prompts</div>
+        <button class="quick-btn" data-q="Show me all overdue tickets with their assignees."><i class="fa-solid fa-fire"></i> Overdue tickets</button>
+        <button class="quick-btn" data-q="Which tickets are due within the next 5 working days?"><i class="fa-solid fa-clock"></i> Due this week</button>
+        <button class="quick-btn" data-q="List all tickets currently on hold and the reason if available."><i class="fa-solid fa-pause"></i> On hold tickets</button>
+        <button class="quick-btn" data-q="Give me a summary of the workload by assignee."><i class="fa-solid fa-users"></i> Workload by person</button>
+        <button class="quick-btn" data-q="Which tickets have a preferred live date coming up soon?"><i class="fa-solid fa-calendar"></i> Upcoming live dates</button>
+      </div>
+
+    </aside>
+
+    <!-- Chat Main -->
+    <div class="chat-main" id="chatMain">
+
+      <!-- Welcome (shown before first message) -->
+      <div class="welcome-wrap" id="welcomeWrap">
+        <div class="welcome-card">
+          <div class="welcome-icon"><i class="fa-solid fa-robot"></i></div>
+          <h2>Hi, I'm Aegis</h2>
+          <p>I have your full ticket database loaded. Ask me anything — ticket status, SLA deadlines, email drafts, workload summaries, and more.</p>
+          <div class="welcome-chips">
+            <span class="welcome-chip" data-q="What tickets are closest to their SLA deadline?">SLA deadlines</span>
+            <span class="welcome-chip" data-q="Draft an assigned email for the first open ticket.">Draft email</span>
+            <span class="welcome-chip" data-q="How many tickets are overdue right now?">Overdue count</span>
+            <span class="welcome-chip" data-q="Summarise all tickets in 'Work in progress' state.">WIP summary</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="messages" id="messages" style="display:none;"></div>
+
+      <!-- Input -->
+      <div class="chat-input-area">
+        <textarea class="chat-textarea" id="chatInput" rows="1" placeholder="Ask about your tickets, request a draft email…"></textarea>
+        <button class="send-btn" id="sendBtn"><i class="fa-solid fa-paper-plane"></i></button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    if (sessionStorage.getItem('aegis_auth') !== 'true') {
+      window.location.replace('../login.html');
+    }
+
+    document.getElementById('signOutBtn').addEventListener('click', () => {
+      sessionStorage.removeItem('aegis_auth');
+      window.location.replace('../login.html');
+    });
+
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec';
+    const OPENAI_KEY_STORE = 'aegis_openai_key';
+
+    let allTickets = [];
+    let conversationHistory = [];
+    let isStreaming = false;
+
+    // ── API Key ──────────────────────────────────────────────────────────────
+    function getApiKey() { return localStorage.getItem(OPENAI_KEY_STORE) || ''; }
+
+    const overlay = document.getElementById('apiOverlay');
+    const apiInput = document.getElementById('apiKeyInput');
+
+    if (!getApiKey()) {
+      overlay.classList.remove('hidden');
+    } else {
+      overlay.classList.add('hidden');
+    }
+
+    document.getElementById('apiSaveBtn').addEventListener('click', () => {
+      const key = apiInput.value.trim();
+      if (!key.startsWith('sk-')) { alert('That doesn\'t look like a valid OpenAI key.'); return; }
+      localStorage.setItem(OPENAI_KEY_STORE, key);
+      overlay.classList.add('hidden');
+    });
+
+    // ── Date helpers ─────────────────────────────────────────────────────────
+    function fmtDate(d) {
+      if (!d) return 'TBD';
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function parseFlexDate(val) {
+      if (!val || val === '') return null;
+      if (typeof val === 'number') {
+        const d = new Date((val - 25569) * 86400 * 1000);
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+      }
+      const s = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const d = new Date(s.substring(0, 10) + 'T00:00:00');
+        return isNaN(d) ? null : d;
+      }
+      const d = new Date(s);
+      return isNaN(d) ? null : d;
+    }
+
+    function addWorkDays(date, days) {
+      const d = new Date(date);
+      let added = 0;
+      while (added < days) {
+        d.setDate(d.getDate() + 1);
+        if (d.getDay() !== 0 && d.getDay() !== 6) added++;
+      }
+      return d;
+    }
+
+    function getSLADays(subCat) {
+      const n = subCat.toLowerCase().replace(/\s*[-–—]\s*/g, ' ').trim();
+      if (n.startsWith('website content')) return 10;
+      if (n.includes('graphic design'))   return 10;
+      if (n.includes('demand creation'))  return 30;
+      if (n.includes('retention'))        return 30;
+      if (n.startsWith('email'))          return 7;
+      return 10;
+    }
+
+    function daysFromToday(d) {
+      if (!d) return null;
+      const now = new Date(); now.setHours(0,0,0,0);
+      return Math.round((d - now) / 86400000);
+    }
+
+    // ── Load tickets ─────────────────────────────────────────────────────────
+    const ACTIVE_STATES = new Set(['Open','Assigned','Work in progress','In review','On Hold','Pending Confirmation']);
+
+    async function loadTickets() {
+      document.getElementById('navStatus').textContent = 'Loading…';
+      try {
+        const res = await fetch(APPS_SCRIPT_URL, { cache: 'no-cache', redirect: 'follow' });
+        const rows = await res.json();
+        allTickets = rows.filter(r => {
+          const state = String(r['State'] || '').trim();
+          return ACTIVE_STATES.has(state);
+        }).map(r => {
+          const created = parseFlexDate(r['Created']);
+          const prefLive = parseFlexDate(r['Preferred Live Date']);
+          const subCat = String(r['Sub-Category'] || '').trim();
+          const slaDays = getSLADays(subCat);
+          const slaDate = created ? addWorkDays(created, slaDays - 1) : null;
+          return {
+            id:          String(r['Number'] || '').trim(),
+            description: String(r['Short description'] || '').trim(),
+            subCategory: subCat,
+            client:      String(r['Requested by'] || '').trim(),
+            assignee:    String(r['Assigned to'] || '').trim(),
+            state:       String(r['State'] || '').trim(),
+            tags:        String(r['Tags'] || '').trim(),
+            created, prefLive, slaDays, slaDate,
+            daysLeft:    daysFromToday(slaDate)
+          };
+        });
+        updateSidebar();
+        const ns = document.getElementById('navStatus');
+        ns.textContent = `${allTickets.length} tickets loaded`;
+        ns.classList.add('loaded');
+      } catch (e) {
+        document.getElementById('navStatus').textContent = 'Load failed';
+        console.error(e);
+      }
+    }
+
+    function updateSidebar() {
+      document.getElementById('valTotal').textContent = allTickets.length;
+      document.getElementById('valWarn').textContent = allTickets.filter(t => t.daysLeft !== null && t.daysLeft >= 0 && t.daysLeft <= 5).length;
+      document.getElementById('valOd').textContent   = allTickets.filter(t => t.daysLeft !== null && t.daysLeft < 0).length;
+    }
+
+    // ── Ticket lookup sidebar ─────────────────────────────────────────────────
+    document.getElementById('ticketSearch').addEventListener('input', function () {
+      const q = this.value.trim().toUpperCase();
+      const mini = document.getElementById('ticketMini');
+      if (!q) { mini.classList.remove('show'); return; }
+      const t = allTickets.find(t => t.id.toUpperCase().includes(q));
+      if (!t) { mini.classList.remove('show'); return; }
+
+      document.getElementById('tcmId').textContent = '#' + t.id;
+      document.getElementById('tcmDesc').textContent = t.description;
+
+      let slaClass = 'sla-ok', slaLabel = `SLA: ${fmtDate(t.slaDate)}`;
+      if (t.daysLeft === null) { slaClass = ''; slaLabel = 'SLA: TBD'; }
+      else if (t.daysLeft < 0) { slaClass = 'sla-od'; slaLabel = `Overdue ${Math.abs(t.daysLeft)}d`; }
+      else if (t.daysLeft <= 3) { slaClass = 'sla-urgent'; slaLabel = `${t.daysLeft}d left`; }
+      else if (t.daysLeft <= 7) { slaClass = 'sla-warn'; slaLabel = `${t.daysLeft}d left`; }
+      else { slaLabel = `${t.daysLeft}d left`; }
+
+      document.getElementById('tcmBadges').innerHTML = `
+        <span class="tcm-badge">${t.state}</span>
+        <span class="tcm-badge ${slaClass}">${slaLabel}</span>
+        <span class="tcm-badge">${t.assignee.split(' ')[0]}</span>
+      `;
+      mini.classList.add('show');
+    });
+
+    // ── System prompt ─────────────────────────────────────────────────────────
+    function buildSystemPrompt() {
+      const today = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+      const list = allTickets.map(t => {
+        const sla = t.slaDate ? `SLA ${fmtDate(t.slaDate)} (${t.daysLeft !== null ? t.daysLeft + 'd)' : 'TBD)'}` : 'SLA TBD';
+        const pld = t.prefLive ? `PLD ${fmtDate(t.prefLive)}` : '';
+        return `#${t.id} | ${t.subCategory} | ${t.state} | ${t.assignee} | Client: ${t.client} | ${sla}${pld ? ' | ' + pld : ''} | "${t.description}"`;
+      }).join('\n');
+
+      return `You are Aegis, an AI assistant for the Digital Marketing Hub team at KONE. Today is ${today}.
+
+You have access to the live ticket database (${allTickets.length} active tickets):
+
+${list}
+
+CAPABILITIES:
+1. Answer questions about any ticket or the whole portfolio (SLA, status, assignee, urgency, workload).
+2. Draft professional emails using these exact templates:
+
+ASSIGNED: "Hello [Client], Thank you for submitting your request to the Digital Marketing Hub team. We've received your request to "[description]" and your ticket number is #[ID]. I'm [Assignee], and I will be handling your ticket. We usually have a [N]-working-day turnaround, so we're targeting [SLA date]."
+
+CONFIRMATION: "Hello [Client], I've reviewed the brief and have all the necessary information to begin work. Once I have a preview link ready, I'll send it to you promptly."
+
+PREVIEW: "Hello [Client], I've got a sneak peek of your request #[ID] ready for your review. [Preview Link] If the preview meets your expectations, please reply with your approval. If you have amendments, please use our ticket to submit them."
+
+ON HOLD: "Hello [Client], As per your confirmation, your ticket is on hold due to [reason]. We can hold for up to 14 working days until [closure date = start date + 14 working days]."
+
+CLOSED COMPLETED: "Hello [Client], Your ticket #[ID] regarding "[description]" has been completed and is now live! [Live Link] Thank you for working with us! We'd love to hear your feedback [feedback link]."
+
+RULES:
+- Be concise. Use bullet points for lists.
+- When asked for an email, output only the email body.
+- Reference tickets by #number.
+- If asked for SLA days remaining, use today's date to calculate.
+- If a ticket number isn't in the database, say so clearly.`;
+    }
+
+    // ── Chat UI helpers ───────────────────────────────────────────────────────
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function renderMarkdown(text) {
+      return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/^### (.+)$/gm, '<strong>$1</strong>')
+        .replace(/^## (.+)$/gm, '<strong>$1</strong>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+    }
+
+    function addMessage(role, html, raw = '') {
+      const wrap = document.getElementById('welcomeWrap');
+      const msgs = document.getElementById('messages');
+      if (wrap.style.display !== 'none') {
+        wrap.style.display = 'none';
+        msgs.style.display = 'flex';
+      }
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      const initials = role === 'user' ? 'You' : 'AI';
+      div.innerHTML = `
+        <div class="msg-avatar">${initials}</div>
+        <div class="msg-bubble" id="bubble-${Date.now()}">${html}</div>
+      `;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+      return div.querySelector('.msg-bubble');
+    }
+
+    function addCopyBtn(bubble, text) {
+      const btn = document.createElement('button');
+      btn.className = 'copy-msg-btn';
+      btn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+      btn.onclick = () => {
+        navigator.clipboard.writeText(text).then(() => {
+          btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+          btn.style.color = '#059669';
+          setTimeout(() => { btn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy'; btn.style.color = ''; }, 2000);
+        });
+      };
+      bubble.appendChild(btn);
+    }
+
+    function addTypingIndicator() {
+      const div = document.createElement('div');
+      div.className = 'msg ai';
+      div.id = 'typing-indicator';
+      div.innerHTML = `
+        <div class="msg-avatar">AI</div>
+        <div class="msg-bubble">
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+        </div>`;
+      const msgs = document.getElementById('messages');
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      const el = document.getElementById('typing-indicator');
+      if (el) el.remove();
+    }
+
+    // ── Send message (streaming) ──────────────────────────────────────────────
+    async function sendMessage(text) {
+      if (!text.trim() || isStreaming) return;
+      const key = getApiKey();
+      if (!key) { overlay.classList.remove('hidden'); return; }
+
+      isStreaming = true;
+      document.getElementById('sendBtn').disabled = true;
+      document.getElementById('chatInput').value = '';
+      autoResize();
+
+      const wrap = document.getElementById('welcomeWrap');
+      const msgs = document.getElementById('messages');
+      if (wrap.style.display !== 'none') {
+        wrap.style.display = 'none';
+        msgs.style.display = 'flex';
+      }
+
+      addMessage('user', escHtml(text));
+      addTypingIndicator();
+
+      conversationHistory.push({ role: 'user', content: text });
+
+      try {
+        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            stream: true,
+            messages: [
+              { role: 'system', content: buildSystemPrompt() },
+              ...conversationHistory
+            ]
+          })
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.error?.message || `API error ${resp.status}`);
+        }
+
+        removeTypingIndicator();
+        const bubble = addMessage('ai', '');
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const lines = decoder.decode(value).split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+              try {
+                const delta = JSON.parse(line.slice(6)).choices[0]?.delta?.content || '';
+                fullText += delta;
+                bubble.innerHTML = renderMarkdown(escHtml(fullText));
+                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+              } catch {}
+            }
+          }
+        }
+
+        addCopyBtn(bubble, fullText);
+        conversationHistory.push({ role: 'assistant', content: fullText });
+
+      } catch (e) {
+        removeTypingIndicator();
+        addMessage('ai', `<span style="color:#dc2626"><i class="fa-solid fa-circle-exclamation"></i> ${escHtml(e.message)}</span>`);
+      } finally {
+        isStreaming = false;
+        document.getElementById('sendBtn').disabled = false;
+      }
+    }
+
+    // ── Input events ──────────────────────────────────────────────────────────
+    function autoResize() {
+      const ta = document.getElementById('chatInput');
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+    }
+
+    document.getElementById('chatInput').addEventListener('input', autoResize);
+    document.getElementById('chatInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage(e.target.value.trim());
+      }
+    });
+    document.getElementById('sendBtn').addEventListener('click', () => {
+      sendMessage(document.getElementById('chatInput').value.trim());
+    });
+
+    // Quick prompt buttons
+    document.querySelectorAll('.quick-btn, .welcome-chip').forEach(btn => {
+      btn.addEventListener('click', () => sendMessage(btn.dataset.q));
+    });
+
+    // ── Boot ─────────────────────────────────────────────────────────────────
+    loadTickets();
+  </script>
+</body>
+</html>

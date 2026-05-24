@@ -222,10 +222,12 @@
     .card-email::before  { background: linear-gradient(135deg, rgba(20,80,245,0.06), transparent 60%); }
     .card-attend::before { background: linear-gradient(135deg, rgba(20,80,245,0.08), transparent 60%); }
     .card-kpi::before    { background: linear-gradient(135deg, rgba(16,185,129,0.07), transparent 60%); }
+    .card-chat::before   { background: linear-gradient(135deg, rgba(139,92,246,0.07), transparent 60%); }
 
     .card-email:hover   { border-color: rgba(20,80,245,0.3); }
     .card-attend:hover  { border-color: rgba(14,165,233,0.3); }
     .card-kpi:hover     { border-color: rgba(16,185,129,0.3); }
+    .card-chat:hover    { border-color: rgba(139,92,246,0.3); }
 
     .card-top {
       display: flex;
@@ -247,6 +249,7 @@
     .icon-email   { background: linear-gradient(135deg, #1450f5, #3b70f7); color: white; box-shadow: 0 4px 16px rgba(20,80,245,0.35); }
     .icon-attend  { background: linear-gradient(135deg, #0ea5e9, #1450f5); color: white; box-shadow: 0 4px 16px rgba(14,165,233,0.35); }
     .icon-kpi     { background: linear-gradient(135deg, #10b981, #059669); color: white; box-shadow: 0 4px 16px rgba(16,185,129,0.35); }
+    .icon-chat    { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; box-shadow: 0 4px 16px rgba(139,92,246,0.35); }
 
     .card-arrow {
       color: #334155;
@@ -311,6 +314,7 @@
     .tool-card:hover .launch-text-email  { color: #93b4fd; }
     .tool-card:hover .launch-text-attend { color: #7dd3fc; }
     .tool-card:hover .launch-text-kpi    { color: #6ee7b7; }
+    .tool-card:hover .launch-text-chat   { color: #c4b5fd; }
 
     .launch-icon {
       width: 30px;
@@ -329,6 +333,7 @@
     .tool-card:hover .launch-icon-email  { background: rgba(20,80,245,0.15); border-color: rgba(20,80,245,0.3); color: #93b4fd; }
     .tool-card:hover .launch-icon-attend { background: rgba(14,165,233,0.15); border-color: rgba(14,165,233,0.3); color: #7dd3fc; }
     .tool-card:hover .launch-icon-kpi    { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
+    .tool-card:hover .launch-icon-chat   { background: rgba(139,92,246,0.15); border-color: rgba(139,92,246,0.3); color: #c4b5fd; }
 
     /* ---- Footer ---- */
     .footer {
@@ -430,6 +435,26 @@
         <div class="card-launch">
           <span class="launch-text launch-text-kpi">Launch tool</span>
           <div class="launch-icon launch-icon-kpi"><i class="fa-solid fa-arrow-right"></i></div>
+        </div>
+      </a>
+
+      <!-- AI Chat Agent -->
+      <a href="/chat/" class="tool-card card-chat">
+        <div class="card-top">
+          <div class="card-icon icon-chat"><i class="fa-solid fa-comments"></i></div>
+          <i class="fa-solid fa-arrow-up-right card-arrow"></i>
+        </div>
+        <div class="card-name">AI Chat Agent</div>
+        <div class="card-desc">Ask questions about your tickets, get instant answers, and draft emails — all powered by AI with full access to your live ticket data.</div>
+        <div class="card-features">
+          <span class="feature-tag">Ticket Q&amp;A</span>
+          <span class="feature-tag">Email Drafting</span>
+          <span class="feature-tag">AI Powered</span>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-launch">
+          <span class="launch-text launch-text-chat">Launch tool</span>
+          <div class="launch-icon launch-icon-chat"><i class="fa-solid fa-arrow-right"></i></div>
         </div>
       </a>
 
