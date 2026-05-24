@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "aegis-hub",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-s", "C:\\Users\\ratka\\OneDrive\\Desktop\\aegis-hub", "-l", "3456", "--no-clipboard"],
+      "port": 3456
+    }
+  ]
+}
