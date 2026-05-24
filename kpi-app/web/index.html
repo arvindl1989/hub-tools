@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aegis Hub</title>
+  <title>Digital Marketing Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -43,83 +43,56 @@
     .glow-1 { width: 700px; height: 700px; background: #1450f5; top: -300px; left: -200px; }
     .glow-2 { width: 500px; height: 500px; background: #0ea5e9; bottom: -150px; right: -150px; }
 
-    /* ---- Top Nav ---- */
-    .top-nav {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(15,23,42,0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      padding: 0 2.5rem;
-      height: 60px;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
+    /* ── Hub Nav ── */
+    .hub-nav {
+      position: sticky; top: 0; z-index: 300;
+      height: 52px; background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+      display: flex; align-items: center;
+      padding: 0 1.5rem; gap: 4px; flex-shrink: 0;
     }
-
-    .nav-logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
+    .nav-brand {
+      display: flex; align-items: center; gap: 9px;
+      text-decoration: none; flex-shrink: 0; margin-right: 4px;
     }
-
-    .nav-logo-icon {
-      width: 34px;
-      height: 34px;
-      background: linear-gradient(135deg, #1450f5, #0ea5e9);
-      border-radius: 9px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.85rem;
-      color: white;
-      box-shadow: 0 2px 8px rgba(20,80,245,0.4);
+    .nav-brand-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: linear-gradient(135deg, #1450f5, #3b70f7);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.82rem; color: white;
+      box-shadow: 0 2px 6px rgba(20,80,245,0.35);
     }
-
-    .nav-logo-name {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: #f8fafc;
-      letter-spacing: -0.3px;
+    .nav-brand-name { font-size: 0.85rem; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; }
+    .nav-sep { width: 1px; height: 18px; background: #1e293b; margin: 0 8px; flex-shrink: 0; }
+    .nav-link {
+      display: flex; align-items: center; gap: 6px;
+      text-decoration: none; color: #64748b;
+      font-size: 0.77rem; font-weight: 600;
+      padding: 5px 10px; border-radius: 7px;
+      border: 1px solid transparent; transition: all 0.15s;
+      white-space: nowrap; font-family: 'Inter', sans-serif;
     }
-
-    .nav-logo-sub {
-      font-size: 0.7rem;
-      color: #475569;
-      font-weight: 500;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .nav-spacer { flex: 1; }
-
-    .nav-date {
-      font-size: 0.8rem;
-      color: #64748b;
-      font-weight: 500;
-    }
-
+    .nav-link i { font-size: 0.7rem; }
+    .nav-link:hover { color: #f1f5f9; background: #1e293b; border-color: #334155; }
+    .nav-link.active { color: #93b4fd; background: rgba(20,80,245,0.12); border-color: rgba(20,80,245,0.25); }
+    .nav-spacer { flex: 1; min-width: 8px; }
     .nav-signout {
-      background: none;
-      border: 1px solid #334155;
-      color: #64748b;
-      padding: 6px 14px;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      font-family: 'Inter', sans-serif;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      background: none; border: 1px solid #334155; color: #64748b;
+      padding: 5px 10px; border-radius: 7px; font-size: 0.77rem;
+      font-family: 'Inter', sans-serif; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.15s;
+      font-weight: 600; flex-shrink: 0;
     }
-
-    .nav-signout:hover {
-      border-color: #ef4444;
-      color: #ef4444;
+    .nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+    /* ── Hub Footer ── */
+    .hub-footer {
+      background: #0f172a; border-top: 1px solid #1e293b;
+      padding: 0 1.5rem; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; flex-shrink: 0;
+      font-size: 0.7rem; color: #475569; font-family: 'Inter', sans-serif;
     }
+    .hub-footer .fsep { color: #1e293b; }
 
     /* ---- Main Layout ---- */
     .main {
@@ -335,34 +308,24 @@
     .tool-card:hover .launch-icon-kpi    { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
     .tool-card:hover .launch-icon-chat   { background: rgba(139,92,246,0.15); border-color: rgba(139,92,246,0.3); color: #c4b5fd; }
 
-    /* ---- Footer ---- */
-    .footer {
-      text-align: center;
-      margin-top: 4rem;
-      color: #334155;
-      font-size: 0.78rem;
-      position: relative;
-      z-index: 1;
-    }
   </style>
 </head>
 <body>
   <div class="glow glow-1"></div>
   <div class="glow glow-2"></div>
 
-  <!-- Top Nav -->
-  <nav class="top-nav">
-    <a href="index.html" class="nav-logo">
-      <div class="nav-logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
-      <div>
-        <div class="nav-logo-name">Aegis Hub</div>
-      </div>
+  <nav class="hub-nav">
+    <a href="index.html" class="nav-brand">
+      <div class="nav-brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+      <span class="nav-brand-name">Digital Marketing Hub</span>
     </a>
+    <div class="nav-sep"></div>
+    <a href="email/index.html" class="nav-link"><i class="fa-solid fa-envelope-open-text"></i> Email Tracker</a>
+    <a href="attendance/index.html" class="nav-link"><i class="fa-solid fa-calendar-check"></i> Attendance</a>
+    <a href="/kpi/" class="nav-link"><i class="fa-solid fa-chart-line"></i> KPI Tracker</a>
+    <a href="chat/index.html" class="nav-link"><i class="fa-solid fa-comments"></i> AI Assistant</a>
     <div class="nav-spacer"></div>
-    <span class="nav-date" id="navDate"></span>
-    <button class="nav-signout" id="signOutBtn">
-      <i class="fa-solid fa-right-from-bracket"></i> Sign Out
-    </button>
+    <button class="nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
   </nav>
 
   <!-- Main -->
@@ -419,7 +382,7 @@
       </a>
 
       <!-- KPI Tracker -->
-      <a href="/kpi/" class="tool-card card-kpi">
+      <a href="https://ticket-analytics2-production-3196.up.railway.app/" target="_blank" rel="noopener" class="tool-card card-kpi">
         <div class="card-top">
           <div class="card-icon icon-kpi"><i class="fa-solid fa-chart-line"></i></div>
           <i class="fa-solid fa-arrow-up-right card-arrow"></i>
@@ -439,7 +402,7 @@
       </a>
 
       <!-- AI Chat Agent -->
-      <a href="/chat/" class="tool-card card-chat">
+      <a href="chat/index.html" class="tool-card card-chat">
         <div class="card-top">
           <div class="card-icon icon-chat"><i class="fa-solid fa-comments"></i></div>
           <i class="fa-solid fa-arrow-up-right card-arrow"></i>
@@ -461,17 +424,18 @@
     </div>
   </main>
 
-  <footer class="footer">
-    Aegis Hub &middot; Digital Marketing Operations &middot; Internal Use Only
+  <footer class="hub-footer">
+    <span>Digital Marketing Hub</span>
+    <span class="fsep">·</span>
+    <span>KONE</span>
+    <span class="fsep">·</span>
+    <span>Internal Use Only</span>
   </footer>
 
   <script>
     if (sessionStorage.getItem('aegis_auth') !== 'true') {
       window.location.replace('login.html');
     }
-
-    document.getElementById('navDate').textContent =
-      new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     document.getElementById('signOutBtn').addEventListener('click', () => {
       sessionStorage.removeItem('aegis_auth');

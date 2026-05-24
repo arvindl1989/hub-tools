@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Attendance Tracker — Aegis Hub</title>
+  <title>Attendance Tracker — Digital Marketing Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root {
       --kone-blue: #1450f5;
@@ -44,35 +45,45 @@
 
     /* ── Hub Nav ── */
     .hub-nav {
-      height: 44px;
-      background: #0f172a;
+      position: sticky; top: 0; z-index: 300;
+      height: 52px; background: #0f172a;
       border-bottom: 1px solid #1e293b;
-      display: flex;
-      align-items: center;
-      padding: 0 1.25rem;
-      gap: 10px;
-      flex-shrink: 0;
-      z-index: 200;
+      display: flex; align-items: center;
+      padding: 0 1.5rem; gap: 4px; flex-shrink: 0;
     }
-    .hub-nav a {
+    .nav-brand {
+      display: flex; align-items: center; gap: 9px;
+      text-decoration: none; flex-shrink: 0; margin-right: 4px;
+    }
+    .nav-brand-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: linear-gradient(135deg, #1450f5, #3b70f7);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.82rem; color: white;
+      box-shadow: 0 2px 6px rgba(20,80,245,0.35);
+    }
+    .nav-brand-name { font-size: 0.85rem; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; }
+    .nav-sep { width: 1px; height: 18px; background: #1e293b; margin: 0 8px; flex-shrink: 0; }
+    .nav-link {
       display: flex; align-items: center; gap: 6px;
-      text-decoration: none; color: #94a3b8;
-      font-size: 0.78rem; font-weight: 600;
-      padding: 4px 10px; border-radius: 6px;
-      border: 1px solid #334155; transition: all 0.2s;
+      text-decoration: none; color: #64748b;
+      font-size: 0.77rem; font-weight: 600;
+      padding: 5px 10px; border-radius: 7px;
+      border: 1px solid transparent; transition: all 0.15s;
+      white-space: nowrap; font-family: 'Inter', sans-serif;
     }
-    .hub-nav a:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
-    .hub-nav a .nav-icon { color: #6366f1; }
-    .hub-nav-sep { width: 1px; height: 16px; background: #334155; }
-    .hub-nav-tool { font-size: 0.78rem; color: #64748b; font-weight: 500; }
-    .hub-nav-spacer { flex: 1; }
-    .hub-nav-signout {
+    .nav-link i { font-size: 0.7rem; }
+    .nav-link:hover { color: #f1f5f9; background: #1e293b; border-color: #334155; }
+    .nav-link.active { color: #93b4fd; background: rgba(20,80,245,0.12); border-color: rgba(20,80,245,0.25); }
+    .nav-spacer { flex: 1; min-width: 8px; }
+    .nav-signout {
       background: none; border: 1px solid #334155; color: #64748b;
-      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
+      padding: 5px 10px; border-radius: 7px; font-size: 0.77rem;
       font-family: 'Inter', sans-serif; cursor: pointer;
-      display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+      display: flex; align-items: center; gap: 5px; transition: all 0.15s;
+      font-weight: 600; flex-shrink: 0;
     }
-    .hub-nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+    .nav-signout:hover { border-color: #ef4444; color: #ef4444; }
 
     /* ── App Layout ── */
     .app-body {
@@ -182,11 +193,17 @@
 
   <!-- Hub Nav -->
   <nav class="hub-nav">
-    <a href="../index.html"><span class="nav-icon">&#x2302;</span> Aegis Hub</a>
-    <div class="hub-nav-sep"></div>
-    <span class="hub-nav-tool">Attendance Tracker</span>
-    <div class="hub-nav-spacer"></div>
-    <button class="hub-nav-signout" id="signOutBtn">&#x2192; Sign Out</button>
+    <a href="../index.html" class="nav-brand">
+      <div class="nav-brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+      <span class="nav-brand-name">Digital Marketing Hub</span>
+    </a>
+    <div class="nav-sep"></div>
+    <a href="../email/index.html" class="nav-link"><i class="fa-solid fa-envelope-open-text"></i> Email Tracker</a>
+    <a href="../attendance/index.html" class="nav-link active"><i class="fa-solid fa-calendar-check"></i> Attendance</a>
+    <a href="/kpi/" class="nav-link"><i class="fa-solid fa-chart-line"></i> KPI Tracker</a>
+    <a href="../chat/index.html" class="nav-link"><i class="fa-solid fa-comments"></i> AI Assistant</a>
+    <div class="nav-spacer"></div>
+    <button class="nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
   </nav>
 
   <div class="app-body">

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Email Tracker — Aegis Hub</title>
+  <title>Email Tracker — Digital Marketing Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -36,40 +36,53 @@
     /* ── Hub Nav ── */
     .hub-nav {
       position: sticky; top: 0; z-index: 300;
-      height: 44px; background: var(--nav-bg);
-      border-bottom: 1px solid var(--nav-border);
+      height: 52px; background: #0f172a;
+      border-bottom: 1px solid #1e293b;
       display: flex; align-items: center;
-      padding: 0 1.5rem; gap: 10px;
+      padding: 0 1.5rem; gap: 4px; flex-shrink: 0;
     }
-    .hub-nav a.back-link {
+    .nav-brand {
+      display: flex; align-items: center; gap: 9px;
+      text-decoration: none; flex-shrink: 0; margin-right: 4px;
+    }
+    .nav-brand-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: linear-gradient(135deg, #1450f5, #3b70f7);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.82rem; color: white;
+      box-shadow: 0 2px 6px rgba(20,80,245,0.35);
+    }
+    .nav-brand-name { font-size: 0.85rem; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; }
+    .nav-sep { width: 1px; height: 18px; background: #1e293b; margin: 0 8px; flex-shrink: 0; }
+    .nav-link {
       display: flex; align-items: center; gap: 6px;
-      text-decoration: none; color: #94a3b8;
-      font-size: 0.78rem; font-weight: 600;
-      padding: 4px 10px; border-radius: 6px;
-      border: 1px solid #334155; transition: all 0.2s;
+      text-decoration: none; color: #64748b;
+      font-size: 0.77rem; font-weight: 600;
+      padding: 5px 10px; border-radius: 7px;
+      border: 1px solid transparent; transition: all 0.15s;
+      white-space: nowrap; font-family: 'Inter', sans-serif;
     }
-    .hub-nav a.back-link:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
-    .hub-nav a.back-link i { color: #1450f5; }
-    .nav-sep { width: 1px; height: 16px; background: #334155; }
-    .nav-tool { font-size: 0.78rem; color: #64748b; font-weight: 500; }
-    .nav-spacer { flex: 1; }
-    .nav-icon-btn {
-      display: flex; align-items: center; gap: 6px;
-      background: none; border: 1px solid #334155; color: #94a3b8;
-      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
-      font-family: 'Inter', sans-serif; font-weight: 600;
-      cursor: pointer; transition: all 0.2s;
-    }
-    .nav-icon-btn:hover { color: #f1f5f9; border-color: #475569; background: #1e293b; }
-    .nav-icon-btn.active { border-color: #1450f5; color: #a5b4fc; background: rgba(20,80,245,0.1); }
-    .nav-icon-btn i { color: #1450f5; }
+    .nav-link i { font-size: 0.7rem; }
+    .nav-link:hover { color: #f1f5f9; background: #1e293b; border-color: #334155; }
+    .nav-link.active { color: #93b4fd; background: rgba(20,80,245,0.12); border-color: rgba(20,80,245,0.25); }
+    .nav-spacer { flex: 1; min-width: 8px; }
     .nav-signout {
       background: none; border: 1px solid #334155; color: #64748b;
-      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
+      padding: 5px 10px; border-radius: 7px; font-size: 0.77rem;
       font-family: 'Inter', sans-serif; cursor: pointer;
-      display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+      display: flex; align-items: center; gap: 5px; transition: all 0.15s;
+      font-weight: 600; flex-shrink: 0;
     }
     .nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+    /* ── Hub Footer ── */
+    .hub-footer {
+      background: #0f172a; border-top: 1px solid #1e293b;
+      padding: 0 1.5rem; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; flex-shrink: 0;
+      font-size: 0.7rem; color: #475569; font-family: 'Inter', sans-serif;
+    }
+    .hub-footer .fsep { color: #1e293b; }
 
     /* ── Views ── */
     .view { display: none; }
@@ -78,7 +91,7 @@
     /* ── Setup Screen ── */
     .setup-wrap {
       display: flex; align-items: center; justify-content: center;
-      min-height: calc(100vh - 44px); padding: 2rem;
+      min-height: calc(100vh - 52px); padding: 2rem;
     }
     .setup-card {
       background: var(--surface); border: 1px solid var(--border);
@@ -118,7 +131,7 @@
 
     /* ── Filter Bar ── */
     .filter-bar {
-      position: sticky; top: 44px; z-index: 200;
+      position: sticky; top: 52px; z-index: 200;
       background: var(--surface); border-bottom: 1px solid var(--border);
       padding: 0.75rem 2rem;
       display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
@@ -478,11 +491,16 @@
 
   <!-- Hub Nav -->
   <nav class="hub-nav">
-    <a href="../index.html" class="back-link"><i class="fa-solid fa-shield-halved"></i> Aegis Hub</a>
+    <a href="../index.html" class="nav-brand">
+      <div class="nav-brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+      <span class="nav-brand-name">Digital Marketing Hub</span>
+    </a>
     <div class="nav-sep"></div>
-    <span class="nav-tool">Email Tracker</span>
+    <a href="../email/index.html" class="nav-link active"><i class="fa-solid fa-envelope-open-text"></i> Email Tracker</a>
+    <a href="../attendance/index.html" class="nav-link"><i class="fa-solid fa-calendar-check"></i> Attendance</a>
+    <a href="/kpi/" class="nav-link"><i class="fa-solid fa-chart-line"></i> KPI Tracker</a>
+    <a href="../chat/index.html" class="nav-link"><i class="fa-solid fa-comments"></i> AI Assistant</a>
     <div class="nav-spacer"></div>
-    <button class="nav-icon-btn" id="navLinkGenBtn"><i class="fa-solid fa-link"></i> Link Generator</button>
     <button class="nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
   </nav>
 
@@ -761,6 +779,14 @@
     </div>
   </div>
 
+  <footer class="hub-footer">
+    <span>Digital Marketing Hub</span>
+    <span class="fsep">·</span>
+    <span>KONE</span>
+    <span class="fsep">·</span>
+    <span>Internal Use Only</span>
+  </footer>
+
   <!-- PapaParse for CSV parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
@@ -827,7 +853,7 @@
     function showView(name) {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById('view-' + name).classList.add('active');
-      document.getElementById('navLinkGenBtn').classList.toggle('active', name === 'linkgen');
+      document.getElementById('navLinkGenBtn')?.classList.toggle('active', name === 'linkgen');
     }
 
     // ── Date utilities ────────────────────────────────────────────────────
@@ -1440,7 +1466,7 @@ Thanks again!`;
       });
 
       // Nav: Link Generator
-      document.getElementById('navLinkGenBtn').addEventListener('click', () => {
+      document.getElementById('navLinkGenBtn')?.addEventListener('click', () => {
         const current = document.querySelector('.view.active')?.id;
         previousView = current || 'list';
         if (current === 'view-linkgen') {
