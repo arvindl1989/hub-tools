@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+﻿import { useState, useCallback } from 'react'
 import UploadZone        from './components/UploadZone'
 import DashboardPage     from './pages/DashboardPage'
 import PriorityPage      from './pages/PriorityPage'
@@ -107,7 +107,7 @@ export default function App() {
   )
 }
 
-// ── Hub URL comes from Railway env var VITE_HUB_URL ──────────────────────────
+// â”€â”€ Hub URL comes from Railway env var VITE_HUB_URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const HUB_URL = import.meta.env.VITE_HUB_URL || ''
 
 function AppHeader({ filename, totalRows, onReupload, onBack, onSlaConfig }) {
@@ -121,7 +121,7 @@ function AppHeader({ filename, totalRows, onReupload, onBack, onSlaConfig }) {
       flexShrink: 0,
     }}>
 
-      {/* ── Back to Aegis Hub ── */}
+      {/* â”€â”€ Back to Aegis Hub â”€â”€ */}
       {HUB_URL && (
         <>
           <a
@@ -197,7 +197,7 @@ function AppHeader({ filename, totalRows, onReupload, onBack, onSlaConfig }) {
         </button>
         {onBack && (
           <button onClick={onBack} style={{ background: 'none', border: 'none', fontSize: 13, color: '#6b7280', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-            ← Back
+            â† Back
           </button>
         )}
         {onReupload && (
@@ -237,3 +237,4 @@ function UsersIcon() {
 function BoltIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
 }
+
