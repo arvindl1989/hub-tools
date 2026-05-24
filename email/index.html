@@ -522,7 +522,18 @@
   var keys  = data[0];
   var rows  = data.slice(1).map(function(row) {
     var obj = {};
-    keys.forEach(function(k, i) { obj[k] = row[i]; });
+    keys.forEach(function(k, i) {
+      var val = row[i];
+      if (val instanceof Date) {
+        // Explicit YYYY-MM-DD avoids timezone serialisation issues
+        var y = val.getFullYear();
+        var m = String(val.getMonth() + 1).padStart(2, '0');
+        var d = String(val.getDate()).padStart(2, '0');
+        obj[k] = y + '-' + m + '-' + d;
+      } else {
+        obj[k] = val;
+      }
+    });
     return obj;
   });
   return ContentService
@@ -639,16 +650,15 @@
             <label>Preview Link</label>
             <input type="url" class="field-input" id="previewInput" placeholder="https://…">
           </div>
-          <div>
-            <label>Live Link</label>
-            <input type="url" class="field-input" id="liveInput" placeholder="https://…">
-          </div>
         </div>
       </div>
 
       <!-- Subject -->
       <div class="form-card">
         <div class="card-title"><i class="fa-solid fa-heading"></i> Subject Line</div>
+        <div class="subject-row" style="margin-bottom:0.6rem;">
+          <select class="field-input" id="taskTypeSelect" style="flex:0 0 auto;width:220px;"></select>
+        </div>
         <div class="subject-row">
           <input type="text" class="field-input" id="subjectInput" placeholder="Email subject line">
           <button class="ai-btn" id="aiSubjectBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Suggest</button>
@@ -662,7 +672,6 @@
         <button class="etab" data-tab="preview">Preview</button>
         <button class="etab" data-tab="onhold">On Hold</button>
         <button class="etab" data-tab="pendingconf">Pending Confirmation</button>
-        <button class="etab" data-tab="live">Live</button>
         <button class="etab" data-tab="closed">Closed Completed</button>
       </div>
 
@@ -676,6 +685,16 @@
         <div class="email-box"><div id="body-preview" class="email-content"></div><button class="copy-email-btn" data-src="body-preview"><i class="fa-regular fa-copy"></i> Copy</button></div>
       </div>
       <div id="tab-onhold" class="tab-panel">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+          <div>
+            <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">On Hold Reason</label>
+            <input type="text" class="field-input" id="ohReasonInput" placeholder="e.g. Awaiting client assets" oninput="renderEmails()">
+          </div>
+          <div>
+            <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">On Hold Start Date</label>
+            <input type="date" class="field-input" id="ohDateInput" oninput="renderEmails()">
+          </div>
+        </div>
         <div class="sub-tabs">
           <button class="stab active" data-sub="oh-initial">Initial</button>
           <button class="stab" data-sub="oh-r1">1st Reminder</button>
@@ -689,9 +708,6 @@
       </div>
       <div id="tab-pendingconf" class="tab-panel">
         <div class="email-box"><div id="body-pendingconf" class="email-content"></div><button class="copy-email-btn" data-src="body-pendingconf"><i class="fa-regular fa-copy"></i> Copy</button></div>
-      </div>
-      <div id="tab-live" class="tab-panel">
-        <div class="email-box"><div id="body-live" class="email-content"></div><button class="copy-email-btn" data-src="body-live"><i class="fa-regular fa-copy"></i> Copy</button></div>
       </div>
       <div id="tab-closed" class="tab-panel">
         <div class="email-box"><div id="body-closed" class="email-content"></div><button class="copy-email-btn" data-src="body-closed"><i class="fa-regular fa-copy"></i> Copy</button></div>
@@ -755,12 +771,23 @@
     const SHEET_URL_KEY = 'aegis_sheet_url';
 
     // ── Constants ─────────────────────────────────────────────────────────
-    const SLA_DAYS = {
-      'Website Content Management': 10,
-      'Content Production – Graphic Design': 10,
-      'Demand Creation – Global': 30,
-      'Email – Local': 7,
-      'Retention – Activations': 30
+    function getSLADays(subCat) {
+      const n = subCat.toLowerCase().replace(/\s*[-–—]\s*/g, ' ').trim();
+      if (n.startsWith('website content')) return 10;
+      if (n.includes('graphic design'))   return 10;
+      if (n.includes('demand creation'))  return 30;
+      if (n.includes('retention'))        return 30;
+      if (n.startsWith('email'))          return 7;
+      return 10;
+    }
+
+    const TASK_TYPES = {
+      'website content': ['New Page Creation', 'Existing Page Updates', 'Page Removal', 'Page Translation', 'Content Refresh'],
+      'graphic design':  ['Social Media Asset', 'Banner / Display Ad', 'Brochure / Flyer', 'Infographic', 'Email Template Design'],
+      'demand creation': ['Global Journey Deployment', 'Campaign Setup', 'Landing Page', 'Form Creation'],
+      'retention':       ['Retention Campaign', 'Activation Email', 'Lifecycle Email', 'Nurture Sequence'],
+      'email':           ['Email – Local Send', 'Newsletter', 'Triggered Email', 'Template Update'],
+      '_default':        ['New Page Creation', 'Existing Page Updates', 'Press Release', 'Global Journey Deployment', 'Other']
     };
 
     const ACTIVE_STATES = new Set([
@@ -886,8 +913,8 @@
             const created = parseFlexDate(r['Created']);
             const prefLive = parseFlexDate(r['Preferred Live Date']);
             const subCat = (r['Sub-Category'] || '').trim();
-            const slaDays = SLA_DAYS[subCat] || 10;
-            const slaDate = created ? addWorkDays(created, slaDays) : null;
+            const slaDays = getSLADays(subCat);
+            const slaDate = created ? addWorkDays(created, slaDays - 1) : null;
             return {
               id: String(r['Number'] || '').trim(),
               description: String(r['Short description'] || '').trim(),
@@ -1026,7 +1053,7 @@
       generatedFeedbackLink = '';
 
       // Reset inputs
-      ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'liveInput'].forEach(id => {
+      ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'ohReasonInput', 'ohDateInput'].forEach(id => {
         document.getElementById(id).value = '';
       });
       ['caseOk', 'caseErr', 'feedbackOk', 'feedbackErr'].forEach(id => {
@@ -1049,9 +1076,22 @@
 
       document.getElementById('ethDaysBadgeWrap').innerHTML = daysBadge(ticket.daysLeft);
 
-      // Default subject
-      const shortDesc = ticket.description.length > 55 ? ticket.description.slice(0, 55) + '…' : ticket.description;
-      document.getElementById('subjectInput').value = `[${ticket.subCategory}] ${shortDesc} – #${ticket.id}`;
+      // Populate task type dropdown
+      const taskSel = document.getElementById('taskTypeSelect');
+      const normKey = ticket.subCategory.toLowerCase().replace(/\s*[-–—]\s*/g, ' ').trim();
+      let taskOpts = TASK_TYPES._default;
+      for (const [key, opts] of Object.entries(TASK_TYPES)) {
+        if (key !== '_default' && normKey.includes(key)) { taskOpts = opts; break; }
+      }
+      taskSel.innerHTML = taskOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+
+      function buildSubject() {
+        const type = taskSel.value;
+        const desc = ticket.description.length > 60 ? ticket.description.slice(0, 60) + '…' : ticket.description;
+        document.getElementById('subjectInput').value = `${type} - ${desc} - Hub Ticket #${ticket.id}`;
+      }
+      taskSel.onchange = buildSubject;
+      buildSubject();
 
       // Reset to first tab
       switchETab('assigned');
@@ -1063,7 +1103,7 @@
     }
 
     // ── Email templates ───────────────────────────────────────────────────
-    function buildEmails(ticket, caseLink, feedbackLink, previewLink, liveLink) {
+    function buildEmails(ticket, caseLink, feedbackLink, previewLink, ohReason, ohDate) {
       const { id, description, client, assignee, slaDays, slaDate, prefLive } = ticket;
       const slaStr = fmtDate(slaDate);
       const liveStr = fmtDate(prefLive);
@@ -1071,7 +1111,9 @@
       const fHref = feedbackLink || '#';
       const isEarlier = prefLive && slaDate && prefLive < slaDate;
       const prevText = previewLink ? `\n${previewLink}` : '\n[Preview Link To Be Provided]';
-      const liveText = liveLink ? `\n${liveLink}` : '\n[Live Link To Be Provided]';
+      const ohReasonStr = ohReason || '[On Hold Reason]';
+      const ohDateStr = ohDate ? fmtDate(new Date(ohDate + 'T00:00:00')) : '[On Hold Date]';
+      const closureDate = ohDate ? fmtDate(addWorkDays(new Date(ohDate + 'T00:00:00'), 14)) : '[Closure Date]';
 
       const assigned = `Hello ${client},
 
@@ -1105,21 +1147,21 @@ Check out the preview here:${prevText}
 
 If the preview meets your expectations and doesn't require any changes, please reply to this email with your approval to proceed with the page going live. I'll then schedule it to be published on your preferred live date, ${liveStr}, at 08:00 AM IST. Alternatively, if you prefer to go live at the earliest possible time, please specify the date and time.
 
-If you have any amends to submit, please use the change request form <a href="https://forms.office.com/Pages/ResponsePage.aspx?id=ExampleChangeFormLink">here</a>. Please do not reply to this email with amends — we will only collect them from the form above.`;
+If you have any amends to submit, please use <a href="${cHref}">our ticket</a> to submit them. Please do not reply to this email with amends.`;
 
       const ohInitial = `Hello ${client},
 
-As per your confirmation, your ticket is on hold due to [On Hold Reason].
+As per your confirmation, your ticket is on hold due to ${ohReasonStr}.
 
 We are happy to wait, but every day counts toward meeting your preferred live date ${liveStr}.
 
-We can hold your ticket for up to 14 working days, until [Closure Date]. If we don't have the necessary information to work on your ticket by then, we'll have to close the ticket, and you can create a new ticket when you have the required details.
+We can hold your ticket for up to 14 working days, until ${closureDate}. If we don't have the necessary information to work on your ticket by then, we'll have to close the ticket, and you can create a new ticket when you have the required details.
 
 Thank you for your support on this!`;
 
       const ohR1 = `Hello ${client},
 
-Just a quick heads-up that your ticket has been on hold since [On Hold Date] due to "[On Hold Reason]." We can keep it on hold for up to 14 working days.
+Just a quick heads-up that your ticket has been on hold since ${ohDateStr} due to "${ohReasonStr}." We can keep it on hold for up to 14 working days.
 
 With only a few days left, we wanted to check if you have any updates or info for us.
 
@@ -1129,7 +1171,7 @@ Thanks!`;
 
       const ohR2 = `Hello ${client},
 
-Just a final reminder that your ticket has been on hold since [On Hold Date] due to "[On Hold Reason]." We're nearing the 14-day mark, with the deadline on [Closure Date].
+Just a final reminder that your ticket has been on hold since ${ohDateStr} due to "${ohReasonStr}." We're nearing the 14-day mark, with the deadline on ${closureDate}.
 
 If we don't hear from you by then, we'll need to close the ticket. However, you can always open a new one when you're ready with the details.
 
@@ -1137,7 +1179,7 @@ Thanks for your quick attention!`;
 
       const ohClosure = `Hello ${client},
 
-We've had your ticket on hold since [On Hold Date] due to "[On Hold Reason]." Since we haven't received a response, we've gone ahead and closed it as of [Closure Date].
+We've had your ticket on hold since ${ohDateStr} due to "${ohReasonStr}." Since we haven't received a response, we've gone ahead and closed it as of ${closureDate}.
 
 If you still need help, just create a new ticket with the details, and we'll get right on it.
 
@@ -1153,12 +1195,6 @@ Once you confirm, we'll get the ticket officially closed on our end.
 
 Thank you for your support!`;
 
-      const live = `Hello ${client},
-
-Great news! Your request number #${id} has been successfully processed and is now live at the URL(s) provided:${liveText}
-
-This ticket is now considered closed. If you need any tweaks, just open a new ticket.`;
-
       const closed = `Hello ${client},
 
 Your ticket #${id} regarding "${description}" has been successfully closed.
@@ -1167,14 +1203,15 @@ Thank you for working with us! We'd love to hear your thoughts on how we did so 
 
 Thanks again!`;
 
-      return { assigned, confirmation, preview, ohInitial, ohR1, ohR2, ohClosure, pendingConf, live, closed };
+      return { assigned, confirmation, preview, ohInitial, ohR1, ohR2, ohClosure, pendingConf, closed };
     }
 
     function renderEmails() {
       if (!currentTicket) return;
       const preview = document.getElementById('previewInput').value.trim();
-      const live = document.getElementById('liveInput').value.trim();
-      const e = buildEmails(currentTicket, generatedCaseLink, generatedFeedbackLink, preview, live);
+      const ohReason = document.getElementById('ohReasonInput').value.trim();
+      const ohDate = document.getElementById('ohDateInput').value;
+      const e = buildEmails(currentTicket, generatedCaseLink, generatedFeedbackLink, preview, ohReason, ohDate);
       const set = (id, txt) => { document.getElementById(id).innerHTML = txt.replace(/\n/g, '<br>'); };
       set('body-assigned', e.assigned);
       set('body-confirmation', e.confirmation);
@@ -1184,7 +1221,6 @@ Thanks again!`;
       set('body-oh-r2', e.ohR2);
       set('body-oh-closure', e.ohClosure);
       set('body-pendingconf', e.pendingConf);
-      set('body-live', e.live);
       set('body-closed', e.closed);
     }
 
@@ -1344,9 +1380,8 @@ Thanks again!`;
         btn.addEventListener('click', () => copyEmailText(btn.dataset.src, btn));
       });
 
-      // Preview / Live input → re-render
+      // Preview input → re-render
       document.getElementById('previewInput').addEventListener('input', renderEmails);
-      document.getElementById('liveInput').addEventListener('input', renderEmails);
 
       // Case link generator
       document.getElementById('genCaseBtn').addEventListener('click', () => {
