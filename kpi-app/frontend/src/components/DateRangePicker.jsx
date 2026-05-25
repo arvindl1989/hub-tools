@@ -1,8 +1,11 @@
-const today = () => new Date().toISOString().slice(0, 10)
+// Use local dates — toISOString() returns UTC and can be off by ±1 day in non-UTC timezones
+const pad = (n) => String(n).padStart(2, '0')
+const localDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+const today = () => localDate(new Date())
 const daysAgo = (n) => {
   const d = new Date()
   d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
+  return localDate(d)
 }
 const yearStart = (offset = 0) => `${new Date().getFullYear() + offset}-01-01`
 const yearEnd   = (offset = 0) => `${new Date().getFullYear() + offset}-12-31`
