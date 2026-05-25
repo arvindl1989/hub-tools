@@ -293,6 +293,12 @@
     <aside class="sidebar">
 
       <div class="sidebar-section">
+        <div class="sidebar-label">Your Identity</div>
+        <input type="text" class="ticket-search" id="userNameInput" placeholder="Your name (e.g. Arvind)" autocomplete="off">
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.4;">Enables "my tickets", "assigned to me" queries</div>
+      </div>
+
+      <div class="sidebar-section">
         <div class="sidebar-label">Ticket Data</div>
         <div class="stat-pill" id="statTotal"><span>Total active</span><span id="valTotal">—</span></div>
         <div class="stat-pill warn" id="statWarn"><span>Due ≤ 5 days</span><span id="valWarn">—</span></div>
@@ -313,9 +319,11 @@
         <div class="sidebar-label">Quick Prompts</div>
         <button class="quick-btn" data-q="Show me all overdue tickets with their assignees."><i class="fa-solid fa-fire"></i> Overdue tickets</button>
         <button class="quick-btn" data-q="Which tickets are due within the next 5 working days?"><i class="fa-solid fa-clock"></i> Due this week</button>
+        <button class="quick-btn" data-q="How many tickets were assigned to me last week? List them."><i class="fa-solid fa-user-clock"></i> My last week</button>
         <button class="quick-btn" data-q="List all tickets currently on hold and the reason if available."><i class="fa-solid fa-pause"></i> On hold tickets</button>
-        <button class="quick-btn" data-q="Give me a summary of the workload by assignee."><i class="fa-solid fa-users"></i> Workload by person</button>
+        <button class="quick-btn" data-q="Give me a summary of the workload by assignee for this week."><i class="fa-solid fa-users"></i> Workload by person</button>
         <button class="quick-btn" data-q="Which tickets have a preferred live date coming up soon?"><i class="fa-solid fa-calendar"></i> Upcoming live dates</button>
+        <button class="quick-btn" data-q="How many tickets were created and closed last week? Break it down by assignee."><i class="fa-solid fa-chart-bar"></i> Last week summary</button>
       </div>
 
     </aside>
@@ -379,6 +387,13 @@
       return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
+    // ISO YYYY-MM-DD — used in system prompt so GPT can do reliable date arithmetic
+    function isoDate(d) {
+      if (!d) return '';
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+
     function parseFlexDate(val) {
       if (!val || val === '') return null;
       if (typeof val === 'number') {
@@ -433,23 +448,27 @@
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const rows = await res.json();
         allTickets = rows.map(r => {
-          const state = String(r['State'] || '').trim();
+          const state    = String(r['State'] || '').trim();
           const isActive = ACTIVE_STATES.has(state);
-          const created = parseFlexDate(r['Created']);
+          const created  = parseFlexDate(r['Created']);
           const prefLive = parseFlexDate(r['Preferred Live Date']);
-          const closed = parseFlexDate(r['Closed']);
-          const subCat = String(r['Sub-Category'] || '').trim();
-          const slaDays = getSLADays(subCat);
-          const slaDate = created ? addWorkDays(created, slaDays) : null;
+          const closed   = parseFlexDate(r['Closed']);
+          const dueDate  = parseFlexDate(r['Due date']);
+          const subCat   = String(r['Sub-Category'] || '').trim();
+          const slaDays  = getSLADays(subCat);
+          const slaDate  = dueDate || (created ? addWorkDays(created, slaDays) : null);
           return {
             id:          String(r['Number'] || '').trim(),
             description: String(r['Short description'] || '').trim(),
             subCategory: subCat,
             client:      String(r['Requested by'] || '').trim(),
-            assignee:    String(r['Assigned to'] || '').trim(),
+            watchlist:   String(r['Watch list']    || '').trim(),
+            team:        String(r['Team']           || '').trim(),
+            area:        String(r['Area']           || '').trim(),
+            assignee:    String(r['Assigned to']    || '').trim(),
             state, isActive,
             tags:        String(r['Tags'] || '').trim(),
-            created, prefLive, closed, slaDays, slaDate,
+            created, prefLive, closed, dueDate, slaDays, slaDate,
             daysLeft:    isActive ? daysFromToday(slaDate) : null
           };
         }).filter(t => t.id);
@@ -494,31 +513,113 @@
 
     // ── System prompt ─────────────────────────────────────────────────────────
     function buildSystemPrompt() {
-      const today = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-      const active = allTickets.filter(t => t.isActive);
+      const now      = new Date();
+      const todayISO = isoDate(now);
+      const todayFmt = now.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+      const dow      = now.getDay();
+      const daysToMon = (dow + 6) % 7;
+      const thisMon  = new Date(now); thisMon.setDate(now.getDate() - daysToMon); thisMon.setHours(0,0,0,0);
+      const lastMon  = new Date(thisMon); lastMon.setDate(thisMon.getDate() - 7);
+      const lastSun  = new Date(thisMon); lastSun.setDate(thisMon.getDate() - 1);
+      const wk2Mon   = new Date(thisMon); wk2Mon.setDate(thisMon.getDate() - 14);
+      const wk2Sun   = new Date(lastMon); wk2Sun.setDate(lastMon.getDate() - 1);
+      const wk3Mon   = new Date(thisMon); wk3Mon.setDate(thisMon.getDate() - 21);
+      const wk3Sun   = new Date(wk2Mon);  wk3Sun.setDate(wk2Mon.getDate() - 1);
+      const mthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lmStart  = new Date(now.getFullYear(), now.getMonth()-1, 1);
+      const lmEnd    = new Date(now.getFullYear(), now.getMonth(), 0);
+
+      const allCreated = allTickets.map(t => t.created).filter(Boolean);
+      const dataStart  = allCreated.length ? isoDate(new Date(Math.min(...allCreated.map(d => d.getTime())))) : 'unknown';
+      const dataEnd    = allCreated.length ? isoDate(new Date(Math.max(...allCreated.map(d => d.getTime())))) : 'unknown';
+
+      function weekSummary(wMonDate, wEndDate) {
+        const label   = `${isoDate(wMonDate)} to ${isoDate(wEndDate)}`;
+        const tickets = allTickets.filter(t => t.created && t.created >= wMonDate && t.created <= new Date(wEndDate.getTime() + 86399000));
+        if (!tickets.length) return `${label}: 0 tickets created`;
+        const byA = {};
+        tickets.forEach(t => { const a = t.assignee || 'Unassigned'; byA[a] = (byA[a]||0)+1; });
+        const detail = Object.entries(byA).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}:${v}`).join(', ');
+        return `${label}: ${tickets.length} created (${detail})`;
+      }
+      function weekClosedSummary(wMonDate, wEndDate) {
+        const tickets = allTickets.filter(t => t.closed && t.closed >= wMonDate && t.closed <= new Date(wEndDate.getTime() + 86399000));
+        if (!tickets.length) return `${isoDate(wMonDate)} to ${isoDate(wEndDate)}: 0 closed`;
+        const byA = {};
+        tickets.forEach(t => { const a = t.assignee || 'Unassigned'; byA[a] = (byA[a]||0)+1; });
+        const detail = Object.entries(byA).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}:${v}`).join(', ');
+        return `${isoDate(wMonDate)} to ${isoDate(wEndDate)}: ${tickets.length} closed (${detail})`;
+      }
+      const weeklySummaries = [], weeklyClosedSummaries = [];
+      for (let w = 0; w < 8; w++) {
+        const wM = new Date(thisMon); wM.setDate(thisMon.getDate() - 7*w);
+        const wE = w === 0 ? now : new Date(wM.getTime() + 6*86400000);
+        weeklySummaries.push(weekSummary(wM, wE));
+        weeklyClosedSummaries.push(weekClosedSummary(wM, wE));
+      }
+
+      const active  = allTickets.filter(t => t.isActive);
       const closed  = allTickets.filter(t => !t.isActive);
 
       const fmtT = t => {
-        const sla = t.slaDate ? `SLA:${fmtDate(t.slaDate)}(${t.daysLeft !== null ? t.daysLeft+'d' : 'TBD'})` : 'SLA:TBD';
-        const pld = t.prefLive ? ` PLD:${fmtDate(t.prefLive)}` : '';
-        const cr  = t.created  ? ` Created:${fmtDate(t.created)}` : '';
-        return `#${t.id}|${t.subCategory}|${t.state}|Assignee:${t.assignee}|Client:${t.client}|${sla}${pld}${cr}|"${t.description}"`;
+        const sla = t.slaDate ? `SLADeadline:${isoDate(t.slaDate)}(${t.daysLeft !== null ? t.daysLeft+'d' : 'TBD'})` : 'SLADeadline:TBD';
+        const pld = t.prefLive ? ` PLD:${isoDate(t.prefLive)}` : '';
+        const cr  = t.created  ? ` Created:${isoDate(t.created)}` : '';
+        const wl  = t.watchlist ? ` Watchlist:${t.watchlist}` : '';
+        return `#${t.id}|${t.subCategory}|${t.state}|Team:${t.team}|Area:${t.area}|Assignee:${t.assignee}|Client:${t.client}|${sla}${pld}${cr}${wl}|"${t.description}"`;
       };
       const fmtC = t => {
-        const cr = t.created ? `Created:${fmtDate(t.created)}` : '';
-        const cl = t.closed  ? ` Closed:${fmtDate(t.closed)}`  : '';
-        return `#${t.id}|${t.subCategory}|${t.state}|Assignee:${t.assignee}|Client:${t.client}|${cr}${cl}|"${t.description}"`;
+        const cr = t.created ? `Created:${isoDate(t.created)}` : '';
+        const cl = t.closed  ? ` Closed:${isoDate(t.closed)}`  : '';
+        const wl = t.watchlist ? ` Watchlist:${t.watchlist}` : '';
+        return `#${t.id}|${t.subCategory}|${t.state}|Team:${t.team}|Area:${t.area}|Assignee:${t.assignee}|Client:${t.client}|${cr}${cl}${wl}|"${t.description}"`;
       };
 
-      return `You are Aegis, an AI assistant for the Digital Marketing Hub at KONE. Today is ${today}.
+      const userName = (document.getElementById('userNameInput')?.value || '').trim();
+      const userCtx  = userName
+        ? `\n## CURRENT USER\nName: ${userName}\nWhen the user says "me", "my", "I", "assigned to me", or "my tickets", they refer to "${userName}". Match case-insensitively against the Assignee field.\n`
+        : '\n## CURRENT USER\nNot set. If the user asks about "my tickets" or "assigned to me", ask them to enter their name in the "Your Identity" sidebar field first.\n';
 
-## ACTIVE TICKETS (${active.length})
+      return `You are Aegis, an AI assistant for the Digital Marketing Hub at KONE. Today is ${todayFmt} (ISO: ${todayISO}).
+${userCtx}
+## DATE REFERENCE (all weeks run Monday–Sunday)
+- Today:          ${todayISO}
+- This week:      ${isoDate(thisMon)} → ${todayISO}
+- Last week:      ${isoDate(lastMon)} → ${isoDate(lastSun)}
+- Two weeks ago:  ${isoDate(wk2Mon)} → ${isoDate(wk2Sun)}
+- Three weeks ago:${isoDate(wk3Mon)} → ${isoDate(wk3Sun)}
+- This month:     ${isoDate(mthStart)} → ${todayISO}
+- Last month:     ${isoDate(lmStart)} → ${isoDate(lmEnd)}
+When a user says "last week", use ${isoDate(lastMon)}–${isoDate(lastSun)} exactly.
+
+## DATA AVAILABILITY
+Ticket database covers ${dataStart} to ${dataEnd} (Created date).
+If a queried period falls OUTSIDE this range, say so explicitly and offer the nearest period with data.
+
+## WEEKLY TICKET CREATION SUMMARY (most recent first)
+${weeklySummaries.join('\n')}
+
+## WEEKLY TICKET CLOSED SUMMARY (most recent first)
+${weeklyClosedSummaries.join('\n')}
+
+## ACTIVE TICKETS (${active.length}) — format: #ID|SubCategory|State|Team|Area|Assignee|Client|SLADeadline(daysLeft)|PLD|Created|Watchlist|"description"
 ${active.length ? active.map(fmtT).join('\n') : 'None'}
 
 ## CLOSED / HISTORICAL TICKETS (${closed.length})
 ${closed.length ? closed.map(fmtC).join('\n') : 'None'}
 
-## SLA RULES (creation date = Day 1, working days Mon–Fri)
+## FIELD DEFINITIONS
+- Assignee: KONE team member responsible for the ticket
+- Client (Requested by): Person/team who submitted the request
+- Watchlist: Stakeholder following the ticket
+- Team: Client's KONE market/team (KEI, EEM, DACH, Brand, GCN, etc.)
+- Area: Geographic area (AME=Americas, APM=Asia-Pacific, EU=Europe, Global)
+- SLADeadline: Due date from the sheet (authoritative) — negative daysLeft = already overdue
+- PLD: Preferred Live Date — when client wants content live
+- Created: When ticket was opened; Closed: when it was resolved
+
+## SLA RULES (working days Mon–Fri)
 - Website Content Management: 10 working days
 - Content Production – Graphic Design: 10 working days
 - Email – Local: 7 working days
@@ -530,8 +631,8 @@ ${closed.length ? closed.map(fmtC).join('\n') : 'None'}
 - Assigned: Allocated to a team member, work not started
 - Work in progress: Actively being worked on
 - In review: Done internally, awaiting internal sign-off
-- On Hold: Paused — waiting on client or stakeholder info (max 14 working days, then ticket closes)
-- Pending Confirmation: Work complete, sent to client for sign-off to close
+- On Hold: Paused — waiting on client/stakeholder (max 14 working days, then closes)
+- Pending Confirmation: Work complete, sent to client for sign-off
 - Closed Completed: Successfully delivered and closed
 - Closed Rejected: Closed without delivery (duplicate, invalid, etc.)
 - Confirmation Completed: Client confirmed satisfaction, fully closed
@@ -545,14 +646,21 @@ PENDING CONFIRMATION: "Hello [Client], #[ID] is complete and ready to close. Ple
 CLOSED COMPLETED: "Hello [Client], #[ID] is live! [live link] Please share your feedback: [feedback link]."
 
 ## RULES
-- Be concise; use bullet points for lists.
-- Reference tickets by #number.
-- For SLA calculations always use today's date (${today}).
-- Working days = Mon–Fri only. A negative daysLeft means SLA is already breached.
-- Active stages: Open, Assigned, Work in progress, In review, On Hold, Pending Confirmation.
-- You can answer questions about BOTH active and closed/historical tickets.
-- If asked about workload, stages, trends, or summaries — include data from all tickets unless asked otherwise.
-- If a ticket number doesn't exist in the database, say so clearly.`;
+- Be concise; use bullet points for lists. Reference tickets by #number.
+- All dates in the data are ISO (YYYY-MM-DD). Use the DATE REFERENCE section for "last week", "this month", etc.
+- If data is missing for a queried period, say so and point to the nearest available period.
+- "Assigned to me" = Assignee field matches the current user's name (see CURRENT USER above).
+- A negative daysLeft means SLA deadline has already passed.
+- You can answer about BOTH active and closed/historical tickets.
+- For workload/trend questions, use the WEEKLY SUMMARIES first, then drill into individual tickets if needed.
+- If a ticket number is not in the database, say so clearly.`;
+    }
+
+    // Persist user name across page refreshes
+    const _unInput = document.getElementById('userNameInput');
+    if (_unInput) {
+      _unInput.value = sessionStorage.getItem('aegis_user') || '';
+      _unInput.addEventListener('input', () => sessionStorage.setItem('aegis_user', _unInput.value.trim()));
     }
 
     // ── Chat UI helpers ───────────────────────────────────────────────────────
