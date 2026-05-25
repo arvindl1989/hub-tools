@@ -277,15 +277,32 @@
 
     .ticket-header-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem;
+      border-left: 4px solid var(--primary);
+      border-radius: var(--radius); padding: 1.25rem 1.5rem; margin-bottom: 1.25rem;
       box-shadow: var(--shadow);
     }
-    .th-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 0.75rem; }
-    .th-num { font-size: 1.2rem; font-weight: 800; color: var(--primary); letter-spacing: -0.02em; }
-    .th-desc { font-size: 1rem; font-weight: 600; color: var(--text); line-height: 1.45; flex: 1; }
-    .th-meta { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.82rem; color: var(--muted); }
-    .th-meta span { display: flex; align-items: center; gap: 5px; }
-    .th-meta strong { color: var(--text); }
+    .th-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 1rem; }
+    .th-num { font-size: 1.1rem; font-weight: 800; color: var(--primary); letter-spacing: -0.02em; white-space: nowrap; }
+    .th-desc { font-size: 0.98rem; font-weight: 600; color: var(--text); line-height: 1.45; flex: 1; }
+    .th-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem 1rem;
+      padding-top: 0.9rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.82rem;
+    }
+    .th-field { display: flex; flex-direction: column; gap: 2px; }
+    .th-field-label {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #94a3b8;
+    }
+    .th-field-value {
+      font-size: 0.84rem; font-weight: 600; color: var(--text);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .th-field-value .state-badge { font-size: 0.65rem; }
+    .th-field-value.muted { color: var(--muted); font-weight: 500; }
 
     .form-card {
       background: var(--surface); border: 1px solid var(--border);
@@ -543,11 +560,8 @@
     keys.forEach(function(k, i) {
       var val = row[i];
       if (val instanceof Date) {
-        // Explicit YYYY-MM-DD avoids timezone serialisation issues
-        var y = val.getFullYear();
-        var m = String(val.getMonth() + 1).padStart(2, '0');
-        var d = String(val.getDate()).padStart(2, '0');
-        obj[k] = y + '-' + m + '-' + d;
+        // Use script/sheet timezone — fixes off-by-one-day in non-UTC timezones
+        obj[k] = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
       } else {
         obj[k] = val;
       }
@@ -634,13 +648,30 @@
           <span class="state-badge" id="ethState"></span>
         </div>
         <div class="th-meta">
-          <span><i class="fa-solid fa-user"></i> <strong id="ethAssignee"></strong></span>
-          <span><i class="fa-solid fa-building"></i> <span id="ethClient"></span></span>
-          <span><i class="fa-solid fa-layer-group"></i> <span id="ethService"></span></span>
-          <span id="ethCreatedWrap" style="display:none"><i class="fa-regular fa-calendar"></i> Created: <strong id="ethCreated"></strong></span>
-          <span id="ethPrefLiveWrap" style="display:none"><i class="fa-solid fa-calendar-day"></i> Preferred Live: <strong id="ethPrefLive"></strong></span>
-          <span><i class="fa-regular fa-calendar-check"></i> SLA: <strong id="ethSLA"></strong></span>
-          <span id="ethDaysBadgeWrap"></span>
+          <div class="th-field">
+            <span class="th-field-label"><i class="fa-solid fa-user"></i> Assignee</span>
+            <span class="th-field-value" id="ethAssignee"></span>
+          </div>
+          <div class="th-field">
+            <span class="th-field-label"><i class="fa-solid fa-building"></i> Client</span>
+            <span class="th-field-value" id="ethClient"></span>
+          </div>
+          <div class="th-field">
+            <span class="th-field-label"><i class="fa-solid fa-layer-group"></i> Service</span>
+            <span class="th-field-value" id="ethService"></span>
+          </div>
+          <div class="th-field" id="ethCreatedWrap" style="display:none">
+            <span class="th-field-label"><i class="fa-regular fa-calendar"></i> Created</span>
+            <span class="th-field-value muted" id="ethCreated"></span>
+          </div>
+          <div class="th-field" id="ethPrefLiveWrap" style="display:none">
+            <span class="th-field-label"><i class="fa-solid fa-calendar-day"></i> Preferred Live</span>
+            <span class="th-field-value muted" id="ethPrefLive"></span>
+          </div>
+          <div class="th-field">
+            <span class="th-field-label"><i class="fa-regular fa-calendar-check"></i> SLA Deadline</span>
+            <span class="th-field-value"><strong id="ethSLA"></strong> <span id="ethDaysBadgeWrap"></span></span>
+          </div>
         </div>
       </div>
 
@@ -666,8 +697,8 @@
             <div class="link-ok" id="feedbackOk"><i class="fa-solid fa-check-circle"></i><a id="feedbackLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="feedbackCopyBtn">Copy</button></div>
             <div class="field-err" id="feedbackErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
           </div>
-          <div>
-            <label>Preview Link</label>
+          <div style="grid-column: 1 / -1;">
+            <label>Preview Link <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— paste the preview URL here</span></label>
             <input type="url" class="field-input" id="previewInput" placeholder="https://…">
           </div>
         </div>

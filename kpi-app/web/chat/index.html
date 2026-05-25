@@ -396,10 +396,12 @@
 
     function addWorkDays(date, days) {
       const d = new Date(date);
-      let added = 0;
-      while (added < days) {
+      // Advance past weekends so start is a working day (Day 1)
+      while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+      let counted = 1;
+      while (counted < days) {
         d.setDate(d.getDate() + 1);
-        if (d.getDay() !== 0 && d.getDay() !== 6) added++;
+        if (d.getDay() !== 0 && d.getDay() !== 6) counted++;
       }
       return d;
     }
@@ -416,8 +418,10 @@
 
     function daysFromToday(d) {
       if (!d) return null;
-      const now = new Date(); now.setHours(0,0,0,0);
-      return Math.round((d - now) / 86400000);
+      const today = new Date();
+      const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+      const targetUtc = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+      return Math.round((targetUtc - todayUtc) / 86400000);
     }
 
     // ── Load tickets ─────────────────────────────────────────────────────────
@@ -428,27 +432,27 @@
         const res = await fetch('/api/tickets', { cache: 'no-cache' });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const rows = await res.json();
-        allTickets = rows.filter(r => {
+        allTickets = rows.map(r => {
           const state = String(r['State'] || '').trim();
-          return ACTIVE_STATES.has(state);
-        }).map(r => {
+          const isActive = ACTIVE_STATES.has(state);
           const created = parseFlexDate(r['Created']);
           const prefLive = parseFlexDate(r['Preferred Live Date']);
+          const closed = parseFlexDate(r['Closed']);
           const subCat = String(r['Sub-Category'] || '').trim();
           const slaDays = getSLADays(subCat);
-          const slaDate = created ? addWorkDays(created, slaDays - 1) : null;
+          const slaDate = created ? addWorkDays(created, slaDays) : null;
           return {
             id:          String(r['Number'] || '').trim(),
             description: String(r['Short description'] || '').trim(),
             subCategory: subCat,
             client:      String(r['Requested by'] || '').trim(),
             assignee:    String(r['Assigned to'] || '').trim(),
-            state:       String(r['State'] || '').trim(),
+            state, isActive,
             tags:        String(r['Tags'] || '').trim(),
-            created, prefLive, slaDays, slaDate,
-            daysLeft:    daysFromToday(slaDate)
+            created, prefLive, closed, slaDays, slaDate,
+            daysLeft:    isActive ? daysFromToday(slaDate) : null
           };
-        });
+        }).filter(t => t.id);
         updateSidebar();
       } catch (e) {
         console.error(e);
@@ -456,9 +460,10 @@
     }
 
     function updateSidebar() {
-      document.getElementById('valTotal').textContent = allTickets.length;
-      document.getElementById('valWarn').textContent = allTickets.filter(t => t.daysLeft !== null && t.daysLeft >= 0 && t.daysLeft <= 5).length;
-      document.getElementById('valOd').textContent   = allTickets.filter(t => t.daysLeft !== null && t.daysLeft < 0).length;
+      const active = allTickets.filter(t => t.isActive);
+      document.getElementById('valTotal').textContent = active.length;
+      document.getElementById('valWarn').textContent = active.filter(t => t.daysLeft !== null && t.daysLeft >= 0 && t.daysLeft <= 5).length;
+      document.getElementById('valOd').textContent   = active.filter(t => t.daysLeft !== null && t.daysLeft < 0).length;
     }
 
     // ── Ticket lookup sidebar ─────────────────────────────────────────────────
@@ -490,38 +495,64 @@
     // ── System prompt ─────────────────────────────────────────────────────────
     function buildSystemPrompt() {
       const today = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-      const list = allTickets.map(t => {
-        const sla = t.slaDate ? `SLA ${fmtDate(t.slaDate)} (${t.daysLeft !== null ? t.daysLeft + 'd)' : 'TBD)'}` : 'SLA TBD';
-        const pld = t.prefLive ? `PLD ${fmtDate(t.prefLive)}` : '';
-        return `#${t.id} | ${t.subCategory} | ${t.state} | ${t.assignee} | Client: ${t.client} | ${sla}${pld ? ' | ' + pld : ''} | "${t.description}"`;
-      }).join('\n');
+      const active = allTickets.filter(t => t.isActive);
+      const closed  = allTickets.filter(t => !t.isActive);
 
-      return `You are Aegis, an AI assistant for the Digital Marketing Hub team at KONE. Today is ${today}.
+      const fmtT = t => {
+        const sla = t.slaDate ? `SLA:${fmtDate(t.slaDate)}(${t.daysLeft !== null ? t.daysLeft+'d' : 'TBD'})` : 'SLA:TBD';
+        const pld = t.prefLive ? ` PLD:${fmtDate(t.prefLive)}` : '';
+        const cr  = t.created  ? ` Created:${fmtDate(t.created)}` : '';
+        return `#${t.id}|${t.subCategory}|${t.state}|Assignee:${t.assignee}|Client:${t.client}|${sla}${pld}${cr}|"${t.description}"`;
+      };
+      const fmtC = t => {
+        const cr = t.created ? `Created:${fmtDate(t.created)}` : '';
+        const cl = t.closed  ? ` Closed:${fmtDate(t.closed)}`  : '';
+        return `#${t.id}|${t.subCategory}|${t.state}|Assignee:${t.assignee}|Client:${t.client}|${cr}${cl}|"${t.description}"`;
+      };
 
-You have access to the live ticket database (${allTickets.length} active tickets):
+      return `You are Aegis, an AI assistant for the Digital Marketing Hub at KONE. Today is ${today}.
 
-${list}
+## ACTIVE TICKETS (${active.length})
+${active.length ? active.map(fmtT).join('\n') : 'None'}
 
-CAPABILITIES:
-1. Answer questions about any ticket or the whole portfolio (SLA, status, assignee, urgency, workload).
-2. Draft professional emails using these exact templates:
+## CLOSED / HISTORICAL TICKETS (${closed.length})
+${closed.length ? closed.map(fmtC).join('\n') : 'None'}
 
-ASSIGNED: "Hello [Client], Thank you for submitting your request to the Digital Marketing Hub team. We've received your request to "[description]" and your ticket number is #[ID]. I'm [Assignee], and I will be handling your ticket. We usually have a [N]-working-day turnaround, so we're targeting [SLA date]."
+## SLA RULES (creation date = Day 1, working days Mon–Fri)
+- Website Content Management: 10 working days
+- Content Production – Graphic Design: 10 working days
+- Email – Local: 7 working days
+- Demand Creation – Global: 30 working days
+- Retention – Activations: 30 working days
 
-CONFIRMATION: "Hello [Client], I've reviewed the brief and have all the necessary information to begin work. Once I have a preview link ready, I'll send it to you promptly."
+## TICKET STAGES
+- Open: Received, not yet assigned
+- Assigned: Allocated to a team member, work not started
+- Work in progress: Actively being worked on
+- In review: Done internally, awaiting internal sign-off
+- On Hold: Paused — waiting on client or stakeholder info (max 14 working days, then ticket closes)
+- Pending Confirmation: Work complete, sent to client for sign-off to close
+- Closed Completed: Successfully delivered and closed
+- Closed Rejected: Closed without delivery (duplicate, invalid, etc.)
+- Confirmation Completed: Client confirmed satisfaction, fully closed
 
-PREVIEW: "Hello [Client], I've got a sneak peek of your request #[ID] ready for your review. [Preview Link] If the preview meets your expectations, please reply with your approval. If you have amendments, please use our ticket to submit them."
+## EMAIL TEMPLATES
+ASSIGNED: "Hello [Client], Thank you for submitting your request. We've received "[description]" as ticket #[ID]. I'm [Assignee] and I'll be handling this. We target [SLA date] ([N]-working-day turnaround). [If PLD earlier than SLA: We'll aim to meet your preferred live date of [PLD].]"
+CONFIRMATION: "Hello [Client], I've reviewed the brief and have everything needed to begin. I'll send a preview once ready."
+PREVIEW: "Hello [Client], A preview of #[ID] is ready: [preview link]. Please approve or submit amendments via the ticket — not by email reply."
+ON HOLD: "Hello [Client], Your ticket is on hold due to [reason] since [date]. We can hold up to 14 working days (until [date+14wd]). After that we'll close and you can re-open a new ticket."
+PENDING CONFIRMATION: "Hello [Client], #[ID] is complete and ready to close. Please log in and mark it Closed Completed: [case link]."
+CLOSED COMPLETED: "Hello [Client], #[ID] is live! [live link] Please share your feedback: [feedback link]."
 
-ON HOLD: "Hello [Client], As per your confirmation, your ticket is on hold due to [reason]. We can hold for up to 14 working days until [closure date = start date + 14 working days]."
-
-CLOSED COMPLETED: "Hello [Client], Your ticket #[ID] regarding "[description]" has been completed and is now live! [Live Link] Thank you for working with us! We'd love to hear your feedback [feedback link]."
-
-RULES:
-- Be concise. Use bullet points for lists.
-- When asked for an email, output only the email body.
+## RULES
+- Be concise; use bullet points for lists.
 - Reference tickets by #number.
-- If asked for SLA days remaining, use today's date to calculate.
-- If a ticket number isn't in the database, say so clearly.`;
+- For SLA calculations always use today's date (${today}).
+- Working days = Mon–Fri only. A negative daysLeft means SLA is already breached.
+- Active stages: Open, Assigned, Work in progress, In review, On Hold, Pending Confirmation.
+- You can answer questions about BOTH active and closed/historical tickets.
+- If asked about workload, stages, trends, or summaries — include data from all tickets unless asked otherwise.
+- If a ticket number doesn't exist in the database, say so clearly.`;
     }
 
     // ── Chat UI helpers ───────────────────────────────────────────────────────
