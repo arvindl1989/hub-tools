@@ -16,7 +16,8 @@ client.interceptors.response.use(
 
 export async function uploadFromSheetUrl(sheetUrl, onProgress) {
   onProgress?.(10)
-  const res = await fetch(sheetUrl, { cache: 'no-cache', redirect: 'follow' })
+  // Route through the backend proxy to avoid CORS/redirect issues
+  const res = await fetch('/api/tickets', { cache: 'no-cache' })
   if (!res.ok) throw new Error(`Sheet fetch failed: HTTP ${res.status}`)
   const rows = await res.json()
   if (!Array.isArray(rows)) throw new Error('Apps Script did not return a JSON array.')

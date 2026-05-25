@@ -915,19 +915,12 @@
       return `<span class="days-badge days-ok">${days}d left</span>`;
     }
 
-    // ── Sheet loading (Google Apps Script web app → JSON) ─────────────────
+    // ── Sheet loading (via backend proxy to avoid CORS) ──────────────────
     async function fetchAndParse(url) {
-      // Apps Script URLs redirect; follow them and request JSON
-      const res = await fetch(url, { cache: 'no-cache', redirect: 'follow' });
+      // Always route through the backend /api/tickets proxy
+      const res = await fetch('/api/tickets', { cache: 'no-cache' });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      const text = await res.text();
-      // Parse as JSON (Apps Script response)
-      let rows;
-      try {
-        rows = JSON.parse(text);
-      } catch {
-        throw new Error('Response was not valid JSON. Make sure your Apps Script is deployed correctly and returns JSON.');
-      }
+      const rows = await res.json();
       if (!Array.isArray(rows)) throw new Error('Expected an array of rows from the Apps Script. Check your script output.');
       return rows;
     }
