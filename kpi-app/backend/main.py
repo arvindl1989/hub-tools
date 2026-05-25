@@ -184,7 +184,13 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     for dc in ["created_date", "preferred_live_date", "due_date", "closed_date"]:
         if dc in df.columns:
-            df[dc] = pd.to_datetime(df[dc], errors="coerce", dayfirst=False)
+            s = pd.to_datetime(df[dc], errors="coerce", dayfirst=False)
+            # Apps Script / Excel may produce tz-aware strings (e.g. "…Z" ISO).
+            # Strip timezone so date-range comparisons against plain YYYY-MM-DD strings
+            # never raise a TypeError that gets silently swallowed.
+            if s.dt.tz is not None:
+                s = s.dt.tz_convert("UTC").dt.tz_localize(None)
+            df[dc] = s
 
     str_cols = ["state", "sub_category", "assigned_to", "area", "team",
                 "ticket_creator", "ticket_number", "short_description", "tags", "watch_list"]
@@ -1139,15 +1145,18 @@ def _filter_by_range(
     if (not date_from and not date_to) or date_col not in df.columns:
         return df
     tmp = df.copy()
-    col = tmp[date_col]
+    # Belt-and-suspenders: ensure the column is tz-naive (process_dataframe does
+    # this at load time, but guard here in case future code paths skip that step)
+    if tmp[date_col].dt.tz is not None:
+        tmp[date_col] = tmp[date_col].dt.tz_convert("UTC").dt.tz_localize(None)
     if date_from:
         try:
-            tmp = tmp[col >= pd.Timestamp(date_from)]
+            tmp = tmp[tmp[date_col] >= pd.Timestamp(date_from)]
         except Exception:
             pass
     if date_to:
         try:
-            tmp = tmp[col <= pd.Timestamp(date_to) + pd.Timedelta(days=1)]
+            tmp = tmp[tmp[date_col] <= pd.Timestamp(date_to) + pd.Timedelta(days=1)]
         except Exception:
             pass
     return tmp
