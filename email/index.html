@@ -637,6 +637,8 @@
           <span><i class="fa-solid fa-user"></i> <strong id="ethAssignee"></strong></span>
           <span><i class="fa-solid fa-building"></i> <span id="ethClient"></span></span>
           <span><i class="fa-solid fa-layer-group"></i> <span id="ethService"></span></span>
+          <span id="ethCreatedWrap" style="display:none"><i class="fa-regular fa-calendar"></i> Created: <strong id="ethCreated"></strong></span>
+          <span id="ethPrefLiveWrap" style="display:none"><i class="fa-solid fa-calendar-day"></i> Preferred Live: <strong id="ethPrefLive"></strong></span>
           <span><i class="fa-regular fa-calendar-check"></i> SLA: <strong id="ethSLA"></strong></span>
           <span id="ethDaysBadgeWrap"></span>
         </div>
@@ -885,19 +887,23 @@
 
     function addWorkDays(date, days) {
       const d = new Date(date);
-      let added = 0;
-      while (added < days) {
+      // Advance past weekends so the start date itself is a working day (Day 1)
+      while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+      let counted = 1;
+      while (counted < days) {
         d.setDate(d.getDate() + 1);
-        if (d.getDay() !== 0 && d.getDay() !== 6) added++;
+        if (d.getDay() !== 0 && d.getDay() !== 6) counted++;
       }
       return d;
     }
 
     function daysFromToday(date) {
       if (!date) return null;
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const ms = date - today;
-      return Math.ceil(ms / 86400000);
+      // Use UTC dates to avoid DST ±1 day errors
+      const today = new Date();
+      const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+      const targetUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+      return Math.round((targetUtc - todayUtc) / 86400000);
     }
 
     function fmtDate(date) {
@@ -905,6 +911,16 @@
       const d = date.getDate(), m = date.toLocaleString('en-US', { month: 'long' });
       const sfx = [, 'st', 'nd', 'rd'][d % 100 > 10 && d % 100 < 14 ? 0 : d % 10] || 'th';
       return `${m} ${d}${sfx}`;
+    }
+
+    function fmtShort(date) {
+      if (!date) return null;
+      return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    }
+
+    function fmtFull(date) {
+      if (!date) return null;
+      return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
     function daysBadge(days) {
@@ -936,7 +952,7 @@
             const prefLive = parseFlexDate(r['Preferred Live Date']);
             const subCat = (r['Sub-Category'] || '').trim();
             const slaDays = getSLADays(subCat);
-            const slaDate = created ? addWorkDays(created, slaDays - 1) : null;
+            const slaDate = created ? addWorkDays(created, slaDays) : null;
             return {
               id: String(r['Number'] || '').trim(),
               description: String(r['Short description'] || '').trim(),
@@ -1050,6 +1066,8 @@
               <span class="meta-chip"><i class="fa-solid fa-user"></i>${esc(shortAssignee)}</span>
               <span class="meta-chip"><i class="fa-solid fa-building"></i>${esc(t.client || '—')}</span>
               <span class="meta-chip"><i class="fa-solid fa-layer-group"></i>${esc(shortService)}</span>
+              ${t.created ? `<span class="meta-chip"><i class="fa-regular fa-calendar"></i>Created: ${fmtShort(t.created)}</span>` : ''}
+              ${t.prefLive ? `<span class="meta-chip"><i class="fa-solid fa-calendar-day"></i>Live: ${fmtShort(t.prefLive)}</span>` : ''}
             </div>
             <div class="card-footer">
               <span class="sla-info"><i class="fa-regular fa-calendar-check"></i> SLA: ${fmtDate(t.slaDate)}</span>
@@ -1091,6 +1109,20 @@
       document.getElementById('ethClient').textContent = ticket.client;
       document.getElementById('ethService').textContent = ticket.subCategory;
       document.getElementById('ethSLA').textContent = ticket.slaDate ? fmtDate(ticket.slaDate) : 'N/A';
+
+      const createdFull = fmtFull(ticket.created);
+      const createdWrap = document.getElementById('ethCreatedWrap');
+      if (createdFull) {
+        document.getElementById('ethCreated').textContent = createdFull;
+        createdWrap.style.display = '';
+      } else { createdWrap.style.display = 'none'; }
+
+      const prefLiveFull = fmtFull(ticket.prefLive);
+      const prefLiveWrap = document.getElementById('ethPrefLiveWrap');
+      if (prefLiveFull) {
+        document.getElementById('ethPrefLive').textContent = prefLiveFull;
+        prefLiveWrap.style.display = '';
+      } else { prefLiveWrap.style.display = 'none'; }
 
       const stateBadge = document.getElementById('ethState');
       stateBadge.textContent = ticket.state;
