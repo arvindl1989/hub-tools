@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TCM ID Extractor — Digital Marketing Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{
+  --bg:#0d0f14;--surface:#161a24;--s2:#1e2333;--border:#2a3050;
+  --accent:#4f9eff;--green:#00e5b0;--red:#ff4f6a;--warn:#ffb84f;
+  --text:#e2e8f8;--muted:#6b7599;
+  --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+
+/* ── Hub Nav ── */
+.hub-nav {
+  position: sticky; top: 0; z-index: 300;
+  height: 52px; background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  display: flex; align-items: center;
+  padding: 0 1.5rem; gap: 4px; flex-shrink: 0;
+}
+.nav-brand {
+  display: flex; align-items: center; gap: 9px;
+  text-decoration: none; flex-shrink: 0; margin-right: 4px;
+}
+.nav-brand-icon {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(135deg, #1450f5, #3b70f7);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.82rem; color: white;
+  box-shadow: 0 2px 6px rgba(20,80,245,0.35);
+}
+.nav-brand-name { font-size: 0.85rem; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; font-family: 'Inter', sans-serif; }
+.nav-sep { width: 1px; height: 18px; background: #1e293b; margin: 0 8px; flex-shrink: 0; }
+.nav-link {
+  display: flex; align-items: center; gap: 6px;
+  text-decoration: none; color: #64748b;
+  font-size: 0.77rem; font-weight: 600;
+  padding: 5px 10px; border-radius: 7px;
+  border: 1px solid transparent; transition: all 0.15s;
+  white-space: nowrap; font-family: 'Inter', sans-serif;
+}
+.nav-link i { font-size: 0.7rem; }
+.nav-link:hover { color: #f1f5f9; background: #1e293b; border-color: #334155; }
+.nav-link.active { color: #67e8f9; background: rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.25); }
+.nav-spacer { flex: 1; min-width: 8px; }
+.nav-signout {
+  background: none; border: 1px solid #334155; color: #64748b;
+  padding: 5px 10px; border-radius: 7px; font-size: 0.77rem;
+  font-family: 'Inter', sans-serif; cursor: pointer;
+  display: flex; align-items: center; gap: 5px; transition: all 0.15s;
+  font-weight: 600; flex-shrink: 0;
+}
+.nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+
+/* ── Hub Footer ── */
+.hub-footer {
+  background: #0f172a; border-top: 1px solid #1e293b;
+  padding: 0 1.5rem; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; flex-shrink: 0;
+  font-size: 0.7rem; color: #475569; font-family: 'Inter', sans-serif;
+}
+.hub-footer .fsep { color: #1e293b; }
+
+/* ── TCM Tool ── */
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
+.grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(79,158,255,.04)1px,transparent 1px),linear-gradient(90deg,rgba(79,158,255,.04)1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+.wrap{position:relative;z-index:1;max-width:980px;margin:0 auto;padding:32px 20px 60px;}
+
+/* HEADER */
+header{margin-bottom:28px;}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--green);border:1px solid var(--green);padding:3px 10px;border-radius:2px;margin-bottom:10px;opacity:.8;}
+h1{font-size:1.9rem;font-weight:600;letter-spacing:-.03em;background:linear-gradient(135deg,var(--text),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.sub{margin-top:5px;color:var(--muted);font-size:.88rem;}
+
+/* BOOKMARKLET STRIP */
+.bm-strip{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,rgba(79,158,255,.1),rgba(0,229,176,.07));border:1px solid rgba(79,158,255,.3);border-radius:10px;padding:16px 20px;margin-bottom:22px;flex-wrap:wrap;}
+.bm-strip .label{font-size:.85rem;color:var(--muted);flex:1;min-width:200px;}
+.bm-strip .label strong{color:var(--text);display:block;margin-bottom:3px;}
+.bm-link{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:#fff;font-weight:600;font-size:.85rem;padding:10px 20px;border-radius:6px;cursor:grab;text-decoration:none;white-space:nowrap;box-shadow:0 2px 14px rgba(79,158,255,.4);transition:all .15s;user-select:none;}
+.bm-link:hover{background:#6baeff;}
+.bm-link:active{cursor:grabbing;}
+.step-tag{display:inline-block;background:var(--accent);color:#fff;font-family:var(--mono);font-size:10px;font-weight:700;width:18px;height:18px;border-radius:50%;text-align:center;line-height:18px;margin-right:4px;flex-shrink:0;}
+
+/* MAIN LAYOUT */
+.layout{display:grid;grid-template-columns:1fr 380px;gap:18px;align-items:start;}
+@media(max-width:760px){.layout{grid-template-columns:1fr;}}
+
+/* INPUT PANEL */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:22px;}
+.panel-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.plabel{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
+
+.bulk-area{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;padding:12px 14px;resize:vertical;min-height:200px;outline:none;line-height:1.8;transition:border-color .2s;}
+.bulk-area:focus{border-color:var(--accent);}
+.bulk-area::placeholder{color:var(--muted);opacity:.45;}
+
+.url-count{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;}
+.url-count span{color:var(--accent);}
+
+.big-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:14px;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:13px 20px;font-size:.95rem;font-weight:600;font-family:var(--sans);cursor:pointer;transition:all .2s;}
+.big-btn:hover{background:#6baeff;transform:translateY(-1px);}
+.big-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.big-btn.go{background:linear-gradient(135deg,var(--accent),#7b5cff);}
+.big-btn.go:hover{filter:brightness(1.1);}
+
+.row-btns{display:flex;gap:8px;margin-top:10px;}
+.sm-btn{flex:1;background:var(--s2);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:8px 12px;font-size:.8rem;font-family:var(--sans);cursor:pointer;transition:all .15s;}
+.sm-btn:hover{color:var(--text);border-color:var(--muted);}
+.sm-btn.danger:hover{color:var(--red);border-color:var(--red);}
+
+/* RESULTS PANEL */
+.results-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:22px;position:sticky;top:72px;}
+
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;}
+.stat-box{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:12px 14px;text-align:center;}
+.stat-box .n{font-size:1.6rem;font-weight:700;font-family:var(--sans);}
+.stat-box .l{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:2px;}
+.stat-box.found .n{color:var(--green);}
+.stat-box.pending .n{color:var(--warn);}
+.stat-box.fail .n{color:var(--red);}
+
+/* RESULT ROWS */
+.r-list{display:flex;flex-direction:column;gap:6px;max-height:480px;overflow-y:auto;padding-right:2px;}
+.r-list::-webkit-scrollbar{width:4px;}
+.r-list::-webkit-scrollbar-track{background:transparent;}
+.r-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px;}
+
+.r-item{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:10px 12px;transition:border-color .2s;}
+.r-item.ok{border-color:rgba(0,229,176,.3);}
+.r-item.fail{border-color:rgba(255,79,106,.2);}
+.r-item.nf{border-color:rgba(255,184,79,.35);}
+.r-item.open{border-color:rgba(255,184,79,.3);}
+
+.r-url{font-size:.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px;}
+.r-url a{color:var(--accent);text-decoration:none;}
+.r-url a:hover{text-decoration:underline;}
+
+.r-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.tcm-chip{display:inline-flex;align-items:center;gap:5px;background:rgba(0,229,176,.1);border:1px solid rgba(0,229,176,.25);color:var(--green);font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:4px;cursor:pointer;transition:background .15s;white-space:nowrap;}
+.tcm-chip:hover{background:rgba(0,229,176,.22);}
+
+.badge-pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:3px;}
+.badge-pill.wait{color:var(--muted);background:rgba(107,117,153,.12);}
+.badge-pill.opened{color:var(--warn);background:rgba(255,184,79,.12);}
+.badge-pill.ok{color:var(--green);background:rgba(0,229,176,.1);}
+.badge-pill.nf{color:var(--warn);background:rgba(255,184,79,.1);}
+.bdot{width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block;}
+.opened .bdot{animation:blink .6s ease-in-out infinite alternate;}
+@keyframes blink{from{opacity:.2}to{opacity:1}}
+
+.open-link{background:none;border:1px solid var(--border);color:var(--accent);font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer;text-decoration:none;transition:border-color .15s;}
+.open-link:hover{border-color:var(--accent);}
+
+/* EXPORT ROW */
+.export-row{display:flex;gap:8px;margin-top:14px;}
+.exp-btn{flex:1;background:var(--s2);border:1px solid var(--border);color:var(--green);font-family:var(--sans);font-size:.78rem;padding:8px 10px;border-radius:6px;cursor:pointer;transition:all .15s;}
+.exp-btn:hover{border-color:var(--green);}
+
+/* PROGRESS */
+.prog{margin-top:12px;display:none;}
+.prog-bar-bg{height:3px;background:var(--s2);border-radius:99px;overflow:hidden;}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:99px;transition:width .4s ease;width:0%;}
+.prog-txt{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--s2);border:1px solid var(--green);color:var(--green);font-family:var(--mono);font-size:11px;padding:10px 16px;border-radius:6px;opacity:0;transform:translateY(6px);transition:all .2s;pointer-events:none;z-index:999;}
+.toast.show{opacity:1;transform:translateY(0);}
+
+/* EMPTY */
+.empty{text-align:center;padding:32px 16px;color:var(--muted);}
+.empty .ico{font-size:2rem;opacity:.3;margin-bottom:8px;}
+.empty p{font-size:.82rem;}
+
+.fade-in{animation:fi .2s ease forwards;}
+@keyframes fi{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<nav class="hub-nav">
+  <a href="../index.html" class="nav-brand">
+    <div class="nav-brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+    <span class="nav-brand-name">Digital Marketing Hub</span>
+  </a>
+  <div class="nav-sep"></div>
+  <a href="../email/index.html" class="nav-link"><i class="fa-solid fa-envelope-open-text"></i> Email Tracker</a>
+  <a href="../attendance/index.html" class="nav-link"><i class="fa-solid fa-calendar-check"></i> Attendance</a>
+  <a href="/kpi/" class="nav-link"><i class="fa-solid fa-chart-line"></i> KPI Tracker</a>
+  <a href="../chat/index.html" class="nav-link"><i class="fa-solid fa-comments"></i> AI Assistant</a>
+  <a href="index.html" class="nav-link active"><i class="fa-solid fa-fingerprint"></i> TCM Extractor</a>
+  <div class="nav-spacer"></div>
+  <button class="nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
+</nav>
+
+<div class="grid"></div>
+<div class="wrap">
+
+<header>
+  <div class="badge">🔍 TCM Extractor v3</div>
+  <h1>TCM ID Extractor</h1>
+  <p class="sub">Paste any number of URLs → open them all at once → click the bookmark on each page → IDs appear here instantly.</p>
+</header>
+
+<!-- BOOKMARKLET -->
+<div class="bm-strip">
+  <div class="label">
+    <strong>⚡ One-time setup — drag this to your bookmarks bar:</strong>
+    After dragging, go to each page and click <b>"📌 Get TCM ID"</b> — the ID will fly back here automatically.
+  </div>
+  <a class="bm-link" id="bmLink" href="#" title="Drag me to your bookmarks bar">
+    📌 Get TCM ID
+  </a>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="layout">
+
+  <!-- LEFT: INPUT -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <span class="plabel">Paste URLs (one per line)</span>
+      <span class="url-count">Detected: <span id="urlCountBadge">0</span> URLs</span>
+    </div>
+    <textarea class="bulk-area" id="urlInput" placeholder="https://www.kone.sg&#10;https://www.kone.com/en&#10;https://www.kone.fi&#10;https://example.com/page&#10;&#10;Paste as many as you need — one per line." oninput="countUrls()"></textarea>
+
+    <div class="prog" id="progWrap">
+      <div class="prog-bar-bg"><div class="prog-fill" id="progFill"></div></div>
+      <div class="prog-txt" id="progTxt">Ready</div>
+    </div>
+
+    <button class="big-btn go" id="openAllBtn" onclick="loadAndOpenAll()">
+      🚀 Load &amp; Open All URLs
+    </button>
+
+    <div class="row-btns">
+      <button class="sm-btn" onclick="addMoreUrls()">+ Add more URLs</button>
+      <button class="sm-btn danger" onclick="clearAll()">🗑 Clear all</button>
+      <button class="sm-btn" onclick="openPending()">↗ Open pending only</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: RESULTS -->
+  <div class="results-panel">
+    <div class="panel-hdr">
+      <span class="plabel">Results</span>
+      <button class="sm-btn" style="padding:4px 10px;font-size:.75rem;" onclick="clearDone()">Clear found</button>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-box found"><div class="n" id="cFound">0</div><div class="l">Found</div></div>
+      <div class="stat-box pending"><div class="n" id="cPending">0</div><div class="l">Pending</div></div>
+      <div class="stat-box fail"><div class="n" id="cTotal">0</div><div class="l">Total</div></div>
+    </div>
+
+    <div class="r-list" id="rList">
+      <div class="empty"><div class="ico">📋</div><p>Load URLs and open pages,<br>then click the bookmark on each.</p></div>
+    </div>
+
+    <div class="export-row">
+      <button class="exp-btn" onclick="copyCSV()">⎘ Copy CSV</button>
+      <button class="exp-btn" onclick="dlCSV()">⬇ Download CSV</button>
+    </div>
+  </div>
+
+</div><!-- layout -->
+</div><!-- wrap -->
+
+<footer class="hub-footer">
+  <span>Digital Marketing Hub</span>
+  <span class="fsep">·</span>
+  <span>KONE</span>
+  <span class="fsep">·</span>
+  <span>Internal Use Only</span>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── AUTH ──────────────────────────────────────────────────────────────────
+if (sessionStorage.getItem('aegis_auth') !== 'true') {
+  window.location.replace('../login.html');
+}
+document.getElementById('signOutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem('aegis_auth');
+  window.location.replace('../login.html');
+});
+
+// ── BOOKMARKLET ───────────────────────────────────────────────────────────
+(function(){
+  const code = `(function(){
+    var m=document.querySelector('meta[name="pagetcmid"],meta[name="PAGETCMID"]');
+    var id=m?m.getAttribute('content'):null;
+    if(!id){
+      var src=document.documentElement.outerHTML;
+      var rx=/name=["']pagetcmid["'][^>]+content=["']([^"']+)["']/i;
+      var rx2=/content=["']([^"']+)["'][^>]+name=["']pagetcmid["']/i;
+      var mm=src.match(rx)||src.match(rx2);
+      id=mm?mm[1]:null;
+    }
+    var url=location.href;
+    var payload={type:'TCM_RESULT',url:url,tcmId:id};
+    var sent=false;
+    if(window.opener&&!window.opener.closed){try{window.opener.postMessage(payload,'*');sent=true;}catch(e){}}
+    try{var bc=new BroadcastChannel('tcm_x');bc.postMessage(payload);bc.close();sent=true;}catch(e){}
+    setTimeout(function(){window.close();},300);
+  })();`;
+  document.getElementById('bmLink').href = 'javascript:' + encodeURIComponent(code);
+})();
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let entries = []; // {id, url, tcmId, status: wait|opened|ok|nf}
+let nextId = 1;
+const openedWindows = {}; // url -> windowRef
+
+// ── LISTEN ────────────────────────────────────────────────────────────────
+window.addEventListener('message', e => {
+  if (e.data?.type === 'TCM_RESULT') receive(e.data.url, e.data.tcmId);
+});
+try {
+  const bc = new BroadcastChannel('tcm_x');
+  bc.onmessage = e => { if (e.data?.type === 'TCM_RESULT') receive(e.data.url, e.data.tcmId); };
+} catch(e){}
+
+function receive(url, tcmId) {
+  const tryClose = () => {
+    let wref = openedWindows[url];
+    if (!wref) {
+      const normIn = normalizeUrl(url);
+      const key = Object.keys(openedWindows).find(k => normalizeUrl(k) === normIn);
+      if (key) wref = openedWindows[key];
+    }
+    if (wref && !wref.closed) {
+      try { wref.close(); } catch(e) {}
+    }
+  };
+  setTimeout(tryClose, 200);
+
+  let entry = entries.find(e => e.url === url)
+    || entries.find(e => normalizeUrl(e.url) === normalizeUrl(url))
+    || entries.find(e => e.status === 'opened')
+    || entries.find(e => e.status === 'wait');
+
+  if (entry) {
+    entry.tcmId = tcmId;
+    entry.status = tcmId ? 'ok' : 'nf';
+  } else {
+    entry = { id: nextId++, url, tcmId, status: tcmId ? 'ok' : 'nf' };
+    entries.push(entry);
+  }
+  renderList();
+  updateStats();
+  toast(tcmId ? '✅ ' + tcmId : '⚠️ Unpublished — ' + shortUrl(url));
+}
+
+function normalizeUrl(u) {
+  try { return new URL(u).pathname.replace(/\/$/,''); } catch(e) { return u; }
+}
+
+// ── LOAD & OPEN ────────────────────────────────────────────────────────────
+function countUrls() {
+  const urls = parseInput();
+  document.getElementById('urlCountBadge').textContent = urls.length;
+}
+
+function parseInput() {
+  return document.getElementById('urlInput').value
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0 && (s.startsWith('http') || s.startsWith('www.')))
+    .map(s => s.startsWith('www.') ? 'https://' + s : s);
+}
+
+function loadAndOpenAll() {
+  const urls = parseInput();
+  if (!urls.length) { toast('No valid URLs detected. Add some URLs first.'); return; }
+
+  entries = [];
+  urls.forEach(url => {
+    entries.push({ id: nextId++, url, tcmId: null, status: 'wait' });
+  });
+  renderList();
+  updateStats();
+
+  const prog = document.getElementById('progWrap');
+  const fill = document.getElementById('progFill');
+  const txt  = document.getElementById('progTxt');
+  prog.style.display = 'block';
+
+  urls.forEach((url, i) => {
+    setTimeout(() => {
+      const wref = window.open(url, '_blank'); if(wref) openedWindows[url] = wref;
+      entries[i].status = 'opened';
+      renderItem(entries[i]);
+      updateStats();
+      fill.style.width = Math.round(((i+1)/urls.length)*100) + '%';
+      txt.textContent = `Opened ${i+1} of ${urls.length}: ${shortUrl(url)}`;
+    }, i * 500);
+  });
+
+  setTimeout(() => {
+    txt.textContent = `All ${urls.length} pages opened — click 📌 Get TCM ID on each tab`;
+  }, urls.length * 500 + 200);
+
+  toast(`Opening ${urls.length} URL${urls.length>1?'s':''}…`);
+}
+
+function openPending() {
+  const pending = entries.filter(e => e.status === 'wait' || e.status === 'opened');
+  if (!pending.length) { toast('No pending URLs.'); return; }
+  pending.forEach((entry, i) => {
+    setTimeout(() => {
+      const wref = window.open(entry.url, '_blank'); if(wref) openedWindows[entry.url] = wref;
+      entry.status = 'opened';
+      renderItem(entry);
+      updateStats();
+    }, i * 500);
+  });
+  toast(`Re-opening ${pending.length} pending URL${pending.length>1?'s':''}…`);
+}
+
+function addMoreUrls() {
+  const area = document.getElementById('urlInput');
+  area.focus();
+  area.scrollIntoView({ behavior: 'smooth' });
+}
+
+function clearAll() {
+  entries = [];
+  document.getElementById('urlInput').value = '';
+  document.getElementById('urlCountBadge').textContent = '0';
+  document.getElementById('progWrap').style.display = 'none';
+  renderList();
+  updateStats();
+}
+
+function clearDone() {
+  entries = entries.filter(e => e.status !== 'ok');
+  renderList();
+  updateStats();
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function renderList() {
+  const list = document.getElementById('rList');
+  if (!entries.length) {
+    list.innerHTML = `<div class="empty"><div class="ico">📋</div><p>Load URLs and open pages,<br>then click the bookmark on each.</p></div>`;
+    return;
+  }
+  list.innerHTML = entries.map(e => itemHTML(e)).join('');
+}
+
+function renderItem(entry) {
+  const existing = document.getElementById('ri-' + entry.id);
+  const html = itemHTML(entry);
+  if (existing) {
+    existing.outerHTML = html;
+  } else {
+    const list = document.getElementById('rList');
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    list.appendChild(tmp.firstChild);
+  }
+}
+
+function itemHTML(e) {
+  const statusMap = {
+    wait:   `<span class="badge-pill wait"><span class="bdot"></span>Waiting</span>`,
+    opened: `<span class="badge-pill opened"><span class="bdot"></span>Opened…</span>`,
+    ok:     `<span class="badge-pill ok"><span class="bdot"></span>Found</span>`,
+    nf:     `<span class="badge-pill nf"><span class="bdot"></span>Unpublished</span>`,
+  };
+  const tcmPart = e.tcmId
+    ? `<span class="tcm-chip" onclick="copyText('${esc(e.tcmId)}')">${esc(e.tcmId)} <span style="opacity:.5;font-size:9px">⎘</span></span>`
+    : `<span style="color:var(--muted);font-size:.75rem">—</span>`;
+  const openBtn = e.status !== 'ok'
+    ? `<a class="open-link" href="${esc(e.url)}" target="_blank" rel="noopener" onclick="markOpened(${e.id})">↗</a>`
+    : '';
+
+  return `<div class="r-item ${e.status} fade-in" id="ri-${e.id}">
+    <div class="r-url"><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(shortUrl(e.url))}</a></div>
+    <div class="r-bottom">
+      ${tcmPart}
+      <div style="display:flex;gap:6px;align-items:center;">${statusMap[e.status]||''}${openBtn}</div>
+    </div>
+  </div>`;
+}
+
+function markOpened(id) {
+  const e = entries.find(x => x.id === id);
+  if (e && e.status !== 'ok') { e.status = 'opened'; renderItem(e); updateStats(); }
+}
+
+// ── STATS ─────────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('cFound').textContent   = entries.filter(e=>e.status==='ok').length;
+  document.getElementById('cPending').textContent = entries.filter(e=>e.status!=='ok').length;
+  document.getElementById('cTotal').textContent   = entries.length;
+}
+
+// ── CSV ───────────────────────────────────────────────────────────────────
+function getCSV() {
+  const rows = [['URL','TCM ID','Status'],...entries.map(e=>[e.url,e.tcmId||'',e.status==='ok'?'Found':e.status==='nf'?'Unpublished':'Pending'])];
+  return rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+}
+function copyCSV(){ if(!entries.length){toast('No data yet.');return;} navigator.clipboard.writeText(getCSV()).then(()=>toast('CSV copied!')); }
+function dlCSV(){ if(!entries.length){toast('No data yet.');return;} const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([getCSV()],{type:'text/csv'}));a.download='tcm-ids.csv';a.click();toast('Downloading…'); }
+
+// ── UTILS ─────────────────────────────────────────────────────────────────
+function shortUrl(u){ try{ const x=new URL(u); return x.hostname+x.pathname; }catch(e){return u;} }
+function copyText(t){ navigator.clipboard.writeText(t).then(()=>toast('Copied: '+t)); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(msg){ const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600); }
+</script>
+</body>
+</html>

@@ -196,11 +196,13 @@
     .card-attend::before { background: linear-gradient(135deg, rgba(20,80,245,0.08), transparent 60%); }
     .card-kpi::before    { background: linear-gradient(135deg, rgba(16,185,129,0.07), transparent 60%); }
     .card-chat::before   { background: linear-gradient(135deg, rgba(139,92,246,0.07), transparent 60%); }
+    .card-tcm::before    { background: linear-gradient(135deg, rgba(6,182,212,0.08), transparent 60%); }
 
     .card-email:hover   { border-color: rgba(20,80,245,0.3); }
     .card-attend:hover  { border-color: rgba(14,165,233,0.3); }
     .card-kpi:hover     { border-color: rgba(16,185,129,0.3); }
     .card-chat:hover    { border-color: rgba(139,92,246,0.3); }
+    .card-tcm:hover     { border-color: rgba(6,182,212,0.3); }
 
     .card-top {
       display: flex;
@@ -223,6 +225,7 @@
     .icon-attend  { background: linear-gradient(135deg, #0ea5e9, #1450f5); color: white; box-shadow: 0 4px 16px rgba(14,165,233,0.35); }
     .icon-kpi     { background: linear-gradient(135deg, #10b981, #059669); color: white; box-shadow: 0 4px 16px rgba(16,185,129,0.35); }
     .icon-chat    { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; box-shadow: 0 4px 16px rgba(139,92,246,0.35); }
+    .icon-tcm     { background: linear-gradient(135deg, #06b6d4, #0891b2); color: white; box-shadow: 0 4px 16px rgba(6,182,212,0.35); }
 
     .card-arrow {
       color: #334155;
@@ -288,6 +291,7 @@
     .tool-card:hover .launch-text-attend { color: #7dd3fc; }
     .tool-card:hover .launch-text-kpi    { color: #6ee7b7; }
     .tool-card:hover .launch-text-chat   { color: #c4b5fd; }
+    .tool-card:hover .launch-text-tcm    { color: #67e8f9; }
 
     .launch-icon {
       width: 30px;
@@ -307,6 +311,7 @@
     .tool-card:hover .launch-icon-attend { background: rgba(14,165,233,0.15); border-color: rgba(14,165,233,0.3); color: #7dd3fc; }
     .tool-card:hover .launch-icon-kpi    { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
     .tool-card:hover .launch-icon-chat   { background: rgba(139,92,246,0.15); border-color: rgba(139,92,246,0.3); color: #c4b5fd; }
+    .tool-card:hover .launch-icon-tcm    { background: rgba(6,182,212,0.15); border-color: rgba(6,182,212,0.3); color: #67e8f9; }
 
   </style>
 </head>
@@ -324,6 +329,7 @@
     <a href="attendance/index.html" class="nav-link"><i class="fa-solid fa-calendar-check"></i> Attendance</a>
     <a href="/kpi/" class="nav-link"><i class="fa-solid fa-chart-line"></i> KPI Tracker</a>
     <a href="chat/index.html" class="nav-link"><i class="fa-solid fa-comments"></i> AI Assistant</a>
+    <a href="tcm/index.html" class="nav-link"><i class="fa-solid fa-fingerprint"></i> TCM Extractor</a>
     <div class="nav-spacer"></div>
     <button class="nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
   </nav>
@@ -418,6 +424,28 @@
         <div class="card-launch">
           <span class="launch-text launch-text-chat">Launch tool</span>
           <div class="launch-icon launch-icon-chat"><i class="fa-solid fa-arrow-right"></i></div>
+        </div>
+      </a>
+
+
+      <!-- TCM ID Extractor -->
+      <a href="tcm/index.html" class="tool-card card-tcm">
+        <div class="card-top">
+          <div class="card-icon icon-tcm"><i class="fa-solid fa-fingerprint"></i></div>
+          <i class="fa-solid fa-arrow-up-right card-arrow"></i>
+        </div>
+        <div class="card-name">TCM ID Extractor</div>
+        <div class="card-desc">Bulk-extract TCM page IDs from any number of URLs. Paste links, open them all at once, click the bookmark on each page — IDs appear instantly.</div>
+        <div class="card-features">
+          <span class="feature-tag">Bulk URL Mode</span>
+          <span class="feature-tag">Bookmarklet</span>
+          <span class="feature-tag">CSV Export</span>
+          <span class="feature-tag">Auto-close Tabs</span>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-launch">
+          <span class="launch-text launch-text-tcm">Launch tool</span>
+          <div class="launch-icon launch-icon-tcm"><i class="fa-solid fa-arrow-right"></i></div>
         </div>
       </a>
 
