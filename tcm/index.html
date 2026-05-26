@@ -307,10 +307,10 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
     }
     var url=location.href;
     var payload={type:'TCM_RESULT',url:url,tcmId:id};
-    var sent=false;
-    if(window.opener&&!window.opener.closed){try{window.opener.postMessage(payload,'*');sent=true;}catch(e){}}
-    try{var bc=new BroadcastChannel('tcm_x');bc.postMessage(payload);bc.close();sent=true;}catch(e){}
-    setTimeout(function(){window.close();},300);
+    if(window.opener&&!window.opener.closed){try{window.opener.postMessage(payload,'*');}catch(e){}}
+    try{var bc=new BroadcastChannel('tcm_x');bc.postMessage(payload);bc.close();}catch(e){}
+    // Close immediately if no ID found; slight delay if found so message lands first
+    if(id){setTimeout(function(){window.close();},300);}else{window.close();}
   })();`;
   document.getElementById('bmLink').href = 'javascript:' + encodeURIComponent(code);
 })();
@@ -329,7 +329,25 @@ try {
   bc.onmessage = e => { if (e.data?.type === 'TCM_RESULT') receive(e.data.url, e.data.tcmId); };
 } catch(e){}
 
+// ── CLOSED-WINDOW WATCHER ─────────────────────────────────────────────────
+// If an opened tab gets closed (by bookmarklet or manually) without sending
+// a TCM result, automatically mark it as Unpublished.
+setInterval(() => {
+  let changed = false;
+  entries.forEach(e => {
+    if (e.status === 'opened') {
+      const wref = openedWindows[e.url];
+      if (wref && wref.closed) {
+        e.status = 'nf';
+        changed = true;
+      }
+    }
+  });
+  if (changed) { renderList(); updateStats(); }
+}, 800);
+
 function receive(url, tcmId) {
+  // Close the tab from our side
   const tryClose = () => {
     let wref = openedWindows[url];
     if (!wref) {
