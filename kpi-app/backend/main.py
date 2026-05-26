@@ -773,6 +773,14 @@ def bandwidth_tracker(sid: str):
     active = df[df["is_active"]].copy()
     hours_per_ticket = {sc: BANDWIDTH_HOURS_PER_DAY / rate for sc, rate in BANDWIDTH_RATES.items()}
 
+    # Build a lookup: creator → {sub_category → count} for tickets raised
+    creator_pivot: dict[str, dict[str, int]] = {}
+    if "ticket_creator" in active.columns:
+        for sc in BANDWIDTH_RATES.keys():
+            sc_df = active[active["sub_category"] == sc]
+            for creator, cnt in sc_df["ticket_creator"].dropna().value_counts().items():
+                creator_pivot.setdefault(str(creator), {})[sc] = int(cnt)
+
     members = []
     for person in sorted(active["assigned_to"].dropna().unique()):
         pdf = active[active["assigned_to"] == person]
@@ -802,12 +810,15 @@ def bandwidth_tracker(sid: str):
         else:
             status = "Overloaded"
 
+        raised_breakdown: dict[str, int] = creator_pivot.get(person, {})
+
         members.append({
             "assigned_to":       person,
             "active_tickets":    int(len(pdf)),
             "tracked_tickets":   tracked_count,
             "untracked_tickets": untracked_count,
             "ticket_breakdown":  breakdown,
+            "raised_breakdown":  raised_breakdown,
             "committed_hours":   round(committed, 1),
             "available_hours":   available_h,
             "load_pct":          load_pct,
