@@ -319,10 +319,16 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 let entries = []; // {id, url, tcmId, status: wait|opened|ok|nf}
 let nextId = 1;
 const openedWindows = {}; // url -> windowRef
+const openedWindowsSeq = []; // [{url, ref}] in open order — for fallback close
 
 // ── LISTEN ────────────────────────────────────────────────────────────────
 window.addEventListener('message', e => {
-  if (e.data?.type === 'TCM_RESULT') receive(e.data.url, e.data.tcmId);
+  if (e.data?.type === 'TCM_RESULT') {
+    // e.source IS the tab that sent the message — close it directly here;
+    // this is far more reliable than window.close() inside the bookmarklet.
+    try { if (e.source && !e.source.closed) e.source.close(); } catch(_) {}
+    receive(e.data.url, e.data.tcmId);
+  }
 });
 try {
   const bc = new BroadcastChannel('tcm_x');
@@ -330,36 +336,38 @@ try {
 } catch(e){}
 
 // ── CLOSED-WINDOW WATCHER ─────────────────────────────────────────────────
-// If an opened tab gets closed (by bookmarklet or manually) without sending
-// a TCM result, automatically mark it as Unpublished.
+// Catches tabs closed by the bookmarklet (or manually) that didn't message back.
 setInterval(() => {
   let changed = false;
   entries.forEach(e => {
     if (e.status === 'opened') {
       const wref = openedWindows[e.url];
-      if (wref && wref.closed) {
-        e.status = 'nf';
-        changed = true;
-      }
+      if (wref && wref.closed) { e.status = 'nf'; changed = true; }
     }
   });
   if (changed) { renderList(); updateStats(); }
 }, 800);
 
 function receive(url, tcmId) {
-  // Close the tab from our side
+  // Close the tab from the parent side — works even after redirects.
+  // Priority: exact URL → normalised URL → most-recently-opened still-open tab.
   const tryClose = () => {
     let wref = openedWindows[url];
-    if (!wref) {
+    if (!wref || wref.closed) {
       const normIn = normalizeUrl(url);
       const key = Object.keys(openedWindows).find(k => normalizeUrl(k) === normIn);
       if (key) wref = openedWindows[key];
     }
-    if (wref && !wref.closed) {
-      try { wref.close(); } catch(e) {}
+    if (!wref || wref.closed) {
+      // Fallback: close the most-recently-opened tab that is still open
+      for (let i = openedWindowsSeq.length - 1; i >= 0; i--) {
+        const w = openedWindowsSeq[i].ref;
+        if (w && !w.closed) { wref = w; break; }
+      }
     }
+    if (wref && !wref.closed) { try { wref.close(); } catch(_) {} }
   };
-  setTimeout(tryClose, 200);
+  setTimeout(tryClose, 150);
 
   let entry = entries.find(e => e.url === url)
     || entries.find(e => normalizeUrl(e.url) === normalizeUrl(url))
@@ -414,7 +422,8 @@ function loadAndOpenAll() {
 
   urls.forEach((url, i) => {
     setTimeout(() => {
-      const wref = window.open(url, '_blank'); if(wref) openedWindows[url] = wref;
+      const wref = window.open(url, '_blank');
+      if (wref) { openedWindows[url] = wref; openedWindowsSeq.push({url, ref: wref}); }
       entries[i].status = 'opened';
       renderItem(entries[i]);
       updateStats();
@@ -435,7 +444,8 @@ function openPending() {
   if (!pending.length) { toast('No pending URLs.'); return; }
   pending.forEach((entry, i) => {
     setTimeout(() => {
-      const wref = window.open(entry.url, '_blank'); if(wref) openedWindows[entry.url] = wref;
+      const wref = window.open(entry.url, '_blank');
+      if (wref) { openedWindows[entry.url] = wref; openedWindowsSeq.push({url: entry.url, ref: wref}); }
       entry.status = 'opened';
       renderItem(entry);
       updateStats();
