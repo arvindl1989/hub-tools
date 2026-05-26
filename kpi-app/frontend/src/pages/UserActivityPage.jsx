@@ -5,6 +5,23 @@ import {
 } from 'recharts'
 import { getUserActivity } from '../api'
 
+// ── Service definitions (match BANDWIDTH_RATES keys in backend) ───────────────
+const SERVICES = [
+  'Website Content Management',
+  'Demand Creation – Global',
+  'Email – Local',
+  'Retention – Activations',
+  'Content Production – Graphic Design',
+]
+const SERVICE_SHORT = [
+  'Web Content Mgmt',
+  'Demand Creation',
+  'Email – Local',
+  'Retention',
+  'Graphic Design',
+]
+const SERVICE_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']
+
 function DateInput({ label, value, onChange }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -102,7 +119,17 @@ const CustomBarTooltip = ({ active, payload, label }) => {
   return (
     <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 13 }}>
       <div style={{ fontWeight: 600, color: '#111827', marginBottom: 4 }}>{label}</div>
-      <div style={{ color: '#6b7280' }}>{payload[0].value} users</div>
+      <div style={{ color: '#6b7280' }}>{payload[0].value} tickets</div>
+    </div>
+  )
+}
+
+const HorizBarTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 13 }}>
+      <div style={{ fontWeight: 600, color: '#111827', marginBottom: 2 }}>{label}</div>
+      <div style={{ color: '#6b7280' }}>{payload[0].value.toLocaleString()} tickets</div>
     </div>
   )
 }
@@ -129,6 +156,26 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
   const teams = useMemo(() => [...new Set(data.map(d => d.team).filter(Boolean))].sort(), [data])
   const areas = useMemo(() => [...new Set(data.map(d => d.area).filter(Boolean))].sort(), [data])
 
+  // ── Summary charts: tickets by team & area ────────────────────────────────
+  const teamChartData = useMemo(() => {
+    const map = {}
+    data.forEach(d => { if (d.team) map[d.team] = (map[d.team] || 0) + d.total_tickets })
+    return Object.entries(map)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15)
+  }, [data])
+
+  const areaChartData = useMemo(() => {
+    const map = {}
+    data.forEach(d => { if (d.area) map[d.area] = (map[d.area] || 0) + d.total_tickets })
+    return Object.entries(map)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15)
+  }, [data])
+
+  // ── Filtered rows ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let rows = data
     if (search)     rows = rows.filter(r => r.creator.toLowerCase().includes(search.toLowerCase()))
@@ -144,7 +191,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
       if (av > bv) return sort.dir === 'asc' ? 1 : -1
       return 0
     })
-  }, [data, search, teamFilter, areaFilter, tierFilter, sort])
+  }, [data, search, teamFilter, areaFilter, tierFilter, sort, dateFrom, dateTo])
 
   const stats = useMemo(() => ({
     total:         data.length,
@@ -165,6 +212,15 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
     color: BUCKET_COLORS[i],
   })), [data])
 
+  // ── Service totals for the service-breakdown table header ─────────────────
+  const serviceTotals = useMemo(() => {
+    const totals = {}
+    SERVICES.forEach(sc => {
+      totals[sc] = filtered.reduce((sum, r) => sum + (r.service_breakdown?.[sc] ?? 0), 0)
+    })
+    return totals
+  }, [filtered])
+
   function toggleSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' })
   }
@@ -183,6 +239,10 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
     whiteSpace: 'nowrap',
     background: '#f9fafb',
   })
+
+  const chartPanelStyle = {
+    background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '20px 16px',
+  }
 
   if (loading) {
     return (
@@ -212,11 +272,11 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         <StatCard label="Remove Access"  value={stats.removeAccess} sub="> 8 weeks since last ticket"   color="#c0305a" bg="#fff1f2" />
       </div>
 
-      {/* Charts */}
+      {/* ── Row 1: Engagement status + Days since last ticket ─────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.8fr', gap: 16 }}>
 
         {/* Engagement status donut */}
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '20px 16px' }}>
+        <div style={chartPanelStyle}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Engagement Status</div>
           <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 12 }}>User distribution by activity tier</div>
           {pieData.length === 0 ? (
@@ -238,18 +298,14 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
                   ))}
                 </Pie>
                 <Tooltip content={<CustomPieTooltip />} />
-                <Legend
-                  iconType="circle"
-                  iconSize={9}
-                  wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-                />
+                <Legend iconType="circle" iconSize={9} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
               </PieChart>
             </ResponsiveContainer>
           )}
         </div>
 
         {/* Days since last ticket distribution */}
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '20px 16px' }}>
+        <div style={chartPanelStyle}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Days Since Last Ticket</div>
           <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 12 }}>How long ago users last raised a ticket</div>
           <ResponsiveContainer width="100%" height={230}>
@@ -265,6 +321,88 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* ── Row 2: Tickets by Team + Tickets by Area ─────────────────────── */}
+      {(teamChartData.length > 0 || areaChartData.length > 0) && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
+          {/* Tickets by Team */}
+          <div style={chartPanelStyle}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Tickets by Team</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 12 }}>Total tickets raised per team</div>
+            {teamChartData.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#9ca3af', padding: 32, fontSize: 13 }}>No team data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(160, teamChartData.length * 34)}>
+                <BarChart
+                  data={teamChartData}
+                  layout="vertical"
+                  margin={{ top: 2, right: 40, left: 0, bottom: 2 }}
+                  barSize={16}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={130}
+                    tick={{ fontSize: 11, fill: '#374151' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={v => v.length > 18 ? v.slice(0, 17) + '…' : v}
+                  />
+                  <Tooltip content={<HorizBarTooltip />} cursor={{ fill: '#f0f3fa' }} />
+                  <Bar dataKey="count" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* Tickets by Area */}
+          <div style={chartPanelStyle}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Tickets by Area</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 12 }}>Total tickets raised per area / region</div>
+            {areaChartData.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#9ca3af', padding: 32, fontSize: 13 }}>No area data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(160, areaChartData.length * 34)}>
+                <BarChart
+                  data={areaChartData}
+                  layout="vertical"
+                  margin={{ top: 2, right: 40, left: 0, bottom: 2 }}
+                  barSize={16}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={130}
+                    tick={{ fontSize: 11, fill: '#374151' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={v => v.length > 18 ? v.slice(0, 17) + '…' : v}
+                  />
+                  <Tooltip content={<HorizBarTooltip />} cursor={{ fill: '#f0f3fa' }} />
+                  <Bar dataKey="count" fill="#0ea5e9" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{
@@ -334,7 +472,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         </span>
       </div>
 
-      {/* Table */}
+      {/* ── User table ───────────────────────────────────────────────────────── */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -411,6 +549,133 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           </table>
         </div>
       </div>
+
+      {/* ── Tickets Raised by Service ─────────────────────────────────────── */}
+      {filtered.length > 0 && (
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#111827' }}>
+              Tickets Raised by Service
+            </h3>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: '#9ca3af' }}>
+              Breakdown of tickets each user raised across the 5 tracked services
+            </p>
+          </div>
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#f9fafb' }}>
+                    <th style={{
+                      padding: '10px 16px', fontSize: 11, fontWeight: 600, color: '#6b7280',
+                      borderBottom: '2px solid #e5e8ef', textAlign: 'left', whiteSpace: 'nowrap',
+                    }}>User</th>
+                    {SERVICES.map((sc, idx) => (
+                      <th key={sc} style={{
+                        padding: '10px 14px', fontSize: 11, fontWeight: 600,
+                        color: SERVICE_COLORS[idx],
+                        borderBottom: '2px solid #e5e8ef', textAlign: 'center', whiteSpace: 'nowrap',
+                      }}>
+                        {SERVICE_SHORT[idx]}
+                        {serviceTotals[sc] > 0 && (
+                          <span style={{ display: 'block', fontSize: 10, color: '#9ca3af', fontWeight: 500, marginTop: 1 }}>
+                            {serviceTotals[sc]} total
+                          </span>
+                        )}
+                      </th>
+                    ))}
+                    <th style={{
+                      padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#374151',
+                      borderBottom: '2px solid #e5e8ef', textAlign: 'center', whiteSpace: 'nowrap',
+                    }}>
+                      All Services
+                      <span style={{ display: 'block', fontSize: 10, color: '#9ca3af', fontWeight: 500, marginTop: 1 }}>
+                        {SERVICES.reduce((s, sc) => s + (serviceTotals[sc] || 0), 0)} total
+                      </span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((row, i) => {
+                    const sb = row.service_breakdown ?? {}
+                    const rowTotal = SERVICES.reduce((s, sc) => s + (sb[sc] ?? 0), 0)
+                    return (
+                      <tr
+                        key={row.creator}
+                        style={{
+                          background: i % 2 === 0 ? '#fff' : '#fafafa',
+                          borderBottom: '1px solid #f0f3fa',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
+                        onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#fafafa'}
+                      >
+                        {/* User cell */}
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{
+                              width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                              background: `hsl(${Math.abs(row.creator.charCodeAt(0) * 37) % 360}, 55%, 88%)`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 10, fontWeight: 700, color: '#374151',
+                            }}>
+                              {row.creator.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <div>{row.creator}</div>
+                              {row.team && (
+                                <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 400 }}>{row.team}</div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Per-service counts */}
+                        {SERVICES.map((sc, idx) => {
+                          const cnt = sb[sc] ?? 0
+                          const pct = rowTotal > 0 ? Math.round(cnt / rowTotal * 100) : 0
+                          return (
+                            <td key={sc} style={{ padding: '10px 14px', textAlign: 'center' }}>
+                              {cnt > 0 ? (
+                                <div>
+                                  <span style={{
+                                    display: 'inline-block', minWidth: 28,
+                                    fontWeight: 700, fontSize: 13,
+                                    color: SERVICE_COLORS[idx],
+                                    background: `${SERVICE_COLORS[idx]}15`,
+                                    borderRadius: 6, padding: '2px 8px',
+                                  }}>{cnt}</span>
+                                  {rowTotal > 0 && (
+                                    <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2 }}>{pct}%</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: '#e5e7eb', fontSize: 12 }}>—</span>
+                              )}
+                            </td>
+                          )
+                        })}
+
+                        {/* Row total */}
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          {rowTotal > 0 ? (
+                            <span style={{
+                              display: 'inline-block', minWidth: 32,
+                              fontWeight: 700, fontSize: 13, color: '#374151',
+                              background: '#f0f3fa', borderRadius: 6, padding: '2px 9px',
+                            }}>{rowTotal}</span>
+                          ) : (
+                            <span style={{ color: '#e5e7eb', fontSize: 12 }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )
