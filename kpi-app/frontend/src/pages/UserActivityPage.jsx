@@ -472,12 +472,39 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         </span>
       </div>
 
-      {/* ── User table ───────────────────────────────────────────────────────── */}
+      {/* ── Unified user + service table ─────────────────────────────────────── */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr>
+              {/* Group label row */}
+              <tr style={{ background: '#f9fafb' }}>
+                {/* Span the 6 identity/activity columns */}
+                <th colSpan={6} style={{
+                  padding: '6px 14px', fontSize: 10, fontWeight: 600, color: '#9ca3af',
+                  borderBottom: '1px solid #e5e8ef', textAlign: 'left', letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                }} />
+                {/* Service group label */}
+                <th colSpan={5} style={{
+                  padding: '6px 14px', fontSize: 10, fontWeight: 700, color: '#6366f1',
+                  borderBottom: '1px solid #e5e8ef', textAlign: 'center', letterSpacing: '0.06em',
+                  textTransform: 'uppercase', background: '#f5f5ff',
+                  borderLeft: '2px solid #e0e0ff',
+                }}>
+                  Tickets Raised by Service
+                </th>
+                {/* Status column */}
+                <th style={{
+                  padding: '6px 14px', fontSize: 10, fontWeight: 600, color: '#9ca3af',
+                  borderBottom: '1px solid #e5e8ef', textAlign: 'left', letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                }} />
+              </tr>
+
+              {/* Column header row */}
+              <tr style={{ background: '#f9fafb' }}>
+                {/* Sortable identity columns */}
                 {[
                   { key: 'creator',          label: 'User' },
                   { key: 'team',             label: 'Team' },
@@ -485,197 +512,137 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
                   { key: 'total_tickets',    label: 'Total Tickets' },
                   { key: 'last_ticket_date', label: 'Last Ticket' },
                   { key: 'days_since_last',  label: 'Days Since' },
-                  { key: 'engagement_tier',  label: 'Status' },
                 ].map(({ key, label }) => (
                   <th key={key} style={colStyle(key)} onClick={() => toggleSort(key)}>
                     {label} <SortIcon dir={sort.key === key ? sort.dir : null} />
                   </th>
                 ))}
+
+                {/* Service columns */}
+                {SERVICES.map((sc, idx) => (
+                  <th key={sc} style={{
+                    padding: '8px 12px', fontSize: 11, fontWeight: 700,
+                    color: SERVICE_COLORS[idx],
+                    borderBottom: '2px solid #e5e8ef', textAlign: 'center',
+                    whiteSpace: 'nowrap', background: '#f5f5ff',
+                    borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined,
+                  }}>
+                    {SERVICE_SHORT[idx]}
+                    {serviceTotals[sc] > 0 && (
+                      <span style={{ display: 'block', fontSize: 9, color: '#a5b4fc', fontWeight: 500, marginTop: 1 }}>
+                        {serviceTotals[sc]} total
+                      </span>
+                    )}
+                  </th>
+                ))}
+
+                {/* Status */}
+                <th style={colStyle('engagement_tier')} onClick={() => toggleSort('engagement_tier')}>
+                  Status <SortIcon dir={sort.key === 'engagement_tier' ? sort.dir : null} />
+                </th>
               </tr>
             </thead>
+
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+                  <td colSpan={12} style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
                     No users match your filters.
                   </td>
                 </tr>
-              ) : filtered.map((row, i) => (
-                <tr
-                  key={row.creator}
-                  style={{
-                    background: i % 2 === 0 ? '#ffffff' : '#fafafa',
-                    borderBottom: '1px solid #f0f3fa',
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
-                  onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? '#ffffff' : '#fafafa'}
-                >
-                  <td style={{ padding: '10px 14px', fontWeight: 600, color: '#111827' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{
-                        width: 28, height: 28, borderRadius: '50%',
-                        background: `hsl(${Math.abs(row.creator.charCodeAt(0) * 37) % 360}, 55%, 88%)`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 700, color: '#374151', flexShrink: 0,
-                      }}>
-                        {row.creator.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+              ) : filtered.map((row, i) => {
+                const sb = row.service_breakdown ?? {}
+                return (
+                  <tr
+                    key={row.creator}
+                    style={{
+                      background: i % 2 === 0 ? '#ffffff' : '#fafafa',
+                      borderBottom: '1px solid #f0f3fa',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
+                    onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? '#ffffff' : '#fafafa'}
+                  >
+                    {/* User */}
+                    <td style={{ padding: '10px 14px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 28, height: 28, borderRadius: '50%',
+                          background: `hsl(${Math.abs(row.creator.charCodeAt(0) * 37) % 360}, 55%, 88%)`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 11, fontWeight: 700, color: '#374151', flexShrink: 0,
+                        }}>
+                          {row.creator.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        {row.creator}
                       </div>
-                      {row.creator}
-                    </div>
-                  </td>
-                  <td style={{ padding: '10px 14px', color: '#374151' }}>{row.team || <span style={{ color: '#d1d5db' }}>—</span>}</td>
-                  <td style={{ padding: '10px 14px', color: '#374151' }}>{row.area || <span style={{ color: '#d1d5db' }}>—</span>}</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 600, color: '#1450f5' }}>
-                    {row.total_tickets.toLocaleString()}
-                  </td>
-                  <td style={{ padding: '10px 14px', color: '#374151', whiteSpace: 'nowrap' }}>
-                    {fmt(row.last_ticket_date)}
-                  </td>
-                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                    <span style={{
-                      fontWeight: 700,
-                      color: row.days_since_last > 56 ? '#c0305a' : row.days_since_last > 27 ? '#b87d00' : '#1e8a5e',
-                    }}>
-                      {row.days_since_last}d
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <TierBadge tier={row.engagement_tier} />
-                  </td>
-                </tr>
-              ))}
+                    </td>
+
+                    {/* Team */}
+                    <td style={{ padding: '10px 14px', color: '#374151' }}>
+                      {row.team || <span style={{ color: '#d1d5db' }}>—</span>}
+                    </td>
+
+                    {/* Area */}
+                    <td style={{ padding: '10px 14px', color: '#374151' }}>
+                      {row.area || <span style={{ color: '#d1d5db' }}>—</span>}
+                    </td>
+
+                    {/* Total tickets */}
+                    <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 600, color: '#1450f5' }}>
+                      {row.total_tickets.toLocaleString()}
+                    </td>
+
+                    {/* Last ticket */}
+                    <td style={{ padding: '10px 14px', color: '#374151', whiteSpace: 'nowrap' }}>
+                      {fmt(row.last_ticket_date)}
+                    </td>
+
+                    {/* Days since */}
+                    <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                      <span style={{
+                        fontWeight: 700,
+                        color: row.days_since_last > 56 ? '#c0305a' : row.days_since_last > 27 ? '#b87d00' : '#1e8a5e',
+                      }}>
+                        {row.days_since_last}d
+                      </span>
+                    </td>
+
+                    {/* Per-service ticket counts */}
+                    {SERVICES.map((sc, idx) => {
+                      const cnt = sb[sc] ?? 0
+                      return (
+                        <td key={sc} style={{
+                          padding: '10px 12px', textAlign: 'center',
+                          background: i % 2 === 0 ? 'rgba(99,102,241,0.03)' : 'rgba(99,102,241,0.06)',
+                          borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined,
+                        }}>
+                          {cnt > 0 ? (
+                            <span style={{
+                              display: 'inline-block', minWidth: 26,
+                              fontWeight: 700, fontSize: 12,
+                              color: SERVICE_COLORS[idx],
+                              background: `${SERVICE_COLORS[idx]}18`,
+                              borderRadius: 5, padding: '2px 7px',
+                            }}>{cnt}</span>
+                          ) : (
+                            <span style={{ color: '#d1d5db', fontSize: 12 }}>—</span>
+                          )}
+                        </td>
+                      )
+                    })}
+
+                    {/* Status */}
+                    <td style={{ padding: '10px 14px' }}>
+                      <TierBadge tier={row.engagement_tier} />
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       </div>
-
-      {/* ── Tickets Raised by Service ─────────────────────────────────────── */}
-      {filtered.length > 0 && (
-        <div>
-          <div style={{ marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#111827' }}>
-              Tickets Raised by Service
-            </h3>
-            <p style={{ margin: '3px 0 0', fontSize: 12, color: '#9ca3af' }}>
-              Breakdown of tickets each user raised across the 5 tracked services
-            </p>
-          </div>
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: '#f9fafb' }}>
-                    <th style={{
-                      padding: '10px 16px', fontSize: 11, fontWeight: 600, color: '#6b7280',
-                      borderBottom: '2px solid #e5e8ef', textAlign: 'left', whiteSpace: 'nowrap',
-                    }}>User</th>
-                    {SERVICES.map((sc, idx) => (
-                      <th key={sc} style={{
-                        padding: '10px 14px', fontSize: 11, fontWeight: 600,
-                        color: SERVICE_COLORS[idx],
-                        borderBottom: '2px solid #e5e8ef', textAlign: 'center', whiteSpace: 'nowrap',
-                      }}>
-                        {SERVICE_SHORT[idx]}
-                        {serviceTotals[sc] > 0 && (
-                          <span style={{ display: 'block', fontSize: 10, color: '#9ca3af', fontWeight: 500, marginTop: 1 }}>
-                            {serviceTotals[sc]} total
-                          </span>
-                        )}
-                      </th>
-                    ))}
-                    <th style={{
-                      padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#374151',
-                      borderBottom: '2px solid #e5e8ef', textAlign: 'center', whiteSpace: 'nowrap',
-                    }}>
-                      All Services
-                      <span style={{ display: 'block', fontSize: 10, color: '#9ca3af', fontWeight: 500, marginTop: 1 }}>
-                        {SERVICES.reduce((s, sc) => s + (serviceTotals[sc] || 0), 0)} total
-                      </span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((row, i) => {
-                    const sb = row.service_breakdown ?? {}
-                    const rowTotal = SERVICES.reduce((s, sc) => s + (sb[sc] ?? 0), 0)
-                    return (
-                      <tr
-                        key={row.creator}
-                        style={{
-                          background: i % 2 === 0 ? '#fff' : '#fafafa',
-                          borderBottom: '1px solid #f0f3fa',
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
-                        onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#fafafa'}
-                      >
-                        {/* User cell */}
-                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{
-                              width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                              background: `hsl(${Math.abs(row.creator.charCodeAt(0) * 37) % 360}, 55%, 88%)`,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 10, fontWeight: 700, color: '#374151',
-                            }}>
-                              {row.creator.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                              <div>{row.creator}</div>
-                              {row.team && (
-                                <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 400 }}>{row.team}</div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Per-service counts */}
-                        {SERVICES.map((sc, idx) => {
-                          const cnt = sb[sc] ?? 0
-                          const pct = rowTotal > 0 ? Math.round(cnt / rowTotal * 100) : 0
-                          return (
-                            <td key={sc} style={{ padding: '10px 14px', textAlign: 'center' }}>
-                              {cnt > 0 ? (
-                                <div>
-                                  <span style={{
-                                    display: 'inline-block', minWidth: 28,
-                                    fontWeight: 700, fontSize: 13,
-                                    color: SERVICE_COLORS[idx],
-                                    background: `${SERVICE_COLORS[idx]}15`,
-                                    borderRadius: 6, padding: '2px 8px',
-                                  }}>{cnt}</span>
-                                  {rowTotal > 0 && (
-                                    <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2 }}>{pct}%</div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span style={{ color: '#e5e7eb', fontSize: 12 }}>—</span>
-                              )}
-                            </td>
-                          )
-                        })}
-
-                        {/* Row total */}
-                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                          {rowTotal > 0 ? (
-                            <span style={{
-                              display: 'inline-block', minWidth: 32,
-                              fontWeight: 700, fontSize: 13, color: '#374151',
-                              background: '#f0f3fa', borderRadius: 6, padding: '2px 9px',
-                            }}>{rowTotal}</span>
-                          ) : (
-                            <span style={{ color: '#e5e7eb', fontSize: 12 }}>—</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   )
