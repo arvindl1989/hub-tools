@@ -296,21 +296,60 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 // ── BOOKMARKLET ───────────────────────────────────────────────────────────
 (function(){
   const code = `(function(){
-    var m=document.querySelector('meta[name="pagetcmid"],meta[name="PAGETCMID"]');
-    var id=m?m.getAttribute('content'):null;
+    // ── Extract TCM ID (case-insensitive loop through all metas) ──
+    var id=null;
+    var metas=document.getElementsByTagName('meta');
+    for(var i=0;i<metas.length;i++){
+      var n=(metas[i].getAttribute('name')||'').toLowerCase().trim();
+      if(n==='pagetcmid'){
+        var c=metas[i].getAttribute('content')||metas[i].getAttribute('value');
+        if(c&&c.trim()){id=c.trim();break;}
+      }
+    }
+    // Fallback: regex scan of raw HTML (catches unusual attribute ordering)
     if(!id){
-      var src=document.documentElement.outerHTML;
-      var rx=/name=["']pagetcmid["'][^>]+content=["']([^"']+)["']/i;
-      var rx2=/content=["']([^"']+)["'][^>]+name=["']pagetcmid["']/i;
-      var mm=src.match(rx)||src.match(rx2);
-      id=mm?mm[1]:null;
+      var html=document.documentElement.outerHTML;
+      var r1=html.match(/name=["']pagetcmid["'][^>]{0,200}content=["']([^"']+)["']/i);
+      var r2=html.match(/content=["']([^"']+)["'][^>]{0,200}name=["']pagetcmid["']/i);
+      if(r1)id=r1[1].trim();
+      else if(r2)id=r2[1].trim();
     }
     var url=location.href;
     var payload={type:'TCM_RESULT',url:url,tcmId:id};
+    // ── Send result back to TCM Extractor tool ──
     if(window.opener&&!window.opener.closed){try{window.opener.postMessage(payload,'*');}catch(e){}}
     try{var bc=new BroadcastChannel('tcm_x');bc.postMessage(payload);bc.close();}catch(e){}
-    // Close immediately if no ID found; slight delay if found so message lands first
-    if(id){setTimeout(function(){window.close();},300);}else{window.close();}
+    // ── Inject overlay popup so result is visible before tab closes ──
+    var old=document.getElementById('__tcmx__');if(old)old.remove();
+    var ov=document.createElement('div');
+    ov.id='__tcmx__';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif';
+    var card=document.createElement('div');
+    var gc=id?'#00e5b0':'#ffb84f';
+    card.style.cssText='background:#1a1f2e;border-radius:14px;padding:30px 34px;max-width:390px;width:90%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.65);border:2px solid '+gc+';box-sizing:border-box';
+    var ico=document.createElement('div');
+    ico.style.cssText='font-size:2.4rem;margin-bottom:12px';
+    ico.textContent=id?'\\u2705':'\\u26a0\\ufe0f';
+    var ttl=document.createElement('div');
+    ttl.style.cssText='font-size:11px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:'+gc+';margin-bottom:16px';
+    ttl.textContent=id?'TCM ID Found':'Page Meta ID Not Found';
+    var val=document.createElement('div');
+    val.style.cssText=id
+      ?'background:#0d0f18;border:1px solid rgba(0,229,176,.3);border-radius:8px;padding:14px 20px;font-family:monospace;font-size:20px;font-weight:700;color:#00e5b0;letter-spacing:2px;word-break:break-all;margin-bottom:12px'
+      :'color:#6b7599;font-size:12px;line-height:1.8;margin-bottom:12px';
+    val.textContent=id?id:'No pagetcmid meta tag was found on this page.\\nThis page will be marked as Unpublished in the tool.';
+    var uEl=document.createElement('div');
+    uEl.style.cssText='font-size:10px;color:#3d4870;word-break:break-all;margin-bottom:16px;max-height:30px;overflow:hidden';
+    uEl.textContent=url.length>75?url.substring(0,75)+'\\u2026':url;
+    var cl=document.createElement('div');
+    cl.id='__tcmxcl__';
+    cl.style.cssText='font-size:11px;color:#4a5568;background:#0d0f18;border-radius:6px;padding:7px 14px;display:inline-block';
+    cl.textContent='Sending to TCM Extractor \\u2014 closing tab in 2s';
+    card.appendChild(ico);card.appendChild(ttl);card.appendChild(val);card.appendChild(uEl);card.appendChild(cl);
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+    setTimeout(function(){var e=document.getElementById('__tcmxcl__');if(e)e.textContent='Closing\\u2026';},1400);
+    setTimeout(function(){window.close();},2000);
   })();`;
   document.getElementById('bmLink').href = 'javascript:' + encodeURIComponent(code);
 })();
@@ -324,9 +363,12 @@ const openedWindowsSeq = []; // [{url, ref}] in open order — for fallback clos
 // ── LISTEN ────────────────────────────────────────────────────────────────
 window.addEventListener('message', e => {
   if (e.data?.type === 'TCM_RESULT') {
-    // e.source IS the tab that sent the message — close it directly here;
-    // this is far more reliable than window.close() inside the bookmarklet.
-    try { if (e.source && !e.source.closed) e.source.close(); } catch(_) {}
+    // Delay close so the overlay popup on the child tab stays visible (~1.8s).
+    // The bookmarklet also calls window.close() at 2s — whichever fires first wins.
+    const src = e.source;
+    setTimeout(() => {
+      try { if (src && !src.closed) src.close(); } catch(_) {}
+    }, 1800);
     receive(e.data.url, e.data.tcmId);
   }
 });
@@ -367,7 +409,7 @@ function receive(url, tcmId) {
     }
     if (wref && !wref.closed) { try { wref.close(); } catch(_) {} }
   };
-  setTimeout(tryClose, 150);
+  setTimeout(tryClose, 1800);
 
   let entry = entries.find(e => e.url === url)
     || entries.find(e => normalizeUrl(e.url) === normalizeUrl(url))
