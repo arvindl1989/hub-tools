@@ -1240,8 +1240,9 @@ async def generate_text(body: GenerateBody):
 @app.get("/api/sessions/{sid}/insights")
 async def get_insights(
     sid: str,
-    date_from: Optional[str] = Query(None),
-    date_to:   Optional[str] = Query(None),
+    date_from:    Optional[str] = Query(None),
+    date_to:      Optional[str] = Query(None),
+    sub_category: Optional[str] = Query(None),
 ):
     """Generate AI-powered insights from ticket data for the given date range."""
     if not _OPENAI_KEY:
@@ -1249,10 +1250,12 @@ async def get_insights(
 
     df = _get_session(sid)
     filtered = _filter_by_range(df, "created_date", date_from, date_to)
+    if sub_category and "sub_category" in filtered.columns:
+        filtered = filtered[filtered["sub_category"] == sub_category]
     total = len(filtered)
 
     if total == 0:
-        raise HTTPException(400, "No tickets found in the selected date range.")
+        raise HTTPException(400, "No tickets found for the selected filters.")
 
     today = date.today()
 
@@ -1338,9 +1341,10 @@ async def get_insights(
 
     # ── Build prompt ──────────────────────────────────────────────────────────
     date_range_str = f"{date_from or 'beginning'} to {date_to or 'today'}"
+    scope_str = f"service: {sub_category}" if sub_category else "all services"
 
     prompt = f"""You are a senior operations analyst reviewing ticket data for a marketing services hub.
-Analyse the following metrics snapshot for the period {date_range_str} and return a structured JSON response.
+Analyse the following metrics snapshot for the period {date_range_str} ({scope_str}) and return a structured JSON response.
 
 METRICS SNAPSHOT:
 - Total tickets in range: {total}

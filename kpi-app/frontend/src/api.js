@@ -206,9 +206,9 @@ export async function updateSlaRules(rules) {
   return data
 }
 
-export async function getInsights(sid, dateFrom, dateTo) {
+export async function getInsights(sid, dateFrom, dateTo, subCategory = null) {
   const { data } = await client.get(`/sessions/${sid}/insights`, {
-    params: _clean({ date_from: dateFrom, date_to: dateTo }),
+    params: _clean({ date_from: dateFrom, date_to: dateTo, sub_category: subCategory }),
     timeout: 90000,
   })
   return data
