@@ -296,7 +296,7 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 // ── BOOKMARKLET ───────────────────────────────────────────────────────────
 (function(){
   const code = `(function(){
-    // ── Extract TCM ID (case-insensitive loop through all metas) ──
+    // ── 1. Extract TCM ID ────────────────────────────────────────────────
     var id=null;
     var metas=document.getElementsByTagName('meta');
     for(var i=0;i<metas.length;i++){
@@ -306,50 +306,59 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
         if(c&&c.trim()){id=c.trim();break;}
       }
     }
-    // Fallback: regex scan of raw HTML (catches unusual attribute ordering)
     if(!id){
-      var html=document.documentElement.outerHTML;
-      var r1=html.match(/name=["']pagetcmid["'][^>]{0,200}content=["']([^"']+)["']/i);
-      var r2=html.match(/content=["']([^"']+)["'][^>]{0,200}name=["']pagetcmid["']/i);
-      if(r1)id=r1[1].trim();
-      else if(r2)id=r2[1].trim();
+      var raw=document.documentElement.outerHTML;
+      var m1=raw.match(/name=["']pagetcmid["'][^>]{0,200}content=["']([^"']+)["']/i);
+      var m2=raw.match(/content=["']([^"']+)["'][^>]{0,200}name=["']pagetcmid["']/i);
+      if(m1)id=m1[1].trim();else if(m2)id=m2[1].trim();
     }
+    // ── 2. Send result to tool window ────────────────────────────────────
     var url=location.href;
     var payload={type:'TCM_RESULT',url:url,tcmId:id};
-    // ── Send result back to TCM Extractor tool ──
-    if(window.opener&&!window.opener.closed){try{window.opener.postMessage(payload,'*');}catch(e){}}
-    try{var bc=new BroadcastChannel('tcm_x');bc.postMessage(payload);bc.close();}catch(e){}
-    // ── Inject overlay popup so result is visible before tab closes ──
-    var old=document.getElementById('__tcmx__');if(old)old.remove();
-    var ov=document.createElement('div');
-    ov.id='__tcmx__';
-    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif';
-    var card=document.createElement('div');
+    if(window.opener&&!window.opener.closed){try{window.opener.postMessage(payload,'*');}catch(ex){}}
+    try{var bc=new BroadcastChannel('tcm_x');bc.postMessage(payload);bc.close();}catch(ex){}
+    // ── 3. Show popup ────────────────────────────────────────────────────
     var gc=id?'#00e5b0':'#ffb84f';
-    card.style.cssText='background:#1a1f2e;border-radius:14px;padding:30px 34px;max-width:390px;width:90%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.65);border:2px solid '+gc+';box-sizing:border-box';
-    var ico=document.createElement('div');
-    ico.style.cssText='font-size:2.4rem;margin-bottom:12px';
-    ico.textContent=id?'\\u2705':'\\u26a0\\ufe0f';
-    var ttl=document.createElement('div');
-    ttl.style.cssText='font-size:11px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:'+gc+';margin-bottom:16px';
-    ttl.textContent=id?'TCM ID Found':'Page Meta ID Not Found';
-    var val=document.createElement('div');
-    val.style.cssText=id
-      ?'background:#0d0f18;border:1px solid rgba(0,229,176,.3);border-radius:8px;padding:14px 20px;font-family:monospace;font-size:20px;font-weight:700;color:#00e5b0;letter-spacing:2px;word-break:break-all;margin-bottom:12px'
-      :'color:#6b7599;font-size:12px;line-height:1.8;margin-bottom:12px';
-    val.textContent=id?id:'No pagetcmid meta tag was found on this page.\\nThis page will be marked as Unpublished in the tool.';
-    var uEl=document.createElement('div');
-    uEl.style.cssText='font-size:10px;color:#3d4870;word-break:break-all;margin-bottom:16px;max-height:30px;overflow:hidden';
-    uEl.textContent=url.length>75?url.substring(0,75)+'\\u2026':url;
-    var cl=document.createElement('div');
-    cl.id='__tcmxcl__';
-    cl.style.cssText='font-size:11px;color:#4a5568;background:#0d0f18;border-radius:6px;padding:7px 14px;display:inline-block';
-    cl.textContent='Sending to TCM Extractor \\u2014 closing tab in 2s';
-    card.appendChild(ico);card.appendChild(ttl);card.appendChild(val);card.appendChild(uEl);card.appendChild(cl);
-    ov.appendChild(card);
-    document.body.appendChild(ov);
-    setTimeout(function(){var e=document.getElementById('__tcmxcl__');if(e)e.textContent='Closing\\u2026';},1400);
-    setTimeout(function(){window.close();},2000);
+    var safeId=id?(id+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):null;
+    var shortU=url.length>68?url.slice(0,68)+'…':url;
+    var inner='<div style="background:#1a1f2e;border-radius:14px;padding:28px 32px;max-width:390px;width:88%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.7);border:2px solid '+gc+';box-sizing:border-box;font-family:system-ui,sans-serif">'
+      +'<div style="font-size:2.2rem;margin-bottom:10px">'+(id?'✅':'⚠️')+'</div>'
+      +'<div style="font-size:11px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:'+gc+';margin-bottom:14px">'+(id?'TCM ID Found':'Page Meta ID Not Found')+'</div>'
+      +(safeId
+        ?'<div style="background:#0d0f18;border:1px solid rgba(0,229,176,.3);border-radius:8px;padding:12px 18px;font-family:monospace;font-size:20px;font-weight:700;color:#00e5b0;letter-spacing:2px;word-break:break-all;margin-bottom:12px">'+safeId+'</div>'
+        :'<div style="color:#6b7599;font-size:12px;line-height:1.8;margin-bottom:12px">No pagetcmid meta tag found.<br>Page will be marked <b style=\\'color:#ffb84f\\'>Unpublished</b>.</div>')
+      +'<div style="font-size:10px;color:#3d4870;margin-bottom:14px;word-break:break-all;overflow:hidden;max-height:26px">'+shortU+'</div>'
+      +'<div id="__tcmxcl__" style="font-size:11px;color:#6b7599;background:#0d0f18;border-radius:6px;padding:6px 14px;display:inline-block">Sending to TCM Extractor — closing in 3s</div>'
+      +'</div>';
+    // Try <dialog>.showModal() first: top-layer, above ALL z-index and overflow:hidden
+    var shown=false;
+    try{
+      var old=document.getElementById('__tcmx__');if(old)old.remove();
+      var dlg=document.createElement('dialog');
+      dlg.id='__tcmx__';
+      dlg.style.cssText='background:rgba(0,0,0,.8);border:none;padding:0;margin:0;width:100vw;height:100vh;max-width:100vw;max-height:100vh;overflow:hidden;box-sizing:border-box;display:flex;align-items:center;justify-content:center';
+      dlg.innerHTML=inner;
+      document.body.appendChild(dlg);
+      dlg.showModal();
+      shown=true;
+    }catch(ex){}
+    // Fallback: position:fixed div with individual style assignments (avoids cssText CSP issues)
+    if(!shown){
+      var old2=document.getElementById('__tcmx__');if(old2)old2.remove();
+      var ov=document.createElement('div');
+      ov.id='__tcmx__';
+      ov.style.position='fixed';
+      ov.style.top='0';ov.style.left='0';ov.style.right='0';ov.style.bottom='0';
+      ov.style.background='rgba(0,0,0,.8)';
+      ov.style.zIndex='2147483647';
+      ov.style.display='flex';
+      ov.style.alignItems='center';
+      ov.style.justifyContent='center';
+      ov.innerHTML=inner;
+      (document.body||document.documentElement).appendChild(ov);
+    }
+    setTimeout(function(){var el=document.getElementById('__tcmxcl__');if(el)el.textContent='Closing…';},2200);
+    setTimeout(function(){window.close();},3000);
   })();`;
   document.getElementById('bmLink').href = 'javascript:' + encodeURIComponent(code);
 })();
@@ -357,18 +366,18 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 // ── STATE ─────────────────────────────────────────────────────────────────
 let entries = []; // {id, url, tcmId, status: wait|opened|ok|nf}
 let nextId = 1;
-const openedWindows = {}; // url -> windowRef
-const openedWindowsSeq = []; // [{url, ref}] in open order — for fallback close
+const openedWindows = {}; // url -> windowRef (used by polling watcher)
 
 // ── LISTEN ────────────────────────────────────────────────────────────────
 window.addEventListener('message', e => {
   if (e.data?.type === 'TCM_RESULT') {
-    // Delay close so the overlay popup on the child tab stays visible (~1.8s).
-    // The bookmarklet also calls window.close() at 2s — whichever fires first wins.
+    // e.source is the exact tab that clicked the bookmarklet — always the right one.
+    // Delay to 2500ms so the overlay popup stays visible for ~2.5s before the tab closes.
+    // The bookmarklet also calls window.close() at 3s as a fallback.
     const src = e.source;
     setTimeout(() => {
       try { if (src && !src.closed) src.close(); } catch(_) {}
-    }, 1800);
+    }, 2500);
     receive(e.data.url, e.data.tcmId);
   }
 });
@@ -378,7 +387,7 @@ try {
 } catch(e){}
 
 // ── CLOSED-WINDOW WATCHER ─────────────────────────────────────────────────
-// Catches tabs closed by the bookmarklet (or manually) that didn't message back.
+// Catches tabs closed by the bookmarklet (or manually) that never messaged back.
 setInterval(() => {
   let changed = false;
   entries.forEach(e => {
@@ -391,25 +400,9 @@ setInterval(() => {
 }, 800);
 
 function receive(url, tcmId) {
-  // Close the tab from the parent side — works even after redirects.
-  // Priority: exact URL → normalised URL → most-recently-opened still-open tab.
-  const tryClose = () => {
-    let wref = openedWindows[url];
-    if (!wref || wref.closed) {
-      const normIn = normalizeUrl(url);
-      const key = Object.keys(openedWindows).find(k => normalizeUrl(k) === normIn);
-      if (key) wref = openedWindows[key];
-    }
-    if (!wref || wref.closed) {
-      // Fallback: close the most-recently-opened tab that is still open
-      for (let i = openedWindowsSeq.length - 1; i >= 0; i--) {
-        const w = openedWindowsSeq[i].ref;
-        if (w && !w.closed) { wref = w; break; }
-      }
-    }
-    if (wref && !wref.closed) { try { wref.close(); } catch(_) {} }
-  };
-  setTimeout(tryClose, 1800);
+  // NOTE: tab closing is handled exclusively by e.source.close() in the message
+  // listener above (exact reference) or by window.close() inside the bookmarklet.
+  // No fallback "close nearest open tab" logic here — that was closing the wrong tabs.
 
   let entry = entries.find(e => e.url === url)
     || entries.find(e => normalizeUrl(e.url) === normalizeUrl(url))
@@ -465,7 +458,7 @@ function loadAndOpenAll() {
   urls.forEach((url, i) => {
     setTimeout(() => {
       const wref = window.open(url, '_blank');
-      if (wref) { openedWindows[url] = wref; openedWindowsSeq.push({url, ref: wref}); }
+      if (wref) { openedWindows[url] = wref; }
       entries[i].status = 'opened';
       renderItem(entries[i]);
       updateStats();
@@ -487,7 +480,7 @@ function openPending() {
   pending.forEach((entry, i) => {
     setTimeout(() => {
       const wref = window.open(entry.url, '_blank');
-      if (wref) { openedWindows[entry.url] = wref; openedWindowsSeq.push({url: entry.url, ref: wref}); }
+      if (wref) { openedWindows[entry.url] = wref; }
       entry.status = 'opened';
       renderItem(entry);
       updateStats();
