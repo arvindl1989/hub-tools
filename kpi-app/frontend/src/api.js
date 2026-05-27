@@ -205,3 +205,11 @@ export async function updateSlaRules(rules) {
   const { data } = await client.put('/sla-rules', rules)
   return data
 }
+
+export async function getInsights(sid, dateFrom, dateTo) {
+  const { data } = await client.get(`/sessions/${sid}/insights`, {
+    params: _clean({ date_from: dateFrom, date_to: dateTo }),
+    timeout: 90000,
+  })
+  return data
+}

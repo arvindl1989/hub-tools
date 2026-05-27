@@ -1237,6 +1237,170 @@ async def generate_text(body: GenerateBody):
     return {"content": resp.choices[0].message.content.strip()}
 
 
+@app.get("/api/sessions/{sid}/insights")
+async def get_insights(
+    sid: str,
+    date_from: Optional[str] = Query(None),
+    date_to:   Optional[str] = Query(None),
+):
+    """Generate AI-powered insights from ticket data for the given date range."""
+    if not _OPENAI_KEY:
+        raise HTTPException(503, "OpenAI API key not configured on server")
+
+    df = _get_session(sid)
+    filtered = _filter_by_range(df, "created_date", date_from, date_to)
+    total = len(filtered)
+
+    if total == 0:
+        raise HTTPException(400, "No tickets found in the selected date range.")
+
+    today = date.today()
+
+    # ── Build metrics snapshot ────────────────────────────────────────────────
+
+    # Volume stats
+    open_tickets   = int((~filtered["state"].isin(EXCLUDED_STATES)).sum()) if "state" in filtered.columns else 0
+    closed_tickets = int(filtered["state"].isin(EXCLUDED_STATES).sum()) if "state" in filtered.columns else 0
+
+    # SLA performance per service
+    sla_stats: list[dict] = []
+    if "sub_category" in filtered.columns and "created_date" in filtered.columns:
+        for svc, days_allowed in SLA_RULES.items():
+            svc_df = filtered[filtered["sub_category"] == svc]
+            if len(svc_df) == 0:
+                continue
+            svc_df = svc_df.copy()
+            svc_df["sla_due"] = svc_df["created_date"].apply(lambda d: add_working_days(d, days_allowed))
+            open_svc  = svc_df[~svc_df["state"].isin(EXCLUDED_STATES)] if "state" in svc_df.columns else svc_df
+            overdue   = int((open_svc["sla_due"] < pd.Timestamp(today)).sum()) if len(open_svc) else 0
+            closed_svc = svc_df[svc_df["state"].isin(EXCLUDED_STATES)] if "state" in svc_df.columns else pd.DataFrame()
+            on_time    = 0
+            if len(closed_svc) and "closed_date" in closed_svc.columns:
+                on_time = int((closed_svc["closed_date"] <= closed_svc["sla_due"]).sum())
+            sla_stats.append({
+                "service":     svc,
+                "total":       len(svc_df),
+                "open":        len(open_svc),
+                "overdue":     overdue,
+                "closed_on_time": on_time,
+            })
+
+    # Resolution time (closed tickets only)
+    avg_resolution_days: Optional[float] = None
+    if "closed_date" in filtered.columns and "created_date" in filtered.columns:
+        closed_df = filtered[filtered["state"].isin(EXCLUDED_STATES)].copy() if "state" in filtered.columns else filtered.copy()
+        if len(closed_df):
+            closed_df["res_days"] = (closed_df["closed_date"] - closed_df["created_date"]).dt.days
+            valid = closed_df["res_days"].dropna()
+            valid = valid[valid >= 0]
+            if len(valid):
+                avg_resolution_days = round(float(valid.mean()), 1)
+
+    # Top areas by volume
+    area_breakdown: list[dict] = []
+    if "area" in filtered.columns:
+        area_vc = filtered["area"].value_counts().head(8)
+        area_breakdown = [{"area": str(k), "tickets": int(v)} for k, v in area_vc.items()]
+
+    # Top teams by volume
+    team_breakdown: list[dict] = []
+    if "team" in filtered.columns:
+        team_vc = filtered["team"].value_counts().head(8)
+        team_breakdown = [{"team": str(k), "tickets": int(v)} for k, v in team_vc.items()]
+
+    # Top assignees by volume
+    assignee_breakdown: list[dict] = []
+    if "assigned_to" in filtered.columns:
+        asgn_vc = filtered["assigned_to"].value_counts().head(10)
+        assignee_breakdown = [{"assignee": str(k), "tickets": int(v)} for k, v in asgn_vc.items()]
+
+    # Inflow by month
+    monthly_inflow: list[dict] = []
+    if "created_date" in filtered.columns:
+        tmp = filtered.copy()
+        tmp["month"] = tmp["created_date"].dt.to_period("M")
+        mo_vc = tmp.groupby("month").size().sort_index()
+        monthly_inflow = [{"month": str(m), "tickets": int(c)} for m, c in mo_vc.items()]
+
+    # Backlog age buckets (open tickets only)
+    backlog_buckets: dict = {}
+    if "state" in filtered.columns and "created_date" in filtered.columns:
+        open_df = filtered[~filtered["state"].isin(EXCLUDED_STATES)].copy()
+        if len(open_df):
+            open_df["age"] = (pd.Timestamp(today) - open_df["created_date"]).dt.days
+            b = {"<7d": 0, "7-30d": 0, "30-90d": 0, ">90d": 0}
+            for age in open_df["age"].dropna():
+                if age < 7:   b["<7d"]   += 1
+                elif age < 30: b["7-30d"]  += 1
+                elif age < 90: b["30-90d"] += 1
+                else:          b[">90d"]   += 1
+            backlog_buckets = b
+
+    # ── Build prompt ──────────────────────────────────────────────────────────
+    date_range_str = f"{date_from or 'beginning'} to {date_to or 'today'}"
+
+    prompt = f"""You are a senior operations analyst reviewing ticket data for a marketing services hub.
+Analyse the following metrics snapshot for the period {date_range_str} and return a structured JSON response.
+
+METRICS SNAPSHOT:
+- Total tickets in range: {total}
+- Open tickets: {open_tickets}
+- Closed/resolved tickets: {closed_tickets}
+- Average resolution time: {avg_resolution_days} days
+- Top areas: {json.dumps(area_breakdown)}
+- Top teams: {json.dumps(team_breakdown)}
+- Top assignees (workload): {json.dumps(assignee_breakdown)}
+- Monthly inflow trend: {json.dumps(monthly_inflow)}
+- Open backlog age distribution: {json.dumps(backlog_buckets)}
+- SLA performance per service: {json.dumps(sla_stats)}
+
+Return ONLY a JSON object with exactly this structure (no markdown, no explanation):
+{{
+  "summary": "<2-3 sentence executive summary of overall performance>",
+  "positives": [
+    {{"title": "<short positive finding>", "detail": "<1-2 sentence explanation with numbers>"}}
+  ],
+  "negatives": [
+    {{"title": "<short concern>", "detail": "<1-2 sentence explanation with numbers>"}}
+  ],
+  "anomalies": [
+    {{"title": "<unusual pattern or outlier>", "detail": "<1-2 sentence explanation with numbers>"}}
+  ],
+  "improvements": [
+    {{"title": "<actionable improvement suggestion>", "detail": "<1-2 sentence specific recommendation>"}}
+  ]
+}}
+
+Rules:
+- Each array must have 3-5 items
+- Every item must cite specific numbers from the metrics
+- "improvements" must be concrete and actionable
+- Do not repeat the same point across categories
+- Be direct and specific, avoid vague statements
+"""
+
+    ai_client = AsyncOpenAI(api_key=_OPENAI_KEY)
+    resp = await ai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=1800,
+        response_format={"type": "json_object"},
+    )
+
+    raw = resp.choices[0].message.content.strip()
+    try:
+        insights = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(500, "AI returned invalid JSON — please retry.")
+
+    return {
+        **insights,
+        "date_range": {"from": date_from or "", "to": date_to or ""},
+        "total_tickets_analysed": total,
+    }
+
+
 # ── Serve KPI React app at /kpi/ and hub static tools at / ───────────────────
 from fastapi.responses import FileResponse
 
