@@ -653,8 +653,12 @@
             <span class="th-field-value" id="ethAssignee"></span>
           </div>
           <div class="th-field">
-            <span class="th-field-label"><i class="fa-solid fa-building"></i> Client</span>
+            <span class="th-field-label"><i class="fa-solid fa-building"></i> Requested By</span>
             <span class="th-field-value" id="ethClient"></span>
+          </div>
+          <div class="th-field">
+            <span class="th-field-label"><i class="fa-solid fa-eye"></i> Watch List</span>
+            <span class="th-field-value" id="ethWatchList"></span>
           </div>
           <div class="th-field">
             <span class="th-field-label"><i class="fa-solid fa-layer-group"></i> Service</span>
@@ -989,6 +993,7 @@
               description: String(r['Short description'] || '').trim(),
               subCategory: subCat,
               client: String(r['Requested by'] || '').trim(),
+              watchList: String(r['Watch list'] || '').trim(),
               team: String(r['Team'] || '').trim(),
               area: String(r['Area'] || '').trim(),
               assignee: String(r['Assigned to'] || '').trim(),
@@ -1138,6 +1143,7 @@
       document.getElementById('ethDesc').textContent = ticket.description;
       document.getElementById('ethAssignee').textContent = ticket.assignee;
       document.getElementById('ethClient').textContent = ticket.client;
+      document.getElementById('ethWatchList').textContent = ticket.watchList || 'No backup contact';
       document.getElementById('ethService').textContent = ticket.subCategory;
       document.getElementById('ethSLA').textContent = ticket.slaDate ? fmtDate(ticket.slaDate) : 'N/A';
 
