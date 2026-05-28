@@ -185,8 +185,15 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
     if (dateFrom)   rows = rows.filter(r => r.last_ticket_date && r.last_ticket_date >= dateFrom)
     if (dateTo)     rows = rows.filter(r => r.last_ticket_date && r.last_ticket_date <= dateTo + 'T23:59:59')
     return [...rows].sort((a, b) => {
-      const av = a[sort.key] ?? ''
-      const bv = b[sort.key] ?? ''
+      let av, bv
+      if (sort.key.startsWith('svc:')) {
+        const sc = sort.key.slice(4)
+        av = a.service_breakdown?.[sc] ?? 0
+        bv = b.service_breakdown?.[sc] ?? 0
+      } else {
+        av = a[sort.key] ?? ''
+        bv = b[sort.key] ?? ''
+      }
       if (av < bv) return sort.dir === 'asc' ? -1 : 1
       if (av > bv) return sort.dir === 'asc' ? 1 : -1
       return 0
@@ -212,7 +219,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
     color: BUCKET_COLORS[i],
   })), [data])
 
-  // ── Service totals for the service-breakdown table header ─────────────────
+  // ── Service totals for summary strip + table header (driven by filtered) ────
   const serviceTotals = useMemo(() => {
     const totals = {}
     SERVICES.forEach(sc => {
@@ -220,6 +227,11 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
     })
     return totals
   }, [filtered])
+
+  const filteredTotalTickets = useMemo(
+    () => filtered.reduce((sum, r) => sum + r.total_tickets, 0),
+    [filtered],
+  )
 
   function toggleSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' })
@@ -472,6 +484,51 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         </span>
       </div>
 
+      {/* ── Dynamic summary strip ────────────────────────────────────────────── */}
+      <div style={{
+        background: '#fff', border: '1px solid #e5e8ef', borderRadius: 12,
+        padding: '14px 18px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', flexShrink: 0 }}>
+          {teamFilter || areaFilter ? 'Filtered summary' : 'Summary'}
+        </span>
+        <div style={{ width: 1, height: 20, background: '#e5e7eb', flexShrink: 0 }} />
+
+        {/* Total tickets chip */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: '#f0f4ff', border: '1px solid #c7d7fd', borderRadius: 8,
+          padding: '4px 12px', fontSize: 12,
+        }}>
+          <span style={{ color: '#6b7280' }}>Total tickets</span>
+          <strong style={{ color: '#1450f5', fontSize: 14 }}>{filteredTotalTickets.toLocaleString()}</strong>
+          {filtered.length > 0 && (
+            <span style={{ color: '#9ca3af', fontSize: 11 }}>· {filtered.length} users</span>
+          )}
+        </div>
+
+        {/* Per-service chips */}
+        {SERVICES.map((sc, idx) => {
+          const count = serviceTotals[sc]
+          if (!count) return null
+          return (
+            <div key={sc} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: `${SERVICE_COLORS[idx]}12`,
+              border: `1px solid ${SERVICE_COLORS[idx]}40`,
+              borderRadius: 8, padding: '4px 12px', fontSize: 12,
+            }}>
+              <span style={{ color: '#6b7280' }}>{SERVICE_SHORT[idx]}</span>
+              <strong style={{ color: SERVICE_COLORS[idx], fontSize: 14 }}>{count.toLocaleString()}</strong>
+            </div>
+          )
+        })}
+
+        {filteredTotalTickets === 0 && (
+          <span style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>No tickets in current filter</span>
+        )}
+      </div>
+
       {/* ── Unified user + service table ─────────────────────────────────────── */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
@@ -518,23 +575,32 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
                   </th>
                 ))}
 
-                {/* Service columns */}
-                {SERVICES.map((sc, idx) => (
-                  <th key={sc} style={{
-                    padding: '8px 12px', fontSize: 11, fontWeight: 700,
-                    color: SERVICE_COLORS[idx],
-                    borderBottom: '2px solid #e5e8ef', textAlign: 'center',
-                    whiteSpace: 'nowrap', background: '#f5f5ff',
-                    borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined,
-                  }}>
-                    {SERVICE_SHORT[idx]}
-                    {serviceTotals[sc] > 0 && (
-                      <span style={{ display: 'block', fontSize: 9, color: '#a5b4fc', fontWeight: 500, marginTop: 1 }}>
-                        {serviceTotals[sc]} total
-                      </span>
-                    )}
-                  </th>
-                ))}
+                {/* Service columns — sortable */}
+                {SERVICES.map((sc, idx) => {
+                  const svcKey = `svc:${sc}`
+                  const isActive = sort.key === svcKey
+                  return (
+                    <th key={sc}
+                      onClick={() => toggleSort(svcKey)}
+                      style={{
+                        padding: '8px 12px', fontSize: 11, fontWeight: 700,
+                        color: isActive ? SERVICE_COLORS[idx] : `${SERVICE_COLORS[idx]}cc`,
+                        borderBottom: '2px solid #e5e8ef', textAlign: 'center',
+                        whiteSpace: 'nowrap', background: isActive ? '#eef0ff' : '#f5f5ff',
+                        borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined,
+                        cursor: 'pointer', userSelect: 'none',
+                      }}
+                    >
+                      {SERVICE_SHORT[idx]}
+                      <SortIcon dir={isActive ? sort.dir : null} />
+                      {serviceTotals[sc] > 0 && (
+                        <span style={{ display: 'block', fontSize: 9, color: '#a5b4fc', fontWeight: 500, marginTop: 1 }}>
+                          {serviceTotals[sc]} total
+                        </span>
+                      )}
+                    </th>
+                  )
+                })}
 
                 {/* Status */}
                 <th style={colStyle('engagement_tier')} onClick={() => toggleSort('engagement_tier')}>
