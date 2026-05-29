@@ -4,7 +4,7 @@ import {
   getWeeklyComparison, getWeeklyByAssignee,
   getByArea, getByTeam, getByCreator,
   getInflowOutflow, getSlaPerformance, getResolutionTime,
-  getTeamPerformance, getBacklogAge,
+  getTeamPerformance, getBacklogAge, getInflowOutflowExportUrl,
 } from '../api'
 
 import MonthlyChart        from '../components/charts/MonthlyChart'
@@ -208,6 +208,26 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
               overview={overview} filters={inflow.filters} onChange={inflow.setFilters} />
             <DateRangePicker dateFrom={inflow.range.from} dateTo={inflow.range.to}
               onChange={(from, to) => inflow.setRange({ from, to })} />
+            <a
+              href={getInflowOutflowExportUrl(sessionId, inflow.range.from, inflow.range.to, inflowGroupBy, inflow.filters)}
+              download
+              style={{ textDecoration: 'none' }}
+            >
+              <button style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                height: 30, padding: '0 12px',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                background: '#fff', color: '#1e8a5e',
+                border: '1px solid #6ee7b7', borderRadius: 7,
+                fontFamily: 'Inter, sans-serif',
+                whiteSpace: 'nowrap',
+              }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export
+              </button>
+            </a>
           </Controls>
         }
       >

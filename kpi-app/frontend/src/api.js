@@ -79,6 +79,14 @@ export async function getByCreator(sid, dateFrom, dateTo, dimFilters = {}) {
   return data
 }
 
+export function getInflowOutflowExportUrl(sid, dateFrom, dateTo, groupBy = 'week', dimFilters = {}) {
+  const clean = Object.fromEntries(
+    Object.entries({ date_from: dateFrom, date_to: dateTo, group_by: groupBy, ...dimFilters })
+      .filter(([, v]) => v != null && v !== '')
+  )
+  return `/api/sessions/${sid}/inflow-outflow/export?${new URLSearchParams(clean)}`
+}
+
 export async function getInflowOutflow(sid, dateFrom, dateTo, groupBy = 'week', dimFilters = {}) {
   const { data } = await client.get(`/sessions/${sid}/inflow-outflow`, {
     params: _clean({ date_from: dateFrom, date_to: dateTo, group_by: groupBy, ...dimFilters }),

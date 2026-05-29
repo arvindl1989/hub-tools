@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import pandas as pd
+import xlsxwriter
 import numpy as np
 import io
 import os
@@ -516,6 +517,134 @@ def inflow_outflow(
     for r in result:
         r["net"] = r["inflow"] - r["outflow"]
     return result
+
+
+@app.get("/api/sessions/{sid}/inflow-outflow/export")
+def inflow_outflow_export(
+    sid: str,
+    date_from:    Optional[str] = None,
+    date_to:      Optional[str] = None,
+    group_by: str = Query("week", pattern="^(week|month)$"),
+    assigned_to:  Optional[str] = None,
+    team:         Optional[str] = None,
+    area:         Optional[str] = None,
+    sub_category: Optional[str] = None,
+):
+    """Return an xlsx file with Assigned / Resolved / Resolution Rate rows per period."""
+    df = _get_session(sid)
+    df = _apply_dim_filters(df, assigned_to=assigned_to, team=team, area=area, sub_category=sub_category)
+
+    periods: dict[str, dict] = {}
+    freq = "W" if group_by == "week" else "M"
+
+    if "created_date" in df.columns:
+        tmp = _filter_by_range(df, "created_date", date_from, date_to).dropna(subset=["created_date"]).copy()
+        tmp["_p"] = tmp["created_date"].dt.to_period(freq).apply(lambda p: p.start_time.date())
+        for p, grp in tmp.groupby("_p"):
+            k = str(p)
+            periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0})
+            periods[k]["inflow"] = int(len(grp))
+
+    if "closed_date" in df.columns:
+        tmp = _filter_by_range(df, "closed_date", date_from, date_to).dropna(subset=["closed_date"]).copy()
+        tmp["_p"] = tmp["closed_date"].dt.to_period(freq).apply(lambda p: p.start_time.date())
+        for p, grp in tmp.groupby("_p"):
+            k = str(p)
+            periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0})
+            periods[k]["outflow"] = int(len(grp))
+
+    sorted_periods = sorted(periods.values(), key=lambda x: x["period"])
+    period_labels = [r["label"]   for r in sorted_periods]
+    inflows       = [r["inflow"]  for r in sorted_periods]
+    outflows      = [r["outflow"] for r in sorted_periods]
+    rates         = [
+        round(outflows[i] / inflows[i] * 100, 1) if inflows[i] > 0 else None
+        for i in range(len(sorted_periods))
+    ]
+
+    total_in   = sum(inflows)
+    total_out  = sum(outflows)
+    total_rate = round(total_out / total_in * 100, 1) if total_in > 0 else None
+
+    # Derive display name from active filter
+    if assigned_to:
+        name = assigned_to
+    elif team:
+        name = f"Team: {team}"
+    elif area:
+        name = f"Area: {area}"
+    elif sub_category:
+        name = sub_category
+    else:
+        name = "All"
+
+    # Build xlsx in memory
+    buf = io.BytesIO()
+    wb  = xlsxwriter.Workbook(buf, {"in_memory": True})
+    ws  = wb.add_worksheet("Inflow vs Outflow")
+
+    # ── Formats
+    hdr_fmt  = wb.add_format({"bold": True, "bg_color": "#1450f5", "font_color": "#ffffff",
+                               "border": 1, "align": "center", "valign": "vcenter"})
+    name_fmt = wb.add_format({"bold": True, "font_size": 12, "valign": "vcenter"})
+    lbl_fmt  = wb.add_format({"bold": True, "font_color": "#374151", "valign": "vcenter"})
+    num_fmt  = wb.add_format({"num_format": "#,##0", "align": "center", "valign": "vcenter"})
+    tot_fmt  = wb.add_format({"bold": True, "num_format": "#,##0", "bg_color": "#f0f4ff",
+                               "align": "center", "valign": "vcenter"})
+    pct_fmt  = wb.add_format({"num_format": '0.0"%"', "align": "center", "valign": "vcenter"})
+    pct_tot  = wb.add_format({"bold": True, "num_format": '0.0"%"', "bg_color": "#f0f4ff",
+                               "align": "center", "valign": "vcenter"})
+    blank_fmt= wb.add_format({"valign": "vcenter"})
+
+    # ── Column widths
+    ws.set_column(0, 0, 26)                           # Name
+    ws.set_column(1, 1, 18)                           # Metric
+    ws.set_column(2, 2, 10)                           # Total
+    ws.set_column(3, 3 + len(period_labels), 14)      # Period columns
+    ws.set_row(0, 22)
+
+    # ── Header row (row 0)
+    ws.write(0, 0, "Name",   hdr_fmt)
+    ws.write(0, 1, "Metric", hdr_fmt)
+    ws.write(0, 2, "Total",  hdr_fmt)
+    for ci, lbl in enumerate(period_labels):
+        ws.write(0, 3 + ci, lbl, hdr_fmt)
+
+    # ── Assigned row (row 1)
+    ws.write(1, 0, name,       name_fmt)
+    ws.write(1, 1, "Assigned", lbl_fmt)
+    ws.write(1, 2, total_in,   tot_fmt)
+    for ci, v in enumerate(inflows):
+        ws.write(1, 3 + ci, v, num_fmt)
+
+    # ── Resolved row (row 2)
+    ws.write(2, 0, "", blank_fmt)
+    ws.write(2, 1, "Resolved", lbl_fmt)
+    ws.write(2, 2, total_out,  tot_fmt)
+    for ci, v in enumerate(outflows):
+        ws.write(2, 3 + ci, v, num_fmt)
+
+    # ── Resolution Rate row (row 3)
+    ws.write(3, 0, "", blank_fmt)
+    ws.write(3, 1, "Resolution Rate", lbl_fmt)
+    if total_rate is not None:
+        ws.write(3, 2, total_rate, pct_tot)
+    for ci, v in enumerate(rates):
+        if v is not None:
+            ws.write(3, 3 + ci, v, pct_fmt)
+
+    wb.close()
+    buf.seek(0)
+
+    safe_name = name.replace(" ", "_").replace(":", "").lower()
+    filename  = f"inflow_outflow_{safe_name}.xlsx"
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 # ── SLA performance ────────────────────────────────────────────────────────────
 
