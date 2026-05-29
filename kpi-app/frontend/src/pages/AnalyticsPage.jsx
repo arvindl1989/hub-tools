@@ -232,6 +232,7 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
         }
       >
         <InflowOutflowChart data={inflowData} />
+        <InflowOutflowTable data={inflowData} filters={inflow.filters} />
       </Section>
 
       {/* ── 4. SLA Compliance ── */}
@@ -438,6 +439,131 @@ function TogglePill({ options, value, onChange }) {
           {label}
         </button>
       ))}
+    </div>
+  )
+}
+
+// ── Inflow / Outflow table ─────────────────────────────────────────────────────
+
+function _rateStyle(rate) {
+  if (rate === null || rate === undefined) return {}
+  if (rate < 50)   return { background: '#fee2e2', color: '#991b1b' }
+  if (rate < 80)   return { background: '#fecaca', color: '#dc2626' }
+  if (rate < 100)  return { background: '#fef9c3', color: '#854d0e' }
+  if (rate <= 150) return { background: '#dcfce7', color: '#15803d' }
+  return { background: '#bbf7d0', color: '#14532d' }
+}
+
+function _filterName(filters) {
+  if (!filters) return 'All'
+  if (filters.assigned_to) return filters.assigned_to
+  if (filters.team)        return `Team: ${filters.team}`
+  if (filters.area)        return `Area: ${filters.area}`
+  if (filters.sub_category) return filters.sub_category
+  return 'All'
+}
+
+function InflowOutflowTable({ data = [], filters = {} }) {
+  if (!data.length) return null
+
+  const name     = _filterName(filters)
+  const totalIn  = data.reduce((s, r) => s + r.inflow,  0)
+  const totalOut = data.reduce((s, r) => s + r.outflow, 0)
+  const totalRate = totalIn > 0 ? Math.round(totalOut / totalIn * 1000) / 10 : null
+
+  const NAME_W   = 150
+  const METRIC_W = 140
+
+  const stickyBase = (left, bg) => ({
+    position: 'sticky', left, zIndex: 1,
+    background: bg, whiteSpace: 'nowrap',
+  })
+
+  const hdrCell = (extra = {}) => ({
+    padding: '8px 12px', fontSize: 11, fontWeight: 700,
+    background: '#1450f5', color: '#fff',
+    borderRight: '1px solid #3b6fff',
+    textAlign: 'center', whiteSpace: 'nowrap',
+    ...extra,
+  })
+
+  const numCell = (bg = '#fff') => ({
+    padding: '7px 12px', textAlign: 'center',
+    fontSize: 12, color: '#374151',
+    borderRight: '1px solid #f0f3fa',
+    background: bg,
+  })
+
+  return (
+    <div style={{ marginTop: 16, overflowX: 'auto', borderRadius: 8, border: '1px solid #e5e8ef' }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: '100%' }}>
+        <thead>
+          <tr>
+            <th style={{ ...hdrCell({ textAlign: 'left', minWidth: NAME_W }), ...stickyBase(0, '#1450f5') }}>
+              Name
+            </th>
+            <th style={{ ...hdrCell({ textAlign: 'left', minWidth: METRIC_W }), ...stickyBase(NAME_W, '#1450f5') }}>
+              Metric
+            </th>
+            <th style={hdrCell({ minWidth: 72 })}>Total</th>
+            {data.map(r => (
+              <th key={r.period} style={hdrCell({ minWidth: 110 })}>{r.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+
+          {/* ── Assigned ── */}
+          <tr>
+            <td style={{ ...numCell(), ...stickyBase(0, '#fff'), padding: '8px 12px', fontWeight: 700, color: '#111827', borderRight: '1px solid #e5e8ef' }}>
+              {name}
+            </td>
+            <td style={{ ...numCell(), ...stickyBase(NAME_W, '#fff'), padding: '8px 12px', fontWeight: 600, color: '#374151', borderRight: '2px solid #e5e8ef' }}>
+              Assigned
+            </td>
+            <td style={{ ...numCell('#f0f4ff'), fontWeight: 700, color: '#1450f5' }}>
+              {totalIn.toLocaleString()}
+            </td>
+            {data.map(r => (
+              <td key={r.period} style={numCell()}>{r.inflow || '—'}</td>
+            ))}
+          </tr>
+
+          {/* ── Resolved ── */}
+          <tr>
+            <td style={{ ...numCell('#f9fafb'), ...stickyBase(0, '#f9fafb'), padding: '8px 12px', borderRight: '1px solid #e5e8ef' }} />
+            <td style={{ ...numCell('#f9fafb'), ...stickyBase(NAME_W, '#f9fafb'), padding: '8px 12px', fontWeight: 600, color: '#374151', borderRight: '2px solid #e5e8ef' }}>
+              Resolved
+            </td>
+            <td style={{ ...numCell('#f0f4ff'), fontWeight: 700, color: '#1450f5' }}>
+              {totalOut.toLocaleString()}
+            </td>
+            {data.map(r => (
+              <td key={r.period} style={numCell('#f9fafb')}>{r.outflow || '—'}</td>
+            ))}
+          </tr>
+
+          {/* ── Resolution Rate ── */}
+          <tr>
+            <td style={{ ...numCell(), ...stickyBase(0, '#fff'), padding: '8px 12px', borderRight: '1px solid #e5e8ef' }} />
+            <td style={{ ...numCell(), ...stickyBase(NAME_W, '#fff'), padding: '8px 12px', fontWeight: 600, color: '#374151', borderRight: '2px solid #e5e8ef' }}>
+              Resolution Rate
+            </td>
+            <td style={{ ...numCell(), ..._rateStyle(totalRate), fontWeight: 700, textAlign: 'center' }}>
+              {totalRate != null ? `${totalRate}%` : '—'}
+            </td>
+            {data.map(r => {
+              const rate = r.inflow > 0 ? Math.round(r.outflow / r.inflow * 1000) / 10 : null
+              return (
+                <td key={r.period} style={{ ...numCell(), ..._rateStyle(rate), fontWeight: rate != null ? 600 : 400 }}>
+                  {rate != null ? `${rate}%` : '—'}
+                </td>
+              )
+            })}
+          </tr>
+
+        </tbody>
+      </table>
     </div>
   )
 }

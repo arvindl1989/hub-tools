@@ -583,7 +583,7 @@ def inflow_outflow_export(
     wb  = xlsxwriter.Workbook(buf, {"in_memory": True})
     ws  = wb.add_worksheet("Inflow vs Outflow")
 
-    # ── Formats
+    # ── Base formats
     hdr_fmt  = wb.add_format({"bold": True, "bg_color": "#1450f5", "font_color": "#ffffff",
                                "border": 1, "align": "center", "valign": "vcenter"})
     name_fmt = wb.add_format({"bold": True, "font_size": 12, "valign": "vcenter"})
@@ -591,10 +591,29 @@ def inflow_outflow_export(
     num_fmt  = wb.add_format({"num_format": "#,##0", "align": "center", "valign": "vcenter"})
     tot_fmt  = wb.add_format({"bold": True, "num_format": "#,##0", "bg_color": "#f0f4ff",
                                "align": "center", "valign": "vcenter"})
-    pct_fmt  = wb.add_format({"num_format": '0.0"%"', "align": "center", "valign": "vcenter"})
-    pct_tot  = wb.add_format({"bold": True, "num_format": '0.0"%"', "bg_color": "#f0f4ff",
-                               "align": "center", "valign": "vcenter"})
     blank_fmt= wb.add_format({"valign": "vcenter"})
+
+    # ── Resolution-rate conditional formats (cell + total column)
+    def _rate_fmt(bg, fg):
+        return wb.add_format({"bold": True, "num_format": '0.0"%"',
+                               "bg_color": bg, "font_color": fg,
+                               "align": "center", "valign": "vcenter"})
+
+    rate_fmts = [
+        (50,  _rate_fmt("#fee2e2", "#991b1b")),   # < 50  → dark red
+        (80,  _rate_fmt("#fecaca", "#dc2626")),   # 50-80 → light red
+        (100, _rate_fmt("#fef9c3", "#854d0e")),   # 80-99 → yellow
+        (150, _rate_fmt("#dcfce7", "#15803d")),   # 100-150 → green
+        (None,_rate_fmt("#bbf7d0", "#14532d")),   # > 150 → dark green
+    ]
+
+    def _pick_rate_fmt(v):
+        if v is None:
+            return blank_fmt
+        for threshold, fmt in rate_fmts:
+            if threshold is None or v < threshold:
+                return fmt
+        return rate_fmts[-1][1]
 
     # ── Column widths
     ws.set_column(0, 0, 26)                           # Name
@@ -624,14 +643,12 @@ def inflow_outflow_export(
     for ci, v in enumerate(outflows):
         ws.write(2, 3 + ci, v, num_fmt)
 
-    # ── Resolution Rate row (row 3)
+    # ── Resolution Rate row (row 3) — colour-coded cells
     ws.write(3, 0, "", blank_fmt)
     ws.write(3, 1, "Resolution Rate", lbl_fmt)
-    if total_rate is not None:
-        ws.write(3, 2, total_rate, pct_tot)
+    ws.write(3, 2, total_rate if total_rate is not None else "", _pick_rate_fmt(total_rate))
     for ci, v in enumerate(rates):
-        if v is not None:
-            ws.write(3, 3 + ci, v, pct_fmt)
+        ws.write(3, 3 + ci, v if v is not None else "", _pick_rate_fmt(v))
 
     wb.close()
     buf.seek(0)
