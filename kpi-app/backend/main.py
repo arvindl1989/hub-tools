@@ -558,13 +558,13 @@ def inflow_outflow_export(
     inflows       = [r["inflow"]  for r in sorted_periods]
     outflows      = [r["outflow"] for r in sorted_periods]
     rates         = [
-        round(outflows[i] / inflows[i] * 100, 1) if inflows[i] > 0 else None
+        round(outflows[i] / max(inflows[i], 1) * 100, 1) if (inflows[i] > 0 or outflows[i] > 0) else None
         for i in range(len(sorted_periods))
     ]
 
     total_in   = sum(inflows)
     total_out  = sum(outflows)
-    total_rate = round(total_out / total_in * 100, 1) if total_in > 0 else None
+    total_rate = round(total_out / max(total_in, 1) * 100, 1) if (total_in > 0 or total_out > 0) else None
 
     # Derive display name from active filter
     if assigned_to:

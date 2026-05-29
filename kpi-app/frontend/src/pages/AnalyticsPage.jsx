@@ -469,7 +469,7 @@ function InflowOutflowTable({ data = [], filters = {} }) {
   const name     = _filterName(filters)
   const totalIn  = data.reduce((s, r) => s + r.inflow,  0)
   const totalOut = data.reduce((s, r) => s + r.outflow, 0)
-  const totalRate = totalIn > 0 ? Math.round(totalOut / totalIn * 1000) / 10 : null
+  const totalRate = (totalIn > 0 || totalOut > 0) ? Math.round(totalOut / Math.max(totalIn, 1) * 1000) / 10 : null
 
   const NAME_W   = 150
   const METRIC_W = 140
@@ -553,7 +553,7 @@ function InflowOutflowTable({ data = [], filters = {} }) {
               {totalRate != null ? `${totalRate}%` : '—'}
             </td>
             {data.map(r => {
-              const rate = r.inflow > 0 ? Math.round(r.outflow / r.inflow * 1000) / 10 : null
+              const rate = (r.inflow > 0 || r.outflow > 0) ? Math.round(r.outflow / Math.max(r.inflow, 1) * 1000) / 10 : null
               return (
                 <td key={r.period} style={{ ...numCell(), ..._rateStyle(rate), fontWeight: rate != null ? 600 : 400 }}>
                   {rate != null ? `${rate}%` : '—'}
