@@ -5,18 +5,18 @@ const CONFIG = {
   sub_category: { label: 'Sub Category', listKey: 'sub_category_list' },
 }
 
-/**
- * Renders filter dropdowns for chart sections.
- * @param {string[]}  show     - which keys to show, e.g. ['team','area','sub_category']
- * @param {object}    overview - overview response (contains *_list arrays)
- * @param {object}    filters  - current filter values
- * @param {function}  onChange - called with updated filter object
- */
+const SELECT_STYLE = {
+  height: 30, padding: '0 8px', fontSize: 12, color: '#374151',
+  border: '1px solid #e5e7eb', borderRadius: 7, outline: 'none',
+  background: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+}
+
 export default function ChartFilters({ show = [], overview, filters = {}, onChange }) {
   if (!show.length) return null
+  const hasActive = Object.values(filters).some(Boolean)
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       {show.map((key) => {
         const cfg = CONFIG[key]
         if (!cfg) return null
@@ -26,7 +26,11 @@ export default function ChartFilters({ show = [], overview, filters = {}, onChan
             key={key}
             value={filters[key] || ''}
             onChange={(e) => onChange({ ...filters, [key]: e.target.value })}
-            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            style={{
+              ...SELECT_STYLE,
+              color: filters[key] ? '#111827' : '#9ca3af',
+              borderColor: filters[key] ? '#a5b4fc' : '#e5e7eb',
+            }}
           >
             <option value="">All {cfg.label}s</option>
             {options.map((v) => (
@@ -35,13 +39,17 @@ export default function ChartFilters({ show = [], overview, filters = {}, onChan
           </select>
         )
       })}
-      {Object.values(filters).some(Boolean) && (
+
+      {hasActive && (
         <button
           onClick={() => onChange(Object.fromEntries(show.map((k) => [k, ''])))}
-          className="text-xs text-gray-400 hover:text-gray-600 px-1"
-          title="Clear filters"
+          style={{
+            height: 30, padding: '0 10px', fontSize: 12, cursor: 'pointer',
+            background: 'none', color: '#6b7280', fontFamily: 'Inter, sans-serif',
+            border: '1px solid #e5e7eb', borderRadius: 7, whiteSpace: 'nowrap',
+          }}
         >
-          ✕ Clear
+          Clear
         </button>
       )}
     </div>

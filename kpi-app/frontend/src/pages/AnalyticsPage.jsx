@@ -176,23 +176,7 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
         />
       </div>
 
-      {/* ── 2. Team Performance ── */}
-      <Section
-        color={COLOR.indigo}
-        title="Team Performance"
-        subtitle="Workload, SLA compliance and delivery speed per team member"
-        controls={
-          <DateRangePicker
-            dateFrom={teamPerfRange.from}
-            dateTo={teamPerfRange.to}
-            onChange={(from, to) => setTeamPerfRange({ from, to })}
-          />
-        }
-      >
-        <TeamPerformanceTable data={filteredTeamPerf} />
-      </Section>
-
-      {/* ── 3. Inflow vs Outflow ── */}
+      {/* ── 2. Inflow vs Outflow ── */}
       <Section
         color={COLOR.blue}
         title="Inflow vs Outflow"
@@ -233,6 +217,22 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
       >
         <InflowOutflowChart data={inflowData} />
         <InflowOutflowTable data={inflowData} filters={inflow.filters} />
+      </Section>
+
+      {/* ── 3. Team Performance ── */}
+      <Section
+        color={COLOR.indigo}
+        title="Team Performance"
+        subtitle="Workload, SLA compliance and delivery speed per team member"
+        controls={
+          <DateRangePicker
+            dateFrom={teamPerfRange.from}
+            dateTo={teamPerfRange.to}
+            onChange={(from, to) => setTeamPerfRange({ from, to })}
+          />
+        }
+      >
+        <TeamPerformanceTable data={filteredTeamPerf} />
       </Section>
 
       {/* ── 4. SLA Compliance ── */}
@@ -362,29 +362,49 @@ function Section({ color, title, subtitle, controls, children }) {
       border: '1px solid #e5e8ef',
       borderLeft: `3px solid ${color}`,
       boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.04)',
+      overflow: 'hidden',
     }}>
+      {/* Title row — compact, never crowded */}
       <div style={{
-        padding: '14px 20px',
+        padding: '12px 20px',
         borderBottom: '1px solid #f3f4f6',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+        display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: '#111827', lineHeight: 1.3, margin: 0 }}>{title}</h3>
-            {subtitle && <p style={{ fontSize: 11, color: '#9ca3af', margin: '2px 0 0' }}>{subtitle}</p>}
-          </div>
+        <div style={{
+          width: 28, height: 28, borderRadius: 7,
+          background: `${color}18`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />
         </div>
-        {controls && <div style={{ flexShrink: 0 }}>{controls}</div>}
+        <div style={{ minWidth: 0 }}>
+          <h3 style={{ fontSize: 13, fontWeight: 600, color: '#111827', lineHeight: 1.3, margin: 0 }}>{title}</h3>
+          {subtitle && <p style={{ fontSize: 11, color: '#9ca3af', margin: '2px 0 0' }}>{subtitle}</p>}
+        </div>
       </div>
+
+      {/* Controls toolbar — full width, wraps cleanly */}
+      {controls && (
+        <div style={{
+          padding: '10px 20px',
+          borderBottom: '1px solid #f3f4f6',
+          background: '#fafbff',
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+        }}>
+          {controls}
+        </div>
+      )}
+
       <div style={{ padding: 20 }}>{children}</div>
     </div>
   )
 }
 
-// ── KPI card ───────────────────────────────────────────────────────────────────
+// ── Toolbar helpers ────────────────────────────────────────────────────────────
+
+function Controls({ children }) {
+  return <>{children}</>
+}
 
 const TIER = {
   good:    { bar: '#1e8a5e', numColor: '#141414', bg: '#f0fff8', border: '#aae1c8' },
@@ -417,28 +437,32 @@ function KpiCard({ label, value, detail, tier = 'neutral', icon }) {
   )
 }
 
-// ── Toolbar helpers ────────────────────────────────────────────────────────────
-
-function Controls({ children }) {
-  return <div className="flex flex-wrap gap-2 items-center">{children}</div>
-}
-
 function TogglePill({ options, value, onChange }) {
   return (
-    <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-white">
-      {options.map(([v, label]) => (
-        <button
-          key={v}
-          onClick={() => onChange(v)}
-          className="px-3 py-1 text-xs font-medium transition-colors"
-          style={value === v
-            ? { backgroundColor: '#1450f5', color: '#ffffff' }
-            : { color: '#6b7280' }
-          }
-        >
-          {label}
-        </button>
-      ))}
+    <div style={{
+      display: 'flex', borderRadius: 8,
+      border: '1px solid #e5e7eb', overflow: 'hidden',
+      background: '#fff', flexShrink: 0, height: 30,
+    }}>
+      {options.map(([v, label], i) => {
+        const active = value === v
+        return (
+          <button
+            key={v}
+            onClick={() => onChange(v)}
+            style={{
+              padding: '0 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              border: 'none', fontFamily: 'Inter, sans-serif',
+              borderRight: i < options.length - 1 ? '1px solid #e5e7eb' : 'none',
+              background: active ? '#1450f5' : '#fff',
+              color:      active ? '#fff'    : '#6b7280',
+              transition: 'background 0.12s, color 0.12s',
+            }}
+          >
+            {label}
+          </button>
+        )
+      })}
     </div>
   )
 }
