@@ -46,6 +46,12 @@ BANDWIDTH_HOURS_PER_DAY  = 8
 BANDWIDTH_DAYS_PER_WEEK  = 5
 BANDWIDTH_WEEKLY_CAPACITY = BANDWIDTH_HOURS_PER_DAY * BANDWIDTH_DAYS_PER_WEEK  # 40 h
 
+CAPACITY_SETTINGS: dict = {
+    "default_office_days": 220,
+    "people": {},
+    # people[name] = { "office_days": int|null, "allocations": { service: pct } }
+}
+
 # Keys match exact Sub-Category values from the Excel (em-dash –)
 SLA_RULES: dict[str, int] = {
     "Website Content Management": 10,
@@ -896,6 +902,17 @@ def backlog_age(sid: str):
 
 
 # ── Bandwidth config ──────────────────────────────────────────────────────────
+
+@app.get("/api/capacity-settings")
+def get_capacity_settings():
+    return CAPACITY_SETTINGS
+
+@app.put("/api/capacity-settings")
+def update_capacity_settings(settings: dict):
+    CAPACITY_SETTINGS.clear()
+    CAPACITY_SETTINGS.update(settings)
+    return CAPACITY_SETTINGS
+
 
 @app.get("/api/bandwidth-rates")
 def get_bandwidth_rates():

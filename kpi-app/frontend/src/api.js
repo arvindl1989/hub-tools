@@ -196,6 +196,16 @@ export async function getUtilityRate(sid, dateFrom, dateTo, filters = {}) {
   return data
 }
 
+export async function getCapacitySettings() {
+  const { data } = await client.get('/capacity-settings')
+  return data
+}
+
+export async function updateCapacitySettings(settings) {
+  const { data } = await client.put('/capacity-settings', settings)
+  return data
+}
+
 export async function getBandwidth(sid) {
   const { data } = await client.get(`/sessions/${sid}/bandwidth`)
   return data
