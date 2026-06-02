@@ -1501,7 +1501,9 @@ def _apply_dim_filters(
     area:         Optional[str] = None,
     sub_category: Optional[str] = None,
 ) -> pd.DataFrame:
-    if assigned_to  and "assigned_to"  in df.columns: df = df[df["assigned_to"]  == assigned_to]
+    if assigned_to and "assigned_to" in df.columns:
+        names = [n.strip() for n in assigned_to.split(',') if n.strip()]
+        df = df[df["assigned_to"].isin(names)]
     if team         and "team"         in df.columns: df = df[df["team"]         == team]
     if area         and "area"         in df.columns: df = df[df["area"]         == area]
     if sub_category and "sub_category" in df.columns: df = df[df["sub_category"] == sub_category]

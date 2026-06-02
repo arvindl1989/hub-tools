@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend,
@@ -506,6 +506,68 @@ const DtcTT = ({ active, payload, label }) => {
   )
 }
 
+function AssigneeMultiSelect({ options, selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+  const label = selected.length === 0 ? 'All Assignees'
+    : selected.length === 1 ? selected[0]
+    : `${selected.length} selected`
+  const hasSelected = selected.length > 0
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        height: 30, padding: '0 10px', fontSize: 12, borderRadius: 7, background: '#fff', outline: 'none',
+        fontFamily: 'Inter, sans-serif', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+        color: hasSelected ? '#111827' : '#9ca3af', border: `1px solid ${hasSelected ? '#a5b4fc' : '#e5e7eb'}`,
+      }}>
+        {label}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0 }}>
+          <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 200,
+          background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.10)', minWidth: 210, maxHeight: 270, overflowY: 'auto', padding: '6px 0',
+        }}>
+          {options.length === 0 && (
+            <div style={{ padding: '8px 14px', fontSize: 12, color: '#9ca3af' }}>No assignees in data</div>
+          )}
+          {options.map(name => {
+            const checked = selected.includes(name)
+            return (
+              <label key={name} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px',
+                cursor: 'pointer', fontSize: 12, color: '#111827',
+                background: checked ? '#eff6ff' : 'transparent',
+              }}>
+                <input type="checkbox" checked={checked}
+                  onChange={() => onChange(checked ? selected.filter(n => n !== name) : [...selected, name])}
+                  style={{ accentColor: '#1450f5', cursor: 'pointer' }} />
+                {name}
+              </label>
+            )
+          })}
+          {hasSelected && (
+            <div style={{ borderTop: '1px solid #f0f3fa', padding: '6px 14px' }}>
+              <button onClick={() => { onChange([]); setOpen(false) }}
+                style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Inter, sans-serif' }}>
+                Clear selection
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function UtilityRatePage({ sessionId, onSessionExpired }) {
   const [data,       setData]       = useState(null)
   const [loading,    setLoading]    = useState(true)
@@ -513,7 +575,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
   const [dateTo,     setDateTo]     = useState('')
   const [teamF,      setTeamF]      = useState('')
   const [areaF,      setAreaF]      = useState('')
-  const [assigneeF,  setAssigneeF]  = useState('')
+  const [assigneeF,  setAssigneeF]  = useState([])
   const [mode,       setMode]       = useState('all')
   const [ticketSearch, setTicketSearch] = useState('')
   const [showTickets,  setShowTickets]  = useState(false)
@@ -527,7 +589,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
   // Load utility rate data
   useEffect(() => {
     setLoading(true)
-    getUtilityRate(sessionId, dateFrom, dateTo, { team: teamF, area: areaF, assigned_to: assigneeF, mode })
+    getUtilityRate(sessionId, dateFrom, dateTo, { team: teamF, area: areaF, assigned_to: assigneeF.join(','), mode })
       .then(setData)
       .catch(err => { if (err.sessionExpired) onSessionExpired?.() })
       .finally(() => setLoading(false))
@@ -597,7 +659,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
       ? <span style={{ color: '#d1d5db', marginLeft: 3 }}>⇅</span>
       : <span style={{ color: '#1450f5', marginLeft: 3 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
 
-  const hasFilter = teamF || areaF || assigneeF || dateFrom || dateTo
+  const hasFilter = teamF || areaF || assigneeF.length > 0 || dateFrom || dateTo
 
   const hasCapacityPlan = Object.values(capSettings.people || {})
     .some(p => SERVICES.some(s => (p.allocations?.[s] ?? 0) > 0))
@@ -627,9 +689,8 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
         <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
         {[
-          { label: 'All Teams',     val: teamF,     set: setTeamF,     opts: teams },
-          { label: 'All Areas',     val: areaF,     set: setAreaF,     opts: areas },
-          { label: 'All Assignees', val: assigneeF, set: setAssigneeF, opts: assignees },
+          { label: 'All Teams', val: teamF, set: setTeamF, opts: teams },
+          { label: 'All Areas', val: areaF, set: setAreaF, opts: areas },
         ].map(({ label, val, set, opts }) => (
           <select key={label} value={val} onChange={e => set(e.target.value)} style={{
             height: 30, padding: '0 8px', fontSize: 12, borderRadius: 7, background: '#fff', outline: 'none',
@@ -640,8 +701,9 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             {opts.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         ))}
+        <AssigneeMultiSelect options={assignees} selected={assigneeF} onChange={setAssigneeF} />
         {hasFilter && (
-          <button onClick={() => { setTeamF(''); setAreaF(''); setAssigneeF(''); setDateFrom(''); setDateTo('') }}
+          <button onClick={() => { setTeamF(''); setAreaF(''); setAssigneeF([]); setDateFrom(''); setDateTo('') }}
             style={{ height: 30, padding: '0 10px', fontSize: 12, cursor: 'pointer', background: 'none', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
             Clear
           </button>
