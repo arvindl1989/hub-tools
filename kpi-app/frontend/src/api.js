@@ -189,6 +189,13 @@ export async function getUserActivity(sid) {
   return data
 }
 
+export async function getUtilityRate(sid, dateFrom, dateTo, filters = {}) {
+  const { data } = await client.get(`/sessions/${sid}/utility-rate`, {
+    params: _clean({ date_from: dateFrom, date_to: dateTo, ...filters }),
+  })
+  return data
+}
+
 export async function getBandwidth(sid) {
   const { data } = await client.get(`/sessions/${sid}/bandwidth`)
   return data

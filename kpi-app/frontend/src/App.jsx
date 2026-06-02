@@ -9,6 +9,7 @@ import AnalyticsPage     from './pages/AnalyticsPage'
 import UserActivityPage  from './pages/UserActivityPage'
 import BandwidthPage     from './pages/BandwidthPage'
 import InsightsPage      from './pages/InsightsPage'
+import UtilityRatePage  from './pages/UtilityRatePage'
 import SlaConfigModal    from './components/SlaConfigModal'
 
 const TABS = [
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'user-activity', label: 'User Activity',    icon: <UsersIcon /> },
   { id: 'bandwidth',     label: 'Bandwidth',        icon: <BoltIcon /> },
   { id: 'insights',      label: 'Insights',         icon: <SparklesIcon /> },
+  { id: 'utility-rate', label: 'Utility Rate',     icon: <GaugeIcon /> },
 ]
 
 export default function App() {
@@ -156,6 +158,7 @@ export default function App() {
           {activeTab === 'user-activity' && <UserActivityPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'bandwidth'     && <BandwidthPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'insights'      && <InsightsPage     sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
+          {activeTab === 'utility-rate' && <UtilityRatePage  sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
         </div>
       </main>
 
@@ -295,5 +298,8 @@ function BoltIcon() {
 }
 function SparklesIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3L13.5 8.5L19 10L13.5 11.5L12 17L10.5 11.5L5 10L10.5 8.5Z"/><path d="M19 3L19.75 5.25L22 6L19.75 6.75L19 9L18.25 6.75L16 6L18.25 5.25Z"/><path d="M5 17L5.5 18.5L7 19L5.5 19.5L5 21L4.5 19.5L3 19L4.5 18.5Z"/></svg>
+}
+function GaugeIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10"/><path d="M12 16V12"/><path d="M8 12H4"/><path d="M16 12h-1"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
 }
 

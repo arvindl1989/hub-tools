@@ -972,6 +972,157 @@ def bandwidth_tracker(sid: str):
     }
 
 
+# ── Utility Rate ───────────────────────────────────────────────────────────────
+
+@app.get("/api/sessions/{sid}/utility-rate")
+def utility_rate(
+    sid: str,
+    date_from:   Optional[str] = None,
+    date_to:     Optional[str] = None,
+    team:        Optional[str] = None,
+    area:        Optional[str] = None,
+    assigned_to: Optional[str] = None,
+):
+    df = _get_session(sid)
+
+    # Filter options come from the full unfiltered session
+    filter_options: dict = {
+        "teams":     sorted(df["team"].dropna().unique().tolist())        if "team"        in df.columns else [],
+        "areas":     sorted(df["area"].dropna().unique().tolist())        if "area"        in df.columns else [],
+        "assignees": sorted(df["assigned_to"].dropna().unique().tolist()) if "assigned_to" in df.columns else [],
+    }
+
+    filtered = _filter_by_range(df, "created_date", date_from, date_to)
+    filtered = _apply_dim_filters(filtered, assigned_to=assigned_to, team=team, area=area)
+
+    hours_per_ticket = {sc: BANDWIDTH_HOURS_PER_DAY / rate for sc, rate in BANDWIDTH_RATES.items()}
+
+    # ── Span calculation ──────────────────────────────────────────────────────
+    if date_from and date_to:
+        try:
+            span_days = (pd.Timestamp(date_to) - pd.Timestamp(date_from)).days + 1
+        except Exception:
+            span_days = 7
+    elif "created_date" in filtered.columns and len(filtered) > 0:
+        cd = filtered["created_date"].dropna()
+        span_days = max(int((cd.max() - cd.min()).days) + 1, 1) if len(cd) > 1 else 7
+    else:
+        span_days = 7
+    span_weeks = max(span_days / 7.0, 1.0)
+
+    # ── By service ────────────────────────────────────────────────────────────
+    by_service = []
+    for sc, hpt in hours_per_ticket.items():
+        cnt = int((filtered["sub_category"] == sc).sum()) if "sub_category" in filtered.columns else 0
+        by_service.append({
+            "service":          sc,
+            "tickets":          cnt,
+            "hours_per_ticket": round(hpt, 2),
+            "committed_hours":  round(cnt * hpt, 1),
+        })
+
+    # ── By assignee ───────────────────────────────────────────────────────────
+    by_assignee: list[dict] = []
+    if "assigned_to" in filtered.columns:
+        for person in sorted(filtered["assigned_to"].dropna().unique()):
+            pdf = filtered[filtered["assigned_to"] == person]
+            breakdown: dict[str, int] = {}
+            committed = 0.0
+            for sc, hpt in hours_per_ticket.items():
+                if "sub_category" in pdf.columns:
+                    cnt = int((pdf["sub_category"] == sc).sum())
+                    if cnt:
+                        breakdown[sc] = cnt
+                        committed += cnt * hpt
+            individual_cap = round(BANDWIDTH_WEEKLY_CAPACITY * span_weeks, 1)
+            util_pct = round(committed / individual_cap * 100, 1) if individual_cap > 0 else 0.0
+            by_assignee.append({
+                "assigned_to":     person,
+                "total_tickets":   int(len(pdf)),
+                "tracked_tickets": sum(breakdown.values()),
+                "breakdown":       breakdown,
+                "committed_hours": round(committed, 1),
+                "capacity_hours":  individual_cap,
+                "utility_pct":     util_pct,
+                "status":          "Overloaded" if util_pct >= 85 else "Busy" if util_pct >= 60 else "Available",
+            })
+        by_assignee.sort(key=lambda x: x["utility_pct"], reverse=True)
+
+    team_size = len(by_assignee)
+    total_committed_h = round(sum(r["committed_hours"] for r in by_assignee), 1)
+    total_capacity_h  = round(team_size * BANDWIDTH_WEEKLY_CAPACITY * span_weeks, 1)
+    team_util_pct     = round(total_committed_h / total_capacity_h * 100, 1) if total_capacity_h > 0 else 0.0
+
+    # Enrich service rows with % share of total capacity
+    for sr in by_service:
+        sr["team_util_pct"] = round(sr["committed_hours"] / total_capacity_h * 100, 1) if total_capacity_h > 0 else 0.0
+
+    # ── Weekly trend ──────────────────────────────────────────────────────────
+    weekly_trend: list[dict] = []
+    if "created_date" in filtered.columns and "sub_category" in filtered.columns and len(filtered) > 0:
+        tracked = filtered[filtered["sub_category"].isin(hours_per_ticket)].copy()
+        if len(tracked) > 0:
+            tracked["_week"]  = tracked["created_date"].dt.to_period("W").apply(lambda p: p.start_time.date())
+            tracked["_hours"] = tracked["sub_category"].map(hours_per_ticket)
+            weekly_per_svc = tracked.groupby(["_week", "sub_category"])["_hours"].sum().reset_index()
+            weekly_h = tracked.groupby("_week")["_hours"].sum()
+            weekly_cap = team_size * BANDWIDTH_WEEKLY_CAPACITY if team_size > 0 else BANDWIDTH_WEEKLY_CAPACITY
+            svc_weekly: dict = {}
+            for _, row in weekly_per_svc.iterrows():
+                wk = str(row["_week"])
+                svc_weekly.setdefault(wk, {})
+                svc_weekly[wk][row["sub_category"]] = round(float(row["_hours"]), 1)
+            weekly_trend = [
+                {
+                    "week":            str(w),
+                    "label":           _week_label(w),
+                    "committed_hours": round(float(h), 1),
+                    "capacity_hours":  round(weekly_cap, 1),
+                    "utility_pct":     round(float(h) / weekly_cap * 100, 1) if weekly_cap > 0 else 0.0,
+                    "by_service":      svc_weekly.get(str(w), {}),
+                }
+                for w, h in weekly_h.sort_index().items()
+            ]
+
+    # ── By ticket ─────────────────────────────────────────────────────────────
+    by_ticket: list[dict] = []
+    if "sub_category" in filtered.columns:
+        tracked_df = filtered[filtered["sub_category"].isin(hours_per_ticket)].copy()
+        if len(tracked_df) > 0:
+            tracked_df["_est_h"] = tracked_df["sub_category"].map(hours_per_ticket)
+            for col in ["ticket_number", "short_description", "assigned_to", "state"]:
+                if col not in tracked_df.columns:
+                    tracked_df[col] = ""
+            tracked_df = tracked_df.sort_values("created_date", ascending=False).head(500)
+            by_ticket = [
+                {
+                    "ticket_number":     str(r.get("ticket_number", "")).strip(),
+                    "short_description": str(r.get("short_description", ""))[:80].strip(),
+                    "sub_category":      str(r.get("sub_category", "")),
+                    "assigned_to":       str(r.get("assigned_to", "")).strip(),
+                    "created_date":      str(r.get("created_date", ""))[:10],
+                    "state":             str(r.get("state", "")).strip(),
+                    "estimated_hours":   round(float(r.get("_est_h", 0)), 2),
+                }
+                for r in tracked_df.to_dict("records")
+            ]
+
+    return {
+        "span_days":          span_days,
+        "span_weeks":         round(span_weeks, 1),
+        "team_size":          team_size,
+        "total_capacity_h":   total_capacity_h,
+        "total_committed_h":  total_committed_h,
+        "team_util_pct":      team_util_pct,
+        "hours_per_ticket":   {sc: round(h, 2) for sc, h in hours_per_ticket.items()},
+        "by_service":         by_service,
+        "by_assignee":        by_assignee,
+        "weekly_trend":       weekly_trend,
+        "by_ticket":          by_ticket,
+        "filter_options":     filter_options,
+    }
+
+
 # ── User ticket activity ───────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/user-activity")
