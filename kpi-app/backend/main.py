@@ -982,17 +982,22 @@ def utility_rate(
     team:        Optional[str] = None,
     area:        Optional[str] = None,
     assigned_to: Optional[str] = None,
+    mode:        str = "all",   # "all" | "closed"
 ):
     df = _get_session(sid)
 
-    # Filter options come from the full unfiltered session
     filter_options: dict = {
         "teams":     sorted(df["team"].dropna().unique().tolist())        if "team"        in df.columns else [],
         "areas":     sorted(df["area"].dropna().unique().tolist())        if "area"        in df.columns else [],
         "assignees": sorted(df["assigned_to"].dropna().unique().tolist()) if "assigned_to" in df.columns else [],
     }
 
-    filtered = _filter_by_range(df, "created_date", date_from, date_to)
+    CLOSED_STATES = {"Closed Completed", "Confirmation Completed"}
+    date_col = "closed_date" if mode == "closed" else "created_date"
+
+    filtered = _filter_by_range(df, date_col, date_from, date_to)
+    if mode == "closed" and "state" in filtered.columns:
+        filtered = filtered[filtered["state"].isin(CLOSED_STATES)]
     filtered = _apply_dim_filters(filtered, assigned_to=assigned_to, team=team, area=area)
 
     hours_per_ticket = {sc: BANDWIDTH_HOURS_PER_DAY / rate for sc, rate in BANDWIDTH_RATES.items()}
@@ -1003,8 +1008,8 @@ def utility_rate(
             span_days = (pd.Timestamp(date_to) - pd.Timestamp(date_from)).days + 1
         except Exception:
             span_days = 7
-    elif "created_date" in filtered.columns and len(filtered) > 0:
-        cd = filtered["created_date"].dropna()
+    elif date_col in filtered.columns and len(filtered) > 0:
+        cd = filtered[date_col].dropna()
         span_days = max(int((cd.max() - cd.min()).days) + 1, 1) if len(cd) > 1 else 7
     else:
         span_days = 7
@@ -1036,15 +1041,32 @@ def utility_rate(
                         committed += cnt * hpt
             individual_cap = round(BANDWIDTH_WEEKLY_CAPACITY * span_weeks, 1)
             util_pct = round(committed / individual_cap * 100, 1) if individual_cap > 0 else 0.0
+
+            avg_days_to_close = None
+            min_days_to_close = None
+            max_days_to_close = None
+            if mode == "closed" and "created_date" in pdf.columns and "closed_date" in pdf.columns:
+                res = pdf.dropna(subset=["created_date", "closed_date"]).copy()
+                if len(res):
+                    res["_dtc"] = (res["closed_date"] - res["created_date"]).dt.days.clip(lower=0)
+                    valid = res["_dtc"].dropna()
+                    if len(valid):
+                        avg_days_to_close = round(float(valid.mean()), 1)
+                        min_days_to_close = int(valid.min())
+                        max_days_to_close = int(valid.max())
+
             by_assignee.append({
-                "assigned_to":     person,
-                "total_tickets":   int(len(pdf)),
-                "tracked_tickets": sum(breakdown.values()),
-                "breakdown":       breakdown,
-                "committed_hours": round(committed, 1),
-                "capacity_hours":  individual_cap,
-                "utility_pct":     util_pct,
-                "status":          "Overloaded" if util_pct >= 85 else "Busy" if util_pct >= 60 else "Available",
+                "assigned_to":       person,
+                "total_tickets":     int(len(pdf)),
+                "tracked_tickets":   sum(breakdown.values()),
+                "breakdown":         breakdown,
+                "committed_hours":   round(committed, 1),
+                "capacity_hours":    individual_cap,
+                "utility_pct":       util_pct,
+                "status":            "Overloaded" if util_pct >= 85 else "Busy" if util_pct >= 60 else "Available",
+                "avg_days_to_close": avg_days_to_close,
+                "min_days_to_close": min_days_to_close,
+                "max_days_to_close": max_days_to_close,
             })
         by_assignee.sort(key=lambda x: x["utility_pct"], reverse=True)
 
@@ -1053,16 +1075,24 @@ def utility_rate(
     total_capacity_h  = round(team_size * BANDWIDTH_WEEKLY_CAPACITY * span_weeks, 1)
     team_util_pct     = round(total_committed_h / total_capacity_h * 100, 1) if total_capacity_h > 0 else 0.0
 
-    # Enrich service rows with % share of total capacity
     for sr in by_service:
         sr["team_util_pct"] = round(sr["committed_hours"] / total_capacity_h * 100, 1) if total_capacity_h > 0 else 0.0
 
+    overall_avg_days_to_close = None
+    if mode == "closed" and "created_date" in filtered.columns and "closed_date" in filtered.columns:
+        res = filtered.dropna(subset=["created_date", "closed_date"]).copy()
+        if len(res):
+            res["_dtc"] = (res["closed_date"] - res["created_date"]).dt.days.clip(lower=0)
+            valid = res["_dtc"].dropna()
+            if len(valid):
+                overall_avg_days_to_close = round(float(valid.mean()), 1)
+
     # ── Weekly trend ──────────────────────────────────────────────────────────
     weekly_trend: list[dict] = []
-    if "created_date" in filtered.columns and "sub_category" in filtered.columns and len(filtered) > 0:
+    if date_col in filtered.columns and "sub_category" in filtered.columns and len(filtered) > 0:
         tracked = filtered[filtered["sub_category"].isin(hours_per_ticket)].copy()
         if len(tracked) > 0:
-            tracked["_week"]  = tracked["created_date"].dt.to_period("W").apply(lambda p: p.start_time.date())
+            tracked["_week"]  = tracked[date_col].dt.to_period("W").apply(lambda p: p.start_time.date())
             tracked["_hours"] = tracked["sub_category"].map(hours_per_ticket)
             weekly_per_svc = tracked.groupby(["_week", "sub_category"])["_hours"].sum().reset_index()
             weekly_h = tracked.groupby("_week")["_hours"].sum()
@@ -1072,14 +1102,24 @@ def utility_rate(
                 wk = str(row["_week"])
                 svc_weekly.setdefault(wk, {})
                 svc_weekly[wk][row["sub_category"]] = round(float(row["_hours"]), 1)
+
+            weekly_dtc: dict = {}
+            if mode == "closed" and "created_date" in tracked.columns and "closed_date" in tracked.columns:
+                dtc_df = tracked.dropna(subset=["created_date", "closed_date"]).copy()
+                if len(dtc_df):
+                    dtc_df["_dtc"] = (dtc_df["closed_date"] - dtc_df["created_date"]).dt.days.clip(lower=0)
+                    wk_dtc = dtc_df.groupby("_week")["_dtc"].mean()
+                    weekly_dtc = {str(w): round(float(v), 1) for w, v in wk_dtc.items()}
+
             weekly_trend = [
                 {
-                    "week":            str(w),
-                    "label":           _week_label(w),
-                    "committed_hours": round(float(h), 1),
-                    "capacity_hours":  round(weekly_cap, 1),
-                    "utility_pct":     round(float(h) / weekly_cap * 100, 1) if weekly_cap > 0 else 0.0,
-                    "by_service":      svc_weekly.get(str(w), {}),
+                    "week":              str(w),
+                    "label":             _week_label(w),
+                    "committed_hours":   round(float(h), 1),
+                    "capacity_hours":    round(weekly_cap, 1),
+                    "utility_pct":       round(float(h) / weekly_cap * 100, 1) if weekly_cap > 0 else 0.0,
+                    "by_service":        svc_weekly.get(str(w), {}),
+                    "avg_days_to_close": weekly_dtc.get(str(w)),
                 }
                 for w, h in weekly_h.sort_index().items()
             ]
@@ -1093,33 +1133,48 @@ def utility_rate(
             for col in ["ticket_number", "short_description", "assigned_to", "state"]:
                 if col not in tracked_df.columns:
                     tracked_df[col] = ""
-            tracked_df = tracked_df.sort_values("created_date", ascending=False).head(500)
-            by_ticket = [
-                {
+            sort_col = "closed_date" if (mode == "closed" and "closed_date" in tracked_df.columns) else "created_date"
+            tracked_df = tracked_df.sort_values(sort_col, ascending=False).head(500)
+            has_dtc = mode == "closed" and "created_date" in tracked_df.columns and "closed_date" in tracked_df.columns
+            rows_out = []
+            for r in tracked_df.to_dict("records"):
+                dtc = None
+                if has_dtc:
+                    cd  = r.get("created_date")
+                    cld = r.get("closed_date")
+                    if pd.notna(cd) and pd.notna(cld):
+                        try:
+                            dtc = max(0, int((pd.Timestamp(cld) - pd.Timestamp(cd)).days))
+                        except Exception:
+                            pass
+                rows_out.append({
                     "ticket_number":     str(r.get("ticket_number", "")).strip(),
                     "short_description": str(r.get("short_description", ""))[:80].strip(),
                     "sub_category":      str(r.get("sub_category", "")),
                     "assigned_to":       str(r.get("assigned_to", "")).strip(),
                     "created_date":      str(r.get("created_date", ""))[:10],
+                    "closed_date":       str(r.get("closed_date", ""))[:10] if has_dtc else None,
                     "state":             str(r.get("state", "")).strip(),
                     "estimated_hours":   round(float(r.get("_est_h", 0)), 2),
-                }
-                for r in tracked_df.to_dict("records")
-            ]
+                    "days_to_close":     dtc,
+                })
+            by_ticket = rows_out
 
     return {
-        "span_days":          span_days,
-        "span_weeks":         round(span_weeks, 1),
-        "team_size":          team_size,
-        "total_capacity_h":   total_capacity_h,
-        "total_committed_h":  total_committed_h,
-        "team_util_pct":      team_util_pct,
-        "hours_per_ticket":   {sc: round(h, 2) for sc, h in hours_per_ticket.items()},
-        "by_service":         by_service,
-        "by_assignee":        by_assignee,
-        "weekly_trend":       weekly_trend,
-        "by_ticket":          by_ticket,
-        "filter_options":     filter_options,
+        "mode":                      mode,
+        "span_days":                 span_days,
+        "span_weeks":                round(span_weeks, 1),
+        "team_size":                 team_size,
+        "total_capacity_h":          total_capacity_h,
+        "total_committed_h":         total_committed_h,
+        "team_util_pct":             team_util_pct,
+        "hours_per_ticket":          {sc: round(h, 2) for sc, h in hours_per_ticket.items()},
+        "by_service":                by_service,
+        "by_assignee":               by_assignee,
+        "weekly_trend":              weekly_trend,
+        "by_ticket":                 by_ticket,
+        "filter_options":            filter_options,
+        "overall_avg_days_to_close": overall_avg_days_to_close,
     }
 
 

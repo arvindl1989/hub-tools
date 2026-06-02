@@ -7,7 +7,6 @@ import {
 import { getUtilityRate } from '../api'
 import DateRangePicker from '../components/DateRangePicker'
 
-/* ── Constants ──────────────────────────────────────────────────────────────── */
 const SERVICES = [
   'Website Content Management',
   'Content Production – Graphic Design',
@@ -29,7 +28,6 @@ const SERVICE_COLORS = {
   'Email – Local':                       '#10b981',
   'Retention – Activations':             '#f59e0b',
 }
-
 const STATUS_CFG = {
   Available:  { color: '#1e8a5e', bg: '#ecfdf5', border: '#6ee7b7' },
   Busy:       { color: '#b87d00', bg: '#fffbeb', border: '#fcd34d' },
@@ -41,14 +39,17 @@ function utilColor(pct) {
   if (pct >= 60) return '#b87d00'
   return '#1e8a5e'
 }
+function dtcColor(days) {
+  if (days == null) return '#9ca3af'
+  if (days <= 7)  return '#1e8a5e'
+  if (days <= 14) return '#b87d00'
+  if (days <= 30) return '#e86427'
+  return '#c0305a'
+}
 
-/* ── Tiny shared components ─────────────────────────────────────────────────── */
 function StatCard({ label, value, sub, color, bg, border }) {
   return (
-    <div style={{
-      background: bg || '#fff', border: `1px solid ${border || '#e5e8ef'}`, borderRadius: 12,
-      padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 150,
-    }}>
+    <div style={{ background: bg || '#fff', border: `1px solid ${border || '#e5e8ef'}`, borderRadius: 12, padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 150 }}>
       <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
       <span style={{ fontSize: 30, fontWeight: 800, color: color || '#111827', lineHeight: 1 }}>{value}</span>
       {sub && <span style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{sub}</span>}
@@ -56,46 +57,26 @@ function StatCard({ label, value, sub, color, bg, border }) {
   )
 }
 
-function LoadBar({ pct, showLabel = true }) {
-  const capped = Math.min(pct, 100)
+function LoadBar({ pct }) {
   const col = utilColor(pct)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
       <div style={{ flex: 1, height: 7, background: '#f0f3fa', borderRadius: 4, overflow: 'hidden', minWidth: 60 }}>
-        <div style={{ height: '100%', width: `${capped}%`, background: col, borderRadius: 4, transition: 'width 0.3s' }} />
+        <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: col, borderRadius: 4 }} />
       </div>
-      {showLabel && <span style={{ fontSize: 12, fontWeight: 700, color: col, minWidth: 42, textAlign: 'right' }}>{pct}%</span>}
+      <span style={{ fontSize: 12, fontWeight: 700, color: col, minWidth: 42, textAlign: 'right' }}>{pct}%</span>
     </div>
   )
 }
 
 function SectionCard({ title, subtitle, children, accent = '#1450f5' }) {
   return (
-    <div style={{
-      background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef',
-      borderLeft: `3px solid ${accent}`,
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-      overflow: 'hidden',
-    }}>
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', borderLeft: `3px solid ${accent}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
       <div style={{ padding: '12px 20px', borderBottom: '1px solid #f3f4f6' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{title}</div>
         {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
       </div>
       <div style={{ padding: 20 }}>{children}</div>
-    </div>
-  )
-}
-
-const CustomTT = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div>
-      {payload.map(p => (
-        <div key={p.name} style={{ color: p.color || '#374151', marginBottom: 2 }}>
-          {p.name}: <strong>{p.value}{p.name === 'Utility %' ? '%' : ' hrs'}</strong>
-        </div>
-      ))}
     </div>
   )
 }
@@ -111,49 +92,58 @@ const PieTT = ({ active, payload }) => {
   )
 }
 
-/* ── Main page ──────────────────────────────────────────────────────────────── */
+const DtcTT = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null
+  const d = payload[0].payload
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div>
+      <div style={{ color: dtcColor(d.avg_days_to_close) }}>Avg: <strong>{d.avg_days_to_close}d</strong></div>
+      {d.min_days_to_close != null && d.min_days_to_close !== d.max_days_to_close && (
+        <div style={{ color: '#9ca3af', fontSize: 11 }}>Range: {d.min_days_to_close}d – {d.max_days_to_close}d</div>
+      )}
+      <div style={{ color: '#1450f5', marginTop: 2 }}>Tickets: <strong>{d.tracked_tickets}</strong></div>
+    </div>
+  )
+}
+
 export default function UtilityRatePage({ sessionId, onSessionExpired }) {
-  const [data,    setData]    = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo,   setDateTo]   = useState('')
-  const [teamF,    setTeamF]    = useState('')
-  const [areaF,    setAreaF]    = useState('')
-  const [assigneeF, setAssigneeF] = useState('')
+  const [data,       setData]       = useState(null)
+  const [loading,    setLoading]    = useState(true)
+  const [dateFrom,   setDateFrom]   = useState('')
+  const [dateTo,     setDateTo]     = useState('')
+  const [teamF,      setTeamF]      = useState('')
+  const [areaF,      setAreaF]      = useState('')
+  const [assigneeF,  setAssigneeF]  = useState('')
+  const [mode,       setMode]       = useState('all')
   const [ticketSearch, setTicketSearch] = useState('')
-  const [showTickets, setShowTickets]   = useState(false)
+  const [showTickets,  setShowTickets]  = useState(false)
   const [sortCol, setSortCol] = useState('utility_pct')
   const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => {
     setLoading(true)
-    getUtilityRate(sessionId, dateFrom, dateTo, {
-      team: teamF, area: areaF, assigned_to: assigneeF,
-    })
+    getUtilityRate(sessionId, dateFrom, dateTo, { team: teamF, area: areaF, assigned_to: assigneeF, mode })
       .then(setData)
       .catch(err => { if (err.sessionExpired) onSessionExpired?.() })
       .finally(() => setLoading(false))
-  }, [sessionId, dateFrom, dateTo, teamF, areaF, assigneeF])
+  }, [sessionId, dateFrom, dateTo, teamF, areaF, assigneeF, mode])
 
   const teams     = data?.filter_options?.teams     ?? []
   const areas     = data?.filter_options?.areas     ?? []
   const assignees = data?.filter_options?.assignees ?? []
+  const isClosed  = mode === 'closed'
 
-  // Pie chart data — service mix by committed hours
   const servicePieData = useMemo(() => {
     if (!data) return []
     const totalH = data.total_committed_h || 1
-    return (data.by_service || [])
-      .filter(r => r.committed_hours > 0)
-      .map(r => ({
-        name: r.service,
-        value: r.committed_hours,
-        fill: SERVICE_COLORS[r.service] || '#94a3b8',
-        pct: Math.round(r.committed_hours / totalH * 100),
-      }))
+    return (data.by_service || []).filter(r => r.committed_hours > 0).map(r => ({
+      name: r.service, value: r.committed_hours,
+      fill: SERVICE_COLORS[r.service] || '#94a3b8',
+      pct: Math.round(r.committed_hours / totalH * 100),
+    }))
   }, [data])
 
-  // Sorted assignees
   const sortedAssignees = useMemo(() => {
     if (!data?.by_assignee) return []
     return [...data.by_assignee].sort((a, b) => {
@@ -161,6 +151,19 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
       return sortDir === 'asc' ? av - bv : bv - av
     })
   }, [data, sortCol, sortDir])
+
+  // For closed-mode charts — sorted for horizontal bar readability (asc = highest at top in recharts)
+  const assigneesByHours = useMemo(() =>
+    !data?.by_assignee ? [] :
+    [...data.by_assignee].filter(r => r.committed_hours > 0)
+      .sort((a, b) => a.committed_hours - b.committed_hours)
+  , [data])
+
+  const assigneesByDtc = useMemo(() =>
+    !data?.by_assignee ? [] :
+    [...data.by_assignee].filter(r => r.avg_days_to_close != null)
+      .sort((a, b) => b.avg_days_to_close - a.avg_days_to_close)
+  , [data])
 
   function toggleSort(col) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -179,18 +182,16 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
     )
   }, [data, ticketSearch])
 
-  const SortIcon = ({ col }) => {
-    if (sortCol !== col) return <span style={{ color: '#d1d5db', marginLeft: 3 }}>↕</span>
-    return <span style={{ color: '#1450f5', marginLeft: 3 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
-  }
+  const SortIcon = ({ col }) =>
+    sortCol !== col
+      ? <span style={{ color: '#d1d5db', marginLeft: 3 }}>⇅</span>
+      : <span style={{ color: '#1450f5', marginLeft: 3 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
 
   const hasFilter = teamF || areaF || assigneeF || dateFrom || dateTo
 
-  /* ── Render ──────────────────────────────────────────────────────────────── */
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Header */}
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>Utility Rate</h2>
         <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>
@@ -199,30 +200,35 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
       </div>
 
       {/* Filter bar */}
-      <div style={{
-        background: '#fff', border: '1px solid #e5e8ef', borderRadius: 12,
-        padding: '12px 18px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center',
-      }}>
-        <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
-
+      <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 12, padding: '12px 18px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 8, padding: 3, gap: 2, flexShrink: 0 }}>
+          {[['all', 'All Tracked'], ['closed', 'Closed Only']].map(([val, lbl]) => (
+            <button key={val} onClick={() => setMode(val)} style={{
+              padding: '5px 14px', fontSize: 12, fontWeight: mode === val ? 700 : 500,
+              color: mode === val ? '#fff' : '#6b7280',
+              background: mode === val ? '#1450f5' : 'transparent',
+              border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+            }}>{lbl}</button>
+          ))}
+        </div>
         <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
-
+        <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
+        <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
         {[
-          { label: 'All Teams',    val: teamF,    set: setTeamF,    opts: teams },
-          { label: 'All Areas',    val: areaF,    set: setAreaF,    opts: areas },
-          { label: 'All Assignees',val: assigneeF,set: setAssigneeF,opts: assignees },
+          { label: 'All Teams',     val: teamF,     set: setTeamF,     opts: teams },
+          { label: 'All Areas',     val: areaF,     set: setAreaF,     opts: areas },
+          { label: 'All Assignees', val: assigneeF, set: setAssigneeF, opts: assignees },
         ].map(({ label, val, set, opts }) => (
           <select key={label} value={val} onChange={e => set(e.target.value)} style={{
-            height: 30, padding: '0 8px', fontSize: 12, border: '1px solid #e5e7eb',
-            borderRadius: 7, background: '#fff', color: val ? '#111827' : '#9ca3af',
-            fontFamily: 'Inter, sans-serif', cursor: 'pointer', outline: 'none',
-            borderColor: val ? '#a5b4fc' : '#e5e7eb',
+            height: 30, padding: '0 8px', fontSize: 12, borderRadius: 7, background: '#fff', outline: 'none',
+            fontFamily: 'Inter, sans-serif', cursor: 'pointer',
+            color: val ? '#111827' : '#9ca3af', border: `1px solid ${val ? '#a5b4fc' : '#e5e7eb'}`,
           }}>
             <option value="">{label}</option>
             {opts.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         ))}
-
         {hasFilter && (
           <button onClick={() => { setTeamF(''); setAreaF(''); setAssigneeF(''); setDateFrom(''); setDateTo('') }}
             style={{ height: 30, padding: '0 10px', fontSize: 12, cursor: 'pointer', background: 'none', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
@@ -243,37 +249,47 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         {/* KPI cards */}
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
           <StatCard
-            label="Team Utility Rate"
+            label={isClosed ? 'Delivered Utility Rate' : 'Team Utility Rate'}
             value={`${data.team_util_pct}%`}
-            sub={`${data.total_committed_h} h committed of ${data.total_capacity_h} h capacity`}
+            sub={`${data.total_committed_h}h committed of ${data.total_capacity_h}h capacity`}
             color={utilColor(data.team_util_pct)}
             bg={data.team_util_pct >= 85 ? '#fff1f2' : data.team_util_pct >= 60 ? '#fffbeb' : '#ecfdf5'}
             border={data.team_util_pct >= 85 ? '#fda4af' : data.team_util_pct >= 60 ? '#fcd34d' : '#6ee7b7'}
           />
-          <StatCard label="Committed Hours" value={`${data.total_committed_h}h`} sub="estimated hours in tracked tickets" color="#1450f5" bg="#eff6ff" border="#c7d7fd" />
-          <StatCard label="Available Capacity" value={`${Math.max(0, data.total_capacity_h - data.total_committed_h)}h`} sub={`${data.team_size} people × 40h × ${data.span_weeks}w`} />
+          <StatCard
+            label={isClosed ? 'Hours Delivered' : 'Committed Hours'}
+            value={`${data.total_committed_h}h`}
+            sub={isClosed ? 'estimated hours across closed tickets' : 'estimated hours in tracked tickets'}
+            color="#1450f5" bg="#eff6ff" border="#c7d7fd"
+          />
+          {isClosed && data.overall_avg_days_to_close != null ? (
+            <StatCard
+              label="Avg Days to Close"
+              value={`${data.overall_avg_days_to_close}d`}
+              sub="calendar days from created to closed"
+              color={dtcColor(data.overall_avg_days_to_close)}
+              bg={data.overall_avg_days_to_close <= 7 ? '#ecfdf5' : data.overall_avg_days_to_close <= 14 ? '#fffbeb' : '#fff1f2'}
+              border={data.overall_avg_days_to_close <= 7 ? '#6ee7b7' : data.overall_avg_days_to_close <= 14 ? '#fcd34d' : '#fda4af'}
+            />
+          ) : (
+            <StatCard label="Available Capacity" value={`${Math.max(0, data.total_capacity_h - data.total_committed_h)}h`} sub={`${data.team_size} people × 40h × ${data.span_weeks}w`} />
+          )}
           <StatCard label="Time Span" value={`${data.span_weeks}w`} sub={`${data.span_days} calendar days`} />
           <StatCard label="Team Size" value={data.team_size} sub="assignees with tracked tickets" />
         </div>
 
-        {/* Team gauge + service mix */}
+        {/* Gauge + donut */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 16 }}>
-
-          {/* Gauge */}
-          <SectionCard title="Overall Team Utilisation" accent="#1450f5">
+          <SectionCard title={isClosed ? 'Delivered Team Utilisation' : 'Overall Team Utilisation'} accent="#1450f5">
             <div style={{ textAlign: 'center', padding: '8px 0' }}>
               <div style={{
                 width: 140, height: 140, borderRadius: '50%', margin: '0 auto 16px',
                 background: `conic-gradient(${utilColor(data.team_util_pct)} 0% ${Math.min(data.team_util_pct, 100)}%, #f0f3fa ${Math.min(data.team_util_pct, 100)}% 100%)`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                position: 'relative',
               }}>
-                <div style={{
-                  width: 100, height: 100, borderRadius: '50%', background: '#fff',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                }}>
+                <div style={{ width: 100, height: 100, borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontSize: 26, fontWeight: 800, color: utilColor(data.team_util_pct) }}>{data.team_util_pct}%</span>
-                  <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600 }}>UTILISED</span>
+                  <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600 }}>{isClosed ? 'DELIVERED' : 'UTILISED'}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -298,55 +314,112 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             </div>
           </SectionCard>
 
-          {/* Service mix donut */}
-          <SectionCard title="Capacity Mix by Service" subtitle="Share of committed hours per service" accent="#7c3aed">
+          <SectionCard title="Capacity Mix by Service" subtitle={isClosed ? 'Share of delivered hours per service' : 'Share of committed hours per service'} accent="#7c3aed">
             {servicePieData.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#9ca3af', padding: 40, fontSize: 13 }}>No tracked data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
-                  <Pie data={servicePieData} dataKey="value" nameKey="name" cx="40%" cy="50%"
-                    innerRadius={60} outerRadius={95} paddingAngle={2}>
+                  <Pie data={servicePieData} dataKey="value" nameKey="name" cx="40%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={2}>
                     {servicePieData.map((e, i) => <Cell key={i} fill={e.fill} />)}
                   </Pie>
                   <Tooltip content={<PieTT />} />
-                  <Legend
-                    layout="vertical" align="right" verticalAlign="middle"
+                  <Legend layout="vertical" align="right" verticalAlign="middle"
                     formatter={(val) => <span style={{ fontSize: 11, color: '#374151' }}>{SERVICE_SHORT[val] || val}</span>}
-                    iconType="circle" iconSize={8}
-                  />
+                    iconType="circle" iconSize={8} />
                 </PieChart>
               </ResponsiveContainer>
             )}
           </SectionCard>
         </div>
 
-        {/* By Service */}
-        <SectionCard title="Utility Rate by Service" subtitle="Tickets · estimated hours · share of team capacity" accent="#0077a8">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        {/* Closed-mode: Hours delivered + Avg days to close charts */}
+        {isClosed && data.by_assignee.length > 0 && (
+          <SectionCard title="Closed Ticket Analysis by Assignee" subtitle="Hours delivered vs avg calendar days from ticket creation to close" accent="#0ea5e9">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
 
-            {/* Bar chart */}
+              {/* Hours delivered */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Hours Delivered</div>
+                <ResponsiveContainer width="100%" height={Math.max(160, assigneesByHours.length * 34)}>
+                  <BarChart data={assigneesByHours} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }} barSize={14}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="assigned_to" width={100} tick={{ fontSize: 11, fill: '#374151' }} axisLine={false} tickLine={false} />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null
+                      const d = payload[0].payload
+                      return (
+                        <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+                          <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div>
+                          <div style={{ color: '#1450f5' }}>Hours: <strong>{d.committed_hours}h</strong></div>
+                          <div style={{ color: '#6b7280' }}>Tickets: {d.tracked_tickets}</div>
+                        </div>
+                      )
+                    }} cursor={{ fill: '#f5f7ff' }} />
+                    <Bar dataKey="committed_hours" name="Hours" radius={[0, 4, 4, 0]}>
+                      {assigneesByHours.map((r, i) => <Cell key={i} fill={utilColor(r.utility_pct)} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Avg days to close */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Avg Days to Close</div>
+                {assigneesByDtc.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#9ca3af', padding: 40, fontSize: 13 }}>No closed date data</div>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={Math.max(160, assigneesByDtc.length * 34)}>
+                      <BarChart data={assigneesByDtc} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }} barSize={14}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="assigned_to" width={100} tick={{ fontSize: 11, fill: '#374151' }} axisLine={false} tickLine={false} />
+                        <Tooltip content={<DtcTT />} cursor={{ fill: '#f5f7ff' }} />
+                        <Bar dataKey="avg_days_to_close" name="Avg Days" radius={[0, 4, 4, 0]}>
+                          {assigneesByDtc.map((r, i) => <Cell key={i} fill={dtcColor(r.avg_days_to_close)} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+                      {[['≤ 7d', '#1e8a5e'], ['8–14d', '#b87d00'], ['15–30d', '#e86427'], ['> 30d', '#c0305a']].map(([lbl, col]) => (
+                        <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: col }} />
+                          <span style={{ fontSize: 11, color: '#6b7280' }}>{lbl}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </SectionCard>
+        )}
+
+        {/* By Service */}
+        <SectionCard title="Utility Rate by Service" subtitle={`Tickets · estimated hours · share of capacity${isClosed ? ' · closed tickets only' : ''}`} accent="#0077a8">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart
-                data={data.by_service.map(r => ({
-                  name: SERVICE_SHORT[r.service] || r.service,
-                  hours: r.committed_hours,
-                  pct:   r.team_util_pct,
-                  fill:  SERVICE_COLORS[r.service] || '#94a3b8',
-                }))}
-                layout="vertical" margin={{ top: 4, right: 60, left: 0, bottom: 4 }} barSize={14}
-              >
+              <BarChart data={data.by_service.map(r => ({ name: SERVICE_SHORT[r.service] || r.service, hours: r.committed_hours, fill: SERVICE_COLORS[r.service] || '#94a3b8' }))}
+                layout="vertical" margin={{ top: 4, right: 60, left: 0, bottom: 4 }} barSize={14}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: '#374151' }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTT />} cursor={{ fill: '#f5f7ff' }} />
+                <Tooltip content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null
+                  return (
+                    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+                      <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div>
+                      <div style={{ color: '#1450f5' }}>Hours: <strong>{payload[0].value}h</strong></div>
+                    </div>
+                  )
+                }} cursor={{ fill: '#f5f7ff' }} />
                 <Bar dataKey="hours" name="Committed hrs" radius={[0, 4, 4, 0]}>
                   {data.by_service.map((r, i) => <Cell key={i} fill={SERVICE_COLORS[r.service] || '#94a3b8'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-
-            {/* Table */}
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
@@ -368,9 +441,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                       <td style={{ padding: '8px 10px', textAlign: 'center', color: '#374151' }}>{r.tickets}</td>
                       <td style={{ padding: '8px 10px', textAlign: 'center', color: '#6b7280' }}>{r.hours_per_ticket}h</td>
                       <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{r.committed_hours}h</td>
-                      <td style={{ padding: '8px 10px', minWidth: 120 }}>
-                        <LoadBar pct={r.team_util_pct} />
-                      </td>
+                      <td style={{ padding: '8px 10px', minWidth: 120 }}><LoadBar pct={r.team_util_pct} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -381,36 +452,40 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
         {/* Weekly trend */}
         {data.weekly_trend.length > 0 && (
-          <SectionCard title="Weekly Utility Rate Trend" subtitle="Committed hours vs team capacity week by week" accent="#b87d00">
+          <SectionCard title="Weekly Utility Rate Trend" subtitle={`Committed hours vs capacity${isClosed ? ' — grouped by closed date' : ''}`} accent="#b87d00">
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={data.weekly_trend} margin={{ top: 8, right: 20, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6b7280' }} angle={-35} textAnchor="end" interval={0} />
                 <YAxis yAxisId="h" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="p" orientation="right" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} unit="%" />
-                <Tooltip content={<CustomTT />} />
+                <Tooltip />
                 <ReferenceLine yAxisId="p" y={85} stroke="#c0305a" strokeDasharray="4 4" label={{ value: '85%', position: 'insideTopRight', fontSize: 10, fill: '#c0305a' }} />
                 <ReferenceLine yAxisId="p" y={60} stroke="#b87d00" strokeDasharray="4 4" label={{ value: '60%', position: 'insideTopRight', fontSize: 10, fill: '#b87d00' }} />
-                <Bar yAxisId="h" dataKey="committed_hours" name="Committed hrs" fill="#6366f133" radius={[3,3,0,0]} />
+                <Bar yAxisId="h" dataKey="committed_hours" name="Committed hrs" fill="#6366f133" radius={[3, 3, 0, 0]} />
                 <Line yAxisId="p" type="monotone" dataKey="utility_pct" name="Utility %" stroke="#1450f5" strokeWidth={2.5} dot={{ r: 3, fill: '#1450f5' }} activeDot={{ r: 5 }} />
+                {isClosed && (
+                  <Line yAxisId="h" type="monotone" dataKey="avg_days_to_close" name="Avg Days to Close" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: '#0ea5e9' }} activeDot={{ r: 5 }} />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </SectionCard>
         )}
 
-        {/* By Assignee */}
+        {/* By Assignee table */}
         <SectionCard title="Utility Rate by Assignee" subtitle="Individual utilisation · committed vs available hours" accent="#1e8a5e">
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
                   {[
-                    { label: 'Assignee',         col: 'assigned_to'  },
-                    { label: 'Tracked Tickets',  col: 'tracked_tickets' },
-                    { label: 'Committed',        col: 'committed_hours' },
-                    { label: 'Capacity',         col: 'capacity_hours' },
-                    { label: 'Utility Rate',     col: 'utility_pct' },
-                    { label: 'Status',           col: 'status' },
+                    { label: 'Assignee',        col: 'assigned_to'    },
+                    { label: 'Tracked Tickets', col: 'tracked_tickets' },
+                    { label: 'Committed',       col: 'committed_hours' },
+                    { label: 'Capacity',        col: 'capacity_hours'  },
+                    { label: 'Utility Rate',    col: 'utility_pct'    },
+                    { label: 'Status',          col: 'status'          },
+                    ...(isClosed ? [{ label: 'Avg Days to Close', col: 'avg_days_to_close' }] : []),
                   ].map(({ label, col }) => (
                     <th key={col} onClick={() => toggleSort(col)} style={{
                       padding: '9px 12px', fontWeight: 700, color: '#6b7280', fontSize: 11,
@@ -421,12 +496,10 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                       {label} <SortIcon col={col} />
                     </th>
                   ))}
-                  {/* Service breakdown columns */}
                   {SERVICES.map(sc => (
                     <th key={sc} style={{
-                      padding: '9px 10px', fontWeight: 700, fontSize: 10,
-                      color: SERVICE_COLORS[sc], textAlign: 'center',
-                      borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap',
+                      padding: '9px 10px', fontWeight: 700, fontSize: 10, color: SERVICE_COLORS[sc],
+                      textAlign: 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap',
                       background: '#f5f5ff', borderLeft: sc === SERVICES[0] ? '2px solid #e0e0ff' : undefined,
                     }}>
                       {SERVICE_SHORT[sc]}
@@ -436,7 +509,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
               </thead>
               <tbody>
                 {sortedAssignees.length === 0 ? (
-                  <tr><td colSpan={6 + SERVICES.length} style={{ padding: 32, textAlign: 'center', color: '#9ca3af' }}>No data</td></tr>
+                  <tr><td colSpan={6 + (isClosed ? 1 : 0) + SERVICES.length} style={{ padding: 32, textAlign: 'center', color: '#9ca3af' }}>No data</td></tr>
                 ) : sortedAssignees.map((row, i) => {
                   const sCfg = STATUS_CFG[row.status] || STATUS_CFG.Available
                   const bg = i % 2 === 0 ? '#fff' : '#fafafa'
@@ -464,6 +537,18 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                           {row.status}
                         </span>
                       </td>
+                      {isClosed && (
+                        <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                          {row.avg_days_to_close != null ? (
+                            <span style={{ fontSize: 12, fontWeight: 700, color: dtcColor(row.avg_days_to_close) }}>
+                              {row.avg_days_to_close}d
+                              {row.min_days_to_close != null && row.min_days_to_close !== row.max_days_to_close && (
+                                <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af', marginLeft: 4 }}>({row.min_days_to_close}–{row.max_days_to_close})</span>
+                              )}
+                            </span>
+                          ) : <span style={{ color: '#d1d5db' }}>—</span>}
+                        </td>
+                      )}
                       {SERVICES.map((sc, idx) => {
                         const cnt = row.breakdown[sc] ?? 0
                         return (
@@ -472,9 +557,9 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                             background: idx % 2 === 0 ? `${SERVICE_COLORS[sc]}08` : `${SERVICE_COLORS[sc]}12`,
                             borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined,
                           }}>
-                            {cnt > 0 ? (
-                              <span style={{ fontWeight: 700, fontSize: 12, color: SERVICE_COLORS[sc], background: `${SERVICE_COLORS[sc]}20`, borderRadius: 5, padding: '2px 7px' }}>{cnt}</span>
-                            ) : <span style={{ color: '#d1d5db' }}>—</span>}
+                            {cnt > 0
+                              ? <span style={{ fontWeight: 700, fontSize: 12, color: SERVICE_COLORS[sc], background: `${SERVICE_COLORS[sc]}20`, borderRadius: 5, padding: '2px 7px' }}>{cnt}</span>
+                              : <span style={{ color: '#d1d5db' }}>—</span>}
                           </td>
                         )
                       })}
@@ -482,18 +567,20 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                   )
                 })}
               </tbody>
-              {/* Totals footer */}
               {sortedAssignees.length > 0 && (
                 <tfoot>
                   <tr style={{ background: '#f0f4ff', borderTop: '2px solid #c7d7fd' }}>
                     <td style={{ padding: '8px 12px', fontWeight: 700, color: '#1450f5' }}>Team Total</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>
-                      {sortedAssignees.reduce((s, r) => s + r.tracked_tickets, 0)}
-                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{sortedAssignees.reduce((s, r) => s + r.tracked_tickets, 0)}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{data.total_committed_h}h</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#6b7280' }}>{data.total_capacity_h}h</td>
                     <td style={{ padding: '8px 12px', minWidth: 130 }}><LoadBar pct={data.team_util_pct} /></td>
                     <td />
+                    {isClosed && (
+                      <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: data.overall_avg_days_to_close != null ? dtcColor(data.overall_avg_days_to_close) : '#9ca3af' }}>
+                        {data.overall_avg_days_to_close != null ? `${data.overall_avg_days_to_close}d` : '—'}
+                      </td>
+                    )}
                     {SERVICES.map((sc, idx) => {
                       const tot = sortedAssignees.reduce((s, r) => s + (r.breakdown[sc] ?? 0), 0)
                       return (
@@ -510,7 +597,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         </SectionCard>
 
         {/* By Ticket */}
-        <SectionCard title={`By Ticket (${data.by_ticket.length} tracked)`} subtitle="Individual ticket estimated hours — sorted by most recent" accent="#94a3b8">
+        <SectionCard title={`By Ticket (${data.by_ticket.length} tracked)`} subtitle={`Individual ticket estimated hours${isClosed ? ' · sorted by closed date' : ' · sorted by most recent'}`} accent="#94a3b8">
           <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
               <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -528,7 +615,9 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#f9fafb' }}>
-                    {['Ticket #', 'Description', 'Service', 'Assignee', 'Created', 'Status', 'Est. Hours'].map(h => (
+                    {['Ticket #', 'Description', 'Service', 'Assignee', 'Created',
+                      ...(isClosed ? ['Closed', 'Days to Close'] : []),
+                      'Status', 'Est. Hours'].map(h => (
                       <th key={h} style={{ padding: '8px 10px', fontWeight: 700, color: '#6b7280', fontSize: 11, textAlign: h === 'Description' ? 'left' : 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -544,7 +633,15 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                         </span>
                       </td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', color: '#374151', whiteSpace: 'nowrap' }}>{t.assigned_to || '—'}</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6b7280', whiteSpace: 'nowrap' }}>{t.created_date ? t.created_date.slice(0, 10) : '—'}</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6b7280', whiteSpace: 'nowrap' }}>{t.created_date?.slice(0, 10) || '—'}</td>
+                      {isClosed && <>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6b7280', whiteSpace: 'nowrap' }}>{t.closed_date?.slice(0, 10) || '—'}</td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {t.days_to_close != null
+                            ? <span style={{ fontWeight: 700, color: dtcColor(t.days_to_close) }}>{t.days_to_close}d</span>
+                            : <span style={{ color: '#d1d5db' }}>—</span>}
+                        </td>
+                      </>}
                       <td style={{ padding: '7px 10px', textAlign: 'center' }}>
                         <span style={{ fontSize: 10, color: '#6b7280', background: '#f3f4f6', borderRadius: 4, padding: '2px 6px' }}>{t.state || '—'}</span>
                       </td>
@@ -558,7 +655,6 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         </SectionCard>
 
       </>)}
-
     </div>
   )
 }
