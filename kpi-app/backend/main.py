@@ -1056,7 +1056,11 @@ def utility_rate(
                     if cnt:
                         breakdown[sc] = cnt
                         committed += cnt * hpt
-            individual_cap = round(BANDWIDTH_WEEKLY_CAPACITY * span_weeks, 1)
+            pcfg = CAPACITY_SETTINGS.get("people", {}).get(person, {})
+            person_office_days = pcfg.get("office_days") or CAPACITY_SETTINGS.get("default_office_days", 220)
+            # Prorate office days to this period, then convert to working weeks
+            person_weeks = (person_office_days * (span_days / 365.0)) / BANDWIDTH_DAYS_PER_WEEK
+            individual_cap = round(BANDWIDTH_WEEKLY_CAPACITY * max(person_weeks, 0.2), 1)
             util_pct = round(committed / individual_cap * 100, 1) if individual_cap > 0 else 0.0
 
             avg_days_to_close = None
@@ -1089,7 +1093,7 @@ def utility_rate(
 
     team_size = len(by_assignee)
     total_committed_h = round(sum(r["committed_hours"] for r in by_assignee), 1)
-    total_capacity_h  = round(team_size * BANDWIDTH_WEEKLY_CAPACITY * span_weeks, 1)
+    total_capacity_h  = round(sum(r["capacity_hours"]  for r in by_assignee), 1)
     team_util_pct     = round(total_committed_h / total_capacity_h * 100, 1) if total_capacity_h > 0 else 0.0
 
     for sr in by_service:
