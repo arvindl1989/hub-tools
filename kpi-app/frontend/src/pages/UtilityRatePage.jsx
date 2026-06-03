@@ -251,6 +251,8 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
     ...visibleSvcBoxes.map(s => ({ label: s.label, val: s.allocH - s.utilH, allocH: s.allocH })),
   ]
 
+  const periodLabel = data ? `${spanDays}d period` : 'annual (no data loaded)'
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', gap: 16 }}>
@@ -259,7 +261,7 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
           <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1450f5', flexShrink: 0 }} />
             Allocated Hours
-            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>prorated to period</span>
+            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{periodLabel}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <NumBox label="Total Available" value={r(totalAvailH)}   color="#111827" bg="#f9fafb" />
@@ -282,7 +284,7 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
           <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
             Utilized Hours
-            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>tickets + cadence + training</span>
+            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{periodLabel}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <NumBox label="Total Utilized"  value={r(totalUtilH)}   color="#111827" bg="#f9fafb" utilPct={pctOf(totalUtilH, totalAvailH)} />
@@ -1477,7 +1479,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         </div>
       </div>
 
-      {data && !loading && (
+      {!loading && (
         <AllocUtilWidgets
           capSettings={effectiveCapSettings}
           cadenceSettings={cadenceSettings}
