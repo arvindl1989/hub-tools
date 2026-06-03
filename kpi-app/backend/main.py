@@ -148,6 +148,12 @@ TRAINING_SETTINGS: dict = _load_setting("training_settings", {
     # people[name] = {"sessions": [{"name": str, "hours_per_year": float}]}
 })
 
+DEFAULT_PEOPLE: list[str] = ["Ajith", "Akshaya P", "Akshayaa R", "Arvind", "Nitish", "Ranjith"]
+
+# Maps raw sheet assignee names → canonical DEFAULT_PEOPLE names.
+# e.g. {"Ajith A": "Ajith", "Akshaya P Sethumathavan": "Akshaya P"}
+ASSIGNEE_ALIASES: dict[str, str] = _load_setting("assignee_aliases", {})
+
 EXCLUDED_STATES = {"Closed Completed", "Closed Rejected", "Confirmation Completed"}
 
 COLUMN_ALIASES: dict[str, list[str]] = {
@@ -291,6 +297,20 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     for sc in str_cols:
         if sc in df.columns:
             df[sc] = df[sc].astype(str).str.strip().replace({"nan": pd.NA, "None": pd.NA, "": pd.NA})
+
+    # Normalize assignee names: apply explicit aliases then prefix-match against DEFAULT_PEOPLE
+    if "assigned_to" in df.columns:
+        def _canonical(name):
+            if pd.isna(name):
+                return name
+            s = str(name)
+            if s in ASSIGNEE_ALIASES:
+                return ASSIGNEE_ALIASES[s]
+            for canon in DEFAULT_PEOPLE:
+                if s == canon or s.startswith(canon + " ") or s.startswith(canon + "_"):
+                    return canon
+            return s
+        df["assigned_to"] = df["assigned_to"].map(_canonical)
 
     # Calculate SLA due dates from Created date using working-days rules
     def _sla(row):
@@ -1186,8 +1206,6 @@ def utility_rate(
             })
 
     # ── By assignee ───────────────────────────────────────────────────────────
-    DEFAULT_PEOPLE = ["Ajith", "Akshaya P", "Akshayaa R", "Arvind", "Nitish", "Ranjith"]
-
     by_assignee: list[dict] = []
     if "assigned_to" in filtered.columns:
         people_in_data = sorted(filtered["assigned_to"].dropna().unique())
@@ -1450,6 +1468,17 @@ def update_training_settings(settings: dict):
     TRAINING_SETTINGS.update(settings)
     _save_setting("training_settings", dict(TRAINING_SETTINGS))
     return TRAINING_SETTINGS
+
+@app.get("/api/assignee-aliases")
+def get_assignee_aliases():
+    return ASSIGNEE_ALIASES
+
+@app.put("/api/assignee-aliases")
+def update_assignee_aliases(aliases: dict):
+    ASSIGNEE_ALIASES.clear()
+    ASSIGNEE_ALIASES.update(aliases)
+    _save_setting("assignee_aliases", dict(ASSIGNEE_ALIASES))
+    return ASSIGNEE_ALIASES
 
 # ── Hub health ─────────────────────────────────────────────────────────────────
 

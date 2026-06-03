@@ -796,7 +796,7 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
     const key = newLabel.trim().replace(/\s+/g, '-')
     setPresets(p => ({ ...p, [key]: { label: newLabel.trim(), default_working_days: Number(newWd), default_holidays: Number(newH) } }))
     setMode(key)
-    setNewLabel(''); setShowNew(false)
+    setNewLabel(''); setNewWd(defWd); setNewH(defH); setShowNew(false)
   }
   function deletePreset(key) {
     setPresets(p => { const { [key]: _, ...rest } = p; return rest })
@@ -1548,7 +1548,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
               bg={data.overall_avg_days_to_close <= 7 ? '#ecfdf5' : data.overall_avg_days_to_close <= 14 ? '#fffbeb' : '#fff1f2'}
               border={data.overall_avg_days_to_close <= 7 ? '#6ee7b7' : data.overall_avg_days_to_close <= 14 ? '#fcd34d' : '#fda4af'} />
           ) : (
-            <StatCard label="Available Capacity" value={`${Math.max(0, data.total_capacity_h - data.total_committed_h)}h`} sub={`${data.team_size} people · ${data.span_weeks}w`} />
+            <StatCard label="Available Capacity" value={`${Math.round((Math.max(0, data.total_capacity_h - data.total_committed_h)) * 10) / 10}h`} sub={`${data.team_size} people · ${data.span_weeks}w`} />
           )}
           <StatCard label="Time Span" value={`${data.span_weeks}w`} sub={`${data.span_days} calendar days`} />
           <StatCard label="Team Size" value={data.team_size} sub="assignees with tracked tickets" />
