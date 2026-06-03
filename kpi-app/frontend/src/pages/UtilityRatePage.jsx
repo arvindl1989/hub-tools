@@ -116,27 +116,29 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
 
   const grouped = people.map(([name, settings]) => {
     const officeDays = settings.office_days ?? capSettings.default_office_days ?? 220
-    const ntRows = NON_TICKET.filter(a => (settings.non_ticket?.[a] ?? 0) > 0).map(a => {
-      const allocPct  = settings.non_ticket[a]
-      const allocDays = +(officeDays * allocPct / 100).toFixed(1)
-      return { activity: a, allocPct, allocDays }
-    })
+    const ntRows = NON_TICKET.filter(a => (settings.non_ticket?.[a] ?? 0) > 0).map(a => ({
+      type: 'nt', activity: a,
+      allocPct: settings.non_ticket[a],
+      allocDays: +(officeDays * settings.non_ticket[a] / 100).toFixed(1),
+    }))
     const ntPct = ntRows.reduce((s, r) => s + r.allocPct, 0)
     const effectiveDays = +(officeDays * Math.max(0, 1 - ntPct / 100)).toFixed(1)
-    const rows = SERVICES.filter(svc => (settings.allocations?.[svc] ?? 0) > 0).map(svc => {
+    const svcRows = SERVICES.filter(svc => (settings.allocations?.[svc] ?? 0) > 0).map(svc => {
       const allocPct  = settings.allocations[svc]
       const rate      = bwRates[svc] || 0
       const allocDays = +(officeDays * allocPct / 100).toFixed(1)
       const quota     = +(rate * allocDays).toFixed(1)
       const actual    = actualLookup[name]?.[svc] || 0
       const att       = quota > 0 ? Math.round(actual / quota * 100) : null
-      return { svc, allocPct, allocDays, rate, quota, actual, att }
+      return { type: 'svc', svc, allocPct, allocDays, rate, quota, actual, att }
     })
-    const totQuota  = +rows.reduce((s, r) => s + r.quota, 0).toFixed(1)
-    const totActual = rows.reduce((s, r) => s + r.actual, 0)
+    const totQuota  = +svcRows.reduce((s, r) => s + r.quota, 0).toFixed(1)
+    const totActual = svcRows.reduce((s, r) => s + r.actual, 0)
     const totAtt    = totQuota > 0 ? Math.round(totActual / totQuota * 100) : null
-    const totalRows = rows.length + ntRows.length
-    return { name, officeDays, effectiveDays, ntPct, rows, ntRows, totQuota, totActual, totAtt, totalRows }
+    const allRows   = [...ntRows, ...svcRows]
+    // span = all data rows + ticket-total row (if any svc rows) + effective-days footer row
+    const totalSpan = allRows.length + (svcRows.length > 0 ? 1 : 0) + 1
+    return { name, officeDays, effectiveDays, ntPct, allRows, svcRows, totQuota, totActual, totAtt, totalSpan }
   })
 
   const HDR = { padding: '8px 12px', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
@@ -153,16 +155,15 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
             </tr>
           </thead>
           <tbody>
-            {grouped.map(({ name, officeDays, effectiveDays, ntPct, rows, ntRows, totQuota, totActual, totAtt, totalRows }, gi) => {
+            {grouped.map(({ name, officeDays, effectiveDays, ntPct, allRows, svcRows, totQuota, totActual, totAtt, totalSpan }, gi) => {
               const personBg = gi % 2 === 0 ? '#fff' : '#fafbff'
               const totAS = attStyle(totAtt)
-              const spanCount = totalRows + (rows.length > 0 ? 1 : 0) + 1 // service rows + total row + effective days row
               return [
-                // Non-ticket rows first
-                ...ntRows.map((r, ri) => (
-                  <tr key={`${name}-nt-${r.activity}`} style={{ background: personBg, borderBottom: '1px solid #f0f3fa' }}>
-                    {ri === 0 && rows.length === 0 && (
-                      <td rowSpan={spanCount} style={{ padding: '10px 12px', fontWeight: 700, color: '#111827', verticalAlign: 'middle', borderRight: '1px solid #e5e8ef', whiteSpace: 'nowrap' }}>
+                // All data rows (non-ticket first, then ticket services) — flat array
+                ...allRows.map((r, ri) => (
+                  <tr key={`${name}-${r.type === 'nt' ? r.activity : r.svc}`} style={{ background: personBg, borderBottom: '1px solid #f0f3fa' }}>
+                    {ri === 0 && (
+                      <td rowSpan={totalSpan} style={{ padding: '10px 12px', fontWeight: 700, color: '#111827', verticalAlign: 'middle', borderRight: '1px solid #e5e8ef', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                           <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
                             {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
@@ -171,62 +172,44 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
                         </div>
                       </td>
                     )}
+                    {/* Activity / Service */}
                     <td style={{ padding: '8px 12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: NON_TICKET_COLORS[r.activity] || '#9ca3af', flexShrink: 0 }} />
-                        <span style={{ color: '#374151' }}>{r.activity}</span>
-                        <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 5px' }}>non-ticket</span>
-                      </div>
-                    </td>
-                    {ri === 0 && rows.length === 0 && (
-                      <td rowSpan={spanCount} style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', verticalAlign: 'middle' }}>{officeDays}d</td>
-                    )}
-                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocPct}%</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocDays}d</td>
-                    <td colSpan={4} style={{ padding: '8px 12px', textAlign: 'center', color: '#9ca3af', fontSize: 11 }}>time reserved — not ticket-tracked</td>
-                  </tr>
-                )),
-                // Ticket service rows
-                ...rows.map((r, ri) => {
-                  const as = attStyle(r.att)
-                  const isFirst = ntRows.length === 0 && ri === 0
-                  return (
-                    <tr key={`${name}-${r.svc}`} style={{ background: personBg, borderBottom: '1px solid #f0f3fa' }}>
-                      {isFirst && (
-                        <td rowSpan={spanCount} style={{ padding: '10px 12px', fontWeight: 700, color: '#111827', verticalAlign: 'middle', borderRight: '1px solid #e5e8ef', whiteSpace: 'nowrap' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                            <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
-                              {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                            </div>
-                            {name}
-                          </div>
-                        </td>
-                      )}
-                      <td style={{ padding: '8px 12px' }}>
+                      {r.type === 'nt' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: NON_TICKET_COLORS[r.activity] || '#9ca3af', flexShrink: 0 }} />
+                          <span style={{ color: '#374151' }}>{r.activity}</span>
+                          <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 5px' }}>non-ticket</span>
+                        </div>
+                      ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <div style={{ width: 7, height: 7, borderRadius: '50%', background: SERVICE_COLORS[r.svc], flexShrink: 0 }} />
                           <span style={{ color: '#374151' }}>{SERVICE_SHORT[r.svc]}</span>
                         </div>
-                      </td>
-                      {isFirst && (
-                        <td rowSpan={spanCount} style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', verticalAlign: 'middle' }}>{officeDays}d</td>
                       )}
-                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocPct}%</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocDays}d</td>
+                    </td>
+                    {ri === 0 && (
+                      <td rowSpan={totalSpan} style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', verticalAlign: 'middle' }}>{officeDays}d</td>
+                    )}
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocPct}%</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocDays}d</td>
+                    {r.type === 'nt' ? (
+                      <td colSpan={4} style={{ padding: '8px 12px', textAlign: 'center', color: '#9ca3af', fontSize: 11 }}>time reserved — not ticket-tracked</td>
+                    ) : (<>
                       <td style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280' }}>{r.rate}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{r.quota}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.actual}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                         {r.att != null
-                          ? <span style={{ fontWeight: 700, color: as.color, background: as.bg, borderRadius: 6, padding: '2px 8px' }}>{r.att}%</span>
+                          ? <span style={{ fontWeight: 700, color: attStyle(r.att).color, background: attStyle(r.att).bg, borderRadius: 6, padding: '2px 8px' }}>{r.att}%</span>
                           : <span style={{ color: '#d1d5db' }}>—</span>}
                       </td>
-                    </tr>
-                  )
-                }),
-                // Ticket total row (only if there are ticket rows)
-                rows.length > 0 && (
+                    </>)}
+                  </tr>
+                )),
+                // Ticket total row
+                svcRows.length > 0 && (
                   <tr key={`${name}-total`} style={{ background: personBg, borderBottom: '1px solid #e5e8ef' }}>
+                    {/* person + officeDays cells are rowSpanned above */}
                     <td style={{ padding: '7px 12px', fontStyle: 'italic', color: '#6b7280' }}>Ticket Total</td>
                     <td colSpan={3} />
                     <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{totQuota}</td>
@@ -238,14 +221,13 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
                     </td>
                   </tr>
                 ),
-                // Effective days summary row
+                // Effective days footer row
                 <tr key={`${name}-eff`} style={{ background: ntPct > 0 ? '#fdf4ff' : personBg, borderBottom: '2px solid #e5e8ef' }}>
-                  <td colSpan={2} style={{ padding: '7px 12px', fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
+                  <td colSpan={7} style={{ padding: '7px 12px', fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
                     {ntPct > 0
-                      ? `Effective ticket days: ${effectiveDays}d (${officeDays}d office − ${ntPct}% non-ticket)`
+                      ? `Effective ticket days: ${effectiveDays}d  (${officeDays}d office − ${ntPct}% non-ticket)`
                       : `Effective ticket days: ${officeDays}d`}
                   </td>
-                  <td colSpan={6} />
                 </tr>,
               ].filter(Boolean)
             })}
