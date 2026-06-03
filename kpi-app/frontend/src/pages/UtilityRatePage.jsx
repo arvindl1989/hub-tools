@@ -145,14 +145,14 @@ const DtcTT = ({ active, payload, label }) => {
 }
 
 /* ── Allocated / Utilized summary widgets ────────────────────────────────── */
-function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data, assigneeF = [], serviceF = '' }) {
+function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data, assigneeF = [], serviceF = '', people = DEFAULT_PEOPLE }) {
   const spanDays  = data?.span_days  ?? 365
   const spanWeeks = data?.span_weeks ?? 52
   const pf = spanDays / 365
   const defWd = capSettings.default_working_days ?? 250
   const defH  = capSettings.default_holidays ?? 24
 
-  const activePeople = assigneeF.length > 0 ? assigneeF : DEFAULT_PEOPLE
+  const activePeople = assigneeF.length > 0 ? assigneeF : people
 
   let totalAvailH = 0, cadenceAllocH = 0, trainAllocH = 0, prodAllocH = 0
   let wcmAllocH = 0, deaAllocH = 0, gdAllocH = 0
@@ -334,11 +334,11 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 }
 
 /* ── Cadence Settings Modal ──────────────────────────────────────────────── */
-function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
+function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
   const [team, setTeam] = useState({ activities: JSON.parse(JSON.stringify(cadenceSettings.team?.activities ?? [])) })
   const [people, setPeople] = useState(() => {
     const r = {}
-    DEFAULT_PEOPLE.forEach(name => {
+    teamPeople.forEach(name => {
       r[name] = { activities: JSON.parse(JSON.stringify(cadenceSettings.people?.[name]?.activities ?? [])) }
     })
     return r
@@ -362,7 +362,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
     try {
       const payload = {
         team: { activities: team.activities.filter(a => String(a.name).trim()) },
-        people: Object.fromEntries(DEFAULT_PEOPLE.map(n => [n, { activities: people[n].activities.filter(a => String(a.name).trim()) }])),
+        people: Object.fromEntries(teamPeople.map(n => [n, { activities: (people[n]?.activities ?? []).filter(a => String(a.name).trim()) }])),
       }
       const result = await updateCadenceSettings(payload)
       onSaved({ cadenceSettings: result })
@@ -387,14 +387,14 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
           {(() => {
             const acts  = team.activities
             const wkTot = acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0)
-            const pTot  = Math.round(wkTot * spanWeeks * DEFAULT_PEOPLE.length)
+            const pTot  = Math.round(wkTot * spanWeeks * teamPeople.length)
             return (
               <div style={{ border: '2px solid #bfdbfe', borderRadius: 10, overflow: 'hidden', background: '#eff6ff' }}>
                 <div style={{ padding: '9px 16px', background: '#dbeafe', borderBottom: acts.length ? '1px solid #bfdbfe' : undefined, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <span style={{ fontWeight: 700, color: '#1d4ed8', fontSize: 13 }}>Team-wide Meetings</span>
-                    <span style={{ fontSize: 10, color: '#3b82f6', background: '#bfdbfe', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>counts for all {DEFAULT_PEOPLE.length} people</span>
+                    <span style={{ fontSize: 10, color: '#3b82f6', background: '#bfdbfe', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>counts for all {teamPeople.length} people</span>
                   </div>
                   <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: '#374151' }}><strong style={{ color: '#1d4ed8' }}>{wkTot}h</strong>/wk/person · <strong style={{ color: '#1d4ed8' }}>{pTot}h</strong> team total this period</span>
@@ -439,8 +439,8 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
             )
           })()}
 
-          {DEFAULT_PEOPLE.map(name => {
-            const acts  = people[name].activities
+          {teamPeople.map(name => {
+            const acts  = (people[name]?.activities ?? [])
             const wkTot = acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0)
             const pTot  = Math.round(wkTot * spanWeeks)
             return (
@@ -508,11 +508,11 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
 }
 
 /* ── Training Settings Modal ─────────────────────────────────────────────── */
-function TrainingModal({ trainingSettings, spanDays, onClose, onSaved }) {
+function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
   const pf = spanDays / 365
   const [people, setPeople] = useState(() => {
     const r = {}
-    DEFAULT_PEOPLE.forEach(name => {
+    teamPeople.forEach(name => {
       r[name] = { sessions: JSON.parse(JSON.stringify(trainingSettings.people?.[name]?.sessions ?? [])) }
     })
     return r
@@ -521,7 +521,7 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved }) {
   const [saved,  setSaved]  = useState(false)
   const [err,    setErr]    = useState(null)
 
-  const add    = name => setPeople(p => ({ ...p, [name]: { sessions: [...p[name].sessions, { name: '', hours_per_year: 0 }] } }))
+  const add    = name => setPeople(p => ({ ...p, [name]: { sessions: [...(p[name]?.sessions ?? []), { name: '', hours_per_year: 0 }] } }))
   const remove = (name, i) => setPeople(p => ({ ...p, [name]: { sessions: p[name].sessions.filter((_, j) => j !== i) } }))
   const upd    = (name, i, field, val) => setPeople(p => ({
     ...p, [name]: { sessions: p[name].sessions.map((s, j) => j === i ? { ...s, [field]: val } : s) }
@@ -530,7 +530,7 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved }) {
   async function save() {
     setSaving(true); setErr(null); setSaved(false)
     try {
-      const payload = { people: Object.fromEntries(DEFAULT_PEOPLE.map(n => [n, { sessions: people[n].sessions.filter(s => String(s.name).trim()) }])) }
+      const payload = { people: Object.fromEntries(teamPeople.map(n => [n, { sessions: (people[n]?.sessions ?? []).filter(s => String(s.name).trim()) }])) }
       const result = await updateTrainingSettings(payload)
       onSaved({ trainingSettings: result })
       setSaved(true)
@@ -549,8 +549,8 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22 }}>×</button>
         </div>
         <div style={{ padding: '20px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {DEFAULT_PEOPLE.map(name => {
-            const sessions = people[name].sessions
+          {teamPeople.map(name => {
+            const sessions = people[name]?.sessions ?? []
             const yrTot    = sessions.reduce((s, t) => s + (Number(t.hours_per_year) || 0), 0)
             const pTot     = Math.round(yrTot * pf)
             return (
@@ -618,8 +618,8 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved }) {
 }
 
 /* ── Capacity Planning section ──────────────────────────────────────────────── */
-function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
-  const people = DEFAULT_PEOPLE.filter(name => {
+function CapacityPlanSection({ capSettings, byAssignee, bwRates, teamPeople = DEFAULT_PEOPLE }) {
+  const people = teamPeople.filter(name => {
     const p = capSettings.people?.[name] || {}
     return BAU_SERVICES.some(s => (p.bau?.[s] ?? 0) > 0) || NON_BAU.some(a => (p.non_bau?.[a] ?? 0) > 0)
   })
@@ -765,12 +765,12 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
 }
 
 /* ── Capacity Settings Modal ────────────────────────────────────────────────── */
-function CapacityModal({ capSettings, onClose, onSaved }) {
+function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
   const [defWd,  setDefWd]  = useState(capSettings.default_working_days ?? 250)
   const [defH,   setDefH]   = useState(capSettings.default_holidays ?? 24)
   const [people, setPeople] = useState(() => {
     const r = {}
-    DEFAULT_PEOPLE.forEach(name => {
+    teamPeople.forEach(name => {
       const s = capSettings.people?.[name] || {}
       r[name] = {
         working_days: s.working_days ?? null,
@@ -824,14 +824,14 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
   // Totals row
   const totals = useMemo(() => {
     const t = { wd: 0, h: 0, av: 0, cadence: 0, training: 0, productivity: 0 }
-    DEFAULT_PEOPLE.forEach(name => {
+    teamPeople.forEach(name => {
       const d = derived(name)
       t.wd += d.wd; t.h += d.h; t.av += d.av
       t.cadence += d.cadence; t.training += d.training; t.productivity += d.productivity
     })
     return t
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [people, defWd, defH])
+  }, [people, defWd, defH, teamPeople])
 
   async function save() {
     setSaving(true); setErr(null); setSaved(false)
@@ -840,8 +840,8 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
         mode,
         default_working_days: Number(defWd),
         default_holidays:     Number(defH),
-        people: Object.fromEntries(DEFAULT_PEOPLE.map(name => {
-          const p = people[name]
+        people: Object.fromEntries(teamPeople.map(name => {
+          const p = people[name] || {}
           return [name, {
             working_days: p.working_days != null ? Number(p.working_days) : null,
             holidays:     p.holidays     != null ? Number(p.holidays)     : null,
@@ -1018,11 +1018,11 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
               </tr>
             </thead>
             <tbody>
-              {DEFAULT_PEOPLE.map((name, pi) => {
+              {teamPeople.map((name, pi) => {
                 const d = derived(name)
                 const total = d.bauPct + d.nonBauPct
                 const totalColor = total > 100 ? '#991b1b' : total === 100 ? '#15803d' : '#854d0e'
-                const p = people[name]
+                const p = people[name] || {}
                 return (
                   <tr key={name} style={{ background: pi % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
                     <td style={{ padding: '8px 12px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>
@@ -1410,7 +1410,13 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
     }
   }, [capSettings])
 
-  const hasCapacityPlan = DEFAULT_PEOPLE.some(name => {
+  // Use actual sheet assignee names when data is loaded, fall back to hardcoded list
+  const effectivePeople = useMemo(() => {
+    const fromData = data?.filter_options?.assignees
+    return (fromData && fromData.length > 0) ? fromData : DEFAULT_PEOPLE
+  }, [data?.filter_options?.assignees])
+
+  const hasCapacityPlan = effectivePeople.some(name => {
     const p = capSettings.people?.[name] || {}
     return BAU_SERVICES.some(s => (p.bau?.[s] ?? 0) > 0) || NON_BAU.some(a => (p.non_bau?.[a] ?? 0) > 0)
   })
@@ -1516,6 +1522,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           data={data}
           assigneeF={assigneeF}
           serviceF={serviceF}
+          people={effectivePeople}
         />
       )}
 
@@ -1669,7 +1676,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
         {/* Capacity Planning section */}
         {hasCapacityPlan && (
-          <CapacityPlanSection capSettings={effectiveCapSettings} byAssignee={data.by_assignee} bwRates={bwRates} />
+          <CapacityPlanSection capSettings={effectiveCapSettings} byAssignee={data.by_assignee} bwRates={bwRates} teamPeople={effectivePeople} />
         )}
 
         {/* By Service */}
@@ -1917,6 +1924,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           capSettings={capSettings}
           onClose={() => setShowCapacity(false)}
           onSaved={({ capSettings: newCap }) => { setCapSettings(newCap); setShowCapacity(false) }}
+          teamPeople={effectivePeople}
         />
       )}
       {showRatesSla && (
@@ -1932,6 +1940,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           spanWeeks={data?.span_weeks ?? 52}
           onClose={() => setShowCadence(false)}
           onSaved={({ cadenceSettings: newCad }) => { setCadenceSettings(newCad); setShowCadence(false) }}
+          teamPeople={effectivePeople}
         />
       )}
       {showTraining && (
@@ -1940,6 +1949,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           spanDays={data?.span_days ?? 365}
           onClose={() => setShowTraining(false)}
           onSaved={({ trainingSettings: newTrn }) => { setTrainingSettings(newTrn); setShowTraining(false) }}
+          teamPeople={effectivePeople}
         />
       )}
     </div>

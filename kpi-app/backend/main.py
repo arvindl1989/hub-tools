@@ -298,19 +298,9 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         if sc in df.columns:
             df[sc] = df[sc].astype(str).str.strip().replace({"nan": pd.NA, "None": pd.NA, "": pd.NA})
 
-    # Normalize assignee names: apply explicit aliases then prefix-match against DEFAULT_PEOPLE
-    if "assigned_to" in df.columns:
-        def _canonical(name):
-            if pd.isna(name):
-                return name
-            s = str(name)
-            if s in ASSIGNEE_ALIASES:
-                return ASSIGNEE_ALIASES[s]
-            for canon in DEFAULT_PEOPLE:
-                if s == canon or s.startswith(canon + " ") or s.startswith(canon + "_"):
-                    return canon
-            return s
-        df["assigned_to"] = df["assigned_to"].map(_canonical)
+    # Apply only explicit aliases (no auto prefix-match — sheet names are used as-is)
+    if "assigned_to" in df.columns and ASSIGNEE_ALIASES:
+        df["assigned_to"] = df["assigned_to"].map(lambda n: ASSIGNEE_ALIASES.get(str(n), n) if pd.notna(n) else n)
 
     # Calculate SLA due dates from Created date using working-days rules
     def _sla(row):
@@ -1221,6 +1211,11 @@ def utility_rate(
                     if cnt:
                         breakdown[sc] = cnt
                         committed += cnt * hpt
+                # Merge DEA sub-categories into a single "Demand Engagement Activations" key
+                # so the capacity planning table can match against BAU_SERVICES_DISPLAY
+                dea_cnt = sum(breakdown.pop(sc, 0) for sc in DEMAND_ENGAGEMENT_SUBS)
+                if dea_cnt:
+                    breakdown["Demand Engagement Activations"] = dea_cnt
 
             # Capacity: productivity_days = (working_days - holidays) × 0.75
             _cap = _effective_cap()
