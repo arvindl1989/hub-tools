@@ -32,48 +32,121 @@ app.add_middleware(
 
 sessions: dict[str, pd.DataFrame] = {}
 
+# ── Persistence (PostgreSQL via DATABASE_URL env var) ─────────────────────────
+
+def _get_conn():
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return None
+    try:
+        import psycopg2
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return psycopg2.connect(url, connect_timeout=5)
+    except Exception:
+        return None
+
+def _init_db():
+    conn = _get_conn()
+    if not conn:
+        return
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS kpi_settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
+                    )
+                """)
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+def _load_setting(key: str, default: dict) -> dict:
+    conn = _get_conn()
+    if not conn:
+        return dict(default)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT value FROM kpi_settings WHERE key = %s", (key,))
+                row = cur.fetchone()
+                if row:
+                    loaded = json.loads(row[0])
+                    merged = dict(default)
+                    merged.update(loaded)
+                    return merged
+        return dict(default)
+    except Exception:
+        return dict(default)
+    finally:
+        conn.close()
+
+def _save_setting(key: str, value: dict) -> None:
+    conn = _get_conn()
+    if not conn:
+        return
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO kpi_settings (key, value) VALUES (%s, %s)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                """, (key, json.dumps(value)))
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+_init_db()
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-BANDWIDTH_RATES: dict[str, float] = {
+BANDWIDTH_RATES: dict[str, float] = _load_setting("bandwidth_rates", {
     "Website Content Management":          1.6,
     "Content Production – Graphic Design": 1.3,
     "Demand Creation – Global":            0.4,
     "Email – Local":                       1.1,
     "Retention – Activations":             0.4,
-    "Demand Engagement Activations":       0.63,  # blended rate of the three DEA sub-services
-}
+    "Demand Engagement Activations":       0.63,
+})
 
 BANDWIDTH_HOURS_PER_DAY  = 8
 BANDWIDTH_DAYS_PER_WEEK  = 5
 BANDWIDTH_WEEKLY_CAPACITY = BANDWIDTH_HOURS_PER_DAY * BANDWIDTH_DAYS_PER_WEEK  # 40 h
 
-CAPACITY_SETTINGS: dict = {
+CAPACITY_SETTINGS: dict = _load_setting("capacity_settings", {
+    "mode": "annual",           # "annual" or a preset key e.g. "Q1-2025"
     "default_working_days": 250,
     "default_holidays": 24,
     "people": {},
+    "presets": {},
+    # presets[key] = { "label": str, "default_working_days": int, "default_holidays": int }
     # people[name] = { "working_days": int|null, "holidays": int|null,
     #                  "bau": { service: pct }, "non_bau": { activity: pct } }
-}
+})
 
-# Keys match exact Sub-Category values from the Excel (em-dash –)
-SLA_RULES: dict[str, int] = {
+SLA_RULES: dict[str, int] = _load_setting("sla_rules", {
     "Website Content Management": 10,
     "Content Production – Graphic Design": 10,
     "Demand Creation – Global": 30,
     "Email – Local": 7,
     "Retention – Activations": 30,
     "Demand Engagement Activations": 14,
-}
+})
 
-CADENCE_SETTINGS: dict = {
-    "people": {}
-    # people[name] = {"activities": [{"name": str, "hours_per_week": float}]}
-}
+CADENCE_SETTINGS: dict = _load_setting("cadence_settings", {
+    "team": {"activities": []},
+    "people": {},
+    # team.activities / people[name].activities = [{"name": str, "hours_per_week": float}]
+})
 
-TRAINING_SETTINGS: dict = {
-    "people": {}
+TRAINING_SETTINGS: dict = _load_setting("training_settings", {
+    "people": {},
     # people[name] = {"sessions": [{"name": str, "hours_per_year": float}]}
-}
+})
 
 EXCLUDED_STATES = {"Closed Completed", "Closed Rejected", "Confirmation Completed"}
 
@@ -917,6 +990,21 @@ def backlog_age(sid: str):
 
 # ── Bandwidth config ──────────────────────────────────────────────────────────
 
+def _effective_cap() -> dict:
+    """Return CAPACITY_SETTINGS resolved to the active preset (if not annual)."""
+    mode = CAPACITY_SETTINGS.get("mode", "annual")
+    if mode == "annual":
+        return CAPACITY_SETTINGS
+    preset = CAPACITY_SETTINGS.get("presets", {}).get(mode)
+    if not preset:
+        return CAPACITY_SETTINGS
+    return {
+        **CAPACITY_SETTINGS,
+        "default_working_days": preset.get("default_working_days") or CAPACITY_SETTINGS.get("default_working_days", 250),
+        "default_holidays":     preset.get("default_holidays")     or CAPACITY_SETTINGS.get("default_holidays", 24),
+    }
+
+
 @app.get("/api/capacity-settings")
 def get_capacity_settings():
     return CAPACITY_SETTINGS
@@ -925,6 +1013,7 @@ def get_capacity_settings():
 def update_capacity_settings(settings: dict):
     CAPACITY_SETTINGS.clear()
     CAPACITY_SETTINGS.update(settings)
+    _save_setting("capacity_settings", dict(CAPACITY_SETTINGS))
     return CAPACITY_SETTINGS
 
 
@@ -936,6 +1025,7 @@ def get_bandwidth_rates():
 def update_bandwidth_rates(rates: dict[str, float]):
     BANDWIDTH_RATES.clear()
     BANDWIDTH_RATES.update(rates)
+    _save_setting("bandwidth_rates", dict(BANDWIDTH_RATES))
     return {"message": "Bandwidth rates updated", "rates": BANDWIDTH_RATES}
 
 
@@ -1115,9 +1205,10 @@ def utility_rate(
                         committed += cnt * hpt
 
             # Capacity: productivity_days = (working_days - holidays) × 0.75
-            pcfg = CAPACITY_SETTINGS.get("people", {}).get(person, {})
-            working_days = pcfg.get("working_days") or CAPACITY_SETTINGS.get("default_working_days", 250)
-            holidays     = pcfg.get("holidays")     or CAPACITY_SETTINGS.get("default_holidays", 24)
+            _cap = _effective_cap()
+            pcfg = _cap.get("people", {}).get(person, {})
+            working_days = pcfg.get("working_days") or _cap.get("default_working_days", 250)
+            holidays     = pcfg.get("holidays")     or _cap.get("default_holidays", 24)
             availability   = working_days - holidays
             productivity_days = availability * 0.75
             # Prorate to the selected period
@@ -1333,6 +1424,7 @@ def get_sla_rules():
 def update_sla_rules(rules: dict[str, int]):
     SLA_RULES.clear()
     SLA_RULES.update(rules)
+    _save_setting("sla_rules", dict(SLA_RULES))
     return {"message": "SLA rules updated", "rules": SLA_RULES}
 
 
@@ -1344,6 +1436,7 @@ def get_cadence_settings():
 def update_cadence_settings(settings: dict):
     CADENCE_SETTINGS.clear()
     CADENCE_SETTINGS.update(settings)
+    _save_setting("cadence_settings", dict(CADENCE_SETTINGS))
     return CADENCE_SETTINGS
 
 
@@ -1355,6 +1448,7 @@ def get_training_settings():
 def update_training_settings(settings: dict):
     TRAINING_SETTINGS.clear()
     TRAINING_SETTINGS.update(settings)
+    _save_setting("training_settings", dict(TRAINING_SETTINGS))
     return TRAINING_SETTINGS
 
 # ── Hub health ─────────────────────────────────────────────────────────────────

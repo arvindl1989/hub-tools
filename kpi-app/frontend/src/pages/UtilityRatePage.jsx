@@ -175,7 +175,11 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
   const prodUtilH = data?.total_committed_h ?? 0
 
-  let cadenceUtilH = 0
+  // Team-wide cadence activities count for every active person
+  const teamActs = cadenceSettings.team?.activities ?? []
+  const teamCadenceH = teamActs.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0) * spanWeeks * activePeople.length
+
+  let cadenceUtilH = teamCadenceH
   activePeople.forEach(name => {
     const acts = cadenceSettings.people?.[name]?.activities ?? []
     cadenceUtilH += acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0) * spanWeeks
@@ -189,15 +193,6 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
   const svcMap = {}
   ;(data?.by_service ?? []).forEach(s => { svcMap[s.service] = s.committed_hours })
-
-  let paUtilH = 0
-  activePeople.forEach(name => {
-    const s   = capSettings.people?.[name] || {}
-    const wd  = s.working_days ?? defWd
-    const h   = s.holidays ?? defH
-    const prod = (wd - h) * 0.75
-    paUtilH += prod * (s.non_bau?.['Performance Analytics'] ?? 0) / 100 * pf * 8
-  })
 
   const r = n => Math.round(n)
 
@@ -300,9 +295,6 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
             {visibleSvcBoxes.map(s => (
               <NumBox key={s.key} label={s.label} value={r(s.utilH)} color={s.color} bg={s.bg} borderColor={s.bc} utilPct={pctOf(s.utilH, s.allocH)} />
             ))}
-            {!serviceF && (
-              <NumBox label="Perf. Analytics" value={r(paUtilH)} color="#14b8a6" bg="#f0fdfa" borderColor="#14b8a6" sub="planned non-BAU" />
-            )}
           </div>
         </div>
       </div>
@@ -343,6 +335,7 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
 /* ── Cadence Settings Modal ──────────────────────────────────────────────── */
 function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
+  const [team, setTeam] = useState({ activities: JSON.parse(JSON.stringify(cadenceSettings.team?.activities ?? [])) })
   const [people, setPeople] = useState(() => {
     const r = {}
     DEFAULT_PEOPLE.forEach(name => {
@@ -354,6 +347,10 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
   const [saved,  setSaved]  = useState(false)
   const [err,    setErr]    = useState(null)
 
+  const addTeam    = () => setTeam(t => ({ activities: [...t.activities, { name: '', hours_per_week: 0 }] }))
+  const removeTeam = i  => setTeam(t => ({ activities: t.activities.filter((_, j) => j !== i) }))
+  const updTeam    = (i, field, val) => setTeam(t => ({ activities: t.activities.map((a, j) => j === i ? { ...a, [field]: val } : a) }))
+
   const add    = name => setPeople(p => ({ ...p, [name]: { activities: [...p[name].activities, { name: '', hours_per_week: 0 }] } }))
   const remove = (name, i) => setPeople(p => ({ ...p, [name]: { activities: p[name].activities.filter((_, j) => j !== i) } }))
   const upd    = (name, i, field, val) => setPeople(p => ({
@@ -363,7 +360,10 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
   async function save() {
     setSaving(true); setErr(null); setSaved(false)
     try {
-      const payload = { people: Object.fromEntries(DEFAULT_PEOPLE.map(n => [n, { activities: people[n].activities.filter(a => String(a.name).trim()) }])) }
+      const payload = {
+        team: { activities: team.activities.filter(a => String(a.name).trim()) },
+        people: Object.fromEntries(DEFAULT_PEOPLE.map(n => [n, { activities: people[n].activities.filter(a => String(a.name).trim()) }])),
+      }
       const result = await updateCadenceSettings(payload)
       onSaved({ cadenceSettings: result })
       setSaved(true)
@@ -382,6 +382,63 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22 }}>×</button>
         </div>
         <div style={{ padding: '20px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* ── Team-wide section ── */}
+          {(() => {
+            const acts  = team.activities
+            const wkTot = acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0)
+            const pTot  = Math.round(wkTot * spanWeeks * DEFAULT_PEOPLE.length)
+            return (
+              <div style={{ border: '2px solid #bfdbfe', borderRadius: 10, overflow: 'hidden', background: '#eff6ff' }}>
+                <div style={{ padding: '9px 16px', background: '#dbeafe', borderBottom: acts.length ? '1px solid #bfdbfe' : undefined, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span style={{ fontWeight: 700, color: '#1d4ed8', fontSize: 13 }}>Team-wide Meetings</span>
+                    <span style={{ fontSize: 10, color: '#3b82f6', background: '#bfdbfe', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>counts for all {DEFAULT_PEOPLE.length} people</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#374151' }}><strong style={{ color: '#1d4ed8' }}>{wkTot}h</strong>/wk/person · <strong style={{ color: '#1d4ed8' }}>{pTot}h</strong> team total this period</span>
+                    <button onClick={addTeam} style={{ height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>+ Add</button>
+                  </div>
+                </div>
+                {acts.length > 0 ? (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: '#eff6ff' }}>
+                        <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #bfdbfe' }}>Meeting / Activity</th>
+                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #bfdbfe', width: 150 }}>Hours / Week</th>
+                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#1d4ed8', fontSize: 11, borderBottom: '1px solid #bfdbfe', width: 130 }}>Period (per person)</th>
+                        <th style={{ width: 36, borderBottom: '1px solid #bfdbfe' }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {acts.map((a, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #dbeafe' }}>
+                          <td style={{ padding: '6px 14px' }}>
+                            <input value={a.name} onChange={e => updTeam(i, 'name', e.target.value)} placeholder="e.g. Weekly Sync, All-Hands…"
+                              style={{ width: '100%', boxSizing: 'border-box', height: 28, padding: '0 8px', fontSize: 12, border: '1px solid #bfdbfe', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff' }} />
+                          </td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                              <input type="number" value={a.hours_per_week} min={0} max={40} step={0.25}
+                                onChange={e => updTeam(i, 'hours_per_week', e.target.value)}
+                                style={{ width: 64, height: 28, padding: '0 6px', fontSize: 12, border: '1px solid #bfdbfe', borderRadius: 6, textAlign: 'center', outline: 'none', fontFamily: 'Inter, sans-serif' }} />
+                              <span style={{ fontSize: 11, color: '#9ca3af' }}>h/wk</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{Math.round((Number(a.hours_per_week) || 0) * spanWeeks)}h</td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center' }}><button onClick={() => removeTeam(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, padding: '2px 4px' }}>×</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={{ padding: '14px 16px', color: '#3b82f6', fontSize: 12, textAlign: 'center' }}>No team-wide meetings — click + Add to add one that counts for everyone</div>
+                )}
+              </div>
+            )
+          })()}
+
           {DEFAULT_PEOPLE.map(name => {
             const acts  = people[name].activities
             const wkTot = acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0)
@@ -724,9 +781,30 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
     })
     return r
   })
+  const [mode,     setMode]     = useState(capSettings.mode ?? 'annual')
+  const [presets,  setPresets]  = useState(() => JSON.parse(JSON.stringify(capSettings.presets ?? {})))
+  const [showNew,  setShowNew]  = useState(false)
+  const [newLabel, setNewLabel] = useState('')
+  const [newWd,    setNewWd]    = useState(capSettings.default_working_days ?? 250)
+  const [newH,     setNewH]     = useState(capSettings.default_holidays ?? 24)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
   const [err,    setErr]    = useState(null)
+
+  function addPreset() {
+    if (!newLabel.trim()) return
+    const key = newLabel.trim().replace(/\s+/g, '-')
+    setPresets(p => ({ ...p, [key]: { label: newLabel.trim(), default_working_days: Number(newWd), default_holidays: Number(newH) } }))
+    setMode(key)
+    setNewLabel(''); setShowNew(false)
+  }
+  function deletePreset(key) {
+    setPresets(p => { const { [key]: _, ...rest } = p; return rest })
+    if (mode === key) setMode('annual')
+  }
+  function updatePreset(key, field, val) {
+    setPresets(p => ({ ...p, [key]: { ...p[key], [field]: val } }))
+  }
 
   function derived(name) {
     const p  = people[name]
@@ -759,6 +837,7 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
     setSaving(true); setErr(null); setSaved(false)
     try {
       const payload = {
+        mode,
         default_working_days: Number(defWd),
         default_holidays:     Number(defH),
         people: Object.fromEntries(DEFAULT_PEOPLE.map(name => {
@@ -770,6 +849,13 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
             non_bau: Object.fromEntries(NON_BAU.map(a => [a, Number(p.non_bau?.[a] || 0)])),
           }]
         })),
+        presets: Object.fromEntries(
+          Object.entries(presets).map(([k, p]) => [k, {
+            label: p.label,
+            default_working_days: Number(p.default_working_days),
+            default_holidays:     Number(p.default_holidays),
+          }])
+        ),
       }
       const result = await updateCapacitySettings(payload)
       onSaved({ capSettings: result })
@@ -796,9 +882,72 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
-        {/* Defaults bar */}
+        {/* Capacity Mode / Presets bar */}
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f3f4f6', background: '#f8fafc' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', flexShrink: 0 }}>Report uses:</span>
+            {/* Annual pill */}
+            <button onClick={() => setMode('annual')} style={{
+              height: 28, padding: '0 12px', fontSize: 11, fontWeight: mode === 'annual' ? 700 : 500, cursor: 'pointer',
+              background: mode === 'annual' ? '#1450f5' : '#fff', color: mode === 'annual' ? '#fff' : '#374151',
+              border: `1px solid ${mode === 'annual' ? '#1450f5' : '#d1d5db'}`, borderRadius: 20, fontFamily: 'Inter, sans-serif',
+            }}>Annual</button>
+            {/* Preset pills */}
+            {Object.entries(presets).map(([key, p]) => (
+              <button key={key} onClick={() => setMode(key)} style={{
+                height: 28, padding: '0 12px', fontSize: 11, fontWeight: mode === key ? 700 : 500, cursor: 'pointer',
+                background: mode === key ? '#7c3aed' : '#fff', color: mode === key ? '#fff' : '#374151',
+                border: `1px solid ${mode === key ? '#7c3aed' : '#d1d5db'}`, borderRadius: 20, fontFamily: 'Inter, sans-serif',
+              }}>{p.label}</button>
+            ))}
+            {!showNew && (
+              <button onClick={() => setShowNew(true)} style={{ height: 28, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: 20, fontFamily: 'Inter, sans-serif' }}>
+                + Add Quarter / Year
+              </button>
+            )}
+          </div>
+
+          {/* Add new preset form */}
+          {showNew && (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 10, flexWrap: 'wrap', padding: '10px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac' }}>
+              <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. Q1 2025 or H1 2025"
+                style={{ height: 30, padding: '0 10px', fontSize: 12, border: '1px solid #d1d5db', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', width: 160 }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' }}>
+                WD/yr <NumInput value={newWd} onChange={v => setNewWd(v ?? 250)} min={1} max={365} width={68} />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' }}>
+                Holidays <NumInput value={newH} onChange={v => setNewH(v ?? 0)} min={0} max={60} width={60} />
+              </label>
+              <button onClick={addPreset} style={{ height: 30, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#15803d', color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Create &amp; Activate</button>
+              <button onClick={() => setShowNew(false)} style={{ height: 30, padding: '0 12px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+            </div>
+          )}
+
+          {/* Edit existing presets */}
+          {Object.keys(presets).length > 0 && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {Object.entries(presets).map(([key, p]) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: mode === key ? '#7c3aed' : '#374151', minWidth: 80 }}>{p.label}</span>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' }}>
+                    WD/yr <NumInput value={p.default_working_days} onChange={v => updatePreset(key, 'default_working_days', v ?? 250)} min={1} max={365} width={68} />
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' }}>
+                    Holidays <NumInput value={p.default_holidays} onChange={v => updatePreset(key, 'default_holidays', v ?? 0)} min={0} max={60} width={60} />
+                  </label>
+                  <button onClick={() => deletePreset(key)} style={{ height: 24, padding: '0 8px', fontSize: 11, cursor: 'pointer', background: '#fff', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: 5, fontFamily: 'Inter, sans-serif' }}>Delete</button>
+                  {mode !== key && (
+                    <button onClick={() => setMode(key)} style={{ height: 24, padding: '0 8px', fontSize: 11, cursor: 'pointer', background: '#faf5ff', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: 5, fontFamily: 'Inter, sans-serif' }}>Set Active</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Defaults bar (always shows annual defaults) */}
         <div style={{ padding: '12px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 24, alignItems: 'center', background: '#fafafa' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Defaults:</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Annual Defaults:</span>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
             Working days / year
             <NumInput value={defWd} onChange={v => setDefWd(v ?? 250)} min={1} max={365} width={72} />
@@ -1217,6 +1366,19 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
   const hasFilter = serviceF || assigneeF.length > 0 || dateFrom || dateTo
 
+  // Resolve the active capacity preset into effective working_days / holidays
+  const effectiveCapSettings = useMemo(() => {
+    const m = capSettings.mode ?? 'annual'
+    if (m === 'annual') return capSettings
+    const preset = capSettings.presets?.[m]
+    if (!preset) return capSettings
+    return {
+      ...capSettings,
+      default_working_days: preset.default_working_days ?? capSettings.default_working_days,
+      default_holidays:     preset.default_holidays     ?? capSettings.default_holidays,
+    }
+  }, [capSettings])
+
   const hasCapacityPlan = DEFAULT_PEOPLE.some(name => {
     const p = capSettings.people?.[name] || {}
     return BAU_SERVICES.some(s => (p.bau?.[s] ?? 0) > 0) || NON_BAU.some(a => (p.non_bau?.[a] ?? 0) > 0)
@@ -1265,11 +1427,20 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             </button>
           )}
           <div style={{ flex: 1 }} />
-          <button onClick={() => setShowCapacity(true)} style={btnStyle}>
+          <button onClick={() => setShowCapacity(true)} style={{
+            ...btnStyle,
+            borderColor: capSettings.mode && capSettings.mode !== 'annual' ? '#a78bfa' : undefined,
+            color:       capSettings.mode && capSettings.mode !== 'annual' ? '#7c3aed' : undefined,
+          }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
             Capacity
+            {capSettings.mode && capSettings.mode !== 'annual' && (
+              <span style={{ fontSize: 10, background: '#7c3aed', color: '#fff', borderRadius: 4, padding: '1px 5px', marginLeft: 2 }}>
+                {capSettings.presets?.[capSettings.mode]?.label ?? capSettings.mode}
+              </span>
+            )}
           </button>
           <button onClick={() => setShowRatesSla(true)} style={btnStyle}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1308,7 +1479,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
       {data && !loading && (
         <AllocUtilWidgets
-          capSettings={capSettings}
+          capSettings={effectiveCapSettings}
           cadenceSettings={cadenceSettings}
           trainingSettings={trainingSettings}
           data={data}
@@ -1467,7 +1638,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
         {/* Capacity Planning section */}
         {hasCapacityPlan && (
-          <CapacityPlanSection capSettings={capSettings} byAssignee={data.by_assignee} bwRates={bwRates} />
+          <CapacityPlanSection capSettings={effectiveCapSettings} byAssignee={data.by_assignee} bwRates={bwRates} />
         )}
 
         {/* By Service */}
