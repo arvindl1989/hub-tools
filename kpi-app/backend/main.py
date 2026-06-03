@@ -117,16 +117,39 @@ BANDWIDTH_HOURS_PER_DAY  = 8
 BANDWIDTH_DAYS_PER_WEEK  = 5
 BANDWIDTH_WEEKLY_CAPACITY = BANDWIDTH_HOURS_PER_DAY * BANDWIDTH_DAYS_PER_WEEK  # 40 h
 
-CAPACITY_SETTINGS: dict = _load_setting("capacity_settings", {
-    "mode": "annual",           # "annual" or a preset key e.g. "Q1-2025"
+DEFAULT_PEOPLE: list[str] = [
+    "Ajith A",
+    "Akshaya Praveen",
+    "Akshayaa Rajeswari AS",
+    "Arvind L",
+    "Nitish JK",
+    "Ranjithkumar Ashokkumar",
+]
+
+# Mapping from old short names → new full sheet names, used to migrate persisted settings.
+PEOPLE_MIGRATION: dict[str, str] = {
+    "Ajith":      "Ajith A",
+    "Akshaya P":  "Akshaya Praveen",
+    "Akshayaa R": "Akshayaa Rajeswari AS",
+    "Arvind":     "Arvind L",
+    "Nitish":     "Nitish JK",
+    "Ranjith":    "Ranjithkumar Ashokkumar",
+}
+
+def _migrate_people(settings: dict) -> dict:
+    """Re-key the 'people' dict from old short names to current full sheet names."""
+    if not settings.get("people"):
+        return settings
+    migrated = {PEOPLE_MIGRATION.get(k, k): v for k, v in settings["people"].items()}
+    return {**settings, "people": migrated}
+
+CAPACITY_SETTINGS: dict = _migrate_people(_load_setting("capacity_settings", {
+    "mode": "annual",
     "default_working_days": 250,
     "default_holidays": 24,
     "people": {},
     "presets": {},
-    # presets[key] = { "label": str, "default_working_days": int, "default_holidays": int }
-    # people[name] = { "working_days": int|null, "holidays": int|null,
-    #                  "bau": { service: pct }, "non_bau": { activity: pct } }
-})
+}))
 
 SLA_RULES: dict[str, int] = _load_setting("sla_rules", {
     "Website Content Management": 10,
@@ -137,21 +160,17 @@ SLA_RULES: dict[str, int] = _load_setting("sla_rules", {
     "Demand Engagement Activations": 14,
 })
 
-CADENCE_SETTINGS: dict = _load_setting("cadence_settings", {
+CADENCE_SETTINGS: dict = _migrate_people(_load_setting("cadence_settings", {
     "team": {"activities": []},
     "people": {},
-    # team.activities / people[name].activities = [{"name": str, "hours_per_week": float}]
-})
+}))
 
-TRAINING_SETTINGS: dict = _load_setting("training_settings", {
+TRAINING_SETTINGS: dict = _migrate_people(_load_setting("training_settings", {
     "people": {},
-    # people[name] = {"sessions": [{"name": str, "hours_per_year": float}]}
-})
+}))
 
-DEFAULT_PEOPLE: list[str] = ["Ajith", "Akshaya P", "Akshayaa R", "Arvind", "Nitish", "Ranjith"]
-
-# Maps raw sheet assignee names → canonical DEFAULT_PEOPLE names.
-# e.g. {"Ajith A": "Ajith", "Akshaya P Sethumathavan": "Akshaya P"}
+# Maps raw sheet assignee names → override names (applied at parse time).
+# Only needed for edge cases where a sheet name differs from DEFAULT_PEOPLE.
 ASSIGNEE_ALIASES: dict[str, str] = _load_setting("assignee_aliases", {})
 
 EXCLUDED_STATES = {"Closed Completed", "Closed Rejected", "Confirmation Completed"}

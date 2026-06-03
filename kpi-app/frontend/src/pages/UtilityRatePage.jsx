@@ -11,7 +11,14 @@ import {
 } from '../api'
 import DateRangePicker from '../components/DateRangePicker'
 
-const DEFAULT_PEOPLE = ['Ajith', 'Akshaya P', 'Akshayaa R', 'Arvind', 'Nitish', 'Ranjith']
+const DEFAULT_PEOPLE = [
+  'Ajith A',
+  'Akshaya Praveen',
+  'Akshayaa Rajeswari AS',
+  'Arvind L',
+  'Nitish JK',
+  'Ranjithkumar Ashokkumar',
+]
 
 const BAU_SERVICES = [
   'Website Content Management',
