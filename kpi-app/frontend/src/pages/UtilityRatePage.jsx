@@ -7,6 +7,7 @@ import {
 import {
   getUtilityRate, getCapacitySettings, updateCapacitySettings,
   getBandwidthRates, updateBandwidthRates, getSlaRules, updateSlaRules,
+  getCadenceSettings, updateCadenceSettings, getTrainingSettings, updateTrainingSettings,
 } from '../api'
 import DateRangePicker from '../components/DateRangePicker'
 
@@ -139,6 +140,338 @@ const DtcTT = ({ active, payload, label }) => {
         <div style={{ color: '#9ca3af', fontSize: 11 }}>Range: {d.min_days_to_close}d – {d.max_days_to_close}d</div>
       )}
       <div style={{ color: '#1450f5', marginTop: 2 }}>Tickets: <strong>{d.tracked_tickets}</strong></div>
+    </div>
+  )
+}
+
+/* ── Allocated / Utilized summary widgets ────────────────────────────────── */
+function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data }) {
+  const spanDays  = data?.span_days  ?? 365
+  const spanWeeks = data?.span_weeks ?? 52
+  const pf = spanDays / 365
+  const defWd = capSettings.default_working_days ?? 250
+  const defH  = capSettings.default_holidays ?? 24
+
+  let totalAvailH = 0, cadenceAllocH = 0, trainAllocH = 0, prodAllocH = 0
+  let wcmAllocH = 0, deaAllocH = 0, gdAllocH = 0
+  DEFAULT_PEOPLE.forEach(name => {
+    const s   = capSettings.people?.[name] || {}
+    const wd  = s.working_days ?? defWd
+    const h   = s.holidays ?? defH
+    const avail = wd - h
+    const prod  = avail * 0.75
+    totalAvailH   += avail * 8 * pf
+    cadenceAllocH  += avail * 0.20 * 8 * pf
+    trainAllocH    += avail * 0.05 * 8 * pf
+    prodAllocH     += avail * 0.75 * 8 * pf
+    wcmAllocH += prod * (s.bau?.['Website Content Management']          ?? 0) / 100 * pf * 8
+    deaAllocH += prod * (s.bau?.['Demand Engagement Activations']       ?? 0) / 100 * pf * 8
+    gdAllocH  += prod * (s.bau?.['Content Production – Graphic Design'] ?? 0) / 100 * pf * 8
+  })
+
+  const prodUtilH = data?.total_committed_h ?? 0
+  let cadenceUtilH = 0
+  DEFAULT_PEOPLE.forEach(name => {
+    const acts = cadenceSettings.people?.[name]?.activities ?? []
+    cadenceUtilH += acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0) * spanWeeks
+  })
+  let trainUtilH = 0
+  DEFAULT_PEOPLE.forEach(name => {
+    const sessions = trainingSettings.people?.[name]?.sessions ?? []
+    trainUtilH += sessions.reduce((s, t) => s + (Number(t.hours_per_year) || 0), 0) * pf
+  })
+  const totalUtilH = prodUtilH + cadenceUtilH + trainUtilH
+
+  const svcMap = {}
+  ;(data?.by_service ?? []).forEach(s => { svcMap[s.service] = s.committed_hours })
+
+  let paUtilH = 0
+  DEFAULT_PEOPLE.forEach(name => {
+    const s   = capSettings.people?.[name] || {}
+    const wd  = s.working_days ?? defWd
+    const h   = s.holidays ?? defH
+    const prod = (wd - h) * 0.75
+    paUtilH += prod * (s.non_bau?.['Performance Analytics'] ?? 0) / 100 * pf * 8
+  })
+
+  const r = n => Math.round(n)
+
+  function NumBox({ label, value, sub, color = '#111827', bg = '#f3f4f6', borderColor }) {
+    return (
+      <div style={{ flex: 1, minWidth: 0, background: bg, borderRadius: 9, padding: '11px 14px', borderLeft: borderColor ? `3px solid ${borderColor}` : undefined }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1.1 }}>
+          {value}<span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 2 }}>h</span>
+        </div>
+        {sub && <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>{sub}</div>}
+      </div>
+    )
+  }
+
+  const sectionLabel = { fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '12px 0 8px' }
+  const cardStyle = { background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '18px 20px', flex: 1, minWidth: 0 }
+
+  return (
+    <div style={{ display: 'flex', gap: 16 }}>
+      <div style={cardStyle}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1450f5', flexShrink: 0 }} />
+          Allocated Hours
+          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>prorated to period</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <NumBox label="Total Available" value={r(totalAvailH)}   color="#111827" bg="#f9fafb" />
+          <NumBox label="Cadence"         value={r(cadenceAllocH)} color="#0891b2" bg="#f0f9ff" sub="20% of avail" />
+          <NumBox label="Training"        value={r(trainAllocH)}   color="#7c3aed" bg="#faf5ff" sub="5% of avail" />
+          <NumBox label="Productivity"    value={r(prodAllocH)}    color="#059669" bg="#f0fdf4" sub="75% of avail" />
+        </div>
+        <div style={sectionLabel}>Allocated by service</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <NumBox label="Web Content Mgt"   value={r(wcmAllocH)} color="#3b82f6" bg="#eff6ff" borderColor="#3b82f6" />
+          <NumBox label="Demand Engagement" value={r(deaAllocH)} color="#8b5cf6" bg="#f5f3ff" borderColor="#8b5cf6" />
+          <NumBox label="Graphic Design"    value={r(gdAllocH)}  color="#ef4444" bg="#fef2f2" borderColor="#ef4444" />
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
+          Utilized Hours
+          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>tickets + cadence + training</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <NumBox label="Total Utilized"         value={r(totalUtilH)}   color="#111827" bg="#f9fafb" />
+          <NumBox label="Cadence"                value={r(cadenceUtilH)} color="#0891b2" bg="#f0f9ff" sub="recurring meetings" />
+          <NumBox label="Training"               value={r(trainUtilH)}   color="#7c3aed" bg="#faf5ff" sub="upskilling sessions" />
+          <NumBox label="Productivity (tickets)" value={r(prodUtilH)}    color="#059669" bg="#f0fdf4" sub="committed ticket hrs" />
+        </div>
+        <div style={sectionLabel}>Utilized by service</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <NumBox label="Web Content Mgt"     value={r(svcMap['Website Content Management'] ?? 0)}                  color="#3b82f6" bg="#eff6ff" borderColor="#3b82f6" />
+          <NumBox label="Demand Engagement"   value={r(svcMap['Demand Engagement Activations'] ?? 0)}               color="#8b5cf6" bg="#f5f3ff" borderColor="#8b5cf6" />
+          <NumBox label="Graphic Design"      value={r(svcMap['Content Production – Graphic Design'] ?? 0)}    color="#ef4444" bg="#fef2f2" borderColor="#ef4444" />
+          <NumBox label="Perf. Analytics"     value={r(paUtilH)}                                                    color="#14b8a6" bg="#f0fdfa" borderColor="#14b8a6" sub="planned non-BAU" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Cadence Settings Modal ──────────────────────────────────────────────── */
+function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved }) {
+  const [people, setPeople] = useState(() => {
+    const r = {}
+    DEFAULT_PEOPLE.forEach(name => {
+      r[name] = { activities: JSON.parse(JSON.stringify(cadenceSettings.people?.[name]?.activities ?? [])) }
+    })
+    return r
+  })
+  const [saving, setSaving] = useState(false)
+  const [saved,  setSaved]  = useState(false)
+  const [err,    setErr]    = useState(null)
+
+  const add    = name => setPeople(p => ({ ...p, [name]: { activities: [...p[name].activities, { name: '', hours_per_week: 0 }] } }))
+  const remove = (name, i) => setPeople(p => ({ ...p, [name]: { activities: p[name].activities.filter((_, j) => j !== i) } }))
+  const upd    = (name, i, field, val) => setPeople(p => ({
+    ...p, [name]: { activities: p[name].activities.map((a, j) => j === i ? { ...a, [field]: val } : a) }
+  }))
+
+  async function save() {
+    setSaving(true); setErr(null); setSaved(false)
+    try {
+      const payload = { people: Object.fromEntries(DEFAULT_PEOPLE.map(n => [n, { activities: people[n].activities.filter(a => String(a.name).trim()) }])) }
+      const result = await updateCadenceSettings(payload)
+      onSaved({ cadenceSettings: result })
+      setSaved(true)
+    } catch { setErr('Failed to save') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '24px 16px', overflowY: 'auto' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 780, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Cadence Hours Settings</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Recurring meetings and calls — hours per week, shown across {Math.round(spanWeeks)} weeks</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '20px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {DEFAULT_PEOPLE.map(name => {
+            const acts  = people[name].activities
+            const wkTot = acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0)
+            const pTot  = Math.round(wkTot * spanWeeks)
+            return (
+              <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ padding: '9px 16px', background: '#f9fafb', borderBottom: acts.length ? '1px solid #e5e8ef' : undefined, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
+                      {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <span style={{ fontWeight: 700, color: '#111827', fontSize: 13 }}>{name}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#0891b2' }}>{wkTot}h</strong>/wk · <strong style={{ color: '#0891b2' }}>{pTot}h</strong> this period</span>
+                    <button onClick={() => add(name)} style={{ height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#eff6ff', color: '#1450f5', border: '1px solid #c7d7fd', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>+ Add</button>
+                  </div>
+                </div>
+                {acts.length > 0 ? (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: '#fafafa' }}>
+                        <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa' }}>Meeting / Activity</th>
+                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 150 }}>Hours / Week</th>
+                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#0891b2', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 110 }}>Period Total</th>
+                        <th style={{ width: 36, borderBottom: '1px solid #f0f3fa' }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {acts.map((a, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f9fafb' }}>
+                          <td style={{ padding: '6px 14px' }}>
+                            <input value={a.name} onChange={e => upd(name, i, 'name', e.target.value)} placeholder="e.g. Weekly Sync, Daily Standup…"
+                              style={{ width: '100%', boxSizing: 'border-box', height: 28, padding: '0 8px', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif' }} />
+                          </td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                              <input type="number" value={a.hours_per_week} min={0} max={40} step={0.25}
+                                onChange={e => upd(name, i, 'hours_per_week', e.target.value)}
+                                style={{ width: 64, height: 28, padding: '0 6px', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 6, textAlign: 'center', outline: 'none', fontFamily: 'Inter, sans-serif' }} />
+                              <span style={{ fontSize: 11, color: '#9ca3af' }}>h/wk</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#0891b2' }}>{Math.round((Number(a.hours_per_week) || 0) * spanWeeks)}h</td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center' }}><button onClick={() => remove(name, i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, padding: '2px 4px' }}>×</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={{ padding: '14px 16px', color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>No cadence meetings logged — click + Add</div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#dc2626' }}>{err}</span>}{saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#0891b2', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Training Settings Modal ─────────────────────────────────────────────── */
+function TrainingModal({ trainingSettings, spanDays, onClose, onSaved }) {
+  const pf = spanDays / 365
+  const [people, setPeople] = useState(() => {
+    const r = {}
+    DEFAULT_PEOPLE.forEach(name => {
+      r[name] = { sessions: JSON.parse(JSON.stringify(trainingSettings.people?.[name]?.sessions ?? [])) }
+    })
+    return r
+  })
+  const [saving, setSaving] = useState(false)
+  const [saved,  setSaved]  = useState(false)
+  const [err,    setErr]    = useState(null)
+
+  const add    = name => setPeople(p => ({ ...p, [name]: { sessions: [...p[name].sessions, { name: '', hours_per_year: 0 }] } }))
+  const remove = (name, i) => setPeople(p => ({ ...p, [name]: { sessions: p[name].sessions.filter((_, j) => j !== i) } }))
+  const upd    = (name, i, field, val) => setPeople(p => ({
+    ...p, [name]: { sessions: p[name].sessions.map((s, j) => j === i ? { ...s, [field]: val } : s) }
+  }))
+
+  async function save() {
+    setSaving(true); setErr(null); setSaved(false)
+    try {
+      const payload = { people: Object.fromEntries(DEFAULT_PEOPLE.map(n => [n, { sessions: people[n].sessions.filter(s => String(s.name).trim()) }])) }
+      const result = await updateTrainingSettings(payload)
+      onSaved({ trainingSettings: result })
+      setSaved(true)
+    } catch { setErr('Failed to save') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '24px 16px', overflowY: 'auto' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 780, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Training / Upskilling Settings</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Courses and sessions per person — annual hours, prorated to selected period</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '20px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {DEFAULT_PEOPLE.map(name => {
+            const sessions = people[name].sessions
+            const yrTot    = sessions.reduce((s, t) => s + (Number(t.hours_per_year) || 0), 0)
+            const pTot     = Math.round(yrTot * pf)
+            return (
+              <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ padding: '9px 16px', background: '#f9fafb', borderBottom: sessions.length ? '1px solid #e5e8ef' : undefined, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
+                      {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <span style={{ fontWeight: 700, color: '#111827', fontSize: 13 }}>{name}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#7c3aed' }}>{yrTot}h</strong>/yr · <strong style={{ color: '#7c3aed' }}>{pTot}h</strong> this period</span>
+                    <button onClick={() => add(name)} style={{ height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#faf5ff', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>+ Add</button>
+                  </div>
+                </div>
+                {sessions.length > 0 ? (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: '#fafafa' }}>
+                        <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa' }}>Training / Course</th>
+                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 150 }}>Hours / Year</th>
+                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#7c3aed', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 120 }}>Period Hours</th>
+                        <th style={{ width: 36, borderBottom: '1px solid #f0f3fa' }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sessions.map((s, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f9fafb' }}>
+                          <td style={{ padding: '6px 14px' }}>
+                            <input value={s.name} onChange={e => upd(name, i, 'name', e.target.value)} placeholder="e.g. Google Analytics Cert, Team Workshop…"
+                              style={{ width: '100%', boxSizing: 'border-box', height: 28, padding: '0 8px', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif' }} />
+                          </td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                              <input type="number" value={s.hours_per_year} min={0} max={2000} step={1}
+                                onChange={e => upd(name, i, 'hours_per_year', e.target.value)}
+                                style={{ width: 64, height: 28, padding: '0 6px', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 6, textAlign: 'center', outline: 'none', fontFamily: 'Inter, sans-serif' }} />
+                              <span style={{ fontSize: 11, color: '#9ca3af' }}>h/yr</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#7c3aed' }}>{Math.round((Number(s.hours_per_year) || 0) * pf)}h</td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center' }}><button onClick={() => remove(name, i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, padding: '2px 4px' }}>×</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={{ padding: '14px 16px', color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>No training sessions logged — click + Add</div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#dc2626' }}>{err}</span>}{saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -699,11 +1032,15 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
   const [showTickets,  setShowTickets]  = useState(false)
   const [sortCol,      setSortCol]      = useState('utility_pct')
   const [sortDir,      setSortDir]      = useState('desc')
-  const [showCapacity, setShowCapacity] = useState(false)
-  const [showRatesSla, setShowRatesSla] = useState(false)
-  const [capSettings,  setCapSettings]  = useState({ default_working_days: 250, default_holidays: 24, people: {} })
-  const [bwRates,      setBwRates]      = useState({})
-  const [slaRules,     setSlaRules]     = useState({})
+  const [showCapacity,  setShowCapacity]  = useState(false)
+  const [showRatesSla,  setShowRatesSla]  = useState(false)
+  const [showCadence,   setShowCadence]   = useState(false)
+  const [showTraining,  setShowTraining]  = useState(false)
+  const [capSettings,      setCapSettings]      = useState({ default_working_days: 250, default_holidays: 24, people: {} })
+  const [bwRates,          setBwRates]          = useState({})
+  const [slaRules,         setSlaRules]         = useState({})
+  const [cadenceSettings,  setCadenceSettings]  = useState({ people: {} })
+  const [trainingSettings, setTrainingSettings] = useState({ people: {} })
 
   useEffect(() => {
     setLoading(true)
@@ -714,8 +1051,11 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
   }, [sessionId, dateFrom, dateTo, serviceF, assigneeF, mode])
 
   useEffect(() => {
-    Promise.all([getCapacitySettings(), getBandwidthRates(), getSlaRules()])
-      .then(([cap, bw, sla]) => { setCapSettings(cap); setBwRates(bw); setSlaRules(sla) })
+    Promise.all([getCapacitySettings(), getBandwidthRates(), getSlaRules(), getCadenceSettings(), getTrainingSettings()])
+      .then(([cap, bw, sla, cad, trn]) => {
+        setCapSettings(cap); setBwRates(bw); setSlaRules(sla)
+        setCadenceSettings(cad); setTrainingSettings(trn)
+      })
       .catch(() => {})
   }, [])
 
@@ -772,6 +1112,25 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
       ? <span style={{ color: '#d1d5db', marginLeft: 3 }}>⇅</span>
       : <span style={{ color: '#1450f5', marginLeft: 3 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
 
+  const DATE_PRESETS = useMemo(() => {
+    const now = new Date()
+    const y = now.getFullYear(), m = now.getMonth()
+    const fmt = d => d.toISOString().slice(0, 10)
+    const lastDay = (yr, mo) => new Date(yr, mo + 1, 0)
+    const qStartM  = Math.floor(m / 3) * 3
+    const pqStartM = qStartM - 3
+    const pqY = pqStartM < 0 ? y - 1 : y
+    const pqM = pqStartM < 0 ? pqStartM + 12 : pqStartM
+    return [
+      { label: 'This Month',   from: fmt(new Date(y, m, 1)),       to: fmt(now) },
+      { label: 'Last Month',   from: fmt(new Date(y, m - 1, 1)),   to: fmt(lastDay(y, m - 1)) },
+      { label: 'This Quarter', from: fmt(new Date(y, qStartM, 1)), to: fmt(now) },
+      { label: 'Last Quarter', from: fmt(new Date(pqY, pqM, 1)),   to: fmt(lastDay(pqY, pqM + 2)) },
+      { label: 'YTD',          from: fmt(new Date(y, 0, 1)),       to: fmt(now) },
+      { label: 'This Year',    from: fmt(new Date(y, 0, 1)),       to: fmt(new Date(y, 11, 31)) },
+    ]
+  }, [])
+
   const hasFilter = serviceF || assigneeF.length > 0 || dateFrom || dateTo
 
   const hasCapacityPlan = DEFAULT_PEOPLE.some(name => {
@@ -791,48 +1150,86 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
       </div>
 
       {/* Filter bar */}
-      <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 12, padding: '12px 18px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 8, padding: 3, gap: 2, flexShrink: 0 }}>
-          {[['all', 'All Tracked'], ['closed', 'Closed Only']].map(([val, lbl]) => (
-            <button key={val} onClick={() => setMode(val)} style={{
-              padding: '5px 14px', fontSize: 12, fontWeight: mode === val ? 700 : 500,
-              color: mode === val ? '#fff' : '#6b7280', background: mode === val ? '#1450f5' : 'transparent',
-              border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-            }}>{lbl}</button>
-          ))}
-        </div>
-        <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
-        <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
-        <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
-        <select value={serviceF} onChange={e => setServiceF(e.target.value)} style={{
-          height: 30, padding: '0 8px', fontSize: 12, borderRadius: 7, background: '#fff', outline: 'none',
-          fontFamily: 'Inter, sans-serif', cursor: 'pointer',
-          color: serviceF ? '#111827' : '#9ca3af', border: `1px solid ${serviceF ? '#a5b4fc' : '#e5e7eb'}`,
-        }}>
-          <option value="">All Services</option>
-          {BAU_SERVICES.map(s => <option key={s} value={s}>{BAU_SHORT[s]}</option>)}
-        </select>
-        <AssigneeMultiSelect options={assignees} selected={assigneeF} onChange={setAssigneeF} />
-        {hasFilter && (
-          <button onClick={() => { setServiceF(''); setAssigneeF([]); setDateFrom(''); setDateTo('') }}
-            style={{ height: 30, padding: '0 10px', fontSize: 12, cursor: 'pointer', background: 'none', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
-            Clear
+      <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 12, padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Row 1: filters + settings buttons */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 8, padding: 3, gap: 2, flexShrink: 0 }}>
+            {[['all', 'All Tracked'], ['closed', 'Closed Only']].map(([val, lbl]) => (
+              <button key={val} onClick={() => setMode(val)} style={{
+                padding: '5px 14px', fontSize: 12, fontWeight: mode === val ? 700 : 500,
+                color: mode === val ? '#fff' : '#6b7280', background: mode === val ? '#1450f5' : 'transparent',
+                border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              }}>{lbl}</button>
+            ))}
+          </div>
+          <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
+          <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
+          <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
+          <select value={serviceF} onChange={e => setServiceF(e.target.value)} style={{
+            height: 30, padding: '0 8px', fontSize: 12, borderRadius: 7, background: '#fff', outline: 'none',
+            fontFamily: 'Inter, sans-serif', cursor: 'pointer',
+            color: serviceF ? '#111827' : '#9ca3af', border: `1px solid ${serviceF ? '#a5b4fc' : '#e5e7eb'}`,
+          }}>
+            <option value="">All Services</option>
+            {BAU_SERVICES.map(s => <option key={s} value={s}>{BAU_SHORT[s]}</option>)}
+          </select>
+          <AssigneeMultiSelect options={assignees} selected={assigneeF} onChange={setAssigneeF} />
+          {hasFilter && (
+            <button onClick={() => { setServiceF(''); setAssigneeF([]); setDateFrom(''); setDateTo('') }}
+              style={{ height: 30, padding: '0 10px', fontSize: 12, cursor: 'pointer', background: 'none', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
+              Clear
+            </button>
+          )}
+          <div style={{ flex: 1 }} />
+          <button onClick={() => setShowCapacity(true)} style={btnStyle}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            Capacity
           </button>
-        )}
-        <div style={{ flex: 1 }} />
-        <button onClick={() => setShowCapacity(true)} style={btnStyle}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-          Capacity Settings
-        </button>
-        <button onClick={() => setShowRatesSla(true)} style={btnStyle}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-          </svg>
-          Rates & SLA
-        </button>
+          <button onClick={() => setShowRatesSla(true)} style={btnStyle}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            Rates & SLA
+          </button>
+          <button onClick={() => setShowCadence(true)} style={{ ...btnStyle, color: '#0891b2', borderColor: '#bae6fd' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Cadence
+          </button>
+          <button onClick={() => setShowTraining(true)} style={{ ...btnStyle, color: '#7c3aed', borderColor: '#ddd6fe' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+            Training
+          </button>
+        </div>
+        {/* Row 2: quick date presets */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', paddingTop: 6, borderTop: '1px solid #f3f4f6' }}>
+          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>Quick:</span>
+          {DATE_PRESETS.map(p => {
+            const active = dateFrom === p.from && dateTo === p.to
+            return (
+              <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }} style={{
+                height: 26, padding: '0 11px', fontSize: 11, cursor: 'pointer', borderRadius: 6, fontFamily: 'Inter, sans-serif',
+                fontWeight: active ? 700 : 500, border: active ? 'none' : '1px solid #e5e7eb',
+                background: active ? '#1450f5' : '#f9fafb', color: active ? '#fff' : '#374151',
+              }}>{p.label}</button>
+            )
+          })}
+        </div>
       </div>
+
+      {data && !loading && (
+        <AllocUtilWidgets
+          capSettings={capSettings}
+          cadenceSettings={cadenceSettings}
+          trainingSettings={trainingSettings}
+          data={data}
+        />
+      )}
 
       {loading && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
@@ -1239,6 +1636,22 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           bwRates={bwRates} slaRules={slaRules}
           onClose={() => setShowRatesSla(false)}
           onSaved={({ bwRates: nb, slaRules: ns }) => { setBwRates(nb); setSlaRules(ns); setShowRatesSla(false) }}
+        />
+      )}
+      {showCadence && (
+        <CadenceModal
+          cadenceSettings={cadenceSettings}
+          spanWeeks={data?.span_weeks ?? 52}
+          onClose={() => setShowCadence(false)}
+          onSaved={({ cadenceSettings: newCad }) => { setCadenceSettings(newCad); setShowCadence(false) }}
+        />
+      )}
+      {showTraining && (
+        <TrainingModal
+          trainingSettings={trainingSettings}
+          spanDays={data?.span_days ?? 365}
+          onClose={() => setShowTraining(false)}
+          onSaved={({ trainingSettings: newTrn }) => { setTrainingSettings(newTrn); setShowTraining(false) }}
         />
       )}
     </div>

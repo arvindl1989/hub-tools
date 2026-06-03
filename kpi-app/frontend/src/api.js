@@ -231,6 +231,23 @@ export async function updateSlaRules(rules) {
   return data
 }
 
+export async function getCadenceSettings() {
+  const { data } = await client.get('/cadence-settings')
+  return data
+}
+export async function updateCadenceSettings(settings) {
+  const { data } = await client.put('/cadence-settings', settings)
+  return data
+}
+export async function getTrainingSettings() {
+  const { data } = await client.get('/training-settings')
+  return data
+}
+export async function updateTrainingSettings(settings) {
+  const { data } = await client.put('/training-settings', settings)
+  return data
+}
+
 export async function getInsights(sid, dateFrom, dateTo, subCategory = null) {
   const { data } = await client.get(`/sessions/${sid}/insights`, {
     params: _clean({ date_from: dateFrom, date_to: dateTo, sub_category: subCategory }),

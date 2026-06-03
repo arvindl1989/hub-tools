@@ -65,6 +65,16 @@ SLA_RULES: dict[str, int] = {
     "Demand Engagement Activations": 14,
 }
 
+CADENCE_SETTINGS: dict = {
+    "people": {}
+    # people[name] = {"activities": [{"name": str, "hours_per_week": float}]}
+}
+
+TRAINING_SETTINGS: dict = {
+    "people": {}
+    # people[name] = {"sessions": [{"name": str, "hours_per_year": float}]}
+}
+
 EXCLUDED_STATES = {"Closed Completed", "Closed Rejected", "Confirmation Completed"}
 
 COLUMN_ALIASES: dict[str, list[str]] = {
@@ -1324,6 +1334,28 @@ def update_sla_rules(rules: dict[str, int]):
     SLA_RULES.clear()
     SLA_RULES.update(rules)
     return {"message": "SLA rules updated", "rules": SLA_RULES}
+
+
+@app.get("/api/cadence-settings")
+def get_cadence_settings():
+    return CADENCE_SETTINGS
+
+@app.put("/api/cadence-settings")
+def update_cadence_settings(settings: dict):
+    CADENCE_SETTINGS.clear()
+    CADENCE_SETTINGS.update(settings)
+    return CADENCE_SETTINGS
+
+
+@app.get("/api/training-settings")
+def get_training_settings():
+    return TRAINING_SETTINGS
+
+@app.put("/api/training-settings")
+def update_training_settings(settings: dict):
+    TRAINING_SETTINGS.clear()
+    TRAINING_SETTINGS.update(settings)
+    return TRAINING_SETTINGS
 
 # ── Hub health ─────────────────────────────────────────────────────────────────
 
