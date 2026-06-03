@@ -145,16 +145,20 @@ const DtcTT = ({ active, payload, label }) => {
 }
 
 /* ── Allocated / Utilized summary widgets ────────────────────────────────── */
-function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data }) {
+function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data, assigneeF = [], serviceF = '' }) {
   const spanDays  = data?.span_days  ?? 365
   const spanWeeks = data?.span_weeks ?? 52
   const pf = spanDays / 365
   const defWd = capSettings.default_working_days ?? 250
   const defH  = capSettings.default_holidays ?? 24
 
+  const activePeople = assigneeF.length > 0
+    ? DEFAULT_PEOPLE.filter(n => assigneeF.includes(n))
+    : DEFAULT_PEOPLE
+
   let totalAvailH = 0, cadenceAllocH = 0, trainAllocH = 0, prodAllocH = 0
   let wcmAllocH = 0, deaAllocH = 0, gdAllocH = 0
-  DEFAULT_PEOPLE.forEach(name => {
+  activePeople.forEach(name => {
     const s   = capSettings.people?.[name] || {}
     const wd  = s.working_days ?? defWd
     const h   = s.holidays ?? defH
@@ -170,13 +174,14 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
   })
 
   const prodUtilH = data?.total_committed_h ?? 0
+
   let cadenceUtilH = 0
-  DEFAULT_PEOPLE.forEach(name => {
+  activePeople.forEach(name => {
     const acts = cadenceSettings.people?.[name]?.activities ?? []
     cadenceUtilH += acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0) * spanWeeks
   })
   let trainUtilH = 0
-  DEFAULT_PEOPLE.forEach(name => {
+  activePeople.forEach(name => {
     const sessions = trainingSettings.people?.[name]?.sessions ?? []
     trainUtilH += sessions.reduce((s, t) => s + (Number(t.hours_per_year) || 0), 0) * pf
   })
@@ -186,7 +191,7 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
   ;(data?.by_service ?? []).forEach(s => { svcMap[s.service] = s.committed_hours })
 
   let paUtilH = 0
-  DEFAULT_PEOPLE.forEach(name => {
+  activePeople.forEach(name => {
     const s   = capSettings.people?.[name] || {}
     const wd  = s.working_days ?? defWd
     const h   = s.holidays ?? defH
@@ -196,13 +201,45 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
   const r = n => Math.round(n)
 
-  function NumBox({ label, value, sub, color = '#111827', bg = '#f3f4f6', borderColor }) {
+  const ALL_SVC_BOXES = [
+    { key: 'Website Content Management',          label: 'Web Content Mgt',   allocH: wcmAllocH, utilH: svcMap['Website Content Management'] ?? 0,          color: '#3b82f6', bg: '#eff6ff', bc: '#3b82f6' },
+    { key: 'Demand Engagement Activations',       label: 'Demand Engagement', allocH: deaAllocH, utilH: svcMap['Demand Engagement Activations'] ?? 0,        color: '#8b5cf6', bg: '#f5f3ff', bc: '#8b5cf6' },
+    { key: 'Content Production – Graphic Design', label: 'Graphic Design',    allocH: gdAllocH,  utilH: svcMap['Content Production – Graphic Design'] ?? 0,  color: '#ef4444', bg: '#fef2f2', bc: '#ef4444' },
+  ]
+  const visibleSvcBoxes = serviceF ? ALL_SVC_BOXES.filter(s => s.key === serviceF) : ALL_SVC_BOXES
+
+  function pctOf(util, alloc) {
+    if (!alloc) return null
+    return Math.round(util / alloc * 100)
+  }
+
+  function utilPctStyle(pct) {
+    if (pct == null) return null
+    if (pct >= 100) return { color: '#dc2626', bg: '#fef2f2' }
+    if (pct >= 60)  return { color: '#d97706', bg: '#fffbeb' }
+    return { color: '#16a34a', bg: '#f0fdf4' }
+  }
+
+  function remainStyle(val, allocH) {
+    if (val < 0) return { color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' }
+    const frac = allocH > 0 ? val / allocH : 1
+    if (frac < 0.20) return { color: '#d97706', bg: '#fffbeb', border: '#fcd34d' }
+    return { color: '#16a34a', bg: '#f0fdf4', border: '#86efac' }
+  }
+
+  function NumBox({ label, value, sub, color = '#111827', bg = '#f3f4f6', borderColor, utilPct }) {
+    const ps = utilPctStyle(utilPct)
     return (
       <div style={{ flex: 1, minWidth: 0, background: bg, borderRadius: 9, padding: '11px 14px', borderLeft: borderColor ? `3px solid ${borderColor}` : undefined }}>
         <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
         <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1.1 }}>
           {value}<span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 2 }}>h</span>
         </div>
+        {ps && (
+          <div style={{ fontSize: 10, fontWeight: 700, color: ps.color, background: ps.bg, display: 'inline-block', borderRadius: 4, padding: '1px 5px', marginTop: 3 }}>
+            {utilPct}% utilized
+          </div>
+        )}
         {sub && <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>{sub}</div>}
       </div>
     )
@@ -211,46 +248,93 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
   const sectionLabel = { fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '12px 0 8px' }
   const cardStyle = { background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '18px 20px', flex: 1, minWidth: 0 }
 
+  const remainItems = [
+    { label: 'Total Remaining', val: totalAvailH - totalUtilH,     allocH: totalAvailH },
+    { label: 'Productivity',    val: prodAllocH  - prodUtilH,      allocH: prodAllocH  },
+    { label: 'Cadence',         val: cadenceAllocH - cadenceUtilH, allocH: cadenceAllocH },
+    { label: 'Training',        val: trainAllocH - trainUtilH,     allocH: trainAllocH },
+    ...visibleSvcBoxes.map(s => ({ label: s.label, val: s.allocH - s.utilH, allocH: s.allocH })),
+  ]
+
   return (
-    <div style={{ display: 'flex', gap: 16 }}>
-      <div style={cardStyle}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1450f5', flexShrink: 0 }} />
-          Allocated Hours
-          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>prorated to period</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 16 }}>
+        {/* Allocated Hours */}
+        <div style={cardStyle}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1450f5', flexShrink: 0 }} />
+            Allocated Hours
+            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>prorated to period</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <NumBox label="Total Available" value={r(totalAvailH)}   color="#111827" bg="#f9fafb" />
+            <NumBox label="Productivity"    value={r(prodAllocH)}    color="#059669" bg="#f0fdf4" sub="75% of avail" />
+            <NumBox label="Cadence"         value={r(cadenceAllocH)} color="#0891b2" bg="#f0f9ff" sub="20% of avail" />
+            <NumBox label="Training"        value={r(trainAllocH)}   color="#7c3aed" bg="#faf5ff" sub="5% of avail" />
+          </div>
+          {visibleSvcBoxes.length > 0 && <>
+            <div style={sectionLabel}>Allocated by service</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {visibleSvcBoxes.map(s => (
+                <NumBox key={s.key} label={s.label} value={r(s.allocH)} color={s.color} bg={s.bg} borderColor={s.bc} />
+              ))}
+            </div>
+          </>}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <NumBox label="Total Available" value={r(totalAvailH)}   color="#111827" bg="#f9fafb" />
-          <NumBox label="Cadence"         value={r(cadenceAllocH)} color="#0891b2" bg="#f0f9ff" sub="20% of avail" />
-          <NumBox label="Training"        value={r(trainAllocH)}   color="#7c3aed" bg="#faf5ff" sub="5% of avail" />
-          <NumBox label="Productivity"    value={r(prodAllocH)}    color="#059669" bg="#f0fdf4" sub="75% of avail" />
-        </div>
-        <div style={sectionLabel}>Allocated by service</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <NumBox label="Web Content Mgt"   value={r(wcmAllocH)} color="#3b82f6" bg="#eff6ff" borderColor="#3b82f6" />
-          <NumBox label="Demand Engagement" value={r(deaAllocH)} color="#8b5cf6" bg="#f5f3ff" borderColor="#8b5cf6" />
-          <NumBox label="Graphic Design"    value={r(gdAllocH)}  color="#ef4444" bg="#fef2f2" borderColor="#ef4444" />
+
+        {/* Utilized Hours */}
+        <div style={cardStyle}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
+            Utilized Hours
+            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>tickets + cadence + training</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <NumBox label="Total Utilized"  value={r(totalUtilH)}   color="#111827" bg="#f9fafb" utilPct={pctOf(totalUtilH, totalAvailH)} />
+            <NumBox label="Productivity"    value={r(prodUtilH)}    color="#059669" bg="#f0fdf4" sub="ticket hours"       utilPct={pctOf(prodUtilH, prodAllocH)} />
+            <NumBox label="Cadence"         value={r(cadenceUtilH)} color="#0891b2" bg="#f0f9ff" sub="recurring meetings" utilPct={pctOf(cadenceUtilH, cadenceAllocH)} />
+            <NumBox label="Training"        value={r(trainUtilH)}   color="#7c3aed" bg="#faf5ff" sub="upskilling"         utilPct={pctOf(trainUtilH, trainAllocH)} />
+          </div>
+          <div style={sectionLabel}>Utilized by service</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {visibleSvcBoxes.map(s => (
+              <NumBox key={s.key} label={s.label} value={r(s.utilH)} color={s.color} bg={s.bg} borderColor={s.bc} utilPct={pctOf(s.utilH, s.allocH)} />
+            ))}
+            {!serviceF && (
+              <NumBox label="Perf. Analytics" value={r(paUtilH)} color="#14b8a6" bg="#f0fdfa" borderColor="#14b8a6" sub="planned non-BAU" />
+            )}
+          </div>
         </div>
       </div>
 
-      <div style={cardStyle}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
-          Utilized Hours
-          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>tickets + cadence + training</span>
+      {/* Utilization Remaining */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '14px 20px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          Utilization Remaining
+          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>allocated − utilized · negative means over capacity</span>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <NumBox label="Total Utilized"         value={r(totalUtilH)}   color="#111827" bg="#f9fafb" />
-          <NumBox label="Cadence"                value={r(cadenceUtilH)} color="#0891b2" bg="#f0f9ff" sub="recurring meetings" />
-          <NumBox label="Training"               value={r(trainUtilH)}   color="#7c3aed" bg="#faf5ff" sub="upskilling sessions" />
-          <NumBox label="Productivity (tickets)" value={r(prodUtilH)}    color="#059669" bg="#f0fdf4" sub="committed ticket hrs" />
-        </div>
-        <div style={sectionLabel}>Utilized by service</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <NumBox label="Web Content Mgt"     value={r(svcMap['Website Content Management'] ?? 0)}                  color="#3b82f6" bg="#eff6ff" borderColor="#3b82f6" />
-          <NumBox label="Demand Engagement"   value={r(svcMap['Demand Engagement Activations'] ?? 0)}               color="#8b5cf6" bg="#f5f3ff" borderColor="#8b5cf6" />
-          <NumBox label="Graphic Design"      value={r(svcMap['Content Production – Graphic Design'] ?? 0)}    color="#ef4444" bg="#fef2f2" borderColor="#ef4444" />
-          <NumBox label="Perf. Analytics"     value={r(paUtilH)}                                                    color="#14b8a6" bg="#f0fdfa" borderColor="#14b8a6" sub="planned non-BAU" />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {remainItems.map(({ label, val, allocH }) => {
+            const rs = remainStyle(val, allocH)
+            const absPct = allocH > 0 ? Math.round(Math.abs(val) / allocH * 100) : 0
+            const usedPct = 100 - absPct
+            return (
+              <div key={label} style={{ flex: 1, minWidth: 0, background: rs.bg, borderRadius: 9, padding: '10px 14px', border: `1px solid ${rs.border}` }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: rs.color, lineHeight: 1.1 }}>
+                  {val < 0 ? '−' : '+'}{Math.abs(r(val))}<span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 2 }}>h</span>
+                </div>
+                {allocH > 0 && (
+                  <div style={{ fontSize: 10, fontWeight: 600, color: rs.color, marginTop: 2 }}>
+                    {val < 0 ? `${absPct}% over capacity` : `${usedPct}% used · ${absPct}% free`}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -1228,6 +1312,8 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           cadenceSettings={cadenceSettings}
           trainingSettings={trainingSettings}
           data={data}
+          assigneeF={assigneeF}
+          serviceF={serviceF}
         />
       )}
 
