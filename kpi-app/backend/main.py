@@ -1058,8 +1058,12 @@ def utility_rate(
                         committed += cnt * hpt
             pcfg = CAPACITY_SETTINGS.get("people", {}).get(person, {})
             person_office_days = pcfg.get("office_days") or CAPACITY_SETTINGS.get("default_office_days", 220)
-            # Prorate office days to this period, then convert to working weeks
-            person_weeks = (person_office_days * (span_days / 365.0)) / BANDWIDTH_DAYS_PER_WEEK
+            # Subtract non-ticket allocations to get effective ticket days
+            non_ticket_cfg = pcfg.get("non_ticket", {})
+            non_ticket_pct = sum(v for v in non_ticket_cfg.values() if isinstance(v, (int, float)))
+            effective_days = round(person_office_days * max(0.0, 1 - non_ticket_pct / 100), 1)
+            # Prorate effective days to this period, then convert to working weeks
+            person_weeks = (effective_days * (span_days / 365.0)) / BANDWIDTH_DAYS_PER_WEEK
             individual_cap = round(BANDWIDTH_WEEKLY_CAPACITY * max(person_weeks, 0.2), 1)
             util_pct = round(committed / individual_cap * 100, 1) if individual_cap > 0 else 0.0
 
@@ -1077,17 +1081,19 @@ def utility_rate(
                         max_days_to_close = int(valid.max())
 
             by_assignee.append({
-                "assigned_to":       person,
-                "total_tickets":     int(len(pdf)),
-                "tracked_tickets":   sum(breakdown.values()),
-                "breakdown":         breakdown,
-                "committed_hours":   round(committed, 1),
-                "capacity_hours":    individual_cap,
-                "utility_pct":       util_pct,
-                "status":            "Overloaded" if util_pct >= 85 else "Busy" if util_pct >= 60 else "Available",
-                "avg_days_to_close": avg_days_to_close,
-                "min_days_to_close": min_days_to_close,
-                "max_days_to_close": max_days_to_close,
+                "assigned_to":         person,
+                "total_tickets":       int(len(pdf)),
+                "tracked_tickets":     sum(breakdown.values()),
+                "breakdown":           breakdown,
+                "committed_hours":     round(committed, 1),
+                "capacity_hours":      individual_cap,
+                "utility_pct":         util_pct,
+                "status":              "Overloaded" if util_pct >= 85 else "Busy" if util_pct >= 60 else "Available",
+                "non_ticket_pct":      round(non_ticket_pct, 1),
+                "effective_days":      effective_days,
+                "avg_days_to_close":   avg_days_to_close,
+                "min_days_to_close":   min_days_to_close,
+                "max_days_to_close":   max_days_to_close,
             })
         by_assignee.sort(key=lambda x: x["utility_pct"], reverse=True)
 

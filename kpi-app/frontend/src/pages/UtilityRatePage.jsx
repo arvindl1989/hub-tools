@@ -36,6 +36,13 @@ const STATUS_CFG = {
   Busy:       { color: '#b87d00', bg: '#fffbeb', border: '#fcd34d' },
   Overloaded: { color: '#c0305a', bg: '#fff1f2', border: '#fda4af' },
 }
+const NON_TICKET = ['PWR', 'Process Change', 'New Service Launch', 'Adhoc']
+const NON_TICKET_COLORS = {
+  'PWR':                 '#6366f1',
+  'Process Change':      '#ec4899',
+  'New Service Launch':  '#14b8a6',
+  'Adhoc':               '#f97316',
+}
 
 function utilColor(pct) {
   if (pct >= 85) return '#c0305a'
@@ -98,7 +105,10 @@ const NumInput = ({ value, onChange, min, max, step, width = 70, placeholder }) 
 /* ── Capacity Planning section (main page) ──────────────────────────────────── */
 function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
   const people = Object.entries(capSettings.people || {})
-    .filter(([, p]) => SERVICES.some(s => (p.allocations?.[s] ?? 0) > 0))
+    .filter(([, p]) =>
+      SERVICES.some(s => (p.allocations?.[s] ?? 0) > 0) ||
+      NON_TICKET.some(a => (p.non_ticket?.[a] ?? 0) > 0)
+    )
   if (!people.length) return null
 
   const actualLookup = {}
@@ -106,6 +116,13 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
 
   const grouped = people.map(([name, settings]) => {
     const officeDays = settings.office_days ?? capSettings.default_office_days ?? 220
+    const ntRows = NON_TICKET.filter(a => (settings.non_ticket?.[a] ?? 0) > 0).map(a => {
+      const allocPct  = settings.non_ticket[a]
+      const allocDays = +(officeDays * allocPct / 100).toFixed(1)
+      return { activity: a, allocPct, allocDays }
+    })
+    const ntPct = ntRows.reduce((s, r) => s + r.allocPct, 0)
+    const effectiveDays = +(officeDays * Math.max(0, 1 - ntPct / 100)).toFixed(1)
     const rows = SERVICES.filter(svc => (settings.allocations?.[svc] ?? 0) > 0).map(svc => {
       const allocPct  = settings.allocations[svc]
       const rate      = bwRates[svc] || 0
@@ -118,33 +135,65 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
     const totQuota  = +rows.reduce((s, r) => s + r.quota, 0).toFixed(1)
     const totActual = rows.reduce((s, r) => s + r.actual, 0)
     const totAtt    = totQuota > 0 ? Math.round(totActual / totQuota * 100) : null
-    return { name, officeDays, rows, totQuota, totActual, totAtt }
+    const totalRows = rows.length + ntRows.length
+    return { name, officeDays, effectiveDays, ntPct, rows, ntRows, totQuota, totActual, totAtt, totalRows }
   })
 
   const HDR = { padding: '8px 12px', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
 
   return (
-    <SectionCard title="Capacity Planning" subtitle="Ticket quota vs actual based on configured office days and service allocation" accent="#7c3aed">
+    <SectionCard title="Capacity Planning" subtitle="Ticket quota vs actual, plus non-ticket time reservations. Utility rate denominator uses effective days after non-ticket deductions." accent="#7c3aed">
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr>
-              {['Person', 'Service', 'Office Days', 'Alloc %', 'Alloc Days', 'Tickets / Day', 'Quota', 'Actual', 'Attainment'].map((h, i) => (
+              {['Person', 'Activity / Service', 'Office Days', 'Alloc %', 'Alloc Days', 'Tickets / Day', 'Quota', 'Actual', 'Attainment'].map((h, i) => (
                 <th key={h} style={{ ...HDR, textAlign: i <= 1 ? 'left' : 'center' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {grouped.map(({ name, officeDays, rows, totQuota, totActual, totAtt }, gi) => {
+            {grouped.map(({ name, officeDays, effectiveDays, ntPct, rows, ntRows, totQuota, totActual, totAtt, totalRows }, gi) => {
               const personBg = gi % 2 === 0 ? '#fff' : '#fafbff'
               const totAS = attStyle(totAtt)
+              const spanCount = totalRows + (rows.length > 0 ? 1 : 0) + 1 // service rows + total row + effective days row
               return [
+                // Non-ticket rows first
+                ...ntRows.map((r, ri) => (
+                  <tr key={`${name}-nt-${r.activity}`} style={{ background: personBg, borderBottom: '1px solid #f0f3fa' }}>
+                    {ri === 0 && rows.length === 0 && (
+                      <td rowSpan={spanCount} style={{ padding: '10px 12px', fontWeight: 700, color: '#111827', verticalAlign: 'middle', borderRight: '1px solid #e5e8ef', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                          <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
+                            {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          {name}
+                        </div>
+                      </td>
+                    )}
+                    <td style={{ padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: NON_TICKET_COLORS[r.activity] || '#9ca3af', flexShrink: 0 }} />
+                        <span style={{ color: '#374151' }}>{r.activity}</span>
+                        <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 5px' }}>non-ticket</span>
+                      </div>
+                    </td>
+                    {ri === 0 && rows.length === 0 && (
+                      <td rowSpan={spanCount} style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', verticalAlign: 'middle' }}>{officeDays}d</td>
+                    )}
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocPct}%</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocDays}d</td>
+                    <td colSpan={4} style={{ padding: '8px 12px', textAlign: 'center', color: '#9ca3af', fontSize: 11 }}>time reserved — not ticket-tracked</td>
+                  </tr>
+                )),
+                // Ticket service rows
                 ...rows.map((r, ri) => {
                   const as = attStyle(r.att)
+                  const isFirst = ntRows.length === 0 && ri === 0
                   return (
                     <tr key={`${name}-${r.svc}`} style={{ background: personBg, borderBottom: '1px solid #f0f3fa' }}>
-                      {ri === 0 && (
-                        <td rowSpan={rows.length + 1} style={{ padding: '10px 12px', fontWeight: 700, color: '#111827', verticalAlign: 'middle', borderRight: '1px solid #e5e8ef', whiteSpace: 'nowrap' }}>
+                      {isFirst && (
+                        <td rowSpan={spanCount} style={{ padding: '10px 12px', fontWeight: 700, color: '#111827', verticalAlign: 'middle', borderRight: '1px solid #e5e8ef', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                             <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
                               {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
@@ -159,8 +208,8 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
                           <span style={{ color: '#374151' }}>{SERVICE_SHORT[r.svc]}</span>
                         </div>
                       </td>
-                      {ri === 0 && (
-                        <td rowSpan={rows.length + 1} style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', verticalAlign: 'middle' }}>{officeDays}d</td>
+                      {isFirst && (
+                        <td rowSpan={spanCount} style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', verticalAlign: 'middle' }}>{officeDays}d</td>
                       )}
                       <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocPct}%</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocDays}d</td>
@@ -175,20 +224,30 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
                     </tr>
                   )
                 }),
-                // Summary row for this person
-                <tr key={`${name}-total`} style={{ background: personBg, borderBottom: '2px solid #e5e8ef' }}>
-                  {/* person and officeDays cells are rowSpanned */}
-                  <td style={{ padding: '7px 12px', fontStyle: 'italic', color: '#6b7280' }}>Total</td>
-                  <td colSpan={3} />
-                  <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{totQuota}</td>
-                  <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#374151' }}>{totActual}</td>
-                  <td style={{ padding: '7px 12px', textAlign: 'center' }}>
-                    {totAtt != null
-                      ? <span style={{ fontWeight: 700, color: totAS.color, background: totAS.bg, borderRadius: 6, padding: '2px 8px' }}>{totAtt}%</span>
-                      : <span style={{ color: '#d1d5db' }}>—</span>}
+                // Ticket total row (only if there are ticket rows)
+                rows.length > 0 && (
+                  <tr key={`${name}-total`} style={{ background: personBg, borderBottom: '1px solid #e5e8ef' }}>
+                    <td style={{ padding: '7px 12px', fontStyle: 'italic', color: '#6b7280' }}>Ticket Total</td>
+                    <td colSpan={3} />
+                    <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{totQuota}</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#374151' }}>{totActual}</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'center' }}>
+                      {totAtt != null
+                        ? <span style={{ fontWeight: 700, color: totAS.color, background: totAS.bg, borderRadius: 6, padding: '2px 8px' }}>{totAtt}%</span>
+                        : <span style={{ color: '#d1d5db' }}>—</span>}
+                    </td>
+                  </tr>
+                ),
+                // Effective days summary row
+                <tr key={`${name}-eff`} style={{ background: ntPct > 0 ? '#fdf4ff' : personBg, borderBottom: '2px solid #e5e8ef' }}>
+                  <td colSpan={2} style={{ padding: '7px 12px', fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
+                    {ntPct > 0
+                      ? `Effective ticket days: ${effectiveDays}d (${officeDays}d office − ${ntPct}% non-ticket)`
+                      : `Effective ticket days: ${officeDays}d`}
                   </td>
+                  <td colSpan={6} />
                 </tr>,
-              ]
+              ].filter(Boolean)
             })}
           </tbody>
         </table>
@@ -218,6 +277,7 @@ function SettingsModal({ assignees, capSettings, bwRates, slaRules, onClose, onS
       r[name] = {
         office_days:  saved.office_days ?? null,
         allocations:  Object.fromEntries(SERVICES.map(s => [s, saved.allocations?.[s] ?? 0])),
+        non_ticket:   Object.fromEntries(NON_TICKET.map(a => [a, saved.non_ticket?.[a] ?? 0])),
       }
     })
     return r
@@ -239,8 +299,16 @@ function SettingsModal({ assignees, capSettings, bwRates, slaRules, onClose, onS
   function setAlloc(name, svc, value) {
     setLocalPeople(p => ({ ...p, [name]: { ...p[name], allocations: { ...p[name].allocations, [svc]: value ?? 0 } } }))
   }
+  function setNonTicket(name, activity, value) {
+    setLocalPeople(p => ({ ...p, [name]: { ...p[name], non_ticket: { ...p[name].non_ticket, [activity]: value ?? 0 } } }))
+  }
   function totalPct(name) {
-    return SERVICES.reduce((s, svc) => s + (localPeople[name]?.allocations?.[svc] ?? 0), 0)
+    const tkt = SERVICES.reduce((s, svc) => s + (localPeople[name]?.allocations?.[svc] ?? 0), 0)
+    const nt  = NON_TICKET.reduce((s, a)   => s + (localPeople[name]?.non_ticket?.[a]   ?? 0), 0)
+    return tkt + nt
+  }
+  function nonTicketPct(name) {
+    return NON_TICKET.reduce((s, a) => s + (localPeople[name]?.non_ticket?.[a] ?? 0), 0)
   }
 
   async function saveCapacity() {
@@ -252,6 +320,7 @@ function SettingsModal({ assignees, capSettings, bwRates, slaRules, onClose, onS
           Object.entries(localPeople).map(([name, p]) => [name, {
             office_days:  p.office_days != null ? Number(p.office_days) : null,
             allocations:  Object.fromEntries(Object.entries(p.allocations).map(([s, v]) => [s, Number(v) || 0])),
+            non_ticket:   Object.fromEntries(Object.entries(p.non_ticket || {}).map(([a, v]) => [a, Number(v) || 0])),
           }])
         ),
       }
@@ -279,18 +348,27 @@ function SettingsModal({ assignees, capSettings, bwRates, slaRules, onClose, onS
   const INPH = { padding: '8px 10px', fontWeight: 700, color: '#6b7280', fontSize: 11, textAlign: 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
   const INPL = { padding: '8px 10px', fontWeight: 700, color: '#6b7280', fontSize: 11, textAlign: 'left', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
 
-  // Live-preview derived quotas
+  // Live-preview derived quotas + non-ticket reservations
   const previewRows = useMemo(() => {
     const rows = []
     assignees.forEach(name => {
-      const days = localPeople[name]?.office_days ?? Number(defaultDays)
+      const days   = localPeople[name]?.office_days ?? Number(defaultDays)
+      const ntPct  = NON_TICKET.reduce((s, a) => s + (localPeople[name]?.non_ticket?.[a] ?? 0), 0)
+      const effDays = +(days * Math.max(0, 1 - ntPct / 100)).toFixed(1)
+      // Non-ticket rows
+      NON_TICKET.forEach(a => {
+        const allocPct = localPeople[name]?.non_ticket?.[a] ?? 0
+        if (allocPct <= 0) return
+        rows.push({ name, type: 'nt', activity: a, days, allocPct, allocDays: +(days * allocPct / 100).toFixed(1), effDays, ntPct })
+      })
+      // Ticket service rows
       SERVICES.forEach(svc => {
         const allocPct = localPeople[name]?.allocations?.[svc] ?? 0
         if (allocPct <= 0) return
         const rate = bwRates[svc] || 0
         const allocDays = +(days * allocPct / 100).toFixed(1)
         const quota = +(rate * allocDays).toFixed(1)
-        rows.push({ name, svc, days, allocPct, allocDays, rate, quota })
+        rows.push({ name, type: 'svc', svc, days, allocPct, allocDays, rate, quota, effDays, ntPct })
       })
     })
     return rows
@@ -334,8 +412,13 @@ function SettingsModal({ assignees, capSettings, bwRates, slaRules, onClose, onS
               <span style={{ fontSize: 12, color: '#9ca3af' }}>e.g. 220 ≈ 44 weeks × 5 days</span>
             </div>
 
-            <div style={{ overflowX: 'auto', marginBottom: 24 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <div style={{ overflowX: 'auto', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} />
+                Ticket Service Allocations
+                <span style={{ fontWeight: 400, color: '#9ca3af' }}>% of office days committed to each ticket service</span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 20 }}>
                 <thead>
                   <tr>
                     <th style={INPL}>Person</th>
@@ -343,30 +426,67 @@ function SettingsModal({ assignees, capSettings, bwRates, slaRules, onClose, onS
                     {SERVICES.map(s => (
                       <th key={s} style={{ ...INPH, color: SERVICE_COLORS[s] }}>{SERVICE_SHORT[s]} %</th>
                     ))}
-                    <th style={INPH}>Total %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {assignees.map((name, i) => (
+                    <tr key={name} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
+                      <td style={{ padding: '8px 12px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{name}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        <NumInput value={localPeople[name]?.office_days} onChange={v => setPerson(name, 'office_days', v)} placeholder={String(defaultDays)} min={1} max={365} width={72} />
+                      </td>
+                      {SERVICES.map(svc => (
+                        <td key={svc} style={{ padding: '8px 6px', textAlign: 'center' }}>
+                          <input type="number" value={localPeople[name]?.allocations?.[svc] ?? 0} min={0} max={100}
+                            onChange={e => setAlloc(name, svc, Number(e.target.value))}
+                            style={{ width: 58, height: 30, padding: '0 6px', fontSize: 12, border: `1px solid ${SERVICE_COLORS[svc]}60`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: SERVICE_COLORS[svc], outline: 'none', boxSizing: 'border-box' }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f1' }} />
+                Non-Ticket Activity Allocations
+                <span style={{ fontWeight: 400, color: '#9ca3af' }}>% of office days reserved for non-ticket work — reduces effective ticket capacity</span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th style={INPL}>Person</th>
+                    {NON_TICKET.map(a => (
+                      <th key={a} style={{ ...INPH, color: NON_TICKET_COLORS[a] }}>{a} %</th>
+                    ))}
+                    <th style={INPH}>Non-Ticket %</th>
+                    <th style={INPH}>All Alloc %</th>
+                    <th style={{ ...INPH, color: '#7c3aed' }}>Eff. Ticket Days</th>
                   </tr>
                 </thead>
                 <tbody>
                   {assignees.map((name, i) => {
-                    const tot = totalPct(name)
-                    const totColor = tot === 100 ? '#15803d' : tot > 100 ? '#991b1b' : tot > 0 ? '#854d0e' : '#9ca3af'
+                    const tot   = totalPct(name)
+                    const ntPct = nonTicketPct(name)
+                    const days  = localPeople[name]?.office_days ?? Number(defaultDays)
+                    const effDays = Math.round(days * Math.max(0, 1 - ntPct / 100))
+                    const totColor = tot > 100 ? '#991b1b' : tot === 100 ? '#15803d' : tot > 0 ? '#854d0e' : '#9ca3af'
                     return (
                       <tr key={name} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
                         <td style={{ padding: '8px 12px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{name}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                          <NumInput value={localPeople[name]?.office_days} onChange={v => setPerson(name, 'office_days', v)} placeholder={String(defaultDays)} min={1} max={365} width={72} />
-                        </td>
-                        {SERVICES.map(svc => (
-                          <td key={svc} style={{ padding: '8px 6px', textAlign: 'center' }}>
-                            <input type="number" value={localPeople[name]?.allocations?.[svc] ?? 0} min={0} max={100}
-                              onChange={e => setAlloc(name, svc, Number(e.target.value))}
-                              style={{ width: 58, height: 30, padding: '0 6px', fontSize: 12, border: `1px solid ${SERVICE_COLORS[svc]}60`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: SERVICE_COLORS[svc], outline: 'none', boxSizing: 'border-box' }} />
+                        {NON_TICKET.map(a => (
+                          <td key={a} style={{ padding: '8px 6px', textAlign: 'center' }}>
+                            <input type="number" value={localPeople[name]?.non_ticket?.[a] ?? 0} min={0} max={100}
+                              onChange={e => setNonTicket(name, a, Number(e.target.value))}
+                              style={{ width: 58, height: 30, padding: '0 6px', fontSize: 12, border: `1px solid ${NON_TICKET_COLORS[a]}60`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: NON_TICKET_COLORS[a], outline: 'none', boxSizing: 'border-box' }} />
                           </td>
                         ))}
+                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: '#6366f1' }}>{ntPct}%</td>
                         <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: totColor }}>
                           {tot}%
-                          {tot !== 0 && tot !== 100 && <div style={{ fontSize: 9, fontWeight: 400, color: tot > 100 ? '#991b1b' : '#854d0e' }}>{tot > 100 ? '↑ over' : '↓ under'}</div>}
+                          {tot > 100 && <div style={{ fontSize: 9, fontWeight: 400, color: '#991b1b' }}>↑ over</div>}
                         </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#7c3aed' }}>{effDays}d</td>
                       </tr>
                     )
                   })}
@@ -377,34 +497,40 @@ function SettingsModal({ assignees, capSettings, bwRates, slaRules, onClose, onS
             {/* Live quota preview */}
             {previewRows.length > 0 && (<>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                Derived Ticket Quota Preview
+                Capacity Preview
                 <span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af' }}>updates live as you type</span>
               </div>
               <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #e5e8ef' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: '#f0f4ff' }}>
-                      {['Person', 'Service', 'Office Days', 'Alloc %', 'Alloc Days', 'Tickets / Day', 'Ticket Quota'].map((h, i) => (
+                      {['Person', 'Activity / Service', 'Office Days', 'Alloc %', 'Alloc Days', 'Tickets / Day', 'Quota / Reservation'].map((h, i) => (
                         <th key={h} style={{ padding: '7px 10px', fontWeight: 700, color: '#374151', fontSize: 11, textAlign: i <= 1 ? 'left' : 'center', borderBottom: '1px solid #c7d7fd', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {previewRows.map((r, i) => (
-                      <tr key={`${r.name}-${r.svc}`} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafb', borderBottom: '1px solid #f0f3fa' }}>
-                        <td style={{ padding: '7px 10px', fontWeight: 600, color: '#111827' }}>{r.name}</td>
+                      <tr key={`${r.name}-${r.type === 'nt' ? r.activity : r.svc}`} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafb', borderBottom: '1px solid #f0f3fa' }}>
+                        <td style={{ padding: '7px 10px', fontWeight: 600, color: '#111827' }}>
+                          {r.name}
+                          {r.ntPct > 0 && <div style={{ fontSize: 10, color: '#7c3aed', fontWeight: 400 }}>eff. {r.effDays}d for tickets</div>}
+                        </td>
                         <td style={{ padding: '7px 10px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: SERVICE_COLORS[r.svc] }} />
-                            <span style={{ color: '#374151' }}>{SERVICE_SHORT[r.svc]}</span>
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: r.type === 'nt' ? NON_TICKET_COLORS[r.activity] : SERVICE_COLORS[r.svc] }} />
+                            <span style={{ color: '#374151' }}>{r.type === 'nt' ? r.activity : SERVICE_SHORT[r.svc]}</span>
+                            {r.type === 'nt' && <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 4px' }}>non-ticket</span>}
                           </div>
                         </td>
                         <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6b7280' }}>{r.days}</td>
                         <td style={{ padding: '7px 10px', textAlign: 'center', color: '#374151' }}>{r.allocPct}%</td>
                         <td style={{ padding: '7px 10px', textAlign: 'center', color: '#374151' }}>{r.allocDays}d</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6b7280' }}>{r.rate} / day</td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#9ca3af' }}>{r.type === 'nt' ? '—' : `${r.rate} / day`}</td>
                         <td style={{ padding: '7px 10px', textAlign: 'center' }}>
-                          <span style={{ fontWeight: 700, color: '#1450f5', background: '#eff6ff', borderRadius: 5, padding: '2px 8px' }}>{r.quota}</span>
+                          {r.type === 'nt'
+                            ? <span style={{ fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 5, padding: '2px 8px' }}>{r.allocDays}d reserved</span>
+                            : <span style={{ fontWeight: 700, color: '#1450f5', background: '#eff6ff', borderRadius: 5, padding: '2px 8px' }}>{r.quota} tickets</span>}
                         </td>
                       </tr>
                     ))}
@@ -662,7 +788,10 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
   const hasFilter = teamF || areaF || assigneeF.length > 0 || dateFrom || dateTo
 
   const hasCapacityPlan = Object.values(capSettings.people || {})
-    .some(p => SERVICES.some(s => (p.allocations?.[s] ?? 0) > 0))
+    .some(p =>
+      SERVICES.some(s => (p.allocations?.[s] ?? 0) > 0) ||
+      NON_TICKET.some(a => (p.non_ticket?.[a] ?? 0) > 0)
+    )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
