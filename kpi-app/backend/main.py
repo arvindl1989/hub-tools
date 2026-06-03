@@ -19,7 +19,7 @@ app = FastAPI(title="Ticket Analytics API", version="1.0.0")
 
 
 @app.get("/healthz")
-def health():
+async def health():
     return {"status": "ok"}
 
 
