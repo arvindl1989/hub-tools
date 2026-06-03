@@ -152,9 +152,7 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
   const defWd = capSettings.default_working_days ?? 250
   const defH  = capSettings.default_holidays ?? 24
 
-  const activePeople = assigneeF.length > 0
-    ? DEFAULT_PEOPLE.filter(n => assigneeF.includes(n))
-    : DEFAULT_PEOPLE
+  const activePeople = assigneeF.length > 0 ? assigneeF : DEFAULT_PEOPLE
 
   let totalAvailH = 0, cadenceAllocH = 0, trainAllocH = 0, prodAllocH = 0
   let wcmAllocH = 0, deaAllocH = 0, gdAllocH = 0
@@ -287,15 +285,15 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
             <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{periodLabel}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <NumBox label="Total Utilized"  value={r(totalUtilH)}   color="#111827" bg="#f9fafb" utilPct={pctOf(totalUtilH, totalAvailH)} />
-            <NumBox label="Productivity"    value={r(prodUtilH)}    color="#059669" bg="#f0fdf4" sub="ticket hours"       utilPct={pctOf(prodUtilH, prodAllocH)} />
-            <NumBox label="Cadence"         value={r(cadenceUtilH)} color="#0891b2" bg="#f0f9ff" sub="recurring meetings" utilPct={pctOf(cadenceUtilH, cadenceAllocH)} />
-            <NumBox label="Training"        value={r(trainUtilH)}   color="#7c3aed" bg="#faf5ff" sub="upskilling"         utilPct={pctOf(trainUtilH, trainAllocH)} />
+            <NumBox label="Total Utilized"  value={r(totalUtilH)}   color="#111827" bg="#f9fafb" />
+            <NumBox label="Productivity"    value={r(prodUtilH)}    color="#059669" bg="#f0fdf4" sub="ticket hours" />
+            <NumBox label="Cadence"         value={r(cadenceUtilH)} color="#0891b2" bg="#f0f9ff" sub="recurring meetings" />
+            <NumBox label="Training"        value={r(trainUtilH)}   color="#7c3aed" bg="#faf5ff" sub="upskilling" />
           </div>
           <div style={sectionLabel}>Utilized by service</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {visibleSvcBoxes.map(s => (
-              <NumBox key={s.key} label={s.label} value={r(s.utilH)} color={s.color} bg={s.bg} borderColor={s.bc} utilPct={pctOf(s.utilH, s.allocH)} />
+              <NumBox key={s.key} label={s.label} value={r(s.utilH)} color={s.color} bg={s.bg} borderColor={s.bc} />
             ))}
           </div>
         </div>
@@ -884,36 +882,102 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
-        {/* Capacity Mode / Presets bar */}
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f3f4f6', background: '#f8fafc' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', flexShrink: 0 }}>Report uses:</span>
-            {/* Annual pill */}
-            <button onClick={() => setMode('annual')} style={{
-              height: 28, padding: '0 12px', fontSize: 11, fontWeight: mode === 'annual' ? 700 : 500, cursor: 'pointer',
-              background: mode === 'annual' ? '#1450f5' : '#fff', color: mode === 'annual' ? '#fff' : '#374151',
-              border: `1px solid ${mode === 'annual' ? '#1450f5' : '#d1d5db'}`, borderRadius: 20, fontFamily: 'Inter, sans-serif',
-            }}>Annual</button>
-            {/* Preset pills */}
-            {Object.entries(presets).map(([key, p]) => (
-              <button key={key} onClick={() => setMode(key)} style={{
-                height: 28, padding: '0 12px', fontSize: 11, fontWeight: mode === key ? 700 : 500, cursor: 'pointer',
-                background: mode === key ? '#7c3aed' : '#fff', color: mode === key ? '#fff' : '#374151',
-                border: `1px solid ${mode === key ? '#7c3aed' : '#d1d5db'}`, borderRadius: 20, fontFamily: 'Inter, sans-serif',
-              }}>{p.label}</button>
-            ))}
+        {/* Period tab strip */}
+        <div style={{ background: '#f8fafc', borderBottom: '1px solid #e5e8ef' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', paddingLeft: 24, paddingRight: 24, paddingTop: 10, gap: 2, overflowX: 'auto' }}>
+            {/* Annual tab */}
+            {(() => {
+              const active = mode === 'annual'
+              return (
+                <button onClick={() => setMode('annual')} style={{
+                  height: 36, padding: '0 16px', fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                  background: active ? '#fff' : 'transparent',
+                  color: active ? '#1450f5' : '#6b7280',
+                  border: '1px solid transparent',
+                  borderColor: active ? '#e5e8ef' : 'transparent',
+                  borderBottom: active ? '1px solid #fff' : undefined,
+                  borderRadius: '8px 8px 0 0',
+                  marginBottom: active ? -1 : 0,
+                  fontFamily: 'Inter, sans-serif',
+                  display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                }}>
+                  Annual
+                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#059669', background: '#dcfce7', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
+                </button>
+              )
+            })()}
+            {/* Preset tabs */}
+            {Object.entries(presets).map(([key, p]) => {
+              const active = mode === key
+              return (
+                <button key={key} onClick={() => setMode(key)} style={{
+                  height: 36, padding: '0 16px', fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                  background: active ? '#fff' : 'transparent',
+                  color: active ? '#7c3aed' : '#6b7280',
+                  border: '1px solid transparent',
+                  borderColor: active ? '#e5e8ef' : 'transparent',
+                  borderBottom: active ? '1px solid #fff' : undefined,
+                  borderRadius: '8px 8px 0 0',
+                  marginBottom: active ? -1 : 0,
+                  fontFamily: 'Inter, sans-serif',
+                  display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                }}>
+                  {p.label}
+                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#059669', background: '#dcfce7', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
+                </button>
+              )
+            })}
+            {/* Add Period tab */}
             {!showNew && (
-              <button onClick={() => setShowNew(true)} style={{ height: 28, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: 20, fontFamily: 'Inter, sans-serif' }}>
-                + Add Quarter / Year
+              <button onClick={() => setShowNew(true)} style={{
+                height: 36, padding: '0 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                background: 'transparent', color: '#9ca3af',
+                border: '1px dashed #d1d5db', borderBottom: 'none',
+                borderRadius: '8px 8px 0 0',
+                fontFamily: 'Inter, sans-serif',
+                display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+              }}>
+                + Add Period
               </button>
             )}
           </div>
+        </div>
 
-          {/* Add new preset form */}
+        {/* Period settings bar — changes based on active tab */}
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f3f4f6', background: '#fff' }}>
+          {mode === 'annual' ? (
+            <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#1450f5' }}>Annual Defaults</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+                Working days / year
+                <NumInput value={defWd} onChange={v => setDefWd(v ?? 250)} min={1} max={365} width={72} />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+                Holidays / year
+                <NumInput value={defH} onChange={v => setDefH(v ?? 24)} min={0} max={60} width={60} />
+              </label>
+              <span style={{ fontSize: 11, color: '#9ca3af' }}>Availability = WD − Holidays · Cadence 20% · Training 5% · Productivity 75%</span>
+            </div>
+          ) : presets[mode] ? (
+            <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#7c3aed' }}>{presets[mode].label}</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+                Working days
+                <NumInput value={presets[mode].default_working_days} onChange={v => updatePreset(mode, 'default_working_days', v ?? 250)} min={1} max={365} width={72} />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+                Holidays
+                <NumInput value={presets[mode].default_holidays} onChange={v => updatePreset(mode, 'default_holidays', v ?? 0)} min={0} max={60} width={60} />
+              </label>
+              <button onClick={() => deletePreset(mode)} style={{ height: 28, padding: '0 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#fff', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Delete period</button>
+            </div>
+          ) : null}
+          {/* New period form */}
           {showNew && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 10, flexWrap: 'wrap', padding: '10px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac' }}>
-              <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. Q1 2025 or H1 2025"
-                style={{ height: 30, padding: '0 10px', fontSize: 12, border: '1px solid #d1d5db', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', width: 160 }} />
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: mode !== 'annual' && !presets[mode] ? 0 : 10, flexWrap: 'wrap', padding: '10px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#15803d' }}>New period:</span>
+              <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. Q1 2025"
+                style={{ height: 30, padding: '0 10px', fontSize: 12, border: '1px solid #d1d5db', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', width: 140 }} />
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' }}>
                 WD/yr <NumInput value={newWd} onChange={v => setNewWd(v ?? 250)} min={1} max={365} width={68} />
               </label>
@@ -924,41 +988,6 @@ function CapacityModal({ capSettings, onClose, onSaved }) {
               <button onClick={() => setShowNew(false)} style={{ height: 30, padding: '0 12px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
             </div>
           )}
-
-          {/* Edit existing presets */}
-          {Object.keys(presets).length > 0 && (
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {Object.entries(presets).map(([key, p]) => (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: mode === key ? '#7c3aed' : '#374151', minWidth: 80 }}>{p.label}</span>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' }}>
-                    WD/yr <NumInput value={p.default_working_days} onChange={v => updatePreset(key, 'default_working_days', v ?? 250)} min={1} max={365} width={68} />
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' }}>
-                    Holidays <NumInput value={p.default_holidays} onChange={v => updatePreset(key, 'default_holidays', v ?? 0)} min={0} max={60} width={60} />
-                  </label>
-                  <button onClick={() => deletePreset(key)} style={{ height: 24, padding: '0 8px', fontSize: 11, cursor: 'pointer', background: '#fff', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: 5, fontFamily: 'Inter, sans-serif' }}>Delete</button>
-                  {mode !== key && (
-                    <button onClick={() => setMode(key)} style={{ height: 24, padding: '0 8px', fontSize: 11, cursor: 'pointer', background: '#faf5ff', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: 5, fontFamily: 'Inter, sans-serif' }}>Set Active</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Defaults bar (always shows annual defaults) */}
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 24, alignItems: 'center', background: '#fafafa' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Annual Defaults:</span>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
-            Working days / year
-            <NumInput value={defWd} onChange={v => setDefWd(v ?? 250)} min={1} max={365} width={72} />
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
-            Holidays / year
-            <NumInput value={defH} onChange={v => setDefH(v ?? 24)} min={0} max={60} width={60} />
-          </label>
-          <span style={{ fontSize: 11, color: '#9ca3af' }}>Availability = Working Days − Holidays · Cadence = 20% · Training = 5% · Productivity = 75%</span>
         </div>
 
         {/* Table */}
