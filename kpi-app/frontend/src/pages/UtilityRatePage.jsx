@@ -10,38 +10,52 @@ import {
 } from '../api'
 import DateRangePicker from '../components/DateRangePicker'
 
-const SERVICES = [
+const DEFAULT_PEOPLE = ['Ajith', 'Akshaya P', 'Akshayaa R', 'Arvind', 'Nitish', 'Ranjith']
+
+const BAU_SERVICES = [
   'Website Content Management',
+  'Demand Engagement Activations',
   'Content Production – Graphic Design',
-  'Demand Creation – Global',
-  'Email – Local',
-  'Retention – Activations',
 ]
-const SERVICE_SHORT = {
+const BAU_SHORT = {
   'Website Content Management':          'Web Content',
+  'Demand Engagement Activations':       'Demand Engagement',
   'Content Production – Graphic Design': 'Graphic Design',
-  'Demand Creation – Global':            'Demand Creation',
-  'Email – Local':                       'Email – Local',
-  'Retention – Activations':             'Retention',
 }
-const SERVICE_COLORS = {
+const BAU_COLORS = {
+  'Website Content Management':          '#3b82f6',
+  'Demand Engagement Activations':       '#8b5cf6',
+  'Content Production – Graphic Design': '#ef4444',
+}
+
+// Original sub-category colors (used in ticket detail rows)
+const SUBCAT_COLORS = {
   'Website Content Management':          '#3b82f6',
   'Content Production – Graphic Design': '#ef4444',
   'Demand Creation – Global':            '#8b5cf6',
   'Email – Local':                       '#10b981',
   'Retention – Activations':             '#f59e0b',
 }
+const SUBCAT_SHORT = {
+  'Website Content Management':          'Web Content',
+  'Content Production – Graphic Design': 'Graphic Design',
+  'Demand Creation – Global':            'Demand Creation',
+  'Email – Local':                       'Email Local',
+  'Retention – Activations':             'Retention',
+}
+
 const STATUS_CFG = {
   Available:  { color: '#1e8a5e', bg: '#ecfdf5', border: '#6ee7b7' },
   Busy:       { color: '#b87d00', bg: '#fffbeb', border: '#fcd34d' },
   Overloaded: { color: '#c0305a', bg: '#fff1f2', border: '#fda4af' },
 }
-const NON_TICKET = ['PWR', 'Process Change', 'New Service Launch', 'Adhoc']
-const NON_TICKET_COLORS = {
-  'PWR':                 '#6366f1',
-  'Process Change':      '#ec4899',
-  'New Service Launch':  '#14b8a6',
-  'Adhoc':               '#f97316',
+
+const NON_BAU = ['Performance Analytics', 'Local SEO', 'PWR', 'Adhoc/Others']
+const NON_BAU_COLORS = {
+  'Performance Analytics': '#14b8a6',
+  'Local SEO':             '#f97316',
+  'PWR':                   '#6366f1',
+  'Adhoc/Others':          '#ec4899',
 }
 
 function utilColor(pct) {
@@ -102,31 +116,65 @@ const NumInput = ({ value, onChange, min, max, step, width = 70, placeholder }) 
     style={{ width, height: 30, padding: '0 6px', fontSize: 12, border: '1px solid #d1d5db', borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
 )
 
-/* ── Capacity Planning section (main page) ──────────────────────────────────── */
+/* ── Pie tooltip ────────────────────────────────────────────────────────────── */
+const PieTT = ({ active, payload }) => {
+  if (!active || !payload?.length) return null
+  const p = payload[0]
+  const value = typeof p.value === 'number' ? p.value.toFixed(1) : p.value
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{BAU_SHORT[p.name] || p.name}</div>
+      <div style={{ color: '#374151' }}>{value} hrs · {p.payload.pct}%</div>
+    </div>
+  )
+}
+const DtcTT = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null
+  const d = payload[0].payload
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div>
+      <div style={{ color: dtcColor(d.avg_days_to_close) }}>Avg: <strong>{d.avg_days_to_close}d</strong></div>
+      {d.min_days_to_close != null && d.min_days_to_close !== d.max_days_to_close && (
+        <div style={{ color: '#9ca3af', fontSize: 11 }}>Range: {d.min_days_to_close}d – {d.max_days_to_close}d</div>
+      )}
+      <div style={{ color: '#1450f5', marginTop: 2 }}>Tickets: <strong>{d.tracked_tickets}</strong></div>
+    </div>
+  )
+}
+
+/* ── Capacity Planning section ──────────────────────────────────────────────── */
 function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
-  const people = Object.entries(capSettings.people || {})
-    .filter(([, p]) =>
-      SERVICES.some(s => (p.allocations?.[s] ?? 0) > 0) ||
-      NON_TICKET.some(a => (p.non_ticket?.[a] ?? 0) > 0)
-    )
+  const people = DEFAULT_PEOPLE.filter(name => {
+    const p = capSettings.people?.[name] || {}
+    return BAU_SERVICES.some(s => (p.bau?.[s] ?? 0) > 0) || NON_BAU.some(a => (p.non_bau?.[a] ?? 0) > 0)
+  })
   if (!people.length) return null
 
   const actualLookup = {}
   byAssignee.forEach(a => { actualLookup[a.assigned_to] = a.breakdown || {} })
 
-  const grouped = people.map(([name, settings]) => {
-    const officeDays = settings.office_days ?? capSettings.default_office_days ?? 220
-    const ntRows = NON_TICKET.filter(a => (settings.non_ticket?.[a] ?? 0) > 0).map(a => ({
+  const defWd = capSettings.default_working_days ?? 250
+  const defH  = capSettings.default_holidays ?? 24
+
+  const grouped = people.map(name => {
+    const settings  = capSettings.people?.[name] || {}
+    const wd        = settings.working_days ?? defWd
+    const holidays  = settings.holidays ?? defH
+    const avail     = wd - holidays
+    const prodDays  = Math.round(avail * 0.75)
+
+    const ntRows = NON_BAU.filter(a => (settings.non_bau?.[a] ?? 0) > 0).map(a => ({
       type: 'nt', activity: a,
-      allocPct: settings.non_ticket[a],
-      allocDays: +(officeDays * settings.non_ticket[a] / 100).toFixed(1),
+      allocPct: settings.non_bau[a],
+      allocDays: +(prodDays * settings.non_bau[a] / 100).toFixed(1),
     }))
     const ntPct = ntRows.reduce((s, r) => s + r.allocPct, 0)
-    const effectiveDays = +(officeDays * Math.max(0, 1 - ntPct / 100)).toFixed(1)
-    const svcRows = SERVICES.filter(svc => (settings.allocations?.[svc] ?? 0) > 0).map(svc => {
-      const allocPct  = settings.allocations[svc]
+
+    const svcRows = BAU_SERVICES.filter(svc => (settings.bau?.[svc] ?? 0) > 0).map(svc => {
+      const allocPct  = settings.bau[svc]
       const rate      = bwRates[svc] || 0
-      const allocDays = +(officeDays * allocPct / 100).toFixed(1)
+      const allocDays = +(prodDays * allocPct / 100).toFixed(1)
       const quota     = +(rate * allocDays).toFixed(1)
       const actual    = actualLookup[name]?.[svc] || 0
       const att       = quota > 0 ? Math.round(actual / quota * 100) : null
@@ -136,30 +184,28 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
     const totActual = svcRows.reduce((s, r) => s + r.actual, 0)
     const totAtt    = totQuota > 0 ? Math.round(totActual / totQuota * 100) : null
     const allRows   = [...ntRows, ...svcRows]
-    // span = all data rows + ticket-total row (if any svc rows) + effective-days footer row
     const totalSpan = allRows.length + (svcRows.length > 0 ? 1 : 0) + 1
-    return { name, officeDays, effectiveDays, ntPct, allRows, svcRows, totQuota, totActual, totAtt, totalSpan }
+    return { name, wd, avail, prodDays, ntPct, allRows, svcRows, totQuota, totActual, totAtt, totalSpan }
   })
 
   const HDR = { padding: '8px 12px', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
 
   return (
-    <SectionCard title="Capacity Planning" subtitle="Ticket quota vs actual, plus non-ticket time reservations. Utility rate denominator uses effective days after non-ticket deductions." accent="#7c3aed">
+    <SectionCard title="Capacity Planning" subtitle="BAU ticket quota vs actual, plus non-BAU time reservations. Denominator = productivity days (75% of availability)." accent="#7c3aed">
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr>
-              {['Person', 'Activity / Service', 'Office Days', 'Alloc %', 'Alloc Days', 'Tickets / Day', 'Quota', 'Actual', 'Attainment'].map((h, i) => (
+              {['Person', 'Activity / Service', 'Prod. Days', 'Alloc %', 'Alloc Days', 'Tickets / Day', 'Quota', 'Actual', 'Attainment'].map((h, i) => (
                 <th key={h} style={{ ...HDR, textAlign: i <= 1 ? 'left' : 'center' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {grouped.map(({ name, officeDays, effectiveDays, ntPct, allRows, svcRows, totQuota, totActual, totAtt, totalSpan }, gi) => {
+            {grouped.map(({ name, wd, avail, prodDays, ntPct, allRows, svcRows, totQuota, totActual, totAtt, totalSpan }, gi) => {
               const personBg = gi % 2 === 0 ? '#fff' : '#fafbff'
               const totAS = attStyle(totAtt)
               return [
-                // All data rows (non-ticket first, then ticket services) — flat array
                 ...allRows.map((r, ri) => (
                   <tr key={`${name}-${r.type === 'nt' ? r.activity : r.svc}`} style={{ background: personBg, borderBottom: '1px solid #f0f3fa' }}>
                     {ri === 0 && (
@@ -172,23 +218,25 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
                         </div>
                       </td>
                     )}
-                    {/* Activity / Service */}
                     <td style={{ padding: '8px 12px' }}>
                       {r.type === 'nt' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: NON_TICKET_COLORS[r.activity] || '#9ca3af', flexShrink: 0 }} />
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: NON_BAU_COLORS[r.activity] || '#9ca3af', flexShrink: 0 }} />
                           <span style={{ color: '#374151' }}>{r.activity}</span>
-                          <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 5px' }}>non-ticket</span>
+                          <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 5px' }}>non-BAU</span>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: SERVICE_COLORS[r.svc], flexShrink: 0 }} />
-                          <span style={{ color: '#374151' }}>{SERVICE_SHORT[r.svc]}</span>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: BAU_COLORS[r.svc], flexShrink: 0 }} />
+                          <span style={{ color: '#374151' }}>{BAU_SHORT[r.svc]}</span>
                         </div>
                       )}
                     </td>
                     {ri === 0 && (
-                      <td rowSpan={totalSpan} style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', verticalAlign: 'middle' }}>{officeDays}d</td>
+                      <td rowSpan={totalSpan} style={{ padding: '8px 12px', textAlign: 'center', verticalAlign: 'middle' }}>
+                        <div style={{ fontWeight: 700, color: '#7c3aed' }}>{prodDays}d</div>
+                        <div style={{ fontSize: 10, color: '#9ca3af' }}>of {avail}d avail</div>
+                      </td>
                     )}
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocPct}%</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocDays}d</td>
@@ -206,11 +254,9 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
                     </>)}
                   </tr>
                 )),
-                // Ticket total row
                 svcRows.length > 0 && (
                   <tr key={`${name}-total`} style={{ background: personBg, borderBottom: '1px solid #e5e8ef' }}>
-                    {/* person + officeDays cells are rowSpanned above */}
-                    <td style={{ padding: '7px 12px', fontStyle: 'italic', color: '#6b7280' }}>Ticket Total</td>
+                    <td style={{ padding: '7px 12px', fontStyle: 'italic', color: '#6b7280' }}>BAU Total</td>
                     <td colSpan={3} />
                     <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{totQuota}</td>
                     <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#374151' }}>{totActual}</td>
@@ -221,12 +267,10 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
                     </td>
                   </tr>
                 ),
-                // Effective days footer row
                 <tr key={`${name}-eff`} style={{ background: ntPct > 0 ? '#fdf4ff' : personBg, borderBottom: '2px solid #e5e8ef' }}>
                   <td colSpan={7} style={{ padding: '7px 12px', fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
-                    {ntPct > 0
-                      ? `Effective ticket days: ${effectiveDays}d  (${officeDays}d office − ${ntPct}% non-ticket)`
-                      : `Effective ticket days: ${officeDays}d`}
+                    {`Productivity: ${prodDays}d (${wd}d working − ${wd - avail}d holidays = ${avail}d avail × 75%)`}
+                    {ntPct > 0 && ` · ${ntPct}% reserved for non-BAU`}
                   </td>
                 </tr>,
               ].filter(Boolean)
@@ -246,340 +290,222 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates }) {
   )
 }
 
-/* ── Settings Modal ─────────────────────────────────────────────────────────── */
-function SettingsModal({ assignees, capSettings, bwRates, slaRules, onClose, onSaved }) {
-  const [tab, setTab] = useState('capacity')
-
-  // Capacity tab
-  const [defaultDays, setDefaultDays] = useState(capSettings.default_office_days ?? 220)
-  const [localPeople, setLocalPeople] = useState(() => {
+/* ── Capacity Settings Modal ────────────────────────────────────────────────── */
+function CapacityModal({ capSettings, onClose, onSaved }) {
+  const [defWd,  setDefWd]  = useState(capSettings.default_working_days ?? 250)
+  const [defH,   setDefH]   = useState(capSettings.default_holidays ?? 24)
+  const [people, setPeople] = useState(() => {
     const r = {}
-    assignees.forEach(name => {
-      const saved = capSettings.people?.[name] || {}
+    DEFAULT_PEOPLE.forEach(name => {
+      const s = capSettings.people?.[name] || {}
       r[name] = {
-        office_days:  saved.office_days ?? null,
-        allocations:  Object.fromEntries(SERVICES.map(s => [s, saved.allocations?.[s] ?? 0])),
-        non_ticket:   Object.fromEntries(NON_TICKET.map(a => [a, saved.non_ticket?.[a] ?? 0])),
+        working_days: s.working_days ?? null,
+        holidays:     s.holidays ?? null,
+        bau:     Object.fromEntries(BAU_SERVICES.map(sv => [sv, s.bau?.[sv] ?? 0])),
+        non_bau: Object.fromEntries(NON_BAU.map(a => [a, s.non_bau?.[a] ?? 0])),
       }
     })
     return r
   })
-
-  // Rates & SLA tab
-  const [localHours, setLocalHours] = useState(() =>
-    Object.fromEntries(Object.entries(bwRates).map(([s, rate]) => [s, +(8 / rate).toFixed(2)]))
-  )
-  const [localSla, setLocalSla] = useState({ ...slaRules })
-
   const [saving, setSaving] = useState(false)
-  const [error,  setError]  = useState(null)
   const [saved,  setSaved]  = useState(false)
+  const [err,    setErr]    = useState(null)
 
-  function setPerson(name, field, value) {
-    setLocalPeople(p => ({ ...p, [name]: { ...p[name], [field]: value } }))
-  }
-  function setAlloc(name, svc, value) {
-    setLocalPeople(p => ({ ...p, [name]: { ...p[name], allocations: { ...p[name].allocations, [svc]: value ?? 0 } } }))
-  }
-  function setNonTicket(name, activity, value) {
-    setLocalPeople(p => ({ ...p, [name]: { ...p[name], non_ticket: { ...p[name].non_ticket, [activity]: value ?? 0 } } }))
-  }
-  function totalPct(name) {
-    const tkt = SERVICES.reduce((s, svc) => s + (localPeople[name]?.allocations?.[svc] ?? 0), 0)
-    const nt  = NON_TICKET.reduce((s, a)   => s + (localPeople[name]?.non_ticket?.[a]   ?? 0), 0)
-    return tkt + nt
-  }
-  function nonTicketPct(name) {
-    return NON_TICKET.reduce((s, a) => s + (localPeople[name]?.non_ticket?.[a] ?? 0), 0)
+  function derived(name) {
+    const p  = people[name]
+    const wd = p.working_days ?? defWd
+    const h  = p.holidays ?? defH
+    const av = wd - h
+    return {
+      wd, h, av,
+      cadence:     Math.round(av * 0.20),
+      training:    Math.round(av * 0.05),
+      productivity:Math.round(av * 0.75),
+      bauPct:    BAU_SERVICES.reduce((s, sv) => s + (p.bau?.[sv] ?? 0), 0),
+      nonBauPct: NON_BAU.reduce((s, a) => s + (p.non_bau?.[a] ?? 0), 0),
+    }
   }
 
-  async function saveCapacity() {
-    setSaving(true); setError(null); setSaved(false)
+  // Totals row
+  const totals = useMemo(() => {
+    const t = { wd: 0, h: 0, av: 0, cadence: 0, training: 0, productivity: 0 }
+    DEFAULT_PEOPLE.forEach(name => {
+      const d = derived(name)
+      t.wd += d.wd; t.h += d.h; t.av += d.av
+      t.cadence += d.cadence; t.training += d.training; t.productivity += d.productivity
+    })
+    return t
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [people, defWd, defH])
+
+  async function save() {
+    setSaving(true); setErr(null); setSaved(false)
     try {
       const payload = {
-        default_office_days: Number(defaultDays),
-        people: Object.fromEntries(
-          Object.entries(localPeople).map(([name, p]) => [name, {
-            office_days:  p.office_days != null ? Number(p.office_days) : null,
-            allocations:  Object.fromEntries(Object.entries(p.allocations).map(([s, v]) => [s, Number(v) || 0])),
-            non_ticket:   Object.fromEntries(Object.entries(p.non_ticket || {}).map(([a, v]) => [a, Number(v) || 0])),
-          }])
-        ),
+        default_working_days: Number(defWd),
+        default_holidays:     Number(defH),
+        people: Object.fromEntries(DEFAULT_PEOPLE.map(name => {
+          const p = people[name]
+          return [name, {
+            working_days: p.working_days != null ? Number(p.working_days) : null,
+            holidays:     p.holidays     != null ? Number(p.holidays)     : null,
+            bau:     Object.fromEntries(BAU_SERVICES.map(sv => [sv, Number(p.bau?.[sv] || 0)])),
+            non_bau: Object.fromEntries(NON_BAU.map(a => [a, Number(p.non_bau?.[a] || 0)])),
+          }]
+        })),
       }
       const result = await updateCapacitySettings(payload)
       onSaved({ capSettings: result })
       setSaved(true)
-    } catch { setError('Failed to save capacity settings') }
+    } catch { setErr('Failed to save') }
     finally { setSaving(false) }
   }
 
-  async function saveRatesSla() {
-    setSaving(true); setError(null); setSaved(false)
-    try {
-      const newRates = Object.fromEntries(
-        Object.entries(localHours).map(([s, h]) => [s, +(8 / Number(h)).toFixed(4)])
-      )
-      const newSla = Object.fromEntries(Object.entries(localSla).map(([s, v]) => [s, Number(v)]))
-      await Promise.all([updateBandwidthRates(newRates), updateSlaRules(newSla)])
-      onSaved({ bwRates: newRates, slaRules: newSla })
-      setSaved(true)
-    } catch { setError('Failed to save rates / SLA') }
-    finally { setSaving(false) }
-  }
-
-  const INPH = { padding: '8px 10px', fontWeight: 700, color: '#6b7280', fontSize: 11, textAlign: 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
-  const INPL = { padding: '8px 10px', fontWeight: 700, color: '#6b7280', fontSize: 11, textAlign: 'left', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
-
-  // Live-preview derived quotas + non-ticket reservations
-  const previewRows = useMemo(() => {
-    const rows = []
-    assignees.forEach(name => {
-      const days   = localPeople[name]?.office_days ?? Number(defaultDays)
-      const ntPct  = NON_TICKET.reduce((s, a) => s + (localPeople[name]?.non_ticket?.[a] ?? 0), 0)
-      const effDays = +(days * Math.max(0, 1 - ntPct / 100)).toFixed(1)
-      // Non-ticket rows
-      NON_TICKET.forEach(a => {
-        const allocPct = localPeople[name]?.non_ticket?.[a] ?? 0
-        if (allocPct <= 0) return
-        rows.push({ name, type: 'nt', activity: a, days, allocPct, allocDays: +(days * allocPct / 100).toFixed(1), effDays, ntPct })
-      })
-      // Ticket service rows
-      SERVICES.forEach(svc => {
-        const allocPct = localPeople[name]?.allocations?.[svc] ?? 0
-        if (allocPct <= 0) return
-        const rate = bwRates[svc] || 0
-        const allocDays = +(days * allocPct / 100).toFixed(1)
-        const quota = +(rate * allocDays).toFixed(1)
-        rows.push({ name, type: 'svc', svc, days, allocPct, allocDays, rate, quota, effDays, ntPct })
-      })
-    })
-    return rows
-  }, [localPeople, defaultDays, bwRates, assignees])
+  const TH = { padding: '7px 10px', fontWeight: 700, fontSize: 11, color: '#6b7280', background: '#f9fafb', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', textAlign: 'center' }
+  const THL = { ...TH, textAlign: 'left' }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '32px 16px', overflowY: 'auto' }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '24px 16px', overflowY: 'auto' }}
       onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 960, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }}
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 1320, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Utility Rate Settings</div>
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Configure team capacity, ticket rates, and SLA rules</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Capacity Settings</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Working days · holidays · availability breakdown · BAU and non-BAU allocations (% of productivity days)</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #f3f4f6', padding: '0 24px' }}>
-          {[['capacity', 'Team Capacity'], ['rates', 'Rates & SLA']].map(([id, lbl]) => (
-            <button key={id} onClick={() => { setTab(id); setSaved(false); setError(null) }} style={{
-              padding: '11px 16px', fontSize: 13, fontWeight: tab === id ? 600 : 500,
-              color: tab === id ? '#1450f5' : '#6b7280', background: 'none', border: 'none', cursor: 'pointer',
-              borderBottom: tab === id ? '2px solid #1450f5' : '2px solid transparent',
-              marginBottom: -1, fontFamily: 'Inter, sans-serif',
-            }}>{lbl}</button>
-          ))}
+        {/* Defaults bar */}
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 24, alignItems: 'center', background: '#fafafa' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Defaults:</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+            Working days / year
+            <NumInput value={defWd} onChange={v => setDefWd(v ?? 250)} min={1} max={365} width={72} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+            Holidays / year
+            <NumInput value={defH} onChange={v => setDefH(v ?? 24)} min={0} max={60} width={60} />
+          </label>
+          <span style={{ fontSize: 11, color: '#9ca3af' }}>Availability = Working Days − Holidays · Cadence = 20% · Training = 5% · Productivity = 75%</span>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: '22px 24px', maxHeight: 'calc(100vh - 240px)', overflowY: 'auto' }}>
-
-          {/* ── Capacity tab ── */}
-          {tab === 'capacity' && (<>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, padding: '12px 16px', background: '#f9fafb', borderRadius: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Default office days / year:</span>
-              <NumInput value={defaultDays} onChange={v => setDefaultDays(v ?? 220)} min={1} max={365} width={80} />
-              <span style={{ fontSize: 12, color: '#9ca3af' }}>e.g. 220 ≈ 44 weeks × 5 days</span>
-            </div>
-
-            <div style={{ overflowX: 'auto', marginBottom: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} />
-                Ticket Service Allocations
-                <span style={{ fontWeight: 400, color: '#9ca3af' }}>% of office days committed to each ticket service</span>
-              </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 20 }}>
-                <thead>
-                  <tr>
-                    <th style={INPL}>Person</th>
-                    <th style={INPH}>Office Days<br/><span style={{ fontWeight: 400, fontSize: 10 }}>(blank = default)</span></th>
-                    {SERVICES.map(s => (
-                      <th key={s} style={{ ...INPH, color: SERVICE_COLORS[s] }}>{SERVICE_SHORT[s]} %</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignees.map((name, i) => (
-                    <tr key={name} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
-                      <td style={{ padding: '8px 12px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{name}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                        <NumInput value={localPeople[name]?.office_days} onChange={v => setPerson(name, 'office_days', v)} placeholder={String(defaultDays)} min={1} max={365} width={72} />
-                      </td>
-                      {SERVICES.map(svc => (
-                        <td key={svc} style={{ padding: '8px 6px', textAlign: 'center' }}>
-                          <input type="number" value={localPeople[name]?.allocations?.[svc] ?? 0} min={0} max={100}
-                            onChange={e => setAlloc(name, svc, Number(e.target.value))}
-                            style={{ width: 58, height: 30, padding: '0 6px', fontSize: 12, border: `1px solid ${SERVICE_COLORS[svc]}60`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: SERVICE_COLORS[svc], outline: 'none', boxSizing: 'border-box' }} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f1' }} />
-                Non-Ticket Activity Allocations
-                <span style={{ fontWeight: 400, color: '#9ca3af' }}>% of office days reserved for non-ticket work — reduces effective ticket capacity</span>
-              </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    <th style={INPL}>Person</th>
-                    {NON_TICKET.map(a => (
-                      <th key={a} style={{ ...INPH, color: NON_TICKET_COLORS[a] }}>{a} %</th>
-                    ))}
-                    <th style={INPH}>Non-Ticket %</th>
-                    <th style={INPH}>All Alloc %</th>
-                    <th style={{ ...INPH, color: '#7c3aed' }}>Eff. Ticket Days</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignees.map((name, i) => {
-                    const tot   = totalPct(name)
-                    const ntPct = nonTicketPct(name)
-                    const days  = localPeople[name]?.office_days ?? Number(defaultDays)
-                    const effDays = Math.round(days * Math.max(0, 1 - ntPct / 100))
-                    const totColor = tot > 100 ? '#991b1b' : tot === 100 ? '#15803d' : tot > 0 ? '#854d0e' : '#9ca3af'
-                    return (
-                      <tr key={name} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{name}</td>
-                        {NON_TICKET.map(a => (
-                          <td key={a} style={{ padding: '8px 6px', textAlign: 'center' }}>
-                            <input type="number" value={localPeople[name]?.non_ticket?.[a] ?? 0} min={0} max={100}
-                              onChange={e => setNonTicket(name, a, Number(e.target.value))}
-                              style={{ width: 58, height: 30, padding: '0 6px', fontSize: 12, border: `1px solid ${NON_TICKET_COLORS[a]}60`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: NON_TICKET_COLORS[a], outline: 'none', boxSizing: 'border-box' }} />
-                          </td>
-                        ))}
-                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: '#6366f1' }}>{ntPct}%</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: totColor }}>
-                          {tot}%
-                          {tot > 100 && <div style={{ fontSize: 9, fontWeight: 400, color: '#991b1b' }}>↑ over</div>}
-                        </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#7c3aed' }}>{effDays}d</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Live quota preview */}
-            {previewRows.length > 0 && (<>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                Capacity Preview
-                <span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af' }}>updates live as you type</span>
-              </div>
-              <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #e5e8ef' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: '#f0f4ff' }}>
-                      {['Person', 'Activity / Service', 'Office Days', 'Alloc %', 'Alloc Days', 'Tickets / Day', 'Quota / Reservation'].map((h, i) => (
-                        <th key={h} style={{ padding: '7px 10px', fontWeight: 700, color: '#374151', fontSize: 11, textAlign: i <= 1 ? 'left' : 'center', borderBottom: '1px solid #c7d7fd', whiteSpace: 'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewRows.map((r, i) => (
-                      <tr key={`${r.name}-${r.type === 'nt' ? r.activity : r.svc}`} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafb', borderBottom: '1px solid #f0f3fa' }}>
-                        <td style={{ padding: '7px 10px', fontWeight: 600, color: '#111827' }}>
-                          {r.name}
-                          {r.ntPct > 0 && <div style={{ fontSize: 10, color: '#7c3aed', fontWeight: 400 }}>eff. {r.effDays}d for tickets</div>}
-                        </td>
-                        <td style={{ padding: '7px 10px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: r.type === 'nt' ? NON_TICKET_COLORS[r.activity] : SERVICE_COLORS[r.svc] }} />
-                            <span style={{ color: '#374151' }}>{r.type === 'nt' ? r.activity : SERVICE_SHORT[r.svc]}</span>
-                            {r.type === 'nt' && <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 4px' }}>non-ticket</span>}
-                          </div>
-                        </td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6b7280' }}>{r.days}</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#374151' }}>{r.allocPct}%</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#374151' }}>{r.allocDays}d</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#9ca3af' }}>{r.type === 'nt' ? '—' : `${r.rate} / day`}</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center' }}>
-                          {r.type === 'nt'
-                            ? <span style={{ fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 5, padding: '2px 8px' }}>{r.allocDays}d reserved</span>
-                            : <span style={{ fontWeight: 700, color: '#1450f5', background: '#eff6ff', borderRadius: 5, padding: '2px 8px' }}>{r.quota} tickets</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>)}
-          </>)}
-
-          {/* ── Rates & SLA tab ── */}
-          {tab === 'rates' && (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    <th style={INPL}>Service</th>
-                    <th style={{ ...INPH, textAlign: 'center' }}>Hours / Ticket<br/><span style={{ fontWeight: 400, fontSize: 10 }}>how long each ticket takes</span></th>
-                    <th style={{ ...INPH, textAlign: 'center' }}>Tickets / Day<br/><span style={{ fontWeight: 400, fontSize: 10 }}>derived (8 ÷ hours)</span></th>
-                    <th style={{ ...INPH, textAlign: 'center' }}>SLA (working days)<br/><span style={{ fontWeight: 400, fontSize: 10 }}>target resolution time</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SERVICES.map((svc, i) => (
-                    <tr key={svc} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
-                      <td style={{ padding: '12px 12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 9, height: 9, borderRadius: '50%', background: SERVICE_COLORS[svc] }} />
-                          <span style={{ fontWeight: 600, color: '#111827' }}>{svc}</span>
+        {/* Table */}
+        <div style={{ padding: '20px 24px', overflowX: 'auto', maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              {/* Group headers */}
+              <tr style={{ background: '#f0f4ff' }}>
+                <th style={{ ...THL, borderBottom: '1px solid #e5e8ef' }} rowSpan={2}>Person</th>
+                <th colSpan={6} style={{ ...TH, color: '#1450f5', borderBottom: '1px solid #c7d7fd', borderLeft: '2px solid #c7d7fd' }}>Capacity Breakdown</th>
+                <th colSpan={3} style={{ ...TH, color: '#059669', borderBottom: '1px solid #a7f3d0', borderLeft: '2px solid #a7f3d0' }}>BAU Allocation (% of Productivity)</th>
+                <th colSpan={4} style={{ ...TH, color: '#7c3aed', borderBottom: '1px solid #ddd6fe', borderLeft: '2px solid #ddd6fe' }}>Non-BAU Allocation (% of Productivity)</th>
+                <th style={{ ...TH, borderBottom: '1px solid #e5e8ef', borderLeft: '2px solid #e5e8ef' }} rowSpan={2}>Total %</th>
+              </tr>
+              <tr style={{ background: '#f9fafb' }}>
+                <th style={{ ...TH, borderLeft: '2px solid #c7d7fd' }}>Working Days</th>
+                <th style={TH}>Holidays</th>
+                <th style={{ ...TH, color: '#1450f5' }}>Availability</th>
+                <th style={{ ...TH, color: '#0891b2' }}>Cadence<br/><span style={{ fontWeight: 400, fontSize: 10 }}>20%</span></th>
+                <th style={{ ...TH, color: '#7c3aed' }}>Training/<br/>Upskilling<br/><span style={{ fontWeight: 400, fontSize: 10 }}>5%</span></th>
+                <th style={{ ...TH, color: '#059669' }}>Productivity<br/><span style={{ fontWeight: 400, fontSize: 10 }}>75%</span></th>
+                {BAU_SERVICES.map((sv, i) => (
+                  <th key={sv} style={{ ...TH, color: BAU_COLORS[sv], borderLeft: i === 0 ? '2px solid #a7f3d0' : undefined }}>{BAU_SHORT[sv]}</th>
+                ))}
+                {NON_BAU.map((a, i) => (
+                  <th key={a} style={{ ...TH, color: NON_BAU_COLORS[a], borderLeft: i === 0 ? '2px solid #ddd6fe' : undefined }}>{a}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {DEFAULT_PEOPLE.map((name, pi) => {
+                const d = derived(name)
+                const total = d.bauPct + d.nonBauPct
+                const totalColor = total > 100 ? '#991b1b' : total === 100 ? '#15803d' : '#854d0e'
+                const p = people[name]
+                return (
+                  <tr key={name} style={{ background: pi % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <div style={{ width: 24, height: 24, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
+                          {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                         </div>
+                        {name}
+                      </div>
+                    </td>
+                    {/* Working Days */}
+                    <td style={{ padding: '6px 8px', textAlign: 'center', borderLeft: '2px solid #e8f0fe' }}>
+                      <NumInput value={p.working_days} onChange={v => setPeople(prev => ({ ...prev, [name]: { ...prev[name], working_days: v } }))} placeholder={String(defWd)} min={1} max={365} width={68} />
+                    </td>
+                    {/* Holidays */}
+                    <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <NumInput value={p.holidays} onChange={v => setPeople(prev => ({ ...prev, [name]: { ...prev[name], holidays: v } }))} placeholder={String(defH)} min={0} max={60} width={60} />
+                    </td>
+                    {/* Calculated columns */}
+                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{d.av}d</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#0891b2' }}>{d.cadence}d</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#7c3aed' }}>{d.training}d</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#059669' }}>{d.productivity}d</td>
+                    {/* BAU % */}
+                    {BAU_SERVICES.map((sv, i) => (
+                      <td key={sv} style={{ padding: '6px 6px', textAlign: 'center', borderLeft: i === 0 ? '2px solid #a7f3d0' : undefined }}>
+                        <input type="number" value={p.bau?.[sv] ?? 0} min={0} max={100}
+                          onChange={e => setPeople(prev => ({ ...prev, [name]: { ...prev[name], bau: { ...prev[name].bau, [sv]: Number(e.target.value) } } }))}
+                          style={{ width: 56, height: 28, padding: '0 4px', fontSize: 12, border: `1px solid ${BAU_COLORS[sv]}50`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: BAU_COLORS[sv], outline: 'none', boxSizing: 'border-box' }} />
                       </td>
-                      <td style={{ padding: '12px 12px', textAlign: 'center' }}>
-                        <input type="number" value={localHours[svc] ?? ''} step={0.5} min={0.5}
-                          onChange={e => setLocalHours(h => ({ ...h, [svc]: e.target.value }))}
-                          style={{ width: 90, height: 32, padding: '0 8px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 7, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
-                        <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>h</span>
+                    ))}
+                    {/* Non-BAU % */}
+                    {NON_BAU.map((a, i) => (
+                      <td key={a} style={{ padding: '6px 6px', textAlign: 'center', borderLeft: i === 0 ? '2px solid #ddd6fe' : undefined }}>
+                        <input type="number" value={p.non_bau?.[a] ?? 0} min={0} max={100}
+                          onChange={e => setPeople(prev => ({ ...prev, [name]: { ...prev[name], non_bau: { ...prev[name].non_bau, [a]: Number(e.target.value) } } }))}
+                          style={{ width: 56, height: 28, padding: '0 4px', fontSize: 12, border: `1px solid ${NON_BAU_COLORS[a]}50`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: NON_BAU_COLORS[a], outline: 'none', boxSizing: 'border-box' }} />
                       </td>
-                      <td style={{ padding: '12px 12px', textAlign: 'center', fontWeight: 700, color: '#374151' }}>
-                        {localHours[svc] > 0 ? +(8 / localHours[svc]).toFixed(2) : '—'}
-                        <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400, marginLeft: 4 }}>/day</span>
-                      </td>
-                      <td style={{ padding: '12px 12px', textAlign: 'center' }}>
-                        <input type="number" value={localSla[svc] ?? ''} min={1} max={365}
-                          onChange={e => setLocalSla(s => ({ ...s, [svc]: e.target.value }))}
-                          style={{ width: 90, height: 32, padding: '0 8px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 7, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
-                        <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>days</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                    ))}
+                    {/* Total % */}
+                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: totalColor, borderLeft: '2px solid #e5e8ef' }}>
+                      {total}%
+                      {total > 100 && <div style={{ fontSize: 9, fontWeight: 400, color: '#991b1b' }}>↑ over</div>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            {/* Summary row */}
+            <tfoot>
+              <tr style={{ background: '#f0f4ff', borderTop: '2px solid #c7d7fd' }}>
+                <td style={{ padding: '9px 12px', fontWeight: 700, color: '#1450f5' }}>Team Total</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#374151', borderLeft: '2px solid #e8f0fe' }}>{totals.wd}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#374151' }}>{totals.h}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{totals.av}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#0891b2' }}>{totals.cadence}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#7c3aed' }}>{totals.training}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#059669' }}>{totals.productivity}d</td>
+                {BAU_SERVICES.map((sv, i) => (
+                  <td key={sv} style={{ padding: '9px 10px', textAlign: 'center', color: '#9ca3af', borderLeft: i === 0 ? '2px solid #a7f3d0' : undefined }}>—</td>
+                ))}
+                {NON_BAU.map((a, i) => (
+                  <td key={a} style={{ padding: '9px 10px', textAlign: 'center', color: '#9ca3af', borderLeft: i === 0 ? '2px solid #ddd6fe' : undefined }}>—</td>
+                ))}
+                <td style={{ borderLeft: '2px solid #e5e8ef' }} />
+              </tr>
+            </tfoot>
+          </table>
         </div>
 
         {/* Footer */}
         <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            {error && <span style={{ fontSize: 12, color: '#991b1b' }}>{error}</span>}
-            {saved && <span style={{ fontSize: 12, color: '#15803d' }}>✓ Saved successfully</span>}
+          <div style={{ fontSize: 12 }}>
+            {err  && <span style={{ color: '#dc2626' }}>{err}</span>}
+            {saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ height: 36, padding: '0 18px', fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>
-              Close
-            </button>
-            <button onClick={tab === 'capacity' ? saveCapacity : saveRatesSla} disabled={saving}
-              style={{ height: 36, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', background: '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif', opacity: saving ? 0.7 : 1 }}>
-              {saving ? 'Saving…' : tab === 'capacity' ? 'Save Capacity' : 'Save Rates & SLA'}
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>
@@ -588,32 +514,116 @@ function SettingsModal({ assignees, capSettings, bwRates, slaRules, onClose, onS
   )
 }
 
-/* ── Main page ──────────────────────────────────────────────────────────────── */
-const PieTT = ({ active, payload }) => {
-  if (!active || !payload?.length) return null
-  const { name, value, payload: p } = payload[0]
-  return (
-    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ color: p.fill, fontWeight: 700 }}>{SERVICE_SHORT[name] || name}</div>
-      <div style={{ color: '#374151' }}>{value} hrs · {p.pct}%</div>
-    </div>
+/* ── Rates & SLA Modal ──────────────────────────────────────────────────────── */
+function RatesSlaModal({ bwRates, slaRules, onClose, onSaved }) {
+  const [localHours, setLocalHours] = useState(() =>
+    Object.fromEntries(Object.entries(bwRates).map(([s, rate]) => [s, +(8 / rate).toFixed(2)]))
   )
-}
-const DtcTT = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  const d = payload[0].payload
+  const [localSla, setLocalSla] = useState({ ...slaRules })
+  const [saving, setSaving] = useState(false)
+  const [saved,  setSaved]  = useState(false)
+  const [err,    setErr]    = useState(null)
+
+  const displayServices = [
+    ...BAU_SERVICES,
+    'Demand Creation – Global',
+    'Email – Local',
+    'Retention – Activations',
+  ]
+
+  async function save() {
+    setSaving(true); setErr(null); setSaved(false)
+    try {
+      const newRates = Object.fromEntries(
+        Object.entries(localHours).map(([s, h]) => [s, +(8 / Number(h)).toFixed(4)])
+      )
+      const newSla = Object.fromEntries(Object.entries(localSla).map(([s, v]) => [s, Number(v)]))
+      await Promise.all([updateBandwidthRates(newRates), updateSlaRules(newSla)])
+      onSaved({ bwRates: newRates, slaRules: newSla })
+      setSaved(true)
+    } catch { setErr('Failed to save') }
+    finally { setSaving(false) }
+  }
+
+  const TH = { padding: '8px 12px', fontWeight: 700, color: '#6b7280', fontSize: 11, textAlign: 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
+
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div>
-      <div style={{ color: dtcColor(d.avg_days_to_close) }}>Avg: <strong>{d.avg_days_to_close}d</strong></div>
-      {d.min_days_to_close != null && d.min_days_to_close !== d.max_days_to_close && (
-        <div style={{ color: '#9ca3af', fontSize: 11 }}>Range: {d.min_days_to_close}d – {d.max_days_to_close}d</div>
-      )}
-      <div style={{ color: '#1450f5', marginTop: 2 }}>Tickets: <strong>{d.tracked_tickets}</strong></div>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '32px 16px', overflowY: 'auto' }}
+      onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 700, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Rates & SLA</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Hours per ticket and SLA targets per service</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+        <div style={{ padding: '20px 24px', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th style={{ ...TH, textAlign: 'left' }}>Service</th>
+                <th style={TH}>Hours / Ticket<br/><span style={{ fontWeight: 400, fontSize: 10 }}>how long each ticket takes</span></th>
+                <th style={TH}>Tickets / Day<br/><span style={{ fontWeight: 400, fontSize: 10 }}>derived (8 ÷ hours)</span></th>
+                <th style={TH}>SLA (working days)<br/><span style={{ fontWeight: 400, fontSize: 10 }}>target resolution time</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayServices.map((svc, i) => {
+                const color = BAU_COLORS[svc] || SUBCAT_COLORS[svc] || '#94a3b8'
+                const isSubcat = !BAU_SERVICES.includes(svc)
+                return (
+                  <tr key={svc} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
+                    <td style={{ padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 9, height: 9, borderRadius: '50%', background: color }} />
+                        <span style={{ fontWeight: isSubcat ? 400 : 600, color: '#111827' }}>
+                          {isSubcat ? <span style={{ color: '#9ca3af', marginRight: 4 }}>↳</span> : null}{svc}
+                        </span>
+                        {isSubcat && <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 5px' }}>sub-service</span>}
+                      </div>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <input type="number" value={localHours[svc] ?? ''} step={0.5} min={0.5}
+                        onChange={e => setLocalHours(h => ({ ...h, [svc]: e.target.value }))}
+                        style={{ width: 80, height: 32, padding: '0 8px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 7, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
+                      <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>h</span>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#374151' }}>
+                      {localHours[svc] > 0 ? +(8 / localHours[svc]).toFixed(2) : '—'}
+                      <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400, marginLeft: 4 }}>/day</span>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <input type="number" value={localSla[svc] ?? ''} min={1} max={365}
+                        onChange={e => setLocalSla(s => ({ ...s, [svc]: e.target.value }))}
+                        style={{ width: 80, height: 32, padding: '0 8px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 7, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
+                      <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>days</span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 12 }}>
+            {err  && <span style={{ color: '#dc2626' }}>{err}</span>}
+            {saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
+/* ── Assignee multi-select dropdown ─────────────────────────────────────────── */
 function AssigneeMultiSelect({ options, selected, onChange }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -676,42 +686,39 @@ function AssigneeMultiSelect({ options, selected, onChange }) {
   )
 }
 
+/* ── Main page ──────────────────────────────────────────────────────────────── */
 export default function UtilityRatePage({ sessionId, onSessionExpired }) {
-  const [data,       setData]       = useState(null)
-  const [loading,    setLoading]    = useState(true)
-  const [dateFrom,   setDateFrom]   = useState('')
-  const [dateTo,     setDateTo]     = useState('')
-  const [teamF,      setTeamF]      = useState('')
-  const [areaF,      setAreaF]      = useState('')
-  const [assigneeF,  setAssigneeF]  = useState([])
-  const [mode,       setMode]       = useState('all')
+  const [data,         setData]         = useState(null)
+  const [loading,      setLoading]      = useState(true)
+  const [dateFrom,     setDateFrom]     = useState('')
+  const [dateTo,       setDateTo]       = useState('')
+  const [serviceF,     setServiceF]     = useState('')
+  const [assigneeF,    setAssigneeF]    = useState([])
+  const [mode,         setMode]         = useState('all')
   const [ticketSearch, setTicketSearch] = useState('')
   const [showTickets,  setShowTickets]  = useState(false)
-  const [sortCol, setSortCol] = useState('utility_pct')
-  const [sortDir, setSortDir] = useState('desc')
-  const [showSettings, setShowSettings] = useState(false)
-  const [capSettings, setCapSettings] = useState({ default_office_days: 220, people: {} })
-  const [bwRates,     setBwRates]     = useState({})
-  const [slaRules,    setSlaRules]    = useState({})
+  const [sortCol,      setSortCol]      = useState('utility_pct')
+  const [sortDir,      setSortDir]      = useState('desc')
+  const [showCapacity, setShowCapacity] = useState(false)
+  const [showRatesSla, setShowRatesSla] = useState(false)
+  const [capSettings,  setCapSettings]  = useState({ default_working_days: 250, default_holidays: 24, people: {} })
+  const [bwRates,      setBwRates]      = useState({})
+  const [slaRules,     setSlaRules]     = useState({})
 
-  // Load utility rate data
   useEffect(() => {
     setLoading(true)
-    getUtilityRate(sessionId, dateFrom, dateTo, { team: teamF, area: areaF, assigned_to: assigneeF.join(','), mode })
+    getUtilityRate(sessionId, dateFrom, dateTo, { assigned_to: assigneeF.join(','), service: serviceF, mode })
       .then(setData)
       .catch(err => { if (err.sessionExpired) onSessionExpired?.() })
       .finally(() => setLoading(false))
-  }, [sessionId, dateFrom, dateTo, teamF, areaF, assigneeF, mode])
+  }, [sessionId, dateFrom, dateTo, serviceF, assigneeF, mode])
 
-  // Load settings once on mount
   useEffect(() => {
     Promise.all([getCapacitySettings(), getBandwidthRates(), getSlaRules()])
       .then(([cap, bw, sla]) => { setCapSettings(cap); setBwRates(bw); setSlaRules(sla) })
       .catch(() => {})
   }, [])
 
-  const teams     = data?.filter_options?.teams     ?? []
-  const areas     = data?.filter_options?.areas     ?? []
   const assignees = data?.filter_options?.assignees ?? []
   const isClosed  = mode === 'closed'
 
@@ -720,7 +727,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
     const totalH = data.total_committed_h || 1
     return (data.by_service || []).filter(r => r.committed_hours > 0).map(r => ({
       name: r.service, value: r.committed_hours,
-      fill: SERVICE_COLORS[r.service] || '#94a3b8',
+      fill: BAU_COLORS[r.service] || '#94a3b8',
       pct: Math.round(r.committed_hours / totalH * 100),
     }))
   }, [data])
@@ -735,14 +742,12 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
   const assigneesByHours = useMemo(() =>
     !data?.by_assignee ? [] :
-    [...data.by_assignee].filter(r => r.committed_hours > 0)
-      .sort((a, b) => a.committed_hours - b.committed_hours)
+    [...data.by_assignee].filter(r => r.committed_hours > 0).sort((a, b) => a.committed_hours - b.committed_hours)
   , [data])
 
   const assigneesByDtc = useMemo(() =>
     !data?.by_assignee ? [] :
-    [...data.by_assignee].filter(r => r.avg_days_to_close != null)
-      .sort((a, b) => b.avg_days_to_close - a.avg_days_to_close)
+    [...data.by_assignee].filter(r => r.avg_days_to_close != null).sort((a, b) => b.avg_days_to_close - a.avg_days_to_close)
   , [data])
 
   function toggleSort(col) {
@@ -767,26 +772,26 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
       ? <span style={{ color: '#d1d5db', marginLeft: 3 }}>⇅</span>
       : <span style={{ color: '#1450f5', marginLeft: 3 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
 
-  const hasFilter = teamF || areaF || assigneeF.length > 0 || dateFrom || dateTo
+  const hasFilter = serviceF || assigneeF.length > 0 || dateFrom || dateTo
 
-  const hasCapacityPlan = Object.values(capSettings.people || {})
-    .some(p =>
-      SERVICES.some(s => (p.allocations?.[s] ?? 0) > 0) ||
-      NON_TICKET.some(a => (p.non_ticket?.[a] ?? 0) > 0)
-    )
+  const hasCapacityPlan = DEFAULT_PEOPLE.some(name => {
+    const p = capSettings.people?.[name] || {}
+    return BAU_SERVICES.some(s => (p.bau?.[s] ?? 0) > 0) || NON_BAU.some(a => (p.non_bau?.[a] ?? 0) > 0)
+  })
+
+  const btnStyle = { height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 6 }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>Utility Rate</h2>
         <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>
-          Capacity utilisation across services, assignees and time — based on estimated hours per ticket type.
+          Capacity utilisation across services and assignees — denominator based on productivity days (75% of availability).
         </p>
       </div>
 
       {/* Filter bar */}
       <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 12, padding: '12px 18px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* Mode toggle */}
         <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 8, padding: 3, gap: 2, flexShrink: 0 }}>
           {[['all', 'All Tracked'], ['closed', 'Closed Only']].map(([val, lbl]) => (
             <button key={val} onClick={() => setMode(val)} style={{
@@ -799,36 +804,33 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
         <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
         <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
-        {[
-          { label: 'All Teams', val: teamF, set: setTeamF, opts: teams },
-          { label: 'All Areas', val: areaF, set: setAreaF, opts: areas },
-        ].map(({ label, val, set, opts }) => (
-          <select key={label} value={val} onChange={e => set(e.target.value)} style={{
-            height: 30, padding: '0 8px', fontSize: 12, borderRadius: 7, background: '#fff', outline: 'none',
-            fontFamily: 'Inter, sans-serif', cursor: 'pointer',
-            color: val ? '#111827' : '#9ca3af', border: `1px solid ${val ? '#a5b4fc' : '#e5e7eb'}`,
-          }}>
-            <option value="">{label}</option>
-            {opts.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        ))}
+        <select value={serviceF} onChange={e => setServiceF(e.target.value)} style={{
+          height: 30, padding: '0 8px', fontSize: 12, borderRadius: 7, background: '#fff', outline: 'none',
+          fontFamily: 'Inter, sans-serif', cursor: 'pointer',
+          color: serviceF ? '#111827' : '#9ca3af', border: `1px solid ${serviceF ? '#a5b4fc' : '#e5e7eb'}`,
+        }}>
+          <option value="">All Services</option>
+          {BAU_SERVICES.map(s => <option key={s} value={s}>{BAU_SHORT[s]}</option>)}
+        </select>
         <AssigneeMultiSelect options={assignees} selected={assigneeF} onChange={setAssigneeF} />
         {hasFilter && (
-          <button onClick={() => { setTeamF(''); setAreaF(''); setAssigneeF([]); setDateFrom(''); setDateTo('') }}
+          <button onClick={() => { setServiceF(''); setAssigneeF([]); setDateFrom(''); setDateTo('') }}
             style={{ height: 30, padding: '0 10px', fontSize: 12, cursor: 'pointer', background: 'none', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
             Clear
           </button>
         )}
         <div style={{ flex: 1 }} />
-        <button onClick={() => setShowSettings(true)} style={{
-          height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          background: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8,
-          fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 6,
-        }}>
+        <button onClick={() => setShowCapacity(true)} style={btnStyle}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
-          Settings
+          Capacity Settings
+        </button>
+        <button onClick={() => setShowRatesSla(true)} style={btnStyle}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          Rates & SLA
         </button>
       </div>
 
@@ -861,7 +863,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
               bg={data.overall_avg_days_to_close <= 7 ? '#ecfdf5' : data.overall_avg_days_to_close <= 14 ? '#fffbeb' : '#fff1f2'}
               border={data.overall_avg_days_to_close <= 7 ? '#6ee7b7' : data.overall_avg_days_to_close <= 14 ? '#fcd34d' : '#fda4af'} />
           ) : (
-            <StatCard label="Available Capacity" value={`${Math.max(0, data.total_capacity_h - data.total_committed_h)}h`} sub={`${data.team_size} people × 40h × ${data.span_weeks}w`} />
+            <StatCard label="Available Capacity" value={`${Math.max(0, data.total_capacity_h - data.total_committed_h)}h`} sub={`${data.team_size} people · ${data.span_weeks}w`} />
           )}
           <StatCard label="Time Span" value={`${data.span_weeks}w`} sub={`${data.span_days} calendar days`} />
           <StatCard label="Team Size" value={data.team_size} sub="assignees with tracked tickets" />
@@ -914,7 +916,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                   </Pie>
                   <Tooltip content={<PieTT />} />
                   <Legend layout="vertical" align="right" verticalAlign="middle"
-                    formatter={(val) => <span style={{ fontSize: 11, color: '#374151' }}>{SERVICE_SHORT[val] || val}</span>}
+                    formatter={(val) => <span style={{ fontSize: 11, color: '#374151' }}>{BAU_SHORT[val] || val}</span>}
                     iconType="circle" iconSize={8} />
                 </PieChart>
               </ResponsiveContainer>
@@ -989,17 +991,17 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         <SectionCard title="Utility Rate by Service" subtitle={`Tickets · estimated hours · share of capacity${isClosed ? ' · closed tickets only' : ''}`} accent="#0077a8">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={data.by_service.map(r => ({ name: SERVICE_SHORT[r.service] || r.service, hours: r.committed_hours, fill: SERVICE_COLORS[r.service] || '#94a3b8' }))}
+              <BarChart data={data.by_service.map(r => ({ name: BAU_SHORT[r.service] || r.service, hours: r.committed_hours, fill: BAU_COLORS[r.service] || '#94a3b8' }))}
                 layout="vertical" margin={{ top: 4, right: 60, left: 0, bottom: 4 }} barSize={14}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: '#374151' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fill: '#374151' }} axisLine={false} tickLine={false} />
                 <Tooltip content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null
                   return <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}><div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div><div style={{ color: '#1450f5' }}>Hours: <strong>{payload[0].value}h</strong></div></div>
                 }} cursor={{ fill: '#f5f7ff' }} />
                 <Bar dataKey="hours" radius={[0, 4, 4, 0]}>
-                  {data.by_service.map((r, i) => <Cell key={i} fill={SERVICE_COLORS[r.service] || '#94a3b8'} />)}
+                  {data.by_service.map((r, i) => <Cell key={i} fill={BAU_COLORS[r.service] || '#94a3b8'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -1017,8 +1019,8 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                     <tr key={r.service} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
                       <td style={{ padding: '8px 10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: SERVICE_COLORS[r.service], flexShrink: 0 }} />
-                          <span style={{ color: '#111827', fontWeight: 500 }}>{SERVICE_SHORT[r.service] || r.service}</span>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: BAU_COLORS[r.service], flexShrink: 0 }} />
+                          <span style={{ color: '#111827', fontWeight: 500 }}>{BAU_SHORT[r.service] || r.service}</span>
                         </div>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'center', color: '#374151' }}>{r.tickets}</td>
@@ -1077,18 +1079,18 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                       {label} <SortIcon col={col} />
                     </th>
                   ))}
-                  {SERVICES.map(sc => (
+                  {BAU_SERVICES.map((sc, idx) => (
                     <th key={sc} style={{
-                      padding: '9px 10px', fontWeight: 700, fontSize: 10, color: SERVICE_COLORS[sc],
+                      padding: '9px 10px', fontWeight: 700, fontSize: 10, color: BAU_COLORS[sc],
                       textAlign: 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap',
-                      background: '#f5f5ff', borderLeft: sc === SERVICES[0] ? '2px solid #e0e0ff' : undefined,
-                    }}>{SERVICE_SHORT[sc]}</th>
+                      background: '#f5f5ff', borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined,
+                    }}>{BAU_SHORT[sc]}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {sortedAssignees.length === 0 ? (
-                  <tr><td colSpan={6 + (isClosed ? 1 : 0) + SERVICES.length} style={{ padding: 32, textAlign: 'center', color: '#9ca3af' }}>No data</td></tr>
+                  <tr><td colSpan={6 + (isClosed ? 1 : 0) + BAU_SERVICES.length} style={{ padding: 32, textAlign: 'center', color: '#9ca3af' }}>No data</td></tr>
                 ) : sortedAssignees.map((row, i) => {
                   const sCfg = STATUS_CFG[row.status] || STATUS_CFG.Available
                   const bg = i % 2 === 0 ? '#fff' : '#fafafa'
@@ -1123,12 +1125,12 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                           ) : <span style={{ color: '#d1d5db' }}>—</span>}
                         </td>
                       )}
-                      {SERVICES.map((sc, idx) => {
+                      {BAU_SERVICES.map((sc, idx) => {
                         const cnt = row.breakdown[sc] ?? 0
                         return (
-                          <td key={sc} style={{ padding: '9px 10px', textAlign: 'center', background: idx % 2 === 0 ? `${SERVICE_COLORS[sc]}08` : `${SERVICE_COLORS[sc]}12`, borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined }}>
+                          <td key={sc} style={{ padding: '9px 10px', textAlign: 'center', background: idx % 2 === 0 ? `${BAU_COLORS[sc]}08` : `${BAU_COLORS[sc]}12`, borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined }}>
                             {cnt > 0
-                              ? <span style={{ fontWeight: 700, fontSize: 12, color: SERVICE_COLORS[sc], background: `${SERVICE_COLORS[sc]}20`, borderRadius: 5, padding: '2px 7px' }}>{cnt}</span>
+                              ? <span style={{ fontWeight: 700, fontSize: 12, color: BAU_COLORS[sc], background: `${BAU_COLORS[sc]}20`, borderRadius: 5, padding: '2px 7px' }}>{cnt}</span>
                               : <span style={{ color: '#d1d5db' }}>—</span>}
                           </td>
                         )
@@ -1151,10 +1153,10 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                         {data.overall_avg_days_to_close != null ? `${data.overall_avg_days_to_close}d` : '—'}
                       </td>
                     )}
-                    {SERVICES.map((sc, idx) => {
+                    {BAU_SERVICES.map((sc, idx) => {
                       const tot = sortedAssignees.reduce((s, r) => s + (r.breakdown[sc] ?? 0), 0)
                       return (
-                        <td key={sc} style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: SERVICE_COLORS[sc], borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined }}>
+                        <td key={sc} style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: BAU_COLORS[sc], borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined }}>
                           {tot > 0 ? tot : '—'}
                         </td>
                       )
@@ -1197,8 +1199,8 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                       <td style={{ padding: '7px 10px', textAlign: 'center', fontWeight: 600, color: '#1450f5', whiteSpace: 'nowrap' }}>{t.ticket_number || '—'}</td>
                       <td style={{ padding: '7px 10px', color: '#374151', maxWidth: 280 }}>{t.short_description || '—'}</td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: SERVICE_COLORS[t.sub_category] || '#6b7280', background: (SERVICE_COLORS[t.sub_category] || '#94a3b8') + '18', borderRadius: 5, padding: '2px 7px' }}>
-                          {SERVICE_SHORT[t.sub_category] || t.sub_category}
+                        <span style={{ fontSize: 11, fontWeight: 600, color: SUBCAT_COLORS[t.sub_category] || '#6b7280', background: (SUBCAT_COLORS[t.sub_category] || '#94a3b8') + '18', borderRadius: 5, padding: '2px 7px' }}>
+                          {SUBCAT_SHORT[t.sub_category] || t.sub_category}
                         </span>
                       </td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', color: '#374151', whiteSpace: 'nowrap' }}>{t.assigned_to || '—'}</td>
@@ -1225,19 +1227,18 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
       </>)}
 
-      {/* Settings modal */}
-      {showSettings && (
-        <SettingsModal
-          assignees={assignees.length ? assignees : Object.keys(capSettings.people)}
+      {showCapacity && (
+        <CapacityModal
           capSettings={capSettings}
-          bwRates={bwRates}
-          slaRules={slaRules}
-          onClose={() => setShowSettings(false)}
-          onSaved={(updates) => {
-            if (updates.capSettings) setCapSettings(updates.capSettings)
-            if (updates.bwRates)     setBwRates(updates.bwRates)
-            if (updates.slaRules)    setSlaRules(updates.slaRules)
-          }}
+          onClose={() => setShowCapacity(false)}
+          onSaved={({ capSettings: newCap }) => { setCapSettings(newCap); setShowCapacity(false) }}
+        />
+      )}
+      {showRatesSla && (
+        <RatesSlaModal
+          bwRates={bwRates} slaRules={slaRules}
+          onClose={() => setShowRatesSla(false)}
+          onSaved={({ bwRates: nb, slaRules: ns }) => { setBwRates(nb); setSlaRules(ns); setShowRatesSla(false) }}
         />
       )}
     </div>

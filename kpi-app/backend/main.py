@@ -40,6 +40,7 @@ BANDWIDTH_RATES: dict[str, float] = {
     "Demand Creation – Global":            0.4,
     "Email – Local":                       1.1,
     "Retention – Activations":             0.4,
+    "Demand Engagement Activations":       0.63,  # blended rate of the three DEA sub-services
 }
 
 BANDWIDTH_HOURS_PER_DAY  = 8
@@ -47,9 +48,11 @@ BANDWIDTH_DAYS_PER_WEEK  = 5
 BANDWIDTH_WEEKLY_CAPACITY = BANDWIDTH_HOURS_PER_DAY * BANDWIDTH_DAYS_PER_WEEK  # 40 h
 
 CAPACITY_SETTINGS: dict = {
-    "default_office_days": 220,
+    "default_working_days": 250,
+    "default_holidays": 24,
     "people": {},
-    # people[name] = { "office_days": int|null, "allocations": { service: pct } }
+    # people[name] = { "working_days": int|null, "holidays": int|null,
+    #                  "bau": { service: pct }, "non_bau": { activity: pct } }
 }
 
 # Keys match exact Sub-Category values from the Excel (em-dash –)
@@ -59,6 +62,7 @@ SLA_RULES: dict[str, int] = {
     "Demand Creation – Global": 30,
     "Email – Local": 7,
     "Retention – Activations": 30,
+    "Demand Engagement Activations": 14,
 }
 
 EXCLUDED_STATES = {"Closed Completed", "Closed Rejected", "Confirmation Completed"}
@@ -991,21 +995,33 @@ def bandwidth_tracker(sid: str):
 
 # ── Utility Rate ───────────────────────────────────────────────────────────────
 
+# Sub-services that are merged into "Demand Engagement Activations" on the UI
+DEMAND_ENGAGEMENT_SUBS = {
+    "Demand Creation – Global",
+    "Email – Local",
+    "Retention – Activations",
+}
+
+# BAU services displayed on the Utility Rate page (DEA is the merged view)
+BAU_SERVICES_DISPLAY = [
+    "Website Content Management",
+    "Demand Engagement Activations",
+    "Content Production – Graphic Design",
+]
+
+
 @app.get("/api/sessions/{sid}/utility-rate")
 def utility_rate(
     sid: str,
     date_from:   Optional[str] = None,
     date_to:     Optional[str] = None,
-    team:        Optional[str] = None,
-    area:        Optional[str] = None,
     assigned_to: Optional[str] = None,
-    mode:        str = "all",   # "all" | "closed"
+    service:     Optional[str] = None,   # one of BAU_SERVICES_DISPLAY or ""
+    mode:        str = "all",            # "all" | "closed"
 ):
     df = _get_session(sid)
 
     filter_options: dict = {
-        "teams":     sorted(df["team"].dropna().unique().tolist())        if "team"        in df.columns else [],
-        "areas":     sorted(df["area"].dropna().unique().tolist())        if "area"        in df.columns else [],
         "assignees": sorted(df["assigned_to"].dropna().unique().tolist()) if "assigned_to" in df.columns else [],
     }
 
@@ -1015,9 +1031,19 @@ def utility_rate(
     filtered = _filter_by_range(df, date_col, date_from, date_to)
     if mode == "closed" and "state" in filtered.columns:
         filtered = filtered[filtered["state"].isin(CLOSED_STATES)]
-    filtered = _apply_dim_filters(filtered, assigned_to=assigned_to, team=team, area=area)
+    filtered = _apply_dim_filters(filtered, assigned_to=assigned_to)
 
-    hours_per_ticket = {sc: BANDWIDTH_HOURS_PER_DAY / rate for sc, rate in BANDWIDTH_RATES.items()}
+    # Apply service filter — "Demand Engagement Activations" maps to its 3 sub-services
+    if service and "sub_category" in filtered.columns:
+        if service == "Demand Engagement Activations":
+            filtered = filtered[filtered["sub_category"].isin(DEMAND_ENGAGEMENT_SUBS)]
+        else:
+            filtered = filtered[filtered["sub_category"] == service]
+
+    # hours_per_ticket for the 5 raw sub-categories (DEA merged rate stored separately)
+    raw_hpt = {sc: BANDWIDTH_HOURS_PER_DAY / rate for sc, rate in BANDWIDTH_RATES.items()
+               if sc != "Demand Engagement Activations"}
+    dea_hpt = BANDWIDTH_HOURS_PER_DAY / BANDWIDTH_RATES.get("Demand Engagement Activations", 0.63)
 
     # ── Span calculation ──────────────────────────────────────────────────────
     if date_from and date_to:
@@ -1032,39 +1058,63 @@ def utility_rate(
         span_days = 7
     span_weeks = max(span_days / 7.0, 1.0)
 
-    # ── By service ────────────────────────────────────────────────────────────
+    def _sub_hours(sub_cat_series) -> float:
+        """Estimate committed hours for a Series of sub_category values."""
+        total = 0.0
+        for sc, hpt in raw_hpt.items():
+            total += int((sub_cat_series == sc).sum()) * hpt
+        return total
+
+    # ── By service (BAU display view — DEA merged) ────────────────────────────
     by_service = []
-    for sc, hpt in hours_per_ticket.items():
-        cnt = int((filtered["sub_category"] == sc).sum()) if "sub_category" in filtered.columns else 0
-        by_service.append({
-            "service":          sc,
-            "tickets":          cnt,
-            "hours_per_ticket": round(hpt, 2),
-            "committed_hours":  round(cnt * hpt, 1),
-        })
+    if "sub_category" in filtered.columns:
+        for svc in BAU_SERVICES_DISPLAY:
+            if svc == "Demand Engagement Activations":
+                mask = filtered["sub_category"].isin(DEMAND_ENGAGEMENT_SUBS)
+                cnt  = int(mask.sum())
+                hrs  = round(cnt * dea_hpt, 1)
+                hpt_val = round(dea_hpt, 2)
+            else:
+                cnt  = int((filtered["sub_category"] == svc).sum())
+                hpt_val = round(raw_hpt.get(svc, 0), 2)
+                hrs  = round(cnt * hpt_val, 1)
+            by_service.append({
+                "service":          svc,
+                "tickets":          cnt,
+                "hours_per_ticket": hpt_val,
+                "committed_hours":  hrs,
+            })
 
     # ── By assignee ───────────────────────────────────────────────────────────
+    DEFAULT_PEOPLE = ["Ajith", "Akshaya P", "Akshayaa R", "Arvind", "Nitish", "Ranjith"]
+
     by_assignee: list[dict] = []
     if "assigned_to" in filtered.columns:
-        for person in sorted(filtered["assigned_to"].dropna().unique()):
+        people_in_data = sorted(filtered["assigned_to"].dropna().unique())
+        for person in people_in_data:
             pdf = filtered[filtered["assigned_to"] == person]
+
+            # Breakdown by raw sub-category for ticket detail
             breakdown: dict[str, int] = {}
             committed = 0.0
-            for sc, hpt in hours_per_ticket.items():
-                if "sub_category" in pdf.columns:
+            if "sub_category" in pdf.columns:
+                for sc, hpt in raw_hpt.items():
                     cnt = int((pdf["sub_category"] == sc).sum())
                     if cnt:
                         breakdown[sc] = cnt
                         committed += cnt * hpt
+
+            # Capacity: productivity_days = (working_days - holidays) × 0.75
             pcfg = CAPACITY_SETTINGS.get("people", {}).get(person, {})
-            person_office_days = pcfg.get("office_days") or CAPACITY_SETTINGS.get("default_office_days", 220)
-            # Subtract non-ticket allocations to get effective ticket days
-            non_ticket_cfg = pcfg.get("non_ticket", {})
-            non_ticket_pct = sum(v for v in non_ticket_cfg.values() if isinstance(v, (int, float)))
-            effective_days = round(person_office_days * max(0.0, 1 - non_ticket_pct / 100), 1)
-            # Prorate effective days to this period, then convert to working weeks
-            person_weeks = (effective_days * (span_days / 365.0)) / BANDWIDTH_DAYS_PER_WEEK
-            individual_cap = round(BANDWIDTH_WEEKLY_CAPACITY * max(person_weeks, 0.2), 1)
+            working_days = pcfg.get("working_days") or CAPACITY_SETTINGS.get("default_working_days", 250)
+            holidays     = pcfg.get("holidays")     or CAPACITY_SETTINGS.get("default_holidays", 24)
+            availability   = working_days - holidays
+            productivity_days = availability * 0.75
+            # Prorate to the selected period
+            prod_days_period = productivity_days * (span_days / 365.0)
+            individual_cap   = round(prod_days_period * BANDWIDTH_HOURS_PER_DAY, 1)
+            individual_cap   = max(individual_cap, 1.0)
+
             util_pct = round(committed / individual_cap * 100, 1) if individual_cap > 0 else 0.0
 
             avg_days_to_close = None
@@ -1089,8 +1139,7 @@ def utility_rate(
                 "capacity_hours":      individual_cap,
                 "utility_pct":         util_pct,
                 "status":              "Overloaded" if util_pct >= 85 else "Busy" if util_pct >= 60 else "Available",
-                "non_ticket_pct":      round(non_ticket_pct, 1),
-                "effective_days":      effective_days,
+                "productivity_days":   round(prod_days_period, 1),
                 "avg_days_to_close":   avg_days_to_close,
                 "min_days_to_close":   min_days_to_close,
                 "max_days_to_close":   max_days_to_close,
@@ -1117,10 +1166,10 @@ def utility_rate(
     # ── Weekly trend ──────────────────────────────────────────────────────────
     weekly_trend: list[dict] = []
     if date_col in filtered.columns and "sub_category" in filtered.columns and len(filtered) > 0:
-        tracked = filtered[filtered["sub_category"].isin(hours_per_ticket)].copy()
+        tracked = filtered[filtered["sub_category"].isin(raw_hpt)].copy()
         if len(tracked) > 0:
             tracked["_week"]  = tracked[date_col].dt.to_period("W").apply(lambda p: p.start_time.date())
-            tracked["_hours"] = tracked["sub_category"].map(hours_per_ticket)
+            tracked["_hours"] = tracked["sub_category"].map(raw_hpt)
             weekly_per_svc = tracked.groupby(["_week", "sub_category"])["_hours"].sum().reset_index()
             weekly_h = tracked.groupby("_week")["_hours"].sum()
             weekly_cap = team_size * BANDWIDTH_WEEKLY_CAPACITY if team_size > 0 else BANDWIDTH_WEEKLY_CAPACITY
@@ -1154,9 +1203,9 @@ def utility_rate(
     # ── By ticket ─────────────────────────────────────────────────────────────
     by_ticket: list[dict] = []
     if "sub_category" in filtered.columns:
-        tracked_df = filtered[filtered["sub_category"].isin(hours_per_ticket)].copy()
+        tracked_df = filtered[filtered["sub_category"].isin(raw_hpt)].copy()
         if len(tracked_df) > 0:
-            tracked_df["_est_h"] = tracked_df["sub_category"].map(hours_per_ticket)
+            tracked_df["_est_h"] = tracked_df["sub_category"].map(raw_hpt)
             for col in ["ticket_number", "short_description", "assigned_to", "state"]:
                 if col not in tracked_df.columns:
                     tracked_df[col] = ""
@@ -1195,7 +1244,7 @@ def utility_rate(
         "total_capacity_h":          total_capacity_h,
         "total_committed_h":         total_committed_h,
         "team_util_pct":             team_util_pct,
-        "hours_per_ticket":          {sc: round(h, 2) for sc, h in hours_per_ticket.items()},
+        "hours_per_ticket":          {sc: round(h, 2) for sc, h in raw_hpt.items()},
         "by_service":                by_service,
         "by_assignee":               by_assignee,
         "weekly_trend":              weekly_trend,
