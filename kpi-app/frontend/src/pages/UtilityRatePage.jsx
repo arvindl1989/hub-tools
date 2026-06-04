@@ -192,7 +192,10 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
   let trainUtilH = 0
   activePeople.forEach(name => {
     const sessions = trainingSettings.people?.[name]?.sessions ?? []
-    trainUtilH += sessions.reduce((s, t) => s + (Number(t.hours_per_year) || 0), 0) * pf
+    trainUtilH += sessions.reduce((s, t) => {
+      const h = Number(t.hours_per_year) || 0
+      return s + (t.frequency === 'one-time' ? h : h * pf)
+    }, 0)
   })
   const totalUtilH = prodUtilH + cadenceUtilH + trainUtilH
 
@@ -696,8 +699,11 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
         <div style={{ padding: '16px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {teamPeople.map(name => {
             const sessions = people[name]?.sessions ?? []
-            const yrTot    = Math.round(sessions.reduce((s, t) => s + trainingHPY(t), 0) * 10) / 10
-            const pTot     = Math.round(yrTot * pf)
+            const yrTot = Math.round(sessions.reduce((s, t) => s + trainingHPY(t), 0) * 10) / 10
+            const pTot  = Math.round(sessions.reduce((s, t) => {
+              const h = trainingHPY(t)
+              return s + (t.frequency === 'one-time' ? h : h * pf)
+            }, 0))
             return (
               <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 12, overflow: 'hidden' }}>
                 <div style={{ padding: '10px 16px', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
