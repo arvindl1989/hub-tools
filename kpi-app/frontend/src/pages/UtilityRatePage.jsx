@@ -202,9 +202,9 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
   const r = n => Math.round(n)
 
   const ALL_SVC_BOXES = [
-    { key: 'Website Content Management',          label: 'Web Content Mgt',   allocH: wcmAllocH, utilH: svcMap['Website Content Management'] ?? 0,          color: '#fff', bg: '#4373f7', bc: '#4373f7' },
-    { key: 'Demand Engagement Activations',       label: 'Demand Engagement', allocH: deaAllocH, utilH: svcMap['Demand Engagement Activations'] ?? 0,        color: '#fff', bg: '#7296f9', bc: '#7296f9' },
-    { key: 'Content Production – Graphic Design', label: 'Graphic Design',    allocH: gdAllocH,  utilH: svcMap['Content Production – Graphic Design'] ?? 0,  color: '#fff', bg: '#a1b9fb', bc: '#a1b9fb' },
+    { key: 'Website Content Management',          label: 'Web Content Mgt',   allocH: wcmAllocH, utilH: svcMap['Website Content Management'] ?? 0,          color: '#fff', bg: '#1450f5', bc: '#1450f5' },
+    { key: 'Demand Engagement Activations',       label: 'Demand Engagement', allocH: deaAllocH, utilH: svcMap['Demand Engagement Activations'] ?? 0,        color: '#fff', bg: '#1450f5', bc: '#1450f5' },
+    { key: 'Content Production – Graphic Design', label: 'Graphic Design',    allocH: gdAllocH,  utilH: svcMap['Content Production – Graphic Design'] ?? 0,  color: '#fff', bg: '#1450f5', bc: '#1450f5' },
   ]
   const visibleSvcBoxes = serviceF ? ALL_SVC_BOXES.filter(s => s.key === serviceF) : ALL_SVC_BOXES
 
@@ -257,9 +257,9 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <NumBox label="Total Available" value={r(totalAvailH)}   bg="#1450f5" />
-            <NumBox label="Productivity"    value={r(prodAllocH)}    bg="#4373f7" sub="75% of avail" />
-            <NumBox label="Cadence"         value={r(cadenceAllocH)} bg="#7296f9" sub="20% of avail" />
-            <NumBox label="Training"        value={r(trainAllocH)}   bg="#a1b9fb" sub="5% of avail" />
+            <NumBox label="Productivity"    value={r(prodAllocH)}    bg="#1450f5" sub="75% of avail" />
+            <NumBox label="Cadence"         value={r(cadenceAllocH)} bg="#1450f5" sub="20% of avail" />
+            <NumBox label="Training"        value={r(trainAllocH)}   bg="#1450f5" sub="5% of avail" />
           </div>
           {visibleSvcBoxes.length > 0 && <>
             <div style={sectionLabel}>Allocated by service</div>
@@ -280,9 +280,9 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <NumBox label="Total Utilized"  value={r(totalUtilH)}   bg="#1450f5" />
-            <NumBox label="Productivity"    value={r(prodUtilH)}    bg="#4373f7" sub="ticket hours" />
-            <NumBox label="Cadence"         value={r(cadenceUtilH)} bg="#7296f9" sub="recurring meetings" />
-            <NumBox label="Training"        value={r(trainUtilH)}   bg="#a1b9fb" sub="upskilling" />
+            <NumBox label="Productivity"    value={r(prodUtilH)}    bg="#1450f5" sub="ticket hours" />
+            <NumBox label="Cadence"         value={r(cadenceUtilH)} bg="#1450f5" sub="recurring meetings" />
+            <NumBox label="Training"        value={r(trainUtilH)}   bg="#1450f5" sub="upskilling" />
           </div>
           <div style={sectionLabel}>Utilized by service</div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -418,7 +418,8 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
 
   function renderActTable(acts, onRemove, onUpd, headerBg, borderColor, accentColor) {
     return (
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', minWidth: 540, borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ background: headerBg }}>
             <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: `1px solid ${borderColor}` }}>Meeting / Activity</th>
@@ -431,6 +432,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
         </thead>
         <tbody>{renderActRows(acts, onRemove, onUpd, borderColor, accentColor)}</tbody>
       </table>
+      </div>
     )
   }
 
@@ -595,7 +597,8 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
                   </div>
                 </div>
                 {sessions.length > 0 ? (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', minWidth: 540, borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
                       <tr style={{ background: '#fafafa' }}>
                         <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa' }}>Training / Course</th>
@@ -637,6 +640,7 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
                       })}
                     </tbody>
                   </table>
+                  </div>
                 ) : (
                   <div style={{ padding: '14px 16px', color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>No training sessions logged — click + Add</div>
                 )}
@@ -1619,14 +1623,14 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           ) : (
             <StatCard label="Available Capacity" value={`${Math.round((Math.max(0, data.total_capacity_h - data.total_committed_h)) * 10) / 10}h`}
               sub={`${data.team_size} people · ${data.span_weeks}w`}
-              color="#fff" bg="#4373f7" border="#4373f7"
+              color="#fff" bg="#1450f5" border="#1450f5"
               labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
           )}
           <StatCard label="Time Span" value={`${data.span_weeks}w`} sub={`${data.span_days} calendar days`}
-            color="#fff" bg="#7296f9" border="#7296f9"
+            color="#fff" bg="#1450f5" border="#1450f5"
             labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
           <StatCard label="Team Size" value={data.team_size} sub="assignees with tracked tickets"
-            color="#fff" bg="#a1b9fb" border="#a1b9fb"
+            color="#fff" bg="#1450f5" border="#1450f5"
             labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
         </div>
 
