@@ -357,8 +357,8 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
   const [addingFor, setAddingFor] = useState(null)
   const [draft, setDraft]         = useState({ name: '', duration_hours: 1, frequency: 'weekly' })
 
-  const openAdd    = key    => { setAddingFor(key); setDraft({ name: '', duration_hours: 1, frequency: 'weekly' }) }
-  const removeTeam = i      => setTeam(t => ({ activities: t.activities.filter((_, j) => j !== i) }))
+  const openAdd    = key       => { setAddingFor(key); setDraft({ name: '', duration_hours: 1, frequency: 'weekly' }) }
+  const removeTeam = i         => setTeam(t => ({ activities: t.activities.filter((_, j) => j !== i) }))
   const remove     = (name, i) => setPeople(p => ({ ...p, [name]: { activities: p[name].activities.filter((_, j) => j !== i) } }))
 
   function confirmAdd() {
@@ -373,9 +373,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
     setAddingFor(null)
   }
 
-  const serialize = acts => acts
-    .filter(a => String(a.name).trim())
-    .map(a => ({ ...a, hours_per_week: cadenceHPW(a) }))
+  const serialize = acts => acts.filter(a => String(a.name).trim()).map(a => ({ ...a, hours_per_week: cadenceHPW(a) }))
 
   async function save() {
     setSaving(true); setErr(null); setSaved(false)
@@ -391,123 +389,145 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
     finally { setSaving(false) }
   }
 
-  function ActList({ acts, onRemove, accentColor }) {
+  function renderEntries(acts, onRemove, accent) {
     return acts.map((a, i) => {
       const hpw = cadenceHPW(a)
-      const freqLabel = CADENCE_FREQS.find(f => f.key === (a.frequency || 'weekly'))?.label || 'Weekly'
+      const freq = CADENCE_FREQS.find(f => f.key === (a.frequency || 'weekly'))?.label || 'Weekly'
       return (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderTop: '1px solid #f0f3fa', flexWrap: 'wrap' }}>
-          <span style={{ flex: 1, minWidth: 100, fontSize: 13, fontWeight: 500, color: '#111827' }}>{a.name}</span>
-          <span style={{ fontSize: 11, color: '#6b7280', background: '#f3f4f6', borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap' }}>{freqLabel}</span>
-          <span style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>{a.duration_hours}h/session</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>{hpw}h/wk</span>
-          <span style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap' }}>{Math.round(hpw * spanWeeks)}h period</span>
-          <button onClick={() => onRemove(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 18, padding: '0 2px', lineHeight: 1, marginLeft: 'auto' }}>×</button>
+        <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', borderBottom: '1px solid #f3f4f6', gap: 12 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: accent, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{a.name}</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+              <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', marginRight: 5 }}>{freq}</span>
+              {a.duration_hours}h per session
+              <span style={{ color: accent, fontWeight: 700, marginLeft: 8 }}>{hpw}h/wk · {Math.round(hpw * spanWeeks)}h this period</span>
+            </div>
+          </div>
+          <button onClick={() => onRemove(i)} style={{
+            height: 28, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            color: '#ef4444', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 6,
+            fontFamily: 'Inter, sans-serif', flexShrink: 0,
+          }}>Remove</button>
         </div>
       )
     })
   }
 
-  function AddForm({ formKey, accentColor, bgColor, borderColor }) {
-    if (addingFor !== formKey) return null
+  function renderAddArea(formKey, accent, borderColor, formBg) {
+    if (addingFor !== formKey) {
+      return (
+        <button onClick={() => openAdd(formKey)} style={{
+          width: '100%', padding: '11px 0', background: 'transparent', border: 'none',
+          borderTop: '1px dashed #e5e7eb', color: '#9ca3af', fontSize: 12, cursor: 'pointer',
+          fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+        }}>
+          <span style={{ fontSize: 17, fontWeight: 300, lineHeight: 1 }}>+</span> Add activity
+        </button>
+      )
+    }
     const d = Number(draft.duration_hours) || 0
     const hpw = cadenceHPW({ ...draft, duration_hours: d })
     return (
-      <div style={{ padding: '10px 14px', background: bgColor, borderTop: `1px solid ${borderColor}`, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
-          onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
-          placeholder="Activity name e.g. Weekly Sync…" autoFocus
-          style={{ flex: 1, minWidth: 150, height: 32, padding: '0 10px', fontSize: 12, border: `1px solid ${borderColor}`, borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
-        <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
-          style={{ height: 32, padding: '0 6px', fontSize: 12, border: `1px solid ${borderColor}`, borderRadius: 6, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff' }}>
-          {CADENCE_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-        </select>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <input type="number" value={draft.duration_hours} min={0} max={24} step={0.25}
-            onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
-            style={{ width: 54, height: 32, padding: '0 6px', fontSize: 12, border: `1px solid ${borderColor}`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
-          <span style={{ fontSize: 11, color: '#9ca3af' }}>h</span>
+      <div style={{ padding: '16px', background: formBg, borderTop: `1px solid ${borderColor}` }}>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Activity name</label>
+          <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
+            onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
+            placeholder="e.g. Weekly Sync, Daily Standup, All Hands…" autoFocus
+            style={{ width: '100%', height: 38, padding: '0 12px', fontSize: 13, border: `1.5px solid ${borderColor}`, borderRadius: 8, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
         </div>
-        {hpw > 0 && <span style={{ fontSize: 11, color: accentColor, fontWeight: 600, whiteSpace: 'nowrap' }}>{hpw}h/wk · {Math.round(hpw * spanWeeks)}h period</span>}
-        <button onClick={confirmAdd}
-          style={{ height: 32, padding: '0 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: accentColor, color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Add</button>
-        <button onClick={() => setAddingFor(null)}
-          style={{ height: 32, padding: '0 10px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Frequency</label>
+            <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
+              style={{ height: 36, padding: '0 8px', fontSize: 13, border: `1.5px solid ${borderColor}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
+              {CADENCE_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Duration (hours)</label>
+            <input type="number" value={draft.duration_hours} min={0} max={24} step={0.25}
+              onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
+              style={{ width: 80, height: 36, padding: '0 10px', fontSize: 13, border: `1.5px solid ${borderColor}`, borderRadius: 8, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
+          </div>
+          {hpw > 0 && (
+            <div style={{ height: 36, display: 'flex', alignItems: 'center', padding: '0 12px', background: `${accent}14`, border: `1px solid ${accent}30`, borderRadius: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{hpw}h/wk · {Math.round(hpw * spanWeeks)}h this period</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+            <button onClick={() => setAddingFor(null)}
+              style={{ height: 36, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+            <button onClick={confirmAdd}
+              style={{ height: 36, padding: '0 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: accent, color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add Activity</button>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '24px 16px', overflowY: 'auto' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 760, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 700, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Cadence Hours Settings</div>
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Set frequency and duration — hours/week computed automatically, shown across {Math.round(spanWeeks)} weeks</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Cadence Hours</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Recurring meetings · hours/week auto-computed from frequency × duration, shown across {Math.round(spanWeeks)} weeks</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 24, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
-        <div style={{ padding: '20px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* Team-wide section */}
+        <div style={{ padding: '16px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Team-wide */}
           {(() => {
-            const acts  = team.activities
-            const wkTot = acts.reduce((s, a) => s + cadenceHPW(a), 0)
+            const acts = team.activities
+            const wkTot = Math.round(acts.reduce((s, a) => s + cadenceHPW(a), 0) * 100) / 100
             const pTot  = Math.round(wkTot * spanWeeks * teamPeople.length)
             return (
-              <div style={{ border: '2px solid #bfdbfe', borderRadius: 10, overflow: 'hidden', background: '#eff6ff' }}>
-                <div style={{ padding: '9px 16px', background: '#dbeafe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    <span style={{ fontWeight: 700, color: '#1d4ed8', fontSize: 13 }}>Team-wide Meetings</span>
-                    <span style={{ fontSize: 10, color: '#3b82f6', background: '#bfdbfe', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>counts for all {teamPeople.length} people</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#374151' }}><strong style={{ color: '#1d4ed8' }}>{wkTot}h</strong>/wk/person · <strong style={{ color: '#1d4ed8' }}>{pTot}h</strong> team total</span>
-                    <button onClick={() => openAdd('team')} style={{ height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>+ Add</button>
-                  </div>
+              <div style={{ border: '1.5px solid #bfdbfe', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', background: '#eff6ff', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <span style={{ fontWeight: 700, color: '#1e40af', fontSize: 13, flex: 1 }}>Team-wide Meetings</span>
+                  <span style={{ fontSize: 10, color: '#3b82f6', background: '#dbeafe', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>all {teamPeople.length} members</span>
+                  {wkTot > 0 && <span style={{ fontSize: 12, color: '#374151' }}><strong style={{ color: '#1d4ed8' }}>{wkTot}h</strong>/wk/person · <strong style={{ color: '#1d4ed8' }}>{pTot}h</strong> team total</span>}
                 </div>
-                <ActList acts={acts} onRemove={removeTeam} accentColor="#1d4ed8" />
-                <AddForm formKey="team" accentColor="#1d4ed8" bgColor="#e8f1ff" borderColor="#bfdbfe" />
-                {acts.length === 0 && addingFor !== 'team' && (
-                  <div style={{ padding: '14px 16px', color: '#3b82f6', fontSize: 12, textAlign: 'center' }}>No team-wide meetings — click + Add to add one that counts for everyone</div>
-                )}
+                {renderEntries(acts, removeTeam, '#1d4ed8')}
+                {renderAddArea('team', '#1d4ed8', '#bfdbfe', '#eff6ff')}
               </div>
             )
           })()}
 
+          {/* Per-person */}
           {teamPeople.map(name => {
             const acts  = people[name]?.activities ?? []
-            const wkTot = acts.reduce((s, a) => s + cadenceHPW(a), 0)
+            const wkTot = Math.round(acts.reduce((s, a) => s + cadenceHPW(a), 0) * 100) / 100
             const pTot  = Math.round(wkTot * spanWeeks)
             return (
-              <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ padding: '9px 16px', background: '#f9fafb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
-                      {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
-                    <span style={{ fontWeight: 700, color: '#111827', fontSize: 13 }}>{name}</span>
+              <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', background: '#f9fafb', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                    {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
-                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#1450f5' }}>{wkTot}h</strong>/wk · <strong style={{ color: '#1450f5' }}>{pTot}h</strong> this period</span>
-                    <button onClick={() => openAdd(name)} style={{ height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#eff6ff', color: '#1450f5', border: '1px solid #c7d7fd', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>+ Add</button>
-                  </div>
+                  <span style={{ fontWeight: 700, color: '#111827', fontSize: 14, flex: 1 }}>{name}</span>
+                  {wkTot > 0
+                    ? <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#1450f5' }}>{wkTot}h</strong>/wk · <strong style={{ color: '#1450f5' }}>{pTot}h</strong> this period</span>
+                    : <span style={{ fontSize: 12, color: '#d1d5db' }}>No meetings yet</span>
+                  }
                 </div>
-                <ActList acts={acts} onRemove={i => remove(name, i)} accentColor="#1450f5" />
-                <AddForm formKey={name} accentColor="#1450f5" bgColor="#f5f8ff" borderColor="#dbe9ff" />
-                {acts.length === 0 && addingFor !== name && (
-                  <div style={{ padding: '14px 16px', color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>No cadence meetings logged — click + Add</div>
-                )}
+                {renderEntries(acts, i => remove(name, i), '#1450f5')}
+                {renderAddArea(name, '#1450f5', '#c7d7fd', '#f0f4ff')}
               </div>
             )
           })}
         </div>
+
         <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#dc2626' }}>{err}</span>}{saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}</div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={onClose} style={{ height: 36, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 36, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -549,7 +569,7 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
   const [addingFor, setAddingFor] = useState(null)
   const [draft,     setDraft]     = useState({ name: '', duration_hours: 1, frequency: 'annual' })
 
-  const openAdd = name => { setAddingFor(name); setDraft({ name: '', duration_hours: 1, frequency: 'annual' }) }
+  const openAdd = name     => { setAddingFor(name); setDraft({ name: '', duration_hours: 1, frequency: 'annual' }) }
   const remove  = (name, i) => setPeople(p => ({ ...p, [name]: { sessions: p[name].sessions.filter((_, j) => j !== i) } }))
 
   function confirmAdd() {
@@ -560,9 +580,7 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
     setAddingFor(null)
   }
 
-  const serialize = sessions => sessions
-    .filter(s => String(s.name).trim())
-    .map(s => ({ ...s, hours_per_year: trainingHPY(s) }))
+  const serialize = sessions => sessions.filter(s => String(s.name).trim()).map(s => ({ ...s, hours_per_year: trainingHPY(s) }))
 
   async function save() {
     setSaving(true); setErr(null); setSaved(false)
@@ -575,104 +593,137 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
     finally { setSaving(false) }
   }
 
-  function SessList({ sessions, onRemove }) {
+  function renderSessions(sessions, onRemove) {
     return sessions.map((s, i) => {
       const hpy = trainingHPY(s)
       const isOneTime = s.frequency === 'one-time'
-      const freqLabel = TRAINING_FREQS.find(f => f.key === (s.frequency || 'annual'))?.label || 'Annual'
+      const freq = TRAINING_FREQS.find(f => f.key === (s.frequency || 'annual'))?.label || 'Annual'
       return (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderTop: '1px solid #f0f3fa', flexWrap: 'wrap' }}>
-          <span style={{ flex: 1, minWidth: 100, fontSize: 13, fontWeight: 500, color: '#111827' }}>{s.name}</span>
-          {isOneTime
-            ? <span style={{ fontSize: 11, color: '#7c3aed', background: '#f3e8ff', borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap', fontWeight: 600 }}>one-time</span>
-            : <span style={{ fontSize: 11, color: '#6b7280', background: '#f3f4f6', borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap' }}>{freqLabel}</span>
-          }
-          <span style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>{s.duration_hours}h{isOneTime ? ' total' : '/session'}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap' }}>{hpy}h/yr</span>
-          <span style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap' }}>{Math.round(hpy * pf)}h period</span>
-          <button onClick={() => onRemove(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 18, padding: '0 2px', lineHeight: 1, marginLeft: 'auto' }}>×</button>
+        <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', borderBottom: '1px solid #f3f4f6', gap: 12 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{s.name}</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+              {isOneTime
+                ? <span style={{ background: '#f3e8ff', color: '#7c3aed', borderRadius: 4, padding: '1px 6px', marginRight: 5, fontWeight: 600 }}>one-time</span>
+                : <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', marginRight: 5 }}>{freq}</span>
+              }
+              {s.duration_hours}h {isOneTime ? 'total' : 'per session'}
+              <span style={{ color: '#7c3aed', fontWeight: 700, marginLeft: 8 }}>
+                {isOneTime ? `${hpy}h one-time` : `${hpy}h/yr · ${Math.round(hpy * pf)}h this period`}
+              </span>
+            </div>
+          </div>
+          <button onClick={() => onRemove(i)} style={{
+            height: 28, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            color: '#ef4444', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 6,
+            fontFamily: 'Inter, sans-serif', flexShrink: 0,
+          }}>Remove</button>
         </div>
       )
     })
   }
 
-  function AddForm({ formKey }) {
-    if (addingFor !== formKey) return null
+  function renderAddArea(name) {
+    if (addingFor !== name) {
+      return (
+        <button onClick={() => openAdd(name)} style={{
+          width: '100%', padding: '11px 0', background: 'transparent', border: 'none',
+          borderTop: '1px dashed #e5e7eb', color: '#9ca3af', fontSize: 12, cursor: 'pointer',
+          fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+        }}>
+          <span style={{ fontSize: 17, fontWeight: 300, lineHeight: 1 }}>+</span> Add training / session
+        </button>
+      )
+    }
     const d = Number(draft.duration_hours) || 0
     const hpy = trainingHPY({ ...draft, duration_hours: d })
     const isOneTime = draft.frequency === 'one-time'
     return (
-      <div style={{ padding: '10px 14px', background: '#faf5ff', borderTop: '1px solid #ddd6fe', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
-          onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
-          placeholder={isOneTime ? 'e.g. Onboarding, Team offsite…' : 'e.g. Google Analytics Cert…'} autoFocus
-          style={{ flex: 1, minWidth: 150, height: 32, padding: '0 10px', fontSize: 12, border: '1px solid #ddd6fe', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
-        <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
-          style={{ height: 32, padding: '0 6px', fontSize: 12, border: '1px solid #ddd6fe', borderRadius: 6, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff' }}>
-          {TRAINING_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-        </select>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <input type="number" value={draft.duration_hours} min={0} max={2000} step={0.5}
-            onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
-            style={{ width: 60, height: 32, padding: '0 6px', fontSize: 12, border: '1px solid #ddd6fe', borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
-          <span style={{ fontSize: 11, color: '#9ca3af' }}>{isOneTime ? 'h total' : 'h/session'}</span>
+      <div style={{ padding: '16px', background: '#faf5ff', borderTop: '1px solid #ddd6fe' }}>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>
+            {isOneTime ? 'Event name' : 'Training / course name'}
+          </label>
+          <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
+            onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
+            placeholder={isOneTime ? 'e.g. Onboarding, Team offsite, Conference…' : 'e.g. Google Analytics Cert, LinkedIn Learning…'} autoFocus
+            style={{ width: '100%', height: 38, padding: '0 12px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
         </div>
-        {hpy > 0 && (
-          <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600, whiteSpace: 'nowrap' }}>
-            {isOneTime ? `${hpy}h one-time` : `${hpy}h/yr · ${Math.round(hpy * pf)}h period`}
-          </span>
-        )}
-        <button onClick={confirmAdd}
-          style={{ height: 32, padding: '0 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Add</button>
-        <button onClick={() => setAddingFor(null)}
-          style={{ height: 32, padding: '0 10px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Frequency</label>
+            <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
+              style={{ height: 36, padding: '0 8px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
+              {TRAINING_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>
+              {isOneTime ? 'Total hours' : 'Hours per session'}
+            </label>
+            <input type="number" value={draft.duration_hours} min={0} max={2000} step={0.5}
+              onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
+              style={{ width: 90, height: 36, padding: '0 10px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
+          </div>
+          {hpy > 0 && (
+            <div style={{ height: 36, display: 'flex', alignItems: 'center', padding: '0 12px', background: '#7c3aed14', border: '1px solid #7c3aed30', borderRadius: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>
+                {isOneTime ? `${hpy}h one-time` : `${hpy}h/yr · ${Math.round(hpy * pf)}h this period`}
+              </span>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+            <button onClick={() => setAddingFor(null)}
+              style={{ height: 36, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+            <button onClick={confirmAdd}
+              style={{ height: 36, padding: '0 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '24px 16px', overflowY: 'auto' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 760, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 700, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Training / Upskilling Settings</div>
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Set frequency and duration — hours computed automatically and prorated to the selected period</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Training & Upskilling</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Courses, workshops, one-time events · hours auto-computed and prorated to the selected date range</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 24, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
-        <div style={{ padding: '20px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        <div style={{ padding: '16px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {teamPeople.map(name => {
             const sessions = people[name]?.sessions ?? []
-            const yrTot    = sessions.reduce((s, t) => s + trainingHPY(t), 0)
+            const yrTot    = Math.round(sessions.reduce((s, t) => s + trainingHPY(t), 0) * 10) / 10
             const pTot     = Math.round(yrTot * pf)
             return (
-              <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ padding: '9px 16px', background: '#f9fafb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
-                      {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
-                    <span style={{ fontWeight: 700, color: '#111827', fontSize: 13 }}>{name}</span>
+              <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', background: '#f9fafb', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                    {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
-                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#7c3aed' }}>{yrTot}h</strong>/yr · <strong style={{ color: '#7c3aed' }}>{pTot}h</strong> this period</span>
-                    <button onClick={() => openAdd(name)} style={{ height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#faf5ff', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>+ Add</button>
-                  </div>
+                  <span style={{ fontWeight: 700, color: '#111827', fontSize: 14, flex: 1 }}>{name}</span>
+                  {yrTot > 0
+                    ? <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#7c3aed' }}>{yrTot}h</strong>/yr · <strong style={{ color: '#7c3aed' }}>{pTot}h</strong> this period</span>
+                    : <span style={{ fontSize: 12, color: '#d1d5db' }}>No training yet</span>
+                  }
                 </div>
-                <SessList sessions={sessions} onRemove={i => remove(name, i)} />
-                <AddForm formKey={name} />
-                {sessions.length === 0 && addingFor !== name && (
-                  <div style={{ padding: '14px 16px', color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>No training sessions logged — click + Add</div>
-                )}
+                {renderSessions(sessions, i => remove(name, i))}
+                {renderAddArea(name)}
               </div>
             )
           })}
         </div>
+
         <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#dc2626' }}>{err}</span>}{saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}</div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={onClose} style={{ height: 36, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 36, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
       </div>
