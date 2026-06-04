@@ -415,17 +415,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
   }
 
   function renderAddArea(formKey, accent, borderColor, formBg) {
-    if (addingFor !== formKey) {
-      return (
-        <button onClick={() => openAdd(formKey)} style={{
-          width: '100%', padding: '11px 0', background: 'transparent', border: 'none',
-          borderTop: '1px dashed #e5e7eb', color: '#9ca3af', fontSize: 12, cursor: 'pointer',
-          fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-        }}>
-          <span style={{ fontSize: 17, fontWeight: 300, lineHeight: 1 }}>+</span> Add activity
-        </button>
-      )
-    }
+    if (addingFor !== formKey) return null
     const d = Number(draft.duration_hours) || 0
     const hpw = cadenceHPW({ ...draft, duration_hours: d })
     return (
@@ -487,11 +477,20 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
             const pTot  = Math.round(wkTot * spanWeeks * teamPeople.length)
             return (
               <div style={{ border: '1.5px solid #bfdbfe', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', background: '#eff6ff', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  <span style={{ fontWeight: 700, color: '#1e40af', fontSize: 13, flex: 1 }}>Team-wide Meetings</span>
-                  <span style={{ fontSize: 10, color: '#3b82f6', background: '#dbeafe', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>all {teamPeople.length} members</span>
-                  {wkTot > 0 && <span style={{ fontSize: 12, color: '#374151' }}><strong style={{ color: '#1d4ed8' }}>{wkTot}h</strong>/wk/person · <strong style={{ color: '#1d4ed8' }}>{pTot}h</strong> team total</span>}
+                <div style={{ padding: '10px 16px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <button onClick={() => openAdd('team')} style={{
+                    height: 30, padding: '0 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 20,
+                    fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 15, fontWeight: 300, lineHeight: 1 }}>+</span> Add activity
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {wkTot > 0 && <span style={{ fontSize: 12, color: '#374151' }}><strong style={{ color: '#1d4ed8' }}>{wkTot}h</strong>/wk/person · <strong style={{ color: '#1d4ed8' }}>{pTot}h</strong> total</span>}
+                    <span style={{ fontSize: 10, color: '#3b82f6', background: '#dbeafe', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>all {teamPeople.length} members</span>
+                    <span style={{ fontWeight: 700, color: '#1e40af', fontSize: 13 }}>Team-wide Meetings</span>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  </div>
                 </div>
                 {renderEntries(acts, removeTeam, '#1d4ed8')}
                 {renderAddArea('team', '#1d4ed8', '#bfdbfe', '#eff6ff')}
@@ -506,15 +505,24 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
             const pTot  = Math.round(wkTot * spanWeeks)
             return (
               <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', background: '#f9fafb', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                    {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                <div style={{ padding: '10px 16px', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <button onClick={() => openAdd(name)} style={{
+                    height: 30, padding: '0 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    background: '#1450f5', color: '#fff', border: 'none', borderRadius: 20,
+                    fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 15, fontWeight: 300, lineHeight: 1 }}>+</span> Add activity
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {wkTot > 0
+                      ? <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#1450f5' }}>{wkTot}h</strong>/wk · <strong style={{ color: '#1450f5' }}>{pTot}h</strong> this period</span>
+                      : <span style={{ fontSize: 12, color: '#d1d5db' }}>No activities yet</span>
+                    }
+                    <span style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{name}</span>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                      {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
                   </div>
-                  <span style={{ fontWeight: 700, color: '#111827', fontSize: 14, flex: 1 }}>{name}</span>
-                  {wkTot > 0
-                    ? <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#1450f5' }}>{wkTot}h</strong>/wk · <strong style={{ color: '#1450f5' }}>{pTot}h</strong> this period</span>
-                    : <span style={{ fontSize: 12, color: '#d1d5db' }}>No meetings yet</span>
-                  }
                 </div>
                 {renderEntries(acts, i => remove(name, i), '#1450f5')}
                 {renderAddArea(name, '#1450f5', '#c7d7fd', '#f0f4ff')}
@@ -625,17 +633,7 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
   }
 
   function renderAddArea(name) {
-    if (addingFor !== name) {
-      return (
-        <button onClick={() => openAdd(name)} style={{
-          width: '100%', padding: '11px 0', background: 'transparent', border: 'none',
-          borderTop: '1px dashed #e5e7eb', color: '#9ca3af', fontSize: 12, cursor: 'pointer',
-          fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-        }}>
-          <span style={{ fontSize: 17, fontWeight: 300, lineHeight: 1 }}>+</span> Add training / session
-        </button>
-      )
-    }
+    if (addingFor !== name) return null
     const d = Number(draft.duration_hours) || 0
     const hpy = trainingHPY({ ...draft, duration_hours: d })
     const isOneTime = draft.frequency === 'one-time'
@@ -702,15 +700,24 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
             const pTot     = Math.round(yrTot * pf)
             return (
               <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', background: '#f9fafb', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                    {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                <div style={{ padding: '10px 16px', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <button onClick={() => openAdd(name)} style={{
+                    height: 30, padding: '0 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 20,
+                    fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 15, fontWeight: 300, lineHeight: 1 }}>+</span> Add training
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {yrTot > 0
+                      ? <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#7c3aed' }}>{yrTot}h</strong>/yr · <strong style={{ color: '#7c3aed' }}>{pTot}h</strong> this period</span>
+                      : <span style={{ fontSize: 12, color: '#d1d5db' }}>No training yet</span>
+                    }
+                    <span style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{name}</span>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                      {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
                   </div>
-                  <span style={{ fontWeight: 700, color: '#111827', fontSize: 14, flex: 1 }}>{name}</span>
-                  {yrTot > 0
-                    ? <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#7c3aed' }}>{yrTot}h</strong>/yr · <strong style={{ color: '#7c3aed' }}>{pTot}h</strong> this period</span>
-                    : <span style={{ fontSize: 12, color: '#d1d5db' }}>No training yet</span>
-                  }
                 </div>
                 {renderSessions(sessions, i => remove(name, i))}
                 {renderAddArea(name)}
