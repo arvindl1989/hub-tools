@@ -126,6 +126,14 @@ DEFAULT_PEOPLE: list[str] = [
     "Nitish JK",
 ]
 
+# People to exclude from all analysis (not part of the core team).
+EXCLUDED_PEOPLE: set[str] = {
+    "Dheera Sameera",
+    "Pooja V",
+    "Suresh karthik",
+    "Suresh Karthik",
+}
+
 # Mapping from old short names → new full sheet names, used to migrate persisted settings.
 PEOPLE_MIGRATION: dict[str, str] = {
     "Ajith":      "Ajith A",
@@ -1150,6 +1158,10 @@ def utility_rate(
     mode:        str = "all",            # "all" | "closed"
 ):
     df = _get_session(sid)
+
+    # Remove excluded people from all analysis
+    if "assigned_to" in df.columns:
+        df = df[~df["assigned_to"].isin(EXCLUDED_PEOPLE)].copy()
 
     filter_options: dict = {
         "assignees": sorted(df["assigned_to"].dropna().unique().tolist()) if "assigned_to" in df.columns else [],

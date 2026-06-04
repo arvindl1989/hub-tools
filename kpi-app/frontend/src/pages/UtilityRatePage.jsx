@@ -87,12 +87,12 @@ function attStyle(pct) {
 }
 
 /* ── Shared primitives ──────────────────────────────────────────────────────── */
-function StatCard({ label, value, sub, color, bg, border }) {
+function StatCard({ label, value, sub, color, bg, border, labelColor, subColor }) {
   return (
     <div style={{ background: bg || '#fff', border: `1px solid ${border || '#e5e8ef'}`, borderRadius: 12, padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 150 }}>
-      <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      <span style={{ fontSize: 11, color: labelColor || '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
       <span style={{ fontSize: 30, fontWeight: 800, color: color || '#111827', lineHeight: 1 }}>{value}</span>
-      {sub && <span style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{sub}</span>}
+      {sub && <span style={{ fontSize: 11, color: subColor || '#9ca3af', marginTop: 2 }}>{sub}</span>}
     </div>
   )
 }
@@ -202,9 +202,9 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
   const r = n => Math.round(n)
 
   const ALL_SVC_BOXES = [
-    { key: 'Website Content Management',          label: 'Web Content Mgt',   allocH: wcmAllocH, utilH: svcMap['Website Content Management'] ?? 0,          color: '#3b82f6', bg: '#eff6ff', bc: '#3b82f6' },
-    { key: 'Demand Engagement Activations',       label: 'Demand Engagement', allocH: deaAllocH, utilH: svcMap['Demand Engagement Activations'] ?? 0,        color: '#8b5cf6', bg: '#f5f3ff', bc: '#8b5cf6' },
-    { key: 'Content Production – Graphic Design', label: 'Graphic Design',    allocH: gdAllocH,  utilH: svcMap['Content Production – Graphic Design'] ?? 0,  color: '#ef4444', bg: '#fef2f2', bc: '#ef4444' },
+    { key: 'Website Content Management',          label: 'Web Content Mgt',   allocH: wcmAllocH, utilH: svcMap['Website Content Management'] ?? 0,          color: '#fff', bg: '#4373f7', bc: '#4373f7' },
+    { key: 'Demand Engagement Activations',       label: 'Demand Engagement', allocH: deaAllocH, utilH: svcMap['Demand Engagement Activations'] ?? 0,        color: '#fff', bg: '#7296f9', bc: '#7296f9' },
+    { key: 'Content Production – Graphic Design', label: 'Graphic Design',    allocH: gdAllocH,  utilH: svcMap['Content Production – Graphic Design'] ?? 0,  color: '#fff', bg: '#a1b9fb', bc: '#a1b9fb' },
   ]
   const visibleSvcBoxes = serviceF ? ALL_SVC_BOXES.filter(s => s.key === serviceF) : ALL_SVC_BOXES
 
@@ -220,20 +220,14 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
     return { color: '#16a34a', bg: '#f0fdf4' }
   }
 
-  function NumBox({ label, value, sub, color = '#111827', bg = '#f3f4f6', borderColor, utilPct }) {
-    const ps = utilPctStyle(utilPct)
+  function NumBox({ label, value, sub, color = '#fff', bg = '#1450f5', borderColor }) {
     return (
       <div style={{ flex: 1, minWidth: 0, background: bg, borderRadius: 9, padding: '11px 14px', borderLeft: borderColor ? `3px solid ${borderColor}` : undefined }}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
         <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1.1 }}>
-          {value}<span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 2 }}>h</span>
+          {value}<span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.6)', marginLeft: 2 }}>h</span>
         </div>
-        {ps && (
-          <div style={{ fontSize: 10, fontWeight: 700, color: ps.color, background: ps.bg, display: 'inline-block', borderRadius: 4, padding: '1px 5px', marginTop: 3 }}>
-            {utilPct}% utilized
-          </div>
-        )}
-        {sub && <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>{sub}</div>}
+        {sub && <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>{sub}</div>}
       </div>
     )
   }
@@ -262,10 +256,10 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
             <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{periodLabel}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <NumBox label="Total Available" value={r(totalAvailH)}   color="#111827" bg="#f9fafb" />
-            <NumBox label="Productivity"    value={r(prodAllocH)}    color="#059669" bg="#f0fdf4" sub="75% of avail" />
-            <NumBox label="Cadence"         value={r(cadenceAllocH)} color="#0891b2" bg="#f0f9ff" sub="20% of avail" />
-            <NumBox label="Training"        value={r(trainAllocH)}   color="#7c3aed" bg="#faf5ff" sub="5% of avail" />
+            <NumBox label="Total Available" value={r(totalAvailH)}   bg="#1450f5" />
+            <NumBox label="Productivity"    value={r(prodAllocH)}    bg="#4373f7" sub="75% of avail" />
+            <NumBox label="Cadence"         value={r(cadenceAllocH)} bg="#7296f9" sub="20% of avail" />
+            <NumBox label="Training"        value={r(trainAllocH)}   bg="#a1b9fb" sub="5% of avail" />
           </div>
           {visibleSvcBoxes.length > 0 && <>
             <div style={sectionLabel}>Allocated by service</div>
@@ -285,10 +279,10 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
             <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{periodLabel}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <NumBox label="Total Utilized"  value={r(totalUtilH)}   color="#111827" bg="#f9fafb" />
-            <NumBox label="Productivity"    value={r(prodUtilH)}    color="#059669" bg="#f0fdf4" sub="ticket hours" />
-            <NumBox label="Cadence"         value={r(cadenceUtilH)} color="#0891b2" bg="#f0f9ff" sub="recurring meetings" />
-            <NumBox label="Training"        value={r(trainUtilH)}   color="#7c3aed" bg="#faf5ff" sub="upskilling" />
+            <NumBox label="Total Utilized"  value={r(totalUtilH)}   bg="#1450f5" />
+            <NumBox label="Productivity"    value={r(prodUtilH)}    bg="#4373f7" sub="ticket hours" />
+            <NumBox label="Cadence"         value={r(cadenceUtilH)} bg="#7296f9" sub="recurring meetings" />
+            <NumBox label="Training"        value={r(trainUtilH)}   bg="#a1b9fb" sub="upskilling" />
           </div>
           <div style={sectionLabel}>Utilized by service</div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -1345,6 +1339,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
   const [showRatesSla,  setShowRatesSla]  = useState(false)
   const [showCadence,   setShowCadence]   = useState(false)
   const [showTraining,  setShowTraining]  = useState(false)
+  const [trendView,     setTrendView]     = useState('monthly')
   const [capSettings,      setCapSettings]      = useState({ default_working_days: 250, default_holidays: 24, people: {} })
   const [bwRates,          setBwRates]          = useState({})
   const [slaRules,         setSlaRules]         = useState({})
@@ -1398,6 +1393,27 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
     !data?.by_assignee ? [] :
     [...data.by_assignee].filter(r => r.avg_days_to_close != null).sort((a, b) => b.avg_days_to_close - a.avg_days_to_close)
   , [data])
+
+  const monthlyTrend = useMemo(() => {
+    if (!data?.weekly_trend?.length) return []
+    const byMonth = {}
+    data.weekly_trend.forEach(w => {
+      const month = (w.week || '').slice(0, 7)
+      if (!month) return
+      if (!byMonth[month]) byMonth[month] = { committed: 0, cap: 0, dtcSum: 0, dtcCount: 0 }
+      byMonth[month].committed += w.committed_hours
+      byMonth[month].cap += w.capacity_hours
+      if (w.avg_days_to_close != null) { byMonth[month].dtcSum += w.avg_days_to_close; byMonth[month].dtcCount++ }
+    })
+    return Object.entries(byMonth).sort().map(([month, m]) => ({
+      week: month,
+      label: new Date(month + '-02').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      committed_hours: Math.round(m.committed * 10) / 10,
+      capacity_hours: Math.round(m.cap * 10) / 10,
+      utility_pct: m.cap > 0 ? Math.round(m.committed / m.cap * 1000) / 10 : 0,
+      avg_days_to_close: m.dtcCount > 0 ? Math.round(m.dtcSum / m.dtcCount * 10) / 10 : null,
+    }))
+  }, [data?.weekly_trend])
 
   function toggleSort(col) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -1592,7 +1608,8 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           />
           <StatCard label={isClosed ? 'Hours Delivered' : 'Committed Hours'} value={`${data.total_committed_h}h`}
             sub={isClosed ? 'estimated hours across closed tickets' : 'estimated hours in tracked tickets'}
-            color="#1450f5" bg="#eff6ff" border="#c7d7fd" />
+            color="#fff" bg="#1450f5" border="#1450f5"
+            labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
           {isClosed && data.overall_avg_days_to_close != null ? (
             <StatCard label="Avg Days to Close" value={`${data.overall_avg_days_to_close}d`}
               sub="calendar days from created to closed"
@@ -1600,10 +1617,17 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
               bg={data.overall_avg_days_to_close <= 7 ? '#ecfdf5' : data.overall_avg_days_to_close <= 14 ? '#fffbeb' : '#fff1f2'}
               border={data.overall_avg_days_to_close <= 7 ? '#6ee7b7' : data.overall_avg_days_to_close <= 14 ? '#fcd34d' : '#fda4af'} />
           ) : (
-            <StatCard label="Available Capacity" value={`${Math.round((Math.max(0, data.total_capacity_h - data.total_committed_h)) * 10) / 10}h`} sub={`${data.team_size} people · ${data.span_weeks}w`} />
+            <StatCard label="Available Capacity" value={`${Math.round((Math.max(0, data.total_capacity_h - data.total_committed_h)) * 10) / 10}h`}
+              sub={`${data.team_size} people · ${data.span_weeks}w`}
+              color="#fff" bg="#4373f7" border="#4373f7"
+              labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
           )}
-          <StatCard label="Time Span" value={`${data.span_weeks}w`} sub={`${data.span_days} calendar days`} />
-          <StatCard label="Team Size" value={data.team_size} sub="assignees with tracked tickets" />
+          <StatCard label="Time Span" value={`${data.span_weeks}w`} sub={`${data.span_days} calendar days`}
+            color="#fff" bg="#7296f9" border="#7296f9"
+            labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
+          <StatCard label="Team Size" value={data.team_size} sub="assignees with tracked tickets"
+            color="#fff" bg="#a1b9fb" border="#a1b9fb"
+            labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
         </div>
 
         {/* Gauge + donut */}
@@ -1772,11 +1796,22 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           </div>
         </SectionCard>
 
-        {/* Weekly trend */}
+        {/* Trend chart */}
         {data.weekly_trend.length > 0 && (
-          <SectionCard title="Weekly Utility Rate Trend" subtitle={`Committed hours vs capacity${isClosed ? ' — grouped by closed date' : ''}`} accent="#7296f9">
+          <SectionCard title="Utility Rate Trend" subtitle={`Committed hours vs capacity${isClosed ? ' — grouped by closed date' : ''}`} accent="#7296f9">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12, gap: 6 }}>
+              {['monthly', 'weekly'].map(v => (
+                <button key={v} onClick={() => setTrendView(v)} style={{
+                  height: 28, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', borderRadius: 6, fontFamily: 'Inter, sans-serif',
+                  background: trendView === v ? '#1450f5' : '#fff', color: trendView === v ? '#fff' : '#6b7280',
+                  border: `1px solid ${trendView === v ? '#1450f5' : '#d1d5db'}`,
+                }}>
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+            </div>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={data.weekly_trend} margin={{ top: 8, right: 20, left: 0, bottom: 60 }}>
+              <LineChart data={trendView === 'monthly' ? monthlyTrend : data.weekly_trend} margin={{ top: 8, right: 20, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6b7280' }} angle={-35} textAnchor="end" interval={0} />
                 <YAxis yAxisId="h" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
