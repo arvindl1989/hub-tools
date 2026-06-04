@@ -15,9 +15,9 @@ const DEFAULT_PEOPLE = [
   'Ajith A',
   'Akshaya Praveen',
   'Akshayaa Rajeswari AS',
-  'Arvind L',
-  'Nitish JK',
+  'Arvind Lakshminarayanan',
   'Ranjithkumar Ashokkumar',
+  'Nitish JK',
 ]
 
 const BAU_SERVICES = [
@@ -220,13 +220,6 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
     return { color: '#16a34a', bg: '#f0fdf4' }
   }
 
-  function remainStyle(val, allocH) {
-    if (val < 0) return { color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' }
-    const frac = allocH > 0 ? val / allocH : 1
-    if (frac < 0.20) return { color: '#d97706', bg: '#fffbeb', border: '#fcd34d' }
-    return { color: '#16a34a', bg: '#f0fdf4', border: '#86efac' }
-  }
-
   function NumBox({ label, value, sub, color = '#111827', bg = '#f3f4f6', borderColor, utilPct }) {
     const ps = utilPctStyle(utilPct)
     return (
@@ -313,24 +306,23 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
           </svg>
           Utilization Remaining
-          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>allocated − utilized · negative means over capacity</span>
+          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>% of allocated hours used vs free</span>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {remainItems.map(({ label, val, allocH }) => {
-            const rs = remainStyle(val, allocH)
-            const absPct = allocH > 0 ? Math.round(Math.abs(val) / allocH * 100) : 0
-            const usedPct = 100 - absPct
+            const utilizedH = allocH - val
+            const usedPct = allocH > 0 ? Math.min(Math.round(utilizedH / allocH * 100), 999) : 0
+            const freePct = Math.max(0, 100 - usedPct)
+            const bg = usedPct > 55 ? '#ffcdd7' : usedPct >= 45 ? '#ffe141' : '#aae1c8'
+            const textColor = usedPct > 55 ? '#8c1a2e' : usedPct >= 45 ? '#5c4200' : '#0f4c30'
             return (
-              <div key={label} style={{ flex: 1, minWidth: 0, background: rs.bg, borderRadius: 9, padding: '10px 14px', border: `1px solid ${rs.border}` }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: rs.color, lineHeight: 1.1 }}>
-                  {val < 0 ? '−' : '+'}{Math.abs(r(val))}<span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 2 }}>h</span>
+              <div key={label} style={{ flex: 1, minWidth: 0, background: bg, borderRadius: 9, padding: '10px 14px' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: textColor, opacity: 0.65, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: textColor }}>{usedPct}%<span style={{ fontSize: 10, fontWeight: 500, marginLeft: 2 }}>used</span></span>
+                  <span style={{ fontSize: 12, color: textColor, opacity: 0.4 }}>·</span>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: textColor }}>{freePct}%<span style={{ fontSize: 10, fontWeight: 500, marginLeft: 2 }}>free</span></span>
                 </div>
-                {allocH > 0 && (
-                  <div style={{ fontSize: 10, fontWeight: 600, color: rs.color, marginTop: 2 }}>
-                    {val < 0 ? `${absPct}% over capacity` : `${usedPct}% used · ${absPct}% free`}
-                  </div>
-                )}
               </div>
             )
           })}
@@ -341,12 +333,27 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 }
 
 /* ── Cadence Settings Modal ──────────────────────────────────────────────── */
+const CADENCE_FREQS = [
+  { label: 'Daily',     key: 'daily',    mult: 5       },
+  { label: 'Weekly',    key: 'weekly',   mult: 1       },
+  { label: 'Bi-weekly', key: 'biweekly', mult: 0.5     },
+  { label: 'Monthly',   key: 'monthly',  mult: 12 / 52 },
+]
+function cadenceHPW(a) {
+  const m = CADENCE_FREQS.find(f => f.key === (a.frequency || 'weekly'))?.mult ?? 1
+  return Math.round((Number(a.duration_hours) || 0) * m * 100) / 100
+}
+function initCadenceAct(a) {
+  if (a.frequency != null) return { ...a }
+  return { name: a.name ?? '', duration_hours: Number(a.hours_per_week) || 0, frequency: 'weekly' }
+}
+
 function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
-  const [team, setTeam] = useState({ activities: JSON.parse(JSON.stringify(cadenceSettings.team?.activities ?? [])) })
+  const [team, setTeam] = useState({ activities: (cadenceSettings.team?.activities ?? []).map(initCadenceAct) })
   const [people, setPeople] = useState(() => {
     const r = {}
     teamPeople.forEach(name => {
-      r[name] = { activities: JSON.parse(JSON.stringify(cadenceSettings.people?.[name]?.activities ?? [])) }
+      r[name] = { activities: (cadenceSettings.people?.[name]?.activities ?? []).map(initCadenceAct) }
     })
     return r
   })
@@ -354,22 +361,26 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
   const [saved,  setSaved]  = useState(false)
   const [err,    setErr]    = useState(null)
 
-  const addTeam    = () => setTeam(t => ({ activities: [...t.activities, { name: '', hours_per_week: 0 }] }))
+  const newAct     = () => ({ name: '', duration_hours: 1, frequency: 'weekly' })
+  const addTeam    = () => setTeam(t => ({ activities: [...t.activities, newAct()] }))
   const removeTeam = i  => setTeam(t => ({ activities: t.activities.filter((_, j) => j !== i) }))
   const updTeam    = (i, field, val) => setTeam(t => ({ activities: t.activities.map((a, j) => j === i ? { ...a, [field]: val } : a) }))
-
-  const add    = name => setPeople(p => ({ ...p, [name]: { activities: [...p[name].activities, { name: '', hours_per_week: 0 }] } }))
+  const add    = name => setPeople(p => ({ ...p, [name]: { activities: [...p[name].activities, newAct()] } }))
   const remove = (name, i) => setPeople(p => ({ ...p, [name]: { activities: p[name].activities.filter((_, j) => j !== i) } }))
   const upd    = (name, i, field, val) => setPeople(p => ({
     ...p, [name]: { activities: p[name].activities.map((a, j) => j === i ? { ...a, [field]: val } : a) }
   }))
 
+  const serialize = acts => acts
+    .filter(a => String(a.name).trim())
+    .map(a => ({ ...a, hours_per_week: cadenceHPW(a) }))
+
   async function save() {
     setSaving(true); setErr(null); setSaved(false)
     try {
       const payload = {
-        team: { activities: team.activities.filter(a => String(a.name).trim()) },
-        people: Object.fromEntries(teamPeople.map(n => [n, { activities: (people[n]?.activities ?? []).filter(a => String(a.name).trim()) }])),
+        team: { activities: serialize(team.activities) },
+        people: Object.fromEntries(teamPeople.map(n => [n, { activities: serialize(people[n]?.activities ?? []) }])),
       }
       const result = await updateCadenceSettings(payload)
       onSaved({ cadenceSettings: result })
@@ -378,13 +389,64 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
     finally { setSaving(false) }
   }
 
+  const iSt = bdr => ({ height: 28, padding: '0 6px', fontSize: 12, border: `1px solid ${bdr}`, borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' })
+
+  function renderActRows(acts, onRemove, onUpd, borderColor, accentColor) {
+    return acts.map((a, i) => {
+      const hpw = cadenceHPW(a)
+      return (
+        <tr key={i} style={{ borderBottom: `1px solid ${borderColor}` }}>
+          <td style={{ padding: '6px 14px' }}>
+            <input value={a.name} onChange={e => onUpd(i, 'name', e.target.value)} placeholder="e.g. Weekly Sync, Daily Standup…"
+              style={{ ...iSt('#e5e7eb'), width: '100%' }} />
+          </td>
+          <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+            <select value={a.frequency || 'weekly'} onChange={e => onUpd(i, 'frequency', e.target.value)}
+              style={{ ...iSt(borderColor), width: 100, cursor: 'pointer' }}>
+              {CADENCE_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+            </select>
+          </td>
+          <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+              <input type="number" value={a.duration_hours ?? ''} min={0} max={24} step={0.25}
+                onChange={e => onUpd(i, 'duration_hours', e.target.value)}
+                style={{ ...iSt(borderColor), width: 54, textAlign: 'center' }} />
+              <span style={{ fontSize: 11, color: '#9ca3af' }}>h</span>
+            </div>
+          </td>
+          <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: accentColor, fontSize: 12 }}>{hpw}h</td>
+          <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: accentColor, fontSize: 12 }}>{Math.round(hpw * spanWeeks)}h</td>
+          <td style={{ padding: '6px 8px', textAlign: 'center' }}><button onClick={() => onRemove(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, padding: '2px 4px' }}>×</button></td>
+        </tr>
+      )
+    })
+  }
+
+  function renderActTable(acts, onRemove, onUpd, headerBg, borderColor, accentColor) {
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: headerBg }}>
+            <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: `1px solid ${borderColor}` }}>Meeting / Activity</th>
+            <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: `1px solid ${borderColor}`, width: 108 }}>Frequency</th>
+            <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: `1px solid ${borderColor}`, width: 80 }}>Duration</th>
+            <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: accentColor, fontSize: 11, borderBottom: `1px solid ${borderColor}`, width: 64 }}>h/Wk</th>
+            <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: accentColor, fontSize: 11, borderBottom: `1px solid ${borderColor}`, width: 72 }}>Period</th>
+            <th style={{ width: 36, borderBottom: `1px solid ${borderColor}` }} />
+          </tr>
+        </thead>
+        <tbody>{renderActRows(acts, onRemove, onUpd, borderColor, accentColor)}</tbody>
+      </table>
+    )
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '24px 16px', overflowY: 'auto' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 780, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 820, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Cadence Hours Settings</div>
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Recurring meetings and calls — hours per week, shown across {Math.round(spanWeeks)} weeks</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Select frequency and duration — hours/week is computed automatically, shown across {Math.round(spanWeeks)} weeks</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22 }}>×</button>
         </div>
@@ -393,7 +455,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
           {/* ── Team-wide section ── */}
           {(() => {
             const acts  = team.activities
-            const wkTot = acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0)
+            const wkTot = acts.reduce((s, a) => s + cadenceHPW(a), 0)
             const pTot  = Math.round(wkTot * spanWeeks * teamPeople.length)
             return (
               <div style={{ border: '2px solid #bfdbfe', borderRadius: 10, overflow: 'hidden', background: '#eff6ff' }}>
@@ -408,47 +470,17 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
                     <button onClick={addTeam} style={{ height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>+ Add</button>
                   </div>
                 </div>
-                {acts.length > 0 ? (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: '#eff6ff' }}>
-                        <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #bfdbfe' }}>Meeting / Activity</th>
-                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #bfdbfe', width: 150 }}>Hours / Week</th>
-                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#1d4ed8', fontSize: 11, borderBottom: '1px solid #bfdbfe', width: 130 }}>Period (per person)</th>
-                        <th style={{ width: 36, borderBottom: '1px solid #bfdbfe' }} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {acts.map((a, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #dbeafe' }}>
-                          <td style={{ padding: '6px 14px' }}>
-                            <input value={a.name} onChange={e => updTeam(i, 'name', e.target.value)} placeholder="e.g. Weekly Sync, All-Hands…"
-                              style={{ width: '100%', boxSizing: 'border-box', height: 28, padding: '0 8px', fontSize: 12, border: '1px solid #bfdbfe', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff' }} />
-                          </td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                              <input type="number" value={a.hours_per_week} min={0} max={40} step={0.25}
-                                onChange={e => updTeam(i, 'hours_per_week', e.target.value)}
-                                style={{ width: 64, height: 28, padding: '0 6px', fontSize: 12, border: '1px solid #bfdbfe', borderRadius: 6, textAlign: 'center', outline: 'none', fontFamily: 'Inter, sans-serif' }} />
-                              <span style={{ fontSize: 11, color: '#9ca3af' }}>h/wk</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{Math.round((Number(a.hours_per_week) || 0) * spanWeeks)}h</td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center' }}><button onClick={() => removeTeam(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, padding: '2px 4px' }}>×</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div style={{ padding: '14px 16px', color: '#3b82f6', fontSize: 12, textAlign: 'center' }}>No team-wide meetings — click + Add to add one that counts for everyone</div>
-                )}
+                {acts.length > 0
+                  ? renderActTable(acts, removeTeam, (i, f, v) => updTeam(i, f, v), '#eff6ff', '#bfdbfe', '#1d4ed8')
+                  : <div style={{ padding: '14px 16px', color: '#3b82f6', fontSize: 12, textAlign: 'center' }}>No team-wide meetings — click + Add to add one that counts for everyone</div>
+                }
               </div>
             )
           })()}
 
           {teamPeople.map(name => {
-            const acts  = (people[name]?.activities ?? [])
-            const wkTot = acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0)
+            const acts  = people[name]?.activities ?? []
+            const wkTot = acts.reduce((s, a) => s + cadenceHPW(a), 0)
             const pTot  = Math.round(wkTot * spanWeeks)
             return (
               <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 10, overflow: 'hidden' }}>
@@ -460,44 +492,14 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
                     <span style={{ fontWeight: 700, color: '#111827', fontSize: 13 }}>{name}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#0891b2' }}>{wkTot}h</strong>/wk · <strong style={{ color: '#0891b2' }}>{pTot}h</strong> this period</span>
+                    <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#1450f5' }}>{wkTot}h</strong>/wk · <strong style={{ color: '#1450f5' }}>{pTot}h</strong> this period</span>
                     <button onClick={() => add(name)} style={{ height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#eff6ff', color: '#1450f5', border: '1px solid #c7d7fd', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>+ Add</button>
                   </div>
                 </div>
-                {acts.length > 0 ? (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: '#fafafa' }}>
-                        <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa' }}>Meeting / Activity</th>
-                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 150 }}>Hours / Week</th>
-                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#0891b2', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 110 }}>Period Total</th>
-                        <th style={{ width: 36, borderBottom: '1px solid #f0f3fa' }} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {acts.map((a, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #f9fafb' }}>
-                          <td style={{ padding: '6px 14px' }}>
-                            <input value={a.name} onChange={e => upd(name, i, 'name', e.target.value)} placeholder="e.g. Weekly Sync, Daily Standup…"
-                              style={{ width: '100%', boxSizing: 'border-box', height: 28, padding: '0 8px', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif' }} />
-                          </td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                              <input type="number" value={a.hours_per_week} min={0} max={40} step={0.25}
-                                onChange={e => upd(name, i, 'hours_per_week', e.target.value)}
-                                style={{ width: 64, height: 28, padding: '0 6px', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 6, textAlign: 'center', outline: 'none', fontFamily: 'Inter, sans-serif' }} />
-                              <span style={{ fontSize: 11, color: '#9ca3af' }}>h/wk</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#0891b2' }}>{Math.round((Number(a.hours_per_week) || 0) * spanWeeks)}h</td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center' }}><button onClick={() => remove(name, i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, padding: '2px 4px' }}>×</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div style={{ padding: '14px 16px', color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>No cadence meetings logged — click + Add</div>
-                )}
+                {acts.length > 0
+                  ? renderActTable(acts, i => remove(name, i), (i, f, v) => upd(name, i, f, v), '#fafafa', '#f0f3fa', '#1450f5')
+                  : <div style={{ padding: '14px 16px', color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>No cadence meetings logged — click + Add</div>
+                }
               </div>
             )
           })}
@@ -506,7 +508,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
           <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#dc2626' }}>{err}</span>}{saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}</div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#0891b2', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -515,12 +517,29 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
 }
 
 /* ── Training Settings Modal ─────────────────────────────────────────────── */
+const TRAINING_FREQS = [
+  { label: 'Daily',     key: 'daily',     mult: 250 },
+  { label: 'Weekly',    key: 'weekly',    mult: 52  },
+  { label: 'Bi-weekly', key: 'biweekly',  mult: 26  },
+  { label: 'Monthly',   key: 'monthly',   mult: 12  },
+  { label: 'Quarterly', key: 'quarterly', mult: 4   },
+  { label: 'Annual',    key: 'annual',    mult: 1   },
+]
+function trainingHPY(s) {
+  const m = TRAINING_FREQS.find(f => f.key === (s.frequency || 'annual'))?.mult ?? 1
+  return Math.round((Number(s.duration_hours) || 0) * m * 10) / 10
+}
+function initTrainingSess(s) {
+  if (s.frequency != null) return { ...s }
+  return { name: s.name ?? '', duration_hours: Number(s.hours_per_year) || 0, frequency: 'annual' }
+}
+
 function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
   const pf = spanDays / 365
   const [people, setPeople] = useState(() => {
     const r = {}
     teamPeople.forEach(name => {
-      r[name] = { sessions: JSON.parse(JSON.stringify(trainingSettings.people?.[name]?.sessions ?? [])) }
+      r[name] = { sessions: (trainingSettings.people?.[name]?.sessions ?? []).map(initTrainingSess) }
     })
     return r
   })
@@ -528,16 +547,21 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
   const [saved,  setSaved]  = useState(false)
   const [err,    setErr]    = useState(null)
 
-  const add    = name => setPeople(p => ({ ...p, [name]: { sessions: [...(p[name]?.sessions ?? []), { name: '', hours_per_year: 0 }] } }))
+  const newSess = () => ({ name: '', duration_hours: 1, frequency: 'annual' })
+  const add    = name => setPeople(p => ({ ...p, [name]: { sessions: [...(p[name]?.sessions ?? []), newSess()] } }))
   const remove = (name, i) => setPeople(p => ({ ...p, [name]: { sessions: p[name].sessions.filter((_, j) => j !== i) } }))
   const upd    = (name, i, field, val) => setPeople(p => ({
     ...p, [name]: { sessions: p[name].sessions.map((s, j) => j === i ? { ...s, [field]: val } : s) }
   }))
 
+  const serialize = sessions => sessions
+    .filter(s => String(s.name).trim())
+    .map(s => ({ ...s, hours_per_year: trainingHPY(s) }))
+
   async function save() {
     setSaving(true); setErr(null); setSaved(false)
     try {
-      const payload = { people: Object.fromEntries(teamPeople.map(n => [n, { sessions: (people[n]?.sessions ?? []).filter(s => String(s.name).trim()) }])) }
+      const payload = { people: Object.fromEntries(teamPeople.map(n => [n, { sessions: serialize(people[n]?.sessions ?? []) }])) }
       const result = await updateTrainingSettings(payload)
       onSaved({ trainingSettings: result })
       setSaved(true)
@@ -545,20 +569,22 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
     finally { setSaving(false) }
   }
 
+  const iSt = bdr => ({ height: 28, padding: '0 6px', fontSize: 12, border: `1px solid ${bdr}`, borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' })
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '24px 16px', overflowY: 'auto' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 780, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 820, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Training / Upskilling Settings</div>
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Courses and sessions per person — annual hours, prorated to selected period</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Select frequency and duration — annual hours computed automatically, prorated to selected period</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22 }}>×</button>
         </div>
         <div style={{ padding: '20px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {teamPeople.map(name => {
             const sessions = people[name]?.sessions ?? []
-            const yrTot    = sessions.reduce((s, t) => s + (Number(t.hours_per_year) || 0), 0)
+            const yrTot    = sessions.reduce((s, t) => s + trainingHPY(t), 0)
             const pTot     = Math.round(yrTot * pf)
             return (
               <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 10, overflow: 'hidden' }}>
@@ -579,30 +605,42 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
                     <thead>
                       <tr style={{ background: '#fafafa' }}>
                         <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa' }}>Training / Course</th>
-                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 150 }}>Hours / Year</th>
-                        <th style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#7c3aed', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 120 }}>Period Hours</th>
+                        <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 108 }}>Frequency</th>
+                        <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 80 }}>Duration</th>
+                        <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#7c3aed', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 64 }}>h/Year</th>
+                        <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#7c3aed', fontSize: 11, borderBottom: '1px solid #f0f3fa', width: 72 }}>Period</th>
                         <th style={{ width: 36, borderBottom: '1px solid #f0f3fa' }} />
                       </tr>
                     </thead>
                     <tbody>
-                      {sessions.map((s, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #f9fafb' }}>
-                          <td style={{ padding: '6px 14px' }}>
-                            <input value={s.name} onChange={e => upd(name, i, 'name', e.target.value)} placeholder="e.g. Google Analytics Cert, Team Workshop…"
-                              style={{ width: '100%', boxSizing: 'border-box', height: 28, padding: '0 8px', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif' }} />
-                          </td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                              <input type="number" value={s.hours_per_year} min={0} max={2000} step={1}
-                                onChange={e => upd(name, i, 'hours_per_year', e.target.value)}
-                                style={{ width: 64, height: 28, padding: '0 6px', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 6, textAlign: 'center', outline: 'none', fontFamily: 'Inter, sans-serif' }} />
-                              <span style={{ fontSize: 11, color: '#9ca3af' }}>h/yr</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center', fontWeight: 700, color: '#7c3aed' }}>{Math.round((Number(s.hours_per_year) || 0) * pf)}h</td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center' }}><button onClick={() => remove(name, i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, padding: '2px 4px' }}>×</button></td>
-                        </tr>
-                      ))}
+                      {sessions.map((s, i) => {
+                        const hpy = trainingHPY(s)
+                        return (
+                          <tr key={i} style={{ borderBottom: '1px solid #f9fafb' }}>
+                            <td style={{ padding: '6px 14px' }}>
+                              <input value={s.name} onChange={e => upd(name, i, 'name', e.target.value)} placeholder="e.g. Google Analytics Cert, Team Workshop…"
+                                style={{ ...iSt('#e5e7eb'), width: '100%' }} />
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                              <select value={s.frequency || 'annual'} onChange={e => upd(name, i, 'frequency', e.target.value)}
+                                style={{ ...iSt('#e5e7eb'), width: 100, cursor: 'pointer' }}>
+                                {TRAINING_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                              </select>
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                                <input type="number" value={s.duration_hours ?? ''} min={0} max={2000} step={0.5}
+                                  onChange={e => upd(name, i, 'duration_hours', e.target.value)}
+                                  style={{ ...iSt('#e5e7eb'), width: 54, textAlign: 'center' }} />
+                                <span style={{ fontSize: 11, color: '#9ca3af' }}>h</span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#7c3aed', fontSize: 12 }}>{hpy}h</td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#7c3aed', fontSize: 12 }}>{Math.round(hpy * pf)}h</td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center' }}><button onClick={() => remove(name, i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, padding: '2px 4px' }}>×</button></td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 ) : (
@@ -1604,7 +1642,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             </div>
           </SectionCard>
 
-          <SectionCard title="Capacity Mix by Service" subtitle={isClosed ? 'Share of delivered hours per service' : 'Share of committed hours per service'} accent="#7c3aed">
+          <SectionCard title="Capacity Mix by Service" subtitle={isClosed ? 'Share of delivered hours per service' : 'Share of committed hours per service'} accent="#4373f7">
             {servicePieData.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#9ca3af', padding: 40, fontSize: 13 }}>No tracked data</div>
             ) : (
@@ -1625,7 +1663,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
         {/* Closed-mode charts */}
         {isClosed && data.by_assignee.length > 0 && (
-          <SectionCard title="Closed Ticket Analysis by Assignee" subtitle="Hours delivered vs avg calendar days from ticket creation to close" accent="#0ea5e9">
+          <SectionCard title="Closed Ticket Analysis by Assignee" subtitle="Hours delivered vs avg calendar days from ticket creation to close" accent="#4373f7">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Hours Delivered</div>
@@ -1687,7 +1725,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         )}
 
         {/* By Service */}
-        <SectionCard title="Utility Rate by Service" subtitle={`Tickets · estimated hours · share of capacity${isClosed ? ' · closed tickets only' : ''}`} accent="#0077a8">
+        <SectionCard title="Utility Rate by Service" subtitle={`Tickets · estimated hours · share of capacity${isClosed ? ' · closed tickets only' : ''}`} accent="#1450f5">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={data.by_service.map(r => ({ name: BAU_SHORT[r.service] || r.service, hours: r.committed_hours, fill: BAU_COLORS[r.service] || '#94a3b8' }))}
@@ -1736,7 +1774,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
         {/* Weekly trend */}
         {data.weekly_trend.length > 0 && (
-          <SectionCard title="Weekly Utility Rate Trend" subtitle={`Committed hours vs capacity${isClosed ? ' — grouped by closed date' : ''}`} accent="#b87d00">
+          <SectionCard title="Weekly Utility Rate Trend" subtitle={`Committed hours vs capacity${isClosed ? ' — grouped by closed date' : ''}`} accent="#7296f9">
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={data.weekly_trend} margin={{ top: 8, right: 20, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" />
@@ -1746,7 +1784,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                 <Tooltip />
                 <ReferenceLine yAxisId="p" y={85} stroke="#c0305a" strokeDasharray="4 4" label={{ value: '85%', position: 'insideTopRight', fontSize: 10, fill: '#c0305a' }} />
                 <ReferenceLine yAxisId="p" y={60} stroke="#b87d00" strokeDasharray="4 4" label={{ value: '60%', position: 'insideTopRight', fontSize: 10, fill: '#b87d00' }} />
-                <Bar yAxisId="h" dataKey="committed_hours" name="Committed hrs" fill="#6366f133" radius={[3, 3, 0, 0]} />
+                <Bar yAxisId="h" dataKey="committed_hours" name="Committed hrs" fill="#d0dcfd" radius={[3, 3, 0, 0]} />
                 <Line yAxisId="p" type="monotone" dataKey="utility_pct" name="Utility %" stroke="#1450f5" strokeWidth={2.5} dot={{ r: 3, fill: '#1450f5' }} activeDot={{ r: 5 }} />
                 {isClosed && <Line yAxisId="h" type="monotone" dataKey="avg_days_to_close" name="Avg Days to Close" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: '#0ea5e9' }} activeDot={{ r: 5 }} />}
               </LineChart>
@@ -1755,7 +1793,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         )}
 
         {/* By Assignee table */}
-        <SectionCard title="Utility Rate by Assignee" subtitle="Individual utilisation · committed vs available hours" accent="#1e8a5e">
+        <SectionCard title="Utility Rate by Assignee" subtitle="Individual utilisation · committed vs available hours" accent="#1450f5">
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
@@ -1868,7 +1906,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         </SectionCard>
 
         {/* By Ticket */}
-        <SectionCard title={`By Ticket (${data.by_ticket.length} tracked)`} subtitle={`Individual ticket estimated hours${isClosed ? ' · sorted by closed date' : ' · sorted by most recent'}`} accent="#94a3b8">
+        <SectionCard title={`By Ticket (${data.by_ticket.length} tracked)`} subtitle={`Individual ticket estimated hours${isClosed ? ' · sorted by closed date' : ' · sorted by most recent'}`} accent="#a1b9fb">
           <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
               <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>

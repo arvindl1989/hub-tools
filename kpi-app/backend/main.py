@@ -121,9 +121,9 @@ DEFAULT_PEOPLE: list[str] = [
     "Ajith A",
     "Akshaya Praveen",
     "Akshayaa Rajeswari AS",
-    "Arvind L",
-    "Nitish JK",
+    "Arvind Lakshminarayanan",
     "Ranjithkumar Ashokkumar",
+    "Nitish JK",
 ]
 
 # Mapping from old short names → new full sheet names, used to migrate persisted settings.
@@ -131,7 +131,8 @@ PEOPLE_MIGRATION: dict[str, str] = {
     "Ajith":      "Ajith A",
     "Akshaya P":  "Akshaya Praveen",
     "Akshayaa R": "Akshayaa Rajeswari AS",
-    "Arvind":     "Arvind L",
+    "Arvind":     "Arvind Lakshminarayanan",
+    "Arvind L":   "Arvind Lakshminarayanan",
     "Nitish":     "Nitish JK",
     "Ranjith":    "Ranjithkumar Ashokkumar",
 }
