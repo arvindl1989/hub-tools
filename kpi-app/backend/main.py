@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import pandas as pd
+import xlsxwriter
 import numpy as np
 import io
 import os
@@ -18,7 +19,7 @@ app = FastAPI(title="Ticket Analytics API", version="1.0.0")
 
 
 @app.get("/healthz")
-def health():
+async def health():
     return {"status": "ok"}
 
 
@@ -31,28 +32,147 @@ app.add_middleware(
 
 sessions: dict[str, pd.DataFrame] = {}
 
+# ── Persistence (PostgreSQL via DATABASE_URL env var) ─────────────────────────
+
+def _get_conn():
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return None
+    try:
+        import psycopg2
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return psycopg2.connect(url, connect_timeout=5)
+    except Exception:
+        return None
+
+def _init_db():
+    conn = _get_conn()
+    if not conn:
+        return
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS kpi_settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
+                    )
+                """)
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+def _load_setting(key: str, default: dict) -> dict:
+    conn = _get_conn()
+    if not conn:
+        return dict(default)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT value FROM kpi_settings WHERE key = %s", (key,))
+                row = cur.fetchone()
+                if row:
+                    loaded = json.loads(row[0])
+                    merged = dict(default)
+                    merged.update(loaded)
+                    return merged
+        return dict(default)
+    except Exception:
+        return dict(default)
+    finally:
+        conn.close()
+
+def _save_setting(key: str, value: dict) -> None:
+    conn = _get_conn()
+    if not conn:
+        return
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO kpi_settings (key, value) VALUES (%s, %s)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                """, (key, json.dumps(value)))
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+_init_db()
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-BANDWIDTH_RATES: dict[str, float] = {
+BANDWIDTH_RATES: dict[str, float] = _load_setting("bandwidth_rates", {
     "Website Content Management":          1.6,
     "Content Production – Graphic Design": 1.3,
     "Demand Creation – Global":            0.4,
     "Email – Local":                       1.1,
     "Retention – Activations":             0.4,
-}
+    "Demand Engagement Activations":       0.63,
+})
 
 BANDWIDTH_HOURS_PER_DAY  = 8
 BANDWIDTH_DAYS_PER_WEEK  = 5
 BANDWIDTH_WEEKLY_CAPACITY = BANDWIDTH_HOURS_PER_DAY * BANDWIDTH_DAYS_PER_WEEK  # 40 h
 
-# Keys match exact Sub-Category values from the Excel (em-dash –)
-SLA_RULES: dict[str, int] = {
+DEFAULT_PEOPLE: list[str] = [
+    "Ajith A",
+    "Akshaya Praveen",
+    "Akshayaa Rajeswari AS",
+    "Arvind Lakshminarayanan",
+    "Ranjithkumar Ashokkumar",
+    "Nitish JK",
+]
+
+# Mapping from old short names → new full sheet names, used to migrate persisted settings.
+PEOPLE_MIGRATION: dict[str, str] = {
+    "Ajith":      "Ajith A",
+    "Akshaya P":  "Akshaya Praveen",
+    "Akshayaa R": "Akshayaa Rajeswari AS",
+    "Arvind":     "Arvind Lakshminarayanan",
+    "Arvind L":   "Arvind Lakshminarayanan",
+    "Nitish":     "Nitish JK",
+    "Ranjith":    "Ranjithkumar Ashokkumar",
+}
+
+def _migrate_people(settings: dict) -> dict:
+    """Re-key the 'people' dict from old short names to current full sheet names."""
+    if not settings.get("people"):
+        return settings
+    migrated = {PEOPLE_MIGRATION.get(k, k): v for k, v in settings["people"].items()}
+    return {**settings, "people": migrated}
+
+CAPACITY_SETTINGS: dict = _migrate_people(_load_setting("capacity_settings", {
+    "mode": "annual",
+    "default_working_days": 250,
+    "default_holidays": 24,
+    "people": {},
+    "presets": {},
+}))
+
+SLA_RULES: dict[str, int] = _load_setting("sla_rules", {
     "Website Content Management": 10,
     "Content Production – Graphic Design": 10,
     "Demand Creation – Global": 30,
     "Email – Local": 7,
     "Retention – Activations": 30,
-}
+    "Demand Engagement Activations": 14,
+})
+
+CADENCE_SETTINGS: dict = _migrate_people(_load_setting("cadence_settings", {
+    "team": {"activities": []},
+    "people": {},
+}))
+
+TRAINING_SETTINGS: dict = _migrate_people(_load_setting("training_settings", {
+    "people": {},
+}))
+
+# Maps raw sheet assignee names → override names (applied at parse time).
+# Only needed for edge cases where a sheet name differs from DEFAULT_PEOPLE.
+ASSIGNEE_ALIASES: dict[str, str] = _load_setting("assignee_aliases", {})
 
 EXCLUDED_STATES = {"Closed Completed", "Closed Rejected", "Confirmation Completed"}
 
@@ -197,6 +317,10 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     for sc in str_cols:
         if sc in df.columns:
             df[sc] = df[sc].astype(str).str.strip().replace({"nan": pd.NA, "None": pd.NA, "": pd.NA})
+
+    # Apply only explicit aliases (no auto prefix-match — sheet names are used as-is)
+    if "assigned_to" in df.columns and ASSIGNEE_ALIASES:
+        df["assigned_to"] = df["assigned_to"].map(lambda n: ASSIGNEE_ALIASES.get(str(n), n) if pd.notna(n) else n)
 
     # Calculate SLA due dates from Created date using working-days rules
     def _sla(row):
@@ -517,6 +641,151 @@ def inflow_outflow(
         r["net"] = r["inflow"] - r["outflow"]
     return result
 
+
+@app.get("/api/sessions/{sid}/inflow-outflow/export")
+def inflow_outflow_export(
+    sid: str,
+    date_from:    Optional[str] = None,
+    date_to:      Optional[str] = None,
+    group_by: str = Query("week", pattern="^(week|month)$"),
+    assigned_to:  Optional[str] = None,
+    team:         Optional[str] = None,
+    area:         Optional[str] = None,
+    sub_category: Optional[str] = None,
+):
+    """Return an xlsx file with Assigned / Resolved / Resolution Rate rows per period."""
+    df = _get_session(sid)
+    df = _apply_dim_filters(df, assigned_to=assigned_to, team=team, area=area, sub_category=sub_category)
+
+    periods: dict[str, dict] = {}
+    freq = "W" if group_by == "week" else "M"
+
+    if "created_date" in df.columns:
+        tmp = _filter_by_range(df, "created_date", date_from, date_to).dropna(subset=["created_date"]).copy()
+        tmp["_p"] = tmp["created_date"].dt.to_period(freq).apply(lambda p: p.start_time.date())
+        for p, grp in tmp.groupby("_p"):
+            k = str(p)
+            periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0})
+            periods[k]["inflow"] = int(len(grp))
+
+    if "closed_date" in df.columns:
+        tmp = _filter_by_range(df, "closed_date", date_from, date_to).dropna(subset=["closed_date"]).copy()
+        tmp["_p"] = tmp["closed_date"].dt.to_period(freq).apply(lambda p: p.start_time.date())
+        for p, grp in tmp.groupby("_p"):
+            k = str(p)
+            periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0})
+            periods[k]["outflow"] = int(len(grp))
+
+    sorted_periods = sorted(periods.values(), key=lambda x: x["period"])
+    period_labels = [r["label"]   for r in sorted_periods]
+    inflows       = [r["inflow"]  for r in sorted_periods]
+    outflows      = [r["outflow"] for r in sorted_periods]
+    rates         = [
+        round(outflows[i] / max(inflows[i], 1) * 100, 1) if (inflows[i] > 0 or outflows[i] > 0) else None
+        for i in range(len(sorted_periods))
+    ]
+
+    total_in   = sum(inflows)
+    total_out  = sum(outflows)
+    total_rate = round(total_out / max(total_in, 1) * 100, 1) if (total_in > 0 or total_out > 0) else None
+
+    # Derive display name from active filter
+    if assigned_to:
+        name = assigned_to
+    elif team:
+        name = f"Team: {team}"
+    elif area:
+        name = f"Area: {area}"
+    elif sub_category:
+        name = sub_category
+    else:
+        name = "All"
+
+    # Build xlsx in memory
+    buf = io.BytesIO()
+    wb  = xlsxwriter.Workbook(buf, {"in_memory": True})
+    ws  = wb.add_worksheet("Inflow vs Outflow")
+
+    # ── Base formats
+    hdr_fmt  = wb.add_format({"bold": True, "bg_color": "#1450f5", "font_color": "#ffffff",
+                               "border": 1, "align": "center", "valign": "vcenter"})
+    name_fmt = wb.add_format({"bold": True, "font_size": 12, "valign": "vcenter"})
+    lbl_fmt  = wb.add_format({"bold": True, "font_color": "#374151", "valign": "vcenter"})
+    num_fmt  = wb.add_format({"num_format": "#,##0", "align": "center", "valign": "vcenter"})
+    tot_fmt  = wb.add_format({"bold": True, "num_format": "#,##0", "bg_color": "#f0f4ff",
+                               "align": "center", "valign": "vcenter"})
+    blank_fmt= wb.add_format({"valign": "vcenter"})
+
+    # ── Resolution-rate conditional formats (cell + total column)
+    def _rate_fmt(bg, fg):
+        return wb.add_format({"bold": True, "num_format": '0.0"%"',
+                               "bg_color": bg, "font_color": fg,
+                               "align": "center", "valign": "vcenter"})
+
+    rate_fmts = [
+        (50,  _rate_fmt("#fee2e2", "#991b1b")),   # < 50  → dark red
+        (80,  _rate_fmt("#fecaca", "#dc2626")),   # 50-80 → light red
+        (100, _rate_fmt("#fef9c3", "#854d0e")),   # 80-99 → yellow
+        (150, _rate_fmt("#dcfce7", "#15803d")),   # 100-150 → green
+        (None,_rate_fmt("#bbf7d0", "#14532d")),   # > 150 → dark green
+    ]
+
+    def _pick_rate_fmt(v):
+        if v is None:
+            return blank_fmt
+        for threshold, fmt in rate_fmts:
+            if threshold is None or v < threshold:
+                return fmt
+        return rate_fmts[-1][1]
+
+    # ── Column widths
+    ws.set_column(0, 0, 26)                           # Name
+    ws.set_column(1, 1, 18)                           # Metric
+    ws.set_column(2, 2, 10)                           # Total
+    ws.set_column(3, 3 + len(period_labels), 14)      # Period columns
+    ws.set_row(0, 22)
+
+    # ── Header row (row 0)
+    ws.write(0, 0, "Name",   hdr_fmt)
+    ws.write(0, 1, "Metric", hdr_fmt)
+    ws.write(0, 2, "Total",  hdr_fmt)
+    for ci, lbl in enumerate(period_labels):
+        ws.write(0, 3 + ci, lbl, hdr_fmt)
+
+    # ── Assigned row (row 1)
+    ws.write(1, 0, name,       name_fmt)
+    ws.write(1, 1, "Assigned", lbl_fmt)
+    ws.write(1, 2, total_in,   tot_fmt)
+    for ci, v in enumerate(inflows):
+        ws.write(1, 3 + ci, v, num_fmt)
+
+    # ── Resolved row (row 2)
+    ws.write(2, 0, "", blank_fmt)
+    ws.write(2, 1, "Resolved", lbl_fmt)
+    ws.write(2, 2, total_out,  tot_fmt)
+    for ci, v in enumerate(outflows):
+        ws.write(2, 3 + ci, v, num_fmt)
+
+    # ── Resolution Rate row (row 3) — colour-coded cells
+    ws.write(3, 0, "", blank_fmt)
+    ws.write(3, 1, "Resolution Rate", lbl_fmt)
+    ws.write(3, 2, total_rate if total_rate is not None else "", _pick_rate_fmt(total_rate))
+    for ci, v in enumerate(rates):
+        ws.write(3, 3 + ci, v if v is not None else "", _pick_rate_fmt(v))
+
+    wb.close()
+    buf.seek(0)
+
+    safe_name = name.replace(" ", "_").replace(":", "").lower()
+    filename  = f"inflow_outflow_{safe_name}.xlsx"
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # ── SLA performance ────────────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/sla-performance")
@@ -751,6 +1020,33 @@ def backlog_age(sid: str):
 
 # ── Bandwidth config ──────────────────────────────────────────────────────────
 
+def _effective_cap() -> dict:
+    """Return CAPACITY_SETTINGS resolved to the active preset (if not annual)."""
+    mode = CAPACITY_SETTINGS.get("mode", "annual")
+    if mode == "annual":
+        return CAPACITY_SETTINGS
+    preset = CAPACITY_SETTINGS.get("presets", {}).get(mode)
+    if not preset:
+        return CAPACITY_SETTINGS
+    return {
+        **CAPACITY_SETTINGS,
+        "default_working_days": preset.get("default_working_days") or CAPACITY_SETTINGS.get("default_working_days", 250),
+        "default_holidays":     preset.get("default_holidays")     or CAPACITY_SETTINGS.get("default_holidays", 24),
+    }
+
+
+@app.get("/api/capacity-settings")
+def get_capacity_settings():
+    return CAPACITY_SETTINGS
+
+@app.put("/api/capacity-settings")
+def update_capacity_settings(settings: dict):
+    CAPACITY_SETTINGS.clear()
+    CAPACITY_SETTINGS.update(settings)
+    _save_setting("capacity_settings", dict(CAPACITY_SETTINGS))
+    return CAPACITY_SETTINGS
+
+
 @app.get("/api/bandwidth-rates")
 def get_bandwidth_rates():
     return BANDWIDTH_RATES
@@ -759,6 +1055,7 @@ def get_bandwidth_rates():
 def update_bandwidth_rates(rates: dict[str, float]):
     BANDWIDTH_RATES.clear()
     BANDWIDTH_RATES.update(rates)
+    _save_setting("bandwidth_rates", dict(BANDWIDTH_RATES))
     return {"message": "Bandwidth rates updated", "rates": BANDWIDTH_RATES}
 
 
@@ -826,6 +1123,271 @@ def bandwidth_tracker(sid: str):
     }
 
 
+# ── Utility Rate ───────────────────────────────────────────────────────────────
+
+# Sub-services that are merged into "Demand Engagement Activations" on the UI
+DEMAND_ENGAGEMENT_SUBS = {
+    "Demand Creation – Global",
+    "Email – Local",
+    "Retention – Activations",
+}
+
+# BAU services displayed on the Utility Rate page (DEA is the merged view)
+BAU_SERVICES_DISPLAY = [
+    "Website Content Management",
+    "Demand Engagement Activations",
+    "Content Production – Graphic Design",
+]
+
+
+@app.get("/api/sessions/{sid}/utility-rate")
+def utility_rate(
+    sid: str,
+    date_from:   Optional[str] = None,
+    date_to:     Optional[str] = None,
+    assigned_to: Optional[str] = None,
+    service:     Optional[str] = None,   # one of BAU_SERVICES_DISPLAY or ""
+    mode:        str = "all",            # "all" | "closed"
+):
+    df = _get_session(sid)
+
+    filter_options: dict = {
+        "assignees": sorted(df["assigned_to"].dropna().unique().tolist()) if "assigned_to" in df.columns else [],
+    }
+
+    CLOSED_STATES = {"Closed Completed", "Confirmation Completed"}
+    date_col = "closed_date" if mode == "closed" else "created_date"
+
+    filtered = _filter_by_range(df, date_col, date_from, date_to)
+    if mode == "closed" and "state" in filtered.columns:
+        filtered = filtered[filtered["state"].isin(CLOSED_STATES)]
+    filtered = _apply_dim_filters(filtered, assigned_to=assigned_to)
+
+    # Apply service filter — "Demand Engagement Activations" maps to its 3 sub-services
+    if service and "sub_category" in filtered.columns:
+        if service == "Demand Engagement Activations":
+            filtered = filtered[filtered["sub_category"].isin(DEMAND_ENGAGEMENT_SUBS)]
+        else:
+            filtered = filtered[filtered["sub_category"] == service]
+
+    # hours_per_ticket for the 5 raw sub-categories (DEA merged rate stored separately)
+    raw_hpt = {sc: BANDWIDTH_HOURS_PER_DAY / rate for sc, rate in BANDWIDTH_RATES.items()
+               if sc != "Demand Engagement Activations"}
+    dea_hpt = BANDWIDTH_HOURS_PER_DAY / BANDWIDTH_RATES.get("Demand Engagement Activations", 0.63)
+
+    # ── Span calculation ──────────────────────────────────────────────────────
+    if date_from and date_to:
+        try:
+            span_days = (pd.Timestamp(date_to) - pd.Timestamp(date_from)).days + 1
+        except Exception:
+            span_days = 7
+    elif date_col in filtered.columns and len(filtered) > 0:
+        cd = filtered[date_col].dropna()
+        span_days = max(int((cd.max() - cd.min()).days) + 1, 1) if len(cd) > 1 else 7
+    else:
+        span_days = 7
+    span_weeks = max(span_days / 7.0, 1.0)
+
+    def _sub_hours(sub_cat_series) -> float:
+        """Estimate committed hours for a Series of sub_category values."""
+        total = 0.0
+        for sc, hpt in raw_hpt.items():
+            total += int((sub_cat_series == sc).sum()) * hpt
+        return total
+
+    # ── By service (BAU display view — DEA merged) ────────────────────────────
+    by_service = []
+    if "sub_category" in filtered.columns:
+        for svc in BAU_SERVICES_DISPLAY:
+            if svc == "Demand Engagement Activations":
+                mask = filtered["sub_category"].isin(DEMAND_ENGAGEMENT_SUBS)
+                cnt  = int(mask.sum())
+                hrs  = round(cnt * dea_hpt, 1)
+                hpt_val = round(dea_hpt, 2)
+            else:
+                cnt  = int((filtered["sub_category"] == svc).sum())
+                hpt_val = round(raw_hpt.get(svc, 0), 2)
+                hrs  = round(cnt * hpt_val, 1)
+            by_service.append({
+                "service":          svc,
+                "tickets":          cnt,
+                "hours_per_ticket": hpt_val,
+                "committed_hours":  hrs,
+            })
+
+    # ── By assignee ───────────────────────────────────────────────────────────
+    by_assignee: list[dict] = []
+    if "assigned_to" in filtered.columns:
+        people_in_data = sorted(filtered["assigned_to"].dropna().unique())
+        for person in people_in_data:
+            pdf = filtered[filtered["assigned_to"] == person]
+
+            # Breakdown by raw sub-category for ticket detail
+            breakdown: dict[str, int] = {}
+            committed = 0.0
+            if "sub_category" in pdf.columns:
+                for sc, hpt in raw_hpt.items():
+                    cnt = int((pdf["sub_category"] == sc).sum())
+                    if cnt:
+                        breakdown[sc] = cnt
+                        committed += cnt * hpt
+                # Merge DEA sub-categories into a single "Demand Engagement Activations" key
+                # so the capacity planning table can match against BAU_SERVICES_DISPLAY
+                dea_cnt = sum(breakdown.pop(sc, 0) for sc in DEMAND_ENGAGEMENT_SUBS)
+                if dea_cnt:
+                    breakdown["Demand Engagement Activations"] = dea_cnt
+
+            # Capacity: productivity_days = (working_days - holidays) × 0.75
+            _cap = _effective_cap()
+            pcfg = _cap.get("people", {}).get(person, {})
+            working_days = pcfg.get("working_days") or _cap.get("default_working_days", 250)
+            holidays     = pcfg.get("holidays")     or _cap.get("default_holidays", 24)
+            availability   = working_days - holidays
+            productivity_days = availability * 0.75
+            # Prorate to the selected period
+            prod_days_period = productivity_days * (span_days / 365.0)
+            individual_cap   = round(prod_days_period * BANDWIDTH_HOURS_PER_DAY, 1)
+            individual_cap   = max(individual_cap, 1.0)
+
+            util_pct = round(committed / individual_cap * 100, 1) if individual_cap > 0 else 0.0
+
+            avg_days_to_close = None
+            min_days_to_close = None
+            max_days_to_close = None
+            if mode == "closed" and "created_date" in pdf.columns and "closed_date" in pdf.columns:
+                res = pdf.dropna(subset=["created_date", "closed_date"]).copy()
+                if len(res):
+                    res["_dtc"] = (res["closed_date"] - res["created_date"]).dt.days.clip(lower=0)
+                    valid = res["_dtc"].dropna()
+                    if len(valid):
+                        avg_days_to_close = round(float(valid.mean()), 1)
+                        min_days_to_close = int(valid.min())
+                        max_days_to_close = int(valid.max())
+
+            by_assignee.append({
+                "assigned_to":         person,
+                "total_tickets":       int(len(pdf)),
+                "tracked_tickets":     sum(breakdown.values()),
+                "breakdown":           breakdown,
+                "committed_hours":     round(committed, 1),
+                "capacity_hours":      individual_cap,
+                "utility_pct":         util_pct,
+                "status":              "Overloaded" if util_pct >= 85 else "Busy" if util_pct >= 60 else "Available",
+                "productivity_days":   round(prod_days_period, 1),
+                "avg_days_to_close":   avg_days_to_close,
+                "min_days_to_close":   min_days_to_close,
+                "max_days_to_close":   max_days_to_close,
+            })
+        by_assignee.sort(key=lambda x: x["utility_pct"], reverse=True)
+
+    team_size = len(by_assignee)
+    total_committed_h = round(sum(r["committed_hours"] for r in by_assignee), 1)
+    total_capacity_h  = round(sum(r["capacity_hours"]  for r in by_assignee), 1)
+    team_util_pct     = round(total_committed_h / total_capacity_h * 100, 1) if total_capacity_h > 0 else 0.0
+
+    for sr in by_service:
+        sr["team_util_pct"] = round(sr["committed_hours"] / total_capacity_h * 100, 1) if total_capacity_h > 0 else 0.0
+
+    overall_avg_days_to_close = None
+    if mode == "closed" and "created_date" in filtered.columns and "closed_date" in filtered.columns:
+        res = filtered.dropna(subset=["created_date", "closed_date"]).copy()
+        if len(res):
+            res["_dtc"] = (res["closed_date"] - res["created_date"]).dt.days.clip(lower=0)
+            valid = res["_dtc"].dropna()
+            if len(valid):
+                overall_avg_days_to_close = round(float(valid.mean()), 1)
+
+    # ── Weekly trend ──────────────────────────────────────────────────────────
+    weekly_trend: list[dict] = []
+    if date_col in filtered.columns and "sub_category" in filtered.columns and len(filtered) > 0:
+        tracked = filtered[filtered["sub_category"].isin(raw_hpt)].copy()
+        if len(tracked) > 0:
+            tracked["_week"]  = tracked[date_col].dt.to_period("W").apply(lambda p: p.start_time.date())
+            tracked["_hours"] = tracked["sub_category"].map(raw_hpt)
+            weekly_per_svc = tracked.groupby(["_week", "sub_category"])["_hours"].sum().reset_index()
+            weekly_h = tracked.groupby("_week")["_hours"].sum()
+            weekly_cap = team_size * BANDWIDTH_WEEKLY_CAPACITY if team_size > 0 else BANDWIDTH_WEEKLY_CAPACITY
+            svc_weekly: dict = {}
+            for _, row in weekly_per_svc.iterrows():
+                wk = str(row["_week"])
+                svc_weekly.setdefault(wk, {})
+                svc_weekly[wk][row["sub_category"]] = round(float(row["_hours"]), 1)
+
+            weekly_dtc: dict = {}
+            if mode == "closed" and "created_date" in tracked.columns and "closed_date" in tracked.columns:
+                dtc_df = tracked.dropna(subset=["created_date", "closed_date"]).copy()
+                if len(dtc_df):
+                    dtc_df["_dtc"] = (dtc_df["closed_date"] - dtc_df["created_date"]).dt.days.clip(lower=0)
+                    wk_dtc = dtc_df.groupby("_week")["_dtc"].mean()
+                    weekly_dtc = {str(w): round(float(v), 1) for w, v in wk_dtc.items()}
+
+            weekly_trend = [
+                {
+                    "week":              str(w),
+                    "label":             _week_label(w),
+                    "committed_hours":   round(float(h), 1),
+                    "capacity_hours":    round(weekly_cap, 1),
+                    "utility_pct":       round(float(h) / weekly_cap * 100, 1) if weekly_cap > 0 else 0.0,
+                    "by_service":        svc_weekly.get(str(w), {}),
+                    "avg_days_to_close": weekly_dtc.get(str(w)),
+                }
+                for w, h in weekly_h.sort_index().items()
+            ]
+
+    # ── By ticket ─────────────────────────────────────────────────────────────
+    by_ticket: list[dict] = []
+    if "sub_category" in filtered.columns:
+        tracked_df = filtered[filtered["sub_category"].isin(raw_hpt)].copy()
+        if len(tracked_df) > 0:
+            tracked_df["_est_h"] = tracked_df["sub_category"].map(raw_hpt)
+            for col in ["ticket_number", "short_description", "assigned_to", "state"]:
+                if col not in tracked_df.columns:
+                    tracked_df[col] = ""
+            sort_col = "closed_date" if (mode == "closed" and "closed_date" in tracked_df.columns) else "created_date"
+            tracked_df = tracked_df.sort_values(sort_col, ascending=False).head(500)
+            has_dtc = mode == "closed" and "created_date" in tracked_df.columns and "closed_date" in tracked_df.columns
+            rows_out = []
+            for r in tracked_df.to_dict("records"):
+                dtc = None
+                if has_dtc:
+                    cd  = r.get("created_date")
+                    cld = r.get("closed_date")
+                    if pd.notna(cd) and pd.notna(cld):
+                        try:
+                            dtc = max(0, int((pd.Timestamp(cld) - pd.Timestamp(cd)).days))
+                        except Exception:
+                            pass
+                rows_out.append({
+                    "ticket_number":     str(r.get("ticket_number", "")).strip(),
+                    "short_description": str(r.get("short_description", ""))[:80].strip(),
+                    "sub_category":      str(r.get("sub_category", "")),
+                    "assigned_to":       str(r.get("assigned_to", "")).strip(),
+                    "created_date":      str(r.get("created_date", ""))[:10],
+                    "closed_date":       str(r.get("closed_date", ""))[:10] if has_dtc else None,
+                    "state":             str(r.get("state", "")).strip(),
+                    "estimated_hours":   round(float(r.get("_est_h", 0)), 2),
+                    "days_to_close":     dtc,
+                })
+            by_ticket = rows_out
+
+    return {
+        "mode":                      mode,
+        "span_days":                 span_days,
+        "span_weeks":                round(span_weeks, 1),
+        "team_size":                 team_size,
+        "total_capacity_h":          total_capacity_h,
+        "total_committed_h":         total_committed_h,
+        "team_util_pct":             team_util_pct,
+        "hours_per_ticket":          {sc: round(h, 2) for sc, h in raw_hpt.items()},
+        "by_service":                by_service,
+        "by_assignee":               by_assignee,
+        "weekly_trend":              weekly_trend,
+        "by_ticket":                 by_ticket,
+        "filter_options":            filter_options,
+        "overall_avg_days_to_close": overall_avg_days_to_close,
+    }
+
+
 # ── User ticket activity ───────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/user-activity")
@@ -863,6 +1425,13 @@ def user_activity(sid: str):
         else:
             tier = "Remove Access"
 
+        service_breakdown: dict[str, int] = {}
+        if "sub_category" in grp.columns:
+            for sc in BANDWIDTH_RATES.keys():
+                cnt = int((grp["sub_category"] == sc).sum())
+                if cnt:
+                    service_breakdown[sc] = cnt
+
         result.append({
             "creator": str(creator),
             "team": team,
@@ -872,6 +1441,7 @@ def user_activity(sid: str):
             "days_since_last": int(days_since),
             "remove_access": days_since > 56,
             "engagement_tier": tier,
+            "service_breakdown": service_breakdown,
         })
 
     return sorted(result, key=lambda x: x["days_since_last"], reverse=True)
@@ -887,7 +1457,43 @@ def get_sla_rules():
 def update_sla_rules(rules: dict[str, int]):
     SLA_RULES.clear()
     SLA_RULES.update(rules)
+    _save_setting("sla_rules", dict(SLA_RULES))
     return {"message": "SLA rules updated", "rules": SLA_RULES}
+
+
+@app.get("/api/cadence-settings")
+def get_cadence_settings():
+    return CADENCE_SETTINGS
+
+@app.put("/api/cadence-settings")
+def update_cadence_settings(settings: dict):
+    CADENCE_SETTINGS.clear()
+    CADENCE_SETTINGS.update(settings)
+    _save_setting("cadence_settings", dict(CADENCE_SETTINGS))
+    return CADENCE_SETTINGS
+
+
+@app.get("/api/training-settings")
+def get_training_settings():
+    return TRAINING_SETTINGS
+
+@app.put("/api/training-settings")
+def update_training_settings(settings: dict):
+    TRAINING_SETTINGS.clear()
+    TRAINING_SETTINGS.update(settings)
+    _save_setting("training_settings", dict(TRAINING_SETTINGS))
+    return TRAINING_SETTINGS
+
+@app.get("/api/assignee-aliases")
+def get_assignee_aliases():
+    return ASSIGNEE_ALIASES
+
+@app.put("/api/assignee-aliases")
+def update_assignee_aliases(aliases: dict):
+    ASSIGNEE_ALIASES.clear()
+    ASSIGNEE_ALIASES.update(aliases)
+    _save_setting("assignee_aliases", dict(ASSIGNEE_ALIASES))
+    return ASSIGNEE_ALIASES
 
 # ── Hub health ─────────────────────────────────────────────────────────────────
 
@@ -1120,7 +1726,9 @@ def _apply_dim_filters(
     area:         Optional[str] = None,
     sub_category: Optional[str] = None,
 ) -> pd.DataFrame:
-    if assigned_to  and "assigned_to"  in df.columns: df = df[df["assigned_to"]  == assigned_to]
+    if assigned_to and "assigned_to" in df.columns:
+        names = [n.strip() for n in assigned_to.split(',') if n.strip()]
+        df = df[df["assigned_to"].isin(names)]
     if team         and "team"         in df.columns: df = df[df["team"]         == team]
     if area         and "area"         in df.columns: df = df[df["area"]         == area]
     if sub_category and "sub_category" in df.columns: df = df[df["sub_category"] == sub_category]
@@ -1227,6 +1835,174 @@ async def generate_text(body: GenerateBody):
         max_tokens=body.max_tokens,
     )
     return {"content": resp.choices[0].message.content.strip()}
+
+
+@app.get("/api/sessions/{sid}/insights")
+async def get_insights(
+    sid: str,
+    date_from:    Optional[str] = Query(None),
+    date_to:      Optional[str] = Query(None),
+    sub_category: Optional[str] = Query(None),
+):
+    """Generate AI-powered insights from ticket data for the given date range."""
+    if not _OPENAI_KEY:
+        raise HTTPException(503, "OpenAI API key not configured on server")
+
+    df = _get_session(sid)
+    filtered = _filter_by_range(df, "created_date", date_from, date_to)
+    if sub_category and "sub_category" in filtered.columns:
+        filtered = filtered[filtered["sub_category"] == sub_category]
+    total = len(filtered)
+
+    if total == 0:
+        raise HTTPException(400, "No tickets found for the selected filters.")
+
+    today = date.today()
+
+    # ── Build metrics snapshot ────────────────────────────────────────────────
+
+    # Volume stats
+    open_tickets   = int((~filtered["state"].isin(EXCLUDED_STATES)).sum()) if "state" in filtered.columns else 0
+    closed_tickets = int(filtered["state"].isin(EXCLUDED_STATES).sum()) if "state" in filtered.columns else 0
+
+    # SLA performance per service
+    sla_stats: list[dict] = []
+    if "sub_category" in filtered.columns and "created_date" in filtered.columns:
+        for svc, days_allowed in SLA_RULES.items():
+            svc_df = filtered[filtered["sub_category"] == svc]
+            if len(svc_df) == 0:
+                continue
+            svc_df = svc_df.copy()
+            svc_df["sla_due"] = svc_df["created_date"].apply(lambda d: add_working_days(d, days_allowed))
+            open_svc  = svc_df[~svc_df["state"].isin(EXCLUDED_STATES)] if "state" in svc_df.columns else svc_df
+            overdue   = int((open_svc["sla_due"] < pd.Timestamp(today)).sum()) if len(open_svc) else 0
+            closed_svc = svc_df[svc_df["state"].isin(EXCLUDED_STATES)] if "state" in svc_df.columns else pd.DataFrame()
+            on_time    = 0
+            if len(closed_svc) and "closed_date" in closed_svc.columns:
+                on_time = int((closed_svc["closed_date"] <= closed_svc["sla_due"]).sum())
+            sla_stats.append({
+                "service":     svc,
+                "total":       len(svc_df),
+                "open":        len(open_svc),
+                "overdue":     overdue,
+                "closed_on_time": on_time,
+            })
+
+    # Resolution time (closed tickets only)
+    avg_resolution_days: Optional[float] = None
+    if "closed_date" in filtered.columns and "created_date" in filtered.columns:
+        closed_df = filtered[filtered["state"].isin(EXCLUDED_STATES)].copy() if "state" in filtered.columns else filtered.copy()
+        if len(closed_df):
+            closed_df["res_days"] = (closed_df["closed_date"] - closed_df["created_date"]).dt.days
+            valid = closed_df["res_days"].dropna()
+            valid = valid[valid >= 0]
+            if len(valid):
+                avg_resolution_days = round(float(valid.mean()), 1)
+
+    # Top areas by volume
+    area_breakdown: list[dict] = []
+    if "area" in filtered.columns:
+        area_vc = filtered["area"].value_counts().head(8)
+        area_breakdown = [{"area": str(k), "tickets": int(v)} for k, v in area_vc.items()]
+
+    # Top teams by volume
+    team_breakdown: list[dict] = []
+    if "team" in filtered.columns:
+        team_vc = filtered["team"].value_counts().head(8)
+        team_breakdown = [{"team": str(k), "tickets": int(v)} for k, v in team_vc.items()]
+
+    # Top assignees by volume
+    assignee_breakdown: list[dict] = []
+    if "assigned_to" in filtered.columns:
+        asgn_vc = filtered["assigned_to"].value_counts().head(10)
+        assignee_breakdown = [{"assignee": str(k), "tickets": int(v)} for k, v in asgn_vc.items()]
+
+    # Inflow by month
+    monthly_inflow: list[dict] = []
+    if "created_date" in filtered.columns:
+        tmp = filtered.copy()
+        tmp["month"] = tmp["created_date"].dt.to_period("M")
+        mo_vc = tmp.groupby("month").size().sort_index()
+        monthly_inflow = [{"month": str(m), "tickets": int(c)} for m, c in mo_vc.items()]
+
+    # Backlog age buckets (open tickets only)
+    backlog_buckets: dict = {}
+    if "state" in filtered.columns and "created_date" in filtered.columns:
+        open_df = filtered[~filtered["state"].isin(EXCLUDED_STATES)].copy()
+        if len(open_df):
+            open_df["age"] = (pd.Timestamp(today) - open_df["created_date"]).dt.days
+            b = {"<7d": 0, "7-30d": 0, "30-90d": 0, ">90d": 0}
+            for age in open_df["age"].dropna():
+                if age < 7:   b["<7d"]   += 1
+                elif age < 30: b["7-30d"]  += 1
+                elif age < 90: b["30-90d"] += 1
+                else:          b[">90d"]   += 1
+            backlog_buckets = b
+
+    # ── Build prompt ──────────────────────────────────────────────────────────
+    date_range_str = f"{date_from or 'beginning'} to {date_to or 'today'}"
+    scope_str = f"service: {sub_category}" if sub_category else "all services"
+
+    prompt = f"""You are a senior operations analyst reviewing ticket data for a marketing services hub.
+Analyse the following metrics snapshot for the period {date_range_str} ({scope_str}) and return a structured JSON response.
+
+METRICS SNAPSHOT:
+- Total tickets in range: {total}
+- Open tickets: {open_tickets}
+- Closed/resolved tickets: {closed_tickets}
+- Average resolution time: {avg_resolution_days} days
+- Top areas: {json.dumps(area_breakdown)}
+- Top teams: {json.dumps(team_breakdown)}
+- Top assignees (workload): {json.dumps(assignee_breakdown)}
+- Monthly inflow trend: {json.dumps(monthly_inflow)}
+- Open backlog age distribution: {json.dumps(backlog_buckets)}
+- SLA performance per service: {json.dumps(sla_stats)}
+
+Return ONLY a JSON object with exactly this structure (no markdown, no explanation):
+{{
+  "summary": "<2-3 sentence executive summary of overall performance>",
+  "positives": [
+    {{"title": "<short positive finding>", "detail": "<1-2 sentence explanation with numbers>"}}
+  ],
+  "negatives": [
+    {{"title": "<short concern>", "detail": "<1-2 sentence explanation with numbers>"}}
+  ],
+  "anomalies": [
+    {{"title": "<unusual pattern or outlier>", "detail": "<1-2 sentence explanation with numbers>"}}
+  ],
+  "improvements": [
+    {{"title": "<actionable improvement suggestion>", "detail": "<1-2 sentence specific recommendation>"}}
+  ]
+}}
+
+Rules:
+- Each array must have 3-5 items
+- Every item must cite specific numbers from the metrics
+- "improvements" must be concrete and actionable
+- Do not repeat the same point across categories
+- Be direct and specific, avoid vague statements
+"""
+
+    ai_client = AsyncOpenAI(api_key=_OPENAI_KEY)
+    resp = await ai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=1800,
+        response_format={"type": "json_object"},
+    )
+
+    raw = resp.choices[0].message.content.strip()
+    try:
+        insights = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(500, "AI returned invalid JSON — please retry.")
+
+    return {
+        **insights,
+        "date_range": {"from": date_from or "", "to": date_to or ""},
+        "total_tickets_analysed": total,
+    }
 
 
 # ── Serve KPI React app at /kpi/ and hub static tools at / ───────────────────
