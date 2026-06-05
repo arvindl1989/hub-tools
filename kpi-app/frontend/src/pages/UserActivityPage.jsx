@@ -239,8 +239,12 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
 
   function fmt(dateStr) {
     if (!dateStr) return '—'
-    try { return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
-    catch { return '—' }
+    try {
+      const iso = String(dateStr).slice(0, 10)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '—'
+      const [y, m, d] = iso.split('-').map(Number)
+      return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    } catch { return '—' }
   }
 
   const colStyle = (key) => ({

@@ -20,8 +20,11 @@ const FILTER_KEYS = {
 
 function fmtDate(val) {
   if (!val) return '—'
-  const d = new Date(val)
-  return isNaN(d) ? val : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  const iso = String(val).slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return val
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  return isNaN(dt) ? val : dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function DaysCell({ val }) {
@@ -101,7 +104,7 @@ function colCompare(a, b, col, dir) {
   if (col.type === 'num') {
     cmp = Number(av) - Number(bv)
   } else if (col.type === 'date') {
-    cmp = new Date(av) - new Date(bv)
+    cmp = String(av).slice(0, 10).localeCompare(String(bv).slice(0, 10))
   } else {
     cmp = String(av).localeCompare(String(bv))
   }
