@@ -23,6 +23,7 @@ function fmtDate(val) {
   const iso = String(val).slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return val
   const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return val
   const dt = new Date(y, m - 1, d)
   return isNaN(dt) ? val : dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
