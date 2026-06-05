@@ -175,6 +175,42 @@
       font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.2s;
     }
     .settings-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .sn-sync-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0.5rem 0.9rem;
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 0.82rem; font-family: 'Inter', sans-serif;
+      font-weight: 600; color: var(--muted); cursor: pointer; transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .sn-sync-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: rgba(20,80,245,0.04); }
+    .sn-sync-btn.syncing { color: #f59e0b; border-color: #f59e0b; }
+    .sn-sync-btn.success { color: #16a34a; border-color: #16a34a; }
+    .sn-sync-btn.error   { color: #dc2626; border-color: #dc2626; }
+    .sn-sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* SN Sync config modal */
+    .sn-config-modal {
+      display: none; position: fixed; inset: 0; z-index: 2000;
+      background: rgba(15,23,42,0.55); backdrop-filter: blur(3px);
+      align-items: center; justify-content: center;
+    }
+    .sn-config-modal.open { display: flex; }
+    .sn-config-box {
+      background: white; border-radius: 16px; padding: 2rem;
+      max-width: 520px; width: 90%; box-shadow: var(--shadow-md);
+    }
+    .sn-config-box h3 { font-size: 1rem; font-weight: 700; margin: 0 0 0.35rem; }
+    .sn-config-box p  { font-size: 0.83rem; color: var(--muted); margin: 0 0 1.25rem; line-height: 1.6; }
+    .sn-config-box label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.3rem; }
+    .sn-config-box input { width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.88rem; font-family: 'Inter', sans-serif; outline: none; margin-bottom: 0.9rem; }
+    .sn-config-box input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,80,245,0.1); }
+    .sn-config-box .hint { font-size: 0.75rem; color: #94a3b8; margin-top: -0.65rem; margin-bottom: 0.9rem; line-height: 1.5; }
+    .sn-config-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.25rem; }
+    .sn-config-cancel { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1.1rem; font-size: 0.85rem; font-weight: 600; font-family: 'Inter', sans-serif; color: var(--muted); cursor: pointer; }
+    .sn-config-cancel:hover { border-color: #94a3b8; }
+    .sn-config-save { background: var(--primary); color: white; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; font-size: 0.85rem; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; }
+    .sn-config-save:hover { background: var(--primary-dark); }
 
     /* ── Ticket Grid ── */
     .list-wrap {
@@ -616,6 +652,7 @@
       <div class="filter-bar-spacer"></div>
       <span class="filter-count" id="filterCount"></span>
       <button class="refresh-btn" id="refreshBtn"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
+      <button class="sn-sync-btn" id="snSyncBtn" title="Sync latest data from ServiceNow into the sheet, then refresh"><i class="fa-solid fa-arrow-up-from-bracket"></i> Sync from SN</button>
       <button class="settings-btn" id="settingsBtn"><i class="fa-solid fa-gear"></i></button>
     </div>
 
@@ -812,6 +849,24 @@
           <div><strong>Case Link</strong><br>Copy the full URL from the ServiceNow agent view (the long <code>/now/nav/ui/classic/params/target/</code> URL). Extracts the table and sys_id to build a clean ESC link.</div>
           <div><strong>Feedback Survey Link</strong><br>Copy the URL from the ServiceNow survey instance view (<code>asmt_assessment_instance.do</code> URL). Extracts the instance ID to build a direct survey link for the end user.</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SN Sync Config Modal -->
+  <div class="sn-config-modal" id="snConfigModal">
+    <div class="sn-config-box">
+      <h3><i class="fa-solid fa-arrow-up-from-bracket" style="color:var(--primary);margin-right:6px;"></i>ServiceNow Sync Setup</h3>
+      <p>One-time setup. The Chrome extension will fetch the CSV from ServiceNow and push it to your Google Sheet, then this page will auto-refresh.</p>
+      <label>Extension ID</label>
+      <input type="text" id="snExtIdInput" placeholder="e.g. abcdefghijklmnopqrstuvwxyzabcdef">
+      <div class="hint">Find this on <code>chrome://extensions</code> under "ServiceNow → Google Sheets Sync". Reload the extension after adding your OAuth client.</div>
+      <label>ServiceNow List URL</label>
+      <input type="url" id="snListUrlInput" placeholder="https://koneprod.service-now.com/sn_customerservice_case_list.do">
+      <div class="hint">Navigate to the list view you want to export in ServiceNow, then copy the URL from the address bar.</div>
+      <div class="sn-config-actions">
+        <button class="sn-config-cancel" id="snConfigCancel">Cancel</button>
+        <button class="sn-config-save" id="snConfigSave"><i class="fa-solid fa-floppy-disk"></i> Save &amp; Sync</button>
       </div>
     </div>
   </div>
@@ -1583,6 +1638,108 @@ Thanks again!`;
       el.querySelector('span').textContent = msg;
       el.classList.add('show');
     }
+
+    // ── ServiceNow Sync ───────────────────────────────────────────────────
+    const SN_EXT_KEY  = 'sn_sync_ext_id';
+    const SN_URL_KEY  = 'sn_sync_list_url';
+
+    const snSyncBtn     = document.getElementById('snSyncBtn');
+    const snConfigModal = document.getElementById('snConfigModal');
+    const snExtIdInput  = document.getElementById('snExtIdInput');
+    const snListUrlInput= document.getElementById('snListUrlInput');
+
+    function setSyncState(state, label) {
+      snSyncBtn.className = 'sn-sync-btn' + (state ? ' ' + state : '');
+      snSyncBtn.disabled  = (state === 'syncing');
+      snSyncBtn.innerHTML = {
+        syncing: '<i class="fa-solid fa-spinner fa-spin"></i> Syncing…',
+        success: '<i class="fa-solid fa-check"></i> ' + (label || 'Synced!'),
+        error:   '<i class="fa-solid fa-triangle-exclamation"></i> ' + (label || 'Failed'),
+        '':      '<i class="fa-solid fa-arrow-up-from-bracket"></i> Sync from SN',
+      }[state] || '<i class="fa-solid fa-arrow-up-from-bracket"></i> Sync from SN';
+    }
+
+    async function runSnSync() {
+      const extId  = localStorage.getItem(SN_EXT_KEY);
+      const snUrl  = localStorage.getItem(SN_URL_KEY);
+
+      if (!extId || !snUrl) { openSnConfig(); return; }
+
+      // Check chrome.runtime is available (requires Chrome + extension installed)
+      if (typeof chrome === 'undefined' || !chrome.runtime) {
+        alert('Chrome extension not detected.\n\nMake sure you are using Chrome and the "ServiceNow → Google Sheets Sync" extension is installed and enabled.');
+        return;
+      }
+
+      setSyncState('syncing');
+
+      chrome.runtime.sendMessage(extId, { action: 'externalSync', snUrl }, (response) => {
+        if (chrome.runtime.lastError) {
+          const msg = chrome.runtime.lastError.message || '';
+          if (msg.includes('Could not establish connection')) {
+            setSyncState('error', 'Extension not found');
+            setTimeout(() => {
+              setSyncState('');
+              if (confirm('Could not reach the extension.\n\nCheck that:\n1. The Extension ID in settings is correct\n2. The extension is enabled\n3. You are on Chrome\n\nOpen settings to update?')) {
+                openSnConfig();
+              }
+            }, 2000);
+          } else {
+            setSyncState('error', 'Extension error');
+            setTimeout(() => setSyncState(''), 3000);
+          }
+          return;
+        }
+        if (response && response.ok) {
+          const rows = response.rowCount - 1;
+          setSyncState('success', `${rows} rows synced`);
+          // Refresh the ticket grid from the updated sheet
+          setTimeout(async () => {
+            setSyncState('');
+            await loadTickets(APPS_SCRIPT_URL, true);
+          }, 1500);
+        } else {
+          const err = response?.error || 'Unknown error';
+          setSyncState('error', 'Failed');
+          setTimeout(() => setSyncState(''), 3000);
+          console.error('[SN Sync]', err);
+          if (err.includes('No ServiceNow tab')) {
+            alert('No ServiceNow tab is open.\n\nOpen ServiceNow in another tab (you just need to be logged in — you don\'t need to be on the list view), then try again.');
+          }
+        }
+      });
+    }
+
+    function openSnConfig() {
+      snExtIdInput.value  = localStorage.getItem(SN_EXT_KEY)  || '';
+      snListUrlInput.value= localStorage.getItem(SN_URL_KEY)  || '';
+      snConfigModal.classList.add('open');
+      snExtIdInput.focus();
+    }
+
+    snSyncBtn.addEventListener('click', runSnSync);
+
+    document.getElementById('snConfigCancel').addEventListener('click', () => {
+      snConfigModal.classList.remove('open');
+    });
+
+    document.getElementById('snConfigSave').addEventListener('click', () => {
+      const extId = snExtIdInput.value.trim();
+      const snUrl = snListUrlInput.value.trim();
+      if (!extId || extId.length < 20) { snExtIdInput.focus(); snExtIdInput.style.borderColor = '#dc2626'; return; }
+      if (!snUrl || !snUrl.includes('service-now.com')) { snListUrlInput.focus(); snListUrlInput.style.borderColor = '#dc2626'; return; }
+      snExtIdInput.style.borderColor = '';
+      snListUrlInput.style.borderColor = '';
+      localStorage.setItem(SN_EXT_KEY, extId);
+      localStorage.setItem(SN_URL_KEY, snUrl);
+      snConfigModal.classList.remove('open');
+      runSnSync();
+    });
+
+    // Dismiss modal on backdrop click
+    snConfigModal.addEventListener('click', (e) => {
+      if (e.target === snConfigModal) snConfigModal.classList.remove('open');
+    });
   </script>
 </body>
 </html>
