@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ServiceNow → Sheets</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="header">
+    <span class="logo">📋</span>
+    <span class="title">SN → Sheets</span>
+  </div>
+
+  <div class="card" id="status-card">
+    <div class="label">Last sync</div>
+    <div class="value" id="last-sync">—</div>
+
+    <div class="label" style="margin-top:10px">Rows synced</div>
+    <div class="value" id="row-count">—</div>
+  </div>
+
+  <div id="warning" class="warning hidden">
+    Not on a ServiceNow list view. Navigate to a list first.
+  </div>
+
+  <button id="sync-btn" class="sync-btn" disabled>Sync current list</button>
+
+  <div id="status-msg" class="status-msg"></div>
+
+  <div class="footer">
+    Opens when you're on a <code>*_list.do</code> page
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
