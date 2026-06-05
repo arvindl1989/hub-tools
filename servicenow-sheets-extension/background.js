@@ -125,6 +125,61 @@ async function syncToSheets(csvText) {
 
 // ── Message handler ───────────────────────────────────────────────────────────
 
+// ── External sync (triggered from the Email Tracker web app) ─────────────────
+
+chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+  if (message.action !== 'externalSync') return false;
+
+  const snUrl = message.snUrl;
+  if (!snUrl) {
+    sendResponse({ ok: false, error: 'No ServiceNow URL provided' });
+    return false;
+  }
+
+  syncViaServiceNowTab(snUrl)
+    .then((rowCount) => {
+      const syncedAt = new Date().toISOString();
+      chrome.storage.local.set({ lastSyncedAt: syncedAt, lastRowCount: rowCount });
+      sendResponse({ ok: true, rowCount });
+    })
+    .catch((err) => sendResponse({ ok: false, error: err.message }));
+
+  return true;
+});
+
+async function syncViaServiceNowTab(listUrl) {
+  // Build the CSV export URL
+  const csvUrl = listUrl.includes('?') ? listUrl + '&CSV' : listUrl + '?CSV';
+
+  // Find an open ServiceNow tab to borrow its authenticated session for the fetch
+  const tabs = await chrome.tabs.query({ url: 'https://*.service-now.com/*' });
+  if (tabs.length === 0) {
+    throw new Error('No ServiceNow tab is open. Open ServiceNow in a tab first.');
+  }
+
+  // Run fetch inside the ServiceNow tab so session cookies are included
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tabs[0].id },
+    func: async (url) => {
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: { Accept: 'text/csv,text/plain,*/*' },
+      });
+      if (!res.ok) throw new Error(`ServiceNow returned HTTP ${res.status}`);
+      const text = await res.text();
+      if (!text.trim()) throw new Error('ServiceNow returned empty CSV');
+      return text;
+    },
+    args: [csvUrl],
+  });
+
+  const csvText = results[0].result;
+  if (!csvText) throw new Error('Failed to retrieve CSV from ServiceNow tab');
+  return syncToSheets(csvText);
+}
+
+// ── Internal sync (from content script or popup) ──────────────────────────────
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action !== 'sync') return false;
 
