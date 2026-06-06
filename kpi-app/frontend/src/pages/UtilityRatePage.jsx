@@ -345,7 +345,14 @@ function initCadenceAct(a) {
   return { name: a.name ?? '', duration_hours: Number(a.hours_per_week) || 0, frequency: 'weekly' }
 }
 
-function CadenceModal({ cadenceSettings, spanWeeks, allocH = 0, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
+function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
+  const defWd  = capSettings.default_working_days ?? 250
+  const defH   = capSettings.default_holidays ?? 24
+  const pf     = spanWeeks / 52
+  const allocH = Math.round(teamPeople.reduce((s, name) => {
+    const p = capSettings.people?.[name] || {}
+    return s + ((p.working_days ?? defWd) - (p.holidays ?? defH)) * 0.20 * 8 * pf
+  }, 0))
   const [team, setTeam] = useState({ activities: (cadenceSettings.team?.activities ?? []).map(initCadenceAct) })
   const [people, setPeople] = useState(() => {
     const r = {}
@@ -599,8 +606,14 @@ function initTrainingSess(s) {
   return { name: s.name ?? '', duration_hours: Number(s.hours_per_year) || 0, frequency: 'annual' }
 }
 
-function TrainingModal({ trainingSettings, spanDays, allocH = 0, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
-  const pf = spanDays / 365
+function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
+  const pf     = spanDays / 365
+  const defWd  = capSettings.default_working_days ?? 250
+  const defH   = capSettings.default_holidays ?? 24
+  const allocH = Math.round(teamPeople.reduce((s, name) => {
+    const p = capSettings.people?.[name] || {}
+    return s + ((p.working_days ?? defWd) - (p.holidays ?? defH)) * 0.05 * 8 * pf
+  }, 0))
   const [people, setPeople] = useState(() => {
     const r = {}
     teamPeople.forEach(name => {
@@ -2176,7 +2189,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         <CadenceModal
           cadenceSettings={cadenceSettings}
           spanWeeks={data?.span_weeks ?? 52}
-          allocH={Math.round(cadenceAllocH)}
+          capSettings={capSettings}
           onClose={() => setShowCadence(false)}
           onSaved={({ cadenceSettings: newCad }) => { setCadenceSettings(newCad); setShowCadence(false) }}
           teamPeople={effectivePeople}
@@ -2186,7 +2199,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         <TrainingModal
           trainingSettings={trainingSettings}
           spanDays={data?.span_days ?? 365}
-          allocH={Math.round(trainAllocH)}
+          capSettings={capSettings}
           onClose={() => setShowTraining(false)}
           onSaved={({ trainingSettings: newTrn }) => { setTrainingSettings(newTrn); setShowTraining(false) }}
           teamPeople={effectivePeople}
