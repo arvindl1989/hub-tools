@@ -345,7 +345,7 @@ function initCadenceAct(a) {
   return { name: a.name ?? '', duration_hours: Number(a.hours_per_week) || 0, frequency: 'weekly' }
 }
 
-function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
+function CadenceModal({ cadenceSettings, spanWeeks, allocH = 0, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
   const [team, setTeam] = useState({ activities: (cadenceSettings.team?.activities ?? []).map(initCadenceAct) })
   const [people, setPeople] = useState(() => {
     const r = {}
@@ -471,7 +471,41 @@ function CadenceModal({ cadenceSettings, spanWeeks, onClose, onSaved, teamPeople
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 24, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
-        <div style={{ padding: '16px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Allocated / Utilized / Remaining summary */}
+        {(() => {
+          const teamH   = team.activities.reduce((s, a) => s + cadenceHPW(a), 0) * spanWeeks * teamPeople.length
+          const peopleH = teamPeople.reduce((s, name) => {
+            return s + (people[name]?.activities ?? []).reduce((sum, a) => sum + cadenceHPW(a), 0) * spanWeeks
+          }, 0)
+          const utilH    = Math.round(teamH + peopleH)
+          const remaining = allocH - utilH
+          const pct       = allocH > 0 ? Math.round(utilH / allocH * 100) : 0
+          const remColor  = remaining >= 0 ? '#15803d' : '#dc2626'
+          const remBg     = remaining >= 0 ? '#f0fdf4' : '#fef2f2'
+          const remBorder = remaining >= 0 ? '#bbf7d0' : '#fecaca'
+          return (
+            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #f3f4f6' }}>
+              {[
+                { label: 'Allocated', val: allocH,    color: '#1450f5', bg: '#eff6ff', border: '#bfdbfe', sub: '20% of available' },
+                { label: 'Utilized',  val: utilH,     color: '#1450f5', bg: '#f0f4ff', border: '#c7d7fd', sub: `${pct}% of allocated` },
+                { label: 'Remaining', val: Math.abs(remaining), color: remColor, bg: remBg, border: remBorder,
+                  sub: remaining < 0 ? `${Math.abs(remaining)}h over budget` : `${Math.abs(remaining)}h left` },
+              ].map((b, i) => (
+                <div key={b.label} style={{
+                  flex: 1, padding: '14px 20px', background: b.bg,
+                  borderRight: i < 2 ? `1px solid ${b.border}` : 'none',
+                  display: 'flex', flexDirection: 'column', gap: 3,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: b.color, lineHeight: 1 }}>{b.val}<span style={{ fontSize: 12, fontWeight: 500, marginLeft: 2 }}>h</span></div>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{b.sub}</div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+
+        <div style={{ padding: '16px 24px', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
           {/* Team-wide */}
           {(() => {
@@ -565,7 +599,7 @@ function initTrainingSess(s) {
   return { name: s.name ?? '', duration_hours: Number(s.hours_per_year) || 0, frequency: 'annual' }
 }
 
-function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
+function TrainingModal({ trainingSettings, spanDays, allocH = 0, onClose, onSaved, teamPeople = DEFAULT_PEOPLE }) {
   const pf = spanDays / 365
   const [people, setPeople] = useState(() => {
     const r = {}
@@ -696,7 +730,43 @@ function TrainingModal({ trainingSettings, spanDays, onClose, onSaved, teamPeopl
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 24, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
-        <div style={{ padding: '16px 24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Allocated / Utilized / Remaining summary */}
+        {(() => {
+          const utilH    = Math.round(teamPeople.reduce((s, name) => {
+            const sessions = people[name]?.sessions ?? []
+            return s + sessions.reduce((sum, t) => {
+              const h = trainingHPY(t)
+              return sum + (t.frequency === 'one-time' ? h : h * pf)
+            }, 0)
+          }, 0))
+          const remaining = allocH - utilH
+          const pct       = allocH > 0 ? Math.round(utilH / allocH * 100) : 0
+          const remColor  = remaining >= 0 ? '#15803d' : '#dc2626'
+          const remBg     = remaining >= 0 ? '#f0fdf4' : '#fef2f2'
+          const remBorder = remaining >= 0 ? '#bbf7d0' : '#fecaca'
+          return (
+            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #f3f4f6' }}>
+              {[
+                { label: 'Allocated', val: allocH,            color: '#7c3aed', bg: '#faf5ff', border: '#ddd6fe', sub: '5% of available' },
+                { label: 'Utilized',  val: utilH,             color: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe', sub: `${pct}% of allocated` },
+                { label: 'Remaining', val: Math.abs(remaining), color: remColor, bg: remBg, border: remBorder,
+                  sub: remaining < 0 ? `${Math.abs(remaining)}h over budget` : `${Math.abs(remaining)}h left` },
+              ].map((b, i) => (
+                <div key={b.label} style={{
+                  flex: 1, padding: '14px 20px', background: b.bg,
+                  borderRight: i < 2 ? `1px solid ${b.border}` : 'none',
+                  display: 'flex', flexDirection: 'column', gap: 3,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: b.color, lineHeight: 1 }}>{b.val}<span style={{ fontSize: 12, fontWeight: 500, marginLeft: 2 }}>h</span></div>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{b.sub}</div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+
+        <div style={{ padding: '16px 24px', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {teamPeople.map(name => {
             const sessions = people[name]?.sessions ?? []
             const yrTot = Math.round(sessions.reduce((s, t) => s + trainingHPY(t), 0) * 10) / 10
@@ -2106,6 +2176,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         <CadenceModal
           cadenceSettings={cadenceSettings}
           spanWeeks={data?.span_weeks ?? 52}
+          allocH={Math.round(cadenceAllocH)}
           onClose={() => setShowCadence(false)}
           onSaved={({ cadenceSettings: newCad }) => { setCadenceSettings(newCad); setShowCadence(false) }}
           teamPeople={effectivePeople}
@@ -2115,6 +2186,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         <TrainingModal
           trainingSettings={trainingSettings}
           spanDays={data?.span_days ?? 365}
+          allocH={Math.round(trainAllocH)}
           onClose={() => setShowTraining(false)}
           onSaved={({ trainingSettings: newTrn }) => { setTrainingSettings(newTrn); setShowTraining(false) }}
           teamPeople={effectivePeople}
