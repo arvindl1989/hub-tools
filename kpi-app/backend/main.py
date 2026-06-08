@@ -760,6 +760,29 @@ def inflow_outflow_export(
     total_out  = sum(outflows)
     total_rate = round(total_out / max(total_in, 1) * 100, 1) if (total_in > 0 or total_out > 0) else None
 
+    # Open pipeline snapshot per period (same logic as the main endpoint)
+    has_created = "created_date" in df.columns
+    has_closed  = "closed_date"  in df.columns
+    has_state   = "state"        in df.columns
+    pipelines   = []
+    for r in sorted_periods:
+        p_start = date.fromisoformat(r["period"])
+        p_end   = p_start + timedelta(days=6) if group_by == "week" \
+                  else (pd.Timestamp(p_start) + pd.offsets.MonthEnd(0)).date()
+        if not has_created:
+            pipelines.append(0)
+            continue
+        created_by_end = df["created_date"].notna() & (df["created_date"].dt.date <= p_end)
+        if has_closed:
+            closed_after   = df["closed_date"].notna() & (df["closed_date"].dt.date > p_end)
+            no_date_active = df["closed_date"].isna() & (~df["state"].isin(EXCLUDED_STATES) if has_state else True)
+            in_pipeline    = closed_after | no_date_active
+        elif has_state:
+            in_pipeline    = ~df["state"].isin(EXCLUDED_STATES)
+        else:
+            in_pipeline    = pd.Series(True, index=df.index)
+        pipelines.append(int((created_by_end & in_pipeline).sum()))
+
     # Derive display name from active filter
     if assigned_to:
         name = assigned_to
@@ -843,6 +866,31 @@ def inflow_outflow_export(
     ws.write(3, 2, total_rate if total_rate is not None else "", _pick_rate_fmt(total_rate))
     for ci, v in enumerate(rates):
         ws.write(3, 3 + ci, v if v is not None else "", _pick_rate_fmt(v))
+
+    # ── Open Pipeline row (row 4) — colour-coded by direction
+    def _pipe_fmt(val, prev):
+        if val is None:
+            return blank_fmt
+        if prev is not None and val < prev:
+            return wb.add_format({"bold": True, "num_format": "#,##0", "align": "center",
+                                  "valign": "vcenter", "bg_color": "#dcfce7", "font_color": "#15803d"})
+        if prev is not None and val > prev:
+            return wb.add_format({"bold": True, "num_format": "#,##0", "align": "center",
+                                  "valign": "vcenter", "bg_color": "#fee2e2", "font_color": "#991b1b"})
+        return wb.add_format({"bold": True, "num_format": "#,##0", "align": "center",
+                              "valign": "vcenter", "bg_color": "#fef9c3", "font_color": "#854d0e"})
+
+    pipe_lbl_fmt = wb.add_format({"bold": True, "font_color": "#b45309", "valign": "vcenter",
+                                   "top": 2, "top_color": "#e5e8ef"})
+    pipe_tot_fmt = wb.add_format({"bold": True, "num_format": "#,##0", "align": "center",
+                                  "valign": "vcenter", "bg_color": "#fffbeb", "font_color": "#b45309",
+                                  "top": 2, "top_color": "#e5e8ef", "italic": True})
+    ws.write(4, 0, "",              wb.add_format({"top": 2, "top_color": "#e5e8ef"}))
+    ws.write(4, 1, "Open Pipeline", pipe_lbl_fmt)
+    ws.write(4, 2, pipelines[-1] if pipelines else "", pipe_tot_fmt)
+    for ci, val in enumerate(pipelines):
+        prev = pipelines[ci - 1] if ci > 0 else None
+        ws.write(4, 3 + ci, val, _pipe_fmt(val, prev))
 
     wb.close()
     buf.seek(0)
