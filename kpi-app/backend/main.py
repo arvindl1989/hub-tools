@@ -643,21 +643,29 @@ def inflow_outflow(
     periods: dict[str, dict] = {}
     freq = "W" if group_by == "week" else "M"
 
+    def _blank(k, p):
+        return {"period": k, "label": _period_label(p, group_by),
+                "inflow": 0, "outflow": 0, "closed_completed": 0, "closed_rejected": 0}
+
     if "created_date" in df.columns:
         tmp = _filter_by_range(df, "created_date", date_from, date_to).dropna(subset=["created_date"]).copy()
         tmp["_p"] = tmp["created_date"].dt.to_period(freq).apply(lambda p: p.start_time.date())
         for p, grp in tmp.groupby("_p"):
             k = str(p)
-            periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0})
+            periods.setdefault(k, _blank(k, p))
             periods[k]["inflow"] = int(len(grp))
 
     if "closed_date" in df.columns:
         tmp = _filter_by_range(df, "closed_date", date_from, date_to).dropna(subset=["closed_date"]).copy()
         tmp["_p"] = tmp["closed_date"].dt.to_period(freq).apply(lambda p: p.start_time.date())
+        has_state = "state" in tmp.columns
         for p, grp in tmp.groupby("_p"):
             k = str(p)
-            periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0})
+            periods.setdefault(k, _blank(k, p))
             periods[k]["outflow"] = int(len(grp))
+            if has_state:
+                periods[k]["closed_completed"] = int((grp["state"] == "Closed Completed").sum())
+                periods[k]["closed_rejected"]  = int((grp["state"] == "Closed Rejected").sum())
 
     result = sorted(periods.values(), key=lambda x: x["period"])
     for r in result:
