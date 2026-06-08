@@ -152,12 +152,29 @@ const DtcTT = ({ active, payload, label }) => {
 }
 
 /* ── Allocated / Utilized summary widgets ────────────────────────────────── */
-function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data, assigneeF = [], serviceF = '', people = DEFAULT_PEOPLE }) {
+function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data, assigneeF = [], serviceF = '', people = DEFAULT_PEOPLE, dateFrom }) {
   const spanDays  = data?.span_days  ?? 365
   const spanWeeks = data?.span_weeks ?? 52
   const pf = spanDays / 365
   const defWd = capSettings.default_working_days ?? 250
   const defH  = capSettings.default_holidays ?? 24
+
+  // Prorate utilization to today — only count hours already elapsed in the period
+  const today = new Date()
+  let elapsedWeeks = spanWeeks
+  let elapsedPf    = pf
+  if (dateFrom) {
+    const [dy, dm, dd] = dateFrom.split('-').map(Number)
+    const periodStart  = new Date(dy, dm - 1, dd)
+    if (today > periodStart) {
+      const msElapsed = today - periodStart
+      elapsedWeeks = Math.min(spanWeeks, msElapsed / (7 * 24 * 3600 * 1000))
+      elapsedPf    = Math.min(pf, msElapsed / (365 * 24 * 3600 * 1000))
+    } else {
+      elapsedWeeks = 0
+      elapsedPf    = 0
+    }
+  }
 
   const activePeople = assigneeF.length > 0 ? assigneeF : people
 
@@ -180,21 +197,21 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
   const prodUtilH = data?.total_committed_h ?? 0
 
-  // Team-wide cadence activities count for every active person
+  // Team-wide cadence activities — use elapsedWeeks so only past meetings count
   const teamActs = cadenceSettings.team?.activities ?? []
-  const teamCadenceH = teamActs.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0) * spanWeeks * activePeople.length
+  const teamCadenceH = teamActs.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0) * elapsedWeeks * activePeople.length
 
   let cadenceUtilH = teamCadenceH
   activePeople.forEach(name => {
     const acts = cadenceSettings.people?.[name]?.activities ?? []
-    cadenceUtilH += acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0) * spanWeeks
+    cadenceUtilH += acts.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0) * elapsedWeeks
   })
   let trainUtilH = 0
   activePeople.forEach(name => {
     const sessions = trainingSettings.people?.[name]?.sessions ?? []
     trainUtilH += sessions.reduce((s, t) => {
       const h = Number(t.hours_per_year) || 0
-      return s + (t.frequency === 'one-time' ? h : h * pf)
+      return s + (t.frequency === 'one-time' ? h : h * elapsedPf)
     }, 0)
   })
   const totalUtilH = prodUtilH + cadenceUtilH + trainUtilH
@@ -353,34 +370,40 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
     const p = capSettings.people?.[name] || {}
     return s + ((p.working_days ?? defWd) - (p.holidays ?? defH)) * 0.20 * 8 * pf
   }, 0))
+
   const [team, setTeam] = useState({ activities: (cadenceSettings.team?.activities ?? []).map(initCadenceAct) })
   const [people, setPeople] = useState(() => {
     const r = {}
-    teamPeople.forEach(name => {
-      r[name] = { activities: (cadenceSettings.people?.[name]?.activities ?? []).map(initCadenceAct) }
-    })
+    teamPeople.forEach(name => { r[name] = { activities: (cadenceSettings.people?.[name]?.activities ?? []).map(initCadenceAct) } })
     return r
   })
-  const [saving, setSaving] = useState(false)
-  const [saved,  setSaved]  = useState(false)
-  const [err,    setErr]    = useState(null)
-  const [addingFor, setAddingFor] = useState(null)
-  const [draft, setDraft]         = useState({ name: '', duration_hours: 1, frequency: 'weekly' })
+  const [saving,    setSaving]    = useState(false)
+  const [saved,     setSaved]     = useState(false)
+  const [err,       setErr]       = useState(null)
+  const [activeTab, setActiveTab] = useState('team')
+  const [adding,    setAdding]    = useState(false)
+  const [draft,     setDraft]     = useState({ name: '', duration_hours: 1, frequency: 'weekly' })
 
-  const openAdd    = key       => { setAddingFor(key); setDraft({ name: '', duration_hours: 1, frequency: 'weekly' }) }
-  const removeTeam = i         => setTeam(t => ({ activities: t.activities.filter((_, j) => j !== i) }))
-  const remove     = (name, i) => setPeople(p => ({ ...p, [name]: { activities: p[name].activities.filter((_, j) => j !== i) } }))
+  const tabs = ['team', ...teamPeople]
+  const isTeam = activeTab === 'team'
+  const accent = isTeam ? '#1d4ed8' : '#1450f5'
+
+  const currentActs = isTeam ? team.activities : (people[activeTab]?.activities ?? [])
+  const removeAct = i => isTeam
+    ? setTeam(t => ({ activities: t.activities.filter((_, j) => j !== i) }))
+    : setPeople(p => ({ ...p, [activeTab]: { activities: p[activeTab].activities.filter((_, j) => j !== i) } }))
 
   function confirmAdd() {
     if (!String(draft.name).trim()) return
     const d = Number(draft.duration_hours) || 0
     const act = { name: String(draft.name).trim(), duration_hours: d, frequency: draft.frequency, hours_per_week: cadenceHPW({ ...draft, duration_hours: d }) }
-    if (addingFor === 'team') {
+    if (isTeam) {
       setTeam(t => ({ activities: [...t.activities, act] }))
     } else {
-      setPeople(p => ({ ...p, [addingFor]: { activities: [...(p[addingFor]?.activities ?? []), act] } }))
+      setPeople(p => ({ ...p, [activeTab]: { activities: [...(p[activeTab]?.activities ?? []), act] } }))
     }
-    setAddingFor(null)
+    setAdding(false)
+    setDraft({ name: '', duration_hours: 1, frequency: 'weekly' })
   }
 
   const serialize = acts => acts.filter(a => String(a.name).trim()).map(a => ({ ...a, hours_per_week: cadenceHPW(a) }))
@@ -399,187 +422,154 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
     finally { setSaving(false) }
   }
 
-  function renderEntries(acts, onRemove, accent) {
-    return acts.map((a, i) => {
-      const hpw = cadenceHPW(a)
-      const freq = CADENCE_FREQS.find(f => f.key === (a.frequency || 'weekly'))?.label || 'Weekly'
-      return (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', borderBottom: '1px solid #f3f4f6', gap: 12 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: accent, flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{a.name}</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-              <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', marginRight: 5 }}>{freq}</span>
-              {a.duration_hours}h per session
-              <span style={{ color: accent, fontWeight: 700, marginLeft: 8 }}>{hpw}h/wk · {Math.round(hpw * spanWeeks)}h this period</span>
-            </div>
-          </div>
-          <button onClick={() => onRemove(i)} style={{
-            height: 28, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-            color: '#ef4444', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 6,
-            fontFamily: 'Inter, sans-serif', flexShrink: 0,
-          }}>Remove</button>
-        </div>
-      )
-    })
-  }
+  // Totals for summary bar (across all tabs)
+  const teamH   = team.activities.reduce((s, a) => s + cadenceHPW(a), 0) * spanWeeks * teamPeople.length
+  const peopleH = teamPeople.reduce((s, name) => s + (people[name]?.activities ?? []).reduce((sum, a) => sum + cadenceHPW(a), 0) * spanWeeks, 0)
+  const utilH   = Math.round(teamH + peopleH)
+  const remaining = allocH - utilH
+  const pct = allocH > 0 ? Math.round(utilH / allocH * 100) : 0
 
-  function renderAddArea(formKey, accent, borderColor, formBg) {
-    if (addingFor !== formKey) return null
-    const d = Number(draft.duration_hours) || 0
-    const hpw = cadenceHPW({ ...draft, duration_hours: d })
-    return (
-      <div style={{ padding: '16px', background: formBg, borderTop: `1px solid ${borderColor}` }}>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Activity name</label>
-          <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
-            onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
-            placeholder="e.g. Weekly Sync, Daily Standup, All Hands…" autoFocus
-            style={{ width: '100%', height: 38, padding: '0 12px', fontSize: 13, border: `1.5px solid ${borderColor}`, borderRadius: 8, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Frequency</label>
-            <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
-              style={{ height: 36, padding: '0 8px', fontSize: 13, border: `1.5px solid ${borderColor}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
-              {CADENCE_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Duration (hours)</label>
-            <input type="number" value={draft.duration_hours} min={0} max={24} step={0.25}
-              onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
-              style={{ width: 80, height: 36, padding: '0 10px', fontSize: 13, border: `1.5px solid ${borderColor}`, borderRadius: 8, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
-          </div>
-          {hpw > 0 && (
-            <div style={{ height: 36, display: 'flex', alignItems: 'center', padding: '0 12px', background: `${accent}14`, border: `1px solid ${accent}30`, borderRadius: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{hpw}h/wk · {Math.round(hpw * spanWeeks)}h this period</span>
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-            <button onClick={() => setAddingFor(null)}
-              style={{ height: 36, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
-            <button onClick={confirmAdd}
-              style={{ height: 36, padding: '0 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: accent, color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add Activity</button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const d = Number(draft.duration_hours) || 0
+  const previewHpw = cadenceHPW({ ...draft, duration_hours: d })
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '24px 16px', overflowY: 'auto' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 700, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Cadence Hours</div>
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Recurring meetings · hours/week auto-computed from frequency × duration, shown across {Math.round(spanWeeks)} weeks</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Cadence Hours</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>Recurring meetings · {Math.round(spanWeeks)} week period</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 24, lineHeight: 1, padding: '0 4px' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
-        {/* Allocated / Utilized / Remaining summary */}
-        {(() => {
-          const teamH   = team.activities.reduce((s, a) => s + cadenceHPW(a), 0) * spanWeeks * teamPeople.length
-          const peopleH = teamPeople.reduce((s, name) => {
-            return s + (people[name]?.activities ?? []).reduce((sum, a) => sum + cadenceHPW(a), 0) * spanWeeks
-          }, 0)
-          const utilH    = Math.round(teamH + peopleH)
-          const remaining = allocH - utilH
-          const pct       = allocH > 0 ? Math.round(utilH / allocH * 100) : 0
-          const remColor  = remaining >= 0 ? '#15803d' : '#dc2626'
-          const remBg     = remaining >= 0 ? '#f0fdf4' : '#fef2f2'
-          const remBorder = remaining >= 0 ? '#bbf7d0' : '#fecaca'
-          return (
-            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #f3f4f6' }}>
-              {[
-                { label: 'Allocated', val: allocH,    color: '#1450f5', bg: '#eff6ff', border: '#bfdbfe', sub: '20% of available' },
-                { label: 'Utilized',  val: utilH,     color: '#1450f5', bg: '#f0f4ff', border: '#c7d7fd', sub: `${pct}% of allocated` },
-                { label: 'Remaining', val: Math.abs(remaining), color: remColor, bg: remBg, border: remBorder,
-                  sub: remaining < 0 ? `${Math.abs(remaining)}h over budget` : `${Math.abs(remaining)}h left` },
-              ].map((b, i) => (
-                <div key={b.label} style={{
-                  flex: 1, padding: '14px 20px', background: b.bg,
-                  borderRight: i < 2 ? `1px solid ${b.border}` : 'none',
-                  display: 'flex', flexDirection: 'column', gap: 3,
-                }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: b.color, lineHeight: 1 }}>{b.val}<span style={{ fontSize: 12, fontWeight: 500, marginLeft: 2 }}>h</span></div>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{b.sub}</div>
-                </div>
-              ))}
+        {/* Summary bar */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
+          {[
+            { label: 'Allocated', val: allocH, color: '#1450f5', bg: '#eff6ff', border: '#bfdbfe', sub: '20% of available' },
+            { label: 'Configured', val: utilH, color: '#1450f5', bg: '#f0f4ff', border: '#c7d7fd', sub: `${pct}% of allocated` },
+            { label: remaining >= 0 ? 'Remaining' : 'Over budget',
+              val: Math.abs(remaining),
+              color: remaining >= 0 ? '#15803d' : '#dc2626',
+              bg:    remaining >= 0 ? '#f0fdf4' : '#fef2f2',
+              border: remaining >= 0 ? '#bbf7d0' : '#fecaca',
+              sub: remaining >= 0 ? `${Math.abs(remaining)}h headroom` : `${Math.abs(remaining)}h over` },
+          ].map((b, i) => (
+            <div key={b.label} style={{ flex: 1, padding: '10px 16px', background: b.bg, borderRight: i < 2 ? `1px solid ${b.border}` : 'none' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: b.color, lineHeight: 1.1 }}>{b.val}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 2 }}>h</span></div>
+              <div style={{ fontSize: 10, color: '#9ca3af' }}>{b.sub}</div>
             </div>
-          )
-        })()}
+          ))}
+        </div>
 
-        <div style={{ padding: '16px 24px', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-          {/* Team-wide */}
-          {(() => {
-            const acts = team.activities
-            const wkTot = Math.round(acts.reduce((s, a) => s + cadenceHPW(a), 0) * 100) / 100
-            const pTot  = Math.round(wkTot * spanWeeks * teamPeople.length)
+        {/* Tab bar */}
+        <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '2px solid #f3f4f6', padding: '0 8px', gap: 2 }}>
+          {tabs.map(tab => {
+            const label = tab === 'team' ? 'Team-wide' : tab.split(' ')[0]
+            const isActive = activeTab === tab
             return (
-              <div style={{ border: '1.5px solid #bfdbfe', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 16px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <button onClick={() => openAdd('team')} style={{
-                    height: 30, padding: '0 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 20,
-                    fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
-                  }}>
-                    <span style={{ fontSize: 15, fontWeight: 300, lineHeight: 1 }}>+</span> Add activity
-                  </button>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {wkTot > 0 && <span style={{ fontSize: 12, color: '#374151' }}><strong style={{ color: '#1d4ed8' }}>{wkTot}h</strong>/wk/person · <strong style={{ color: '#1d4ed8' }}>{pTot}h</strong> total</span>}
-                    <span style={{ fontSize: 10, color: '#3b82f6', background: '#dbeafe', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>all {teamPeople.length} members</span>
-                    <span style={{ fontWeight: 700, color: '#1e40af', fontSize: 13 }}>Team-wide Meetings</span>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  </div>
-                </div>
-                {renderEntries(acts, removeTeam, '#1d4ed8')}
-                {renderAddArea('team', '#1d4ed8', '#bfdbfe', '#eff6ff')}
-              </div>
-            )
-          })()}
-
-          {/* Per-person */}
-          {teamPeople.map(name => {
-            const acts  = people[name]?.activities ?? []
-            const wkTot = Math.round(acts.reduce((s, a) => s + cadenceHPW(a), 0) * 100) / 100
-            const pTot  = Math.round(wkTot * spanWeeks)
-            return (
-              <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 16px', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <button onClick={() => openAdd(name)} style={{
-                    height: 30, padding: '0 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    background: '#1450f5', color: '#fff', border: 'none', borderRadius: 20,
-                    fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
-                  }}>
-                    <span style={{ fontSize: 15, fontWeight: 300, lineHeight: 1 }}>+</span> Add activity
-                  </button>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {wkTot > 0
-                      ? <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#1450f5' }}>{wkTot}h</strong>/wk · <strong style={{ color: '#1450f5' }}>{pTot}h</strong> this period</span>
-                      : <span style={{ fontSize: 12, color: '#d1d5db' }}>No activities yet</span>
-                    }
-                    <span style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{name}</span>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                      {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
-                  </div>
-                </div>
-                {renderEntries(acts, i => remove(name, i), '#1450f5')}
-                {renderAddArea(name, '#1450f5', '#c7d7fd', '#f0f4ff')}
-              </div>
+              <button key={tab} onClick={() => { setActiveTab(tab); setAdding(false) }} style={{
+                padding: '9px 14px', fontSize: 12, fontWeight: isActive ? 700 : 500, cursor: 'pointer',
+                background: 'none', border: 'none', whiteSpace: 'nowrap',
+                borderBottom: isActive ? '2px solid #1450f5' : '2px solid transparent',
+                marginBottom: -2, color: isActive ? '#1450f5' : '#6b7280',
+                fontFamily: 'Inter, sans-serif',
+              }}>
+                {label}
+              </button>
             )
           })}
         </div>
 
-        <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Activity list for active tab */}
+        <div style={{ maxHeight: 'calc(100vh - 360px)', overflowY: 'auto' }}>
+          {currentActs.length === 0 && !adding && (
+            <div style={{ padding: '28px 20px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+              No activities yet — click <strong>+ Add activity</strong> below
+            </div>
+          )}
+          {currentActs.map((a, i) => {
+            const hpw = cadenceHPW(a)
+            const freq = CADENCE_FREQS.find(f => f.key === (a.frequency || 'weekly'))?.label || 'Weekly'
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f3f4f6', gap: 12 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: accent, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{a.name}</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                    <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', marginRight: 6 }}>{freq}</span>
+                    {a.duration_hours}h/session
+                    <span style={{ color: accent, fontWeight: 700, marginLeft: 8 }}>{hpw}h/wk · {Math.round(hpw * spanWeeks)}h period</span>
+                  </div>
+                </div>
+                <button onClick={() => removeAct(i)} style={{
+                  height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  color: '#ef4444', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 6,
+                  fontFamily: 'Inter, sans-serif', flexShrink: 0,
+                }}>Remove</button>
+              </div>
+            )
+          })}
+
+          {/* Add form — always at bottom */}
+          {!adding ? (
+            <button onClick={() => { setAdding(true); setDraft({ name: '', duration_hours: 1, frequency: 'weekly' }) }} style={{
+              width: '100%', padding: '13px 20px', background: '#f8faff', border: 'none',
+              borderTop: '1px solid #e5e8ef', color: '#1450f5', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              fontFamily: 'Inter, sans-serif',
+            }}>
+              <span style={{ fontSize: 18, lineHeight: 1, fontWeight: 300 }}>+</span>
+              Add activity {activeTab !== 'team' && `for ${activeTab.split(' ')[0]}`}
+            </button>
+          ) : (
+            <div style={{ padding: '16px 20px', background: '#f0f4ff', borderTop: '1px solid #c7d7fd' }}>
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Activity name</label>
+                <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
+                  onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
+                  placeholder="e.g. Weekly Sync, Daily Standup, All Hands…" autoFocus
+                  style={{ width: '100%', height: 36, padding: '0 12px', fontSize: 13, border: '1.5px solid #c7d7fd', borderRadius: 8, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Frequency</label>
+                  <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
+                    style={{ height: 34, padding: '0 8px', fontSize: 13, border: '1.5px solid #c7d7fd', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
+                    {CADENCE_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Hours / session</label>
+                  <input type="number" value={draft.duration_hours} min={0} max={24} step={0.25}
+                    onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
+                    style={{ width: 80, height: 34, padding: '0 10px', fontSize: 13, border: '1.5px solid #c7d7fd', borderRadius: 8, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
+                </div>
+                {previewHpw > 0 && (
+                  <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 10px', background: `${accent}18`, borderRadius: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{previewHpw}h/wk</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                  <button onClick={() => setAdding(false)}
+                    style={{ height: 34, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                  <button onClick={confirmAdd}
+                    style={{ height: 34, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: accent, color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 20px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#dc2626' }}>{err}</span>}{saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}</div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ height: 36, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 36, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -614,28 +604,28 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
     const p = capSettings.people?.[name] || {}
     return s + ((p.working_days ?? defWd) - (p.holidays ?? defH)) * 0.05 * 8 * pf
   }, 0))
+
   const [people, setPeople] = useState(() => {
     const r = {}
-    teamPeople.forEach(name => {
-      r[name] = { sessions: (trainingSettings.people?.[name]?.sessions ?? []).map(initTrainingSess) }
-    })
+    teamPeople.forEach(name => { r[name] = { sessions: (trainingSettings.people?.[name]?.sessions ?? []).map(initTrainingSess) } })
     return r
   })
-  const [saving, setSaving] = useState(false)
-  const [saved,  setSaved]  = useState(false)
-  const [err,    setErr]    = useState(null)
-  const [addingFor, setAddingFor] = useState(null)
+  const [saving,    setSaving]    = useState(false)
+  const [saved,     setSaved]     = useState(false)
+  const [err,       setErr]       = useState(null)
+  const [activeTab, setActiveTab] = useState(teamPeople[0] ?? '')
+  const [adding,    setAdding]    = useState(false)
   const [draft,     setDraft]     = useState({ name: '', duration_hours: 1, frequency: 'annual' })
 
-  const openAdd = name     => { setAddingFor(name); setDraft({ name: '', duration_hours: 1, frequency: 'annual' }) }
-  const remove  = (name, i) => setPeople(p => ({ ...p, [name]: { sessions: p[name].sessions.filter((_, j) => j !== i) } }))
+  const removeSession = (name, i) => setPeople(p => ({ ...p, [name]: { sessions: p[name].sessions.filter((_, j) => j !== i) } }))
 
   function confirmAdd() {
     if (!String(draft.name).trim()) return
     const d = Number(draft.duration_hours) || 0
     const sess = { name: String(draft.name).trim(), duration_hours: d, frequency: draft.frequency, hours_per_year: trainingHPY({ ...draft, duration_hours: d }) }
-    setPeople(p => ({ ...p, [addingFor]: { sessions: [...(p[addingFor]?.sessions ?? []), sess] } }))
-    setAddingFor(null)
+    setPeople(p => ({ ...p, [activeTab]: { sessions: [...(p[activeTab]?.sessions ?? []), sess] } }))
+    setAdding(false)
+    setDraft({ name: '', duration_hours: 1, frequency: 'annual' })
   }
 
   const serialize = sessions => sessions.filter(s => String(s.name).trim()).map(s => ({ ...s, hours_per_year: trainingHPY(s) }))
@@ -651,175 +641,171 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
     finally { setSaving(false) }
   }
 
-  function renderSessions(sessions, onRemove) {
-    return sessions.map((s, i) => {
-      const hpy = trainingHPY(s)
-      const isOneTime = s.frequency === 'one-time'
-      const freq = TRAINING_FREQS.find(f => f.key === (s.frequency || 'annual'))?.label || 'Annual'
-      return (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', borderBottom: '1px solid #f3f4f6', gap: 12 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed', flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{s.name}</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-              {isOneTime
-                ? <span style={{ background: '#f3e8ff', color: '#7c3aed', borderRadius: 4, padding: '1px 6px', marginRight: 5, fontWeight: 600 }}>one-time</span>
-                : <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', marginRight: 5 }}>{freq}</span>
-              }
-              {s.duration_hours}h {isOneTime ? 'total' : 'per session'}
-              <span style={{ color: '#7c3aed', fontWeight: 700, marginLeft: 8 }}>
-                {isOneTime ? `${hpy}h one-time` : `${hpy}h/yr · ${Math.round(hpy * pf)}h this period`}
-              </span>
-            </div>
-          </div>
-          <button onClick={() => onRemove(i)} style={{
-            height: 28, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-            color: '#ef4444', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 6,
-            fontFamily: 'Inter, sans-serif', flexShrink: 0,
-          }}>Remove</button>
-        </div>
-      )
-    })
-  }
+  // Summary totals across all people
+  const utilH = Math.round(teamPeople.reduce((s, name) => {
+    const sessions = people[name]?.sessions ?? []
+    return s + sessions.reduce((sum, t) => {
+      const h = trainingHPY(t)
+      return sum + (t.frequency === 'one-time' ? h : h * pf)
+    }, 0)
+  }, 0))
+  const remaining = allocH - utilH
+  const pct = allocH > 0 ? Math.round(utilH / allocH * 100) : 0
 
-  function renderAddArea(name) {
-    if (addingFor !== name) return null
-    const d = Number(draft.duration_hours) || 0
-    const hpy = trainingHPY({ ...draft, duration_hours: d })
-    const isOneTime = draft.frequency === 'one-time'
-    return (
-      <div style={{ padding: '16px', background: '#faf5ff', borderTop: '1px solid #ddd6fe' }}>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>
-            {isOneTime ? 'Event name' : 'Training / course name'}
-          </label>
-          <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
-            onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
-            placeholder={isOneTime ? 'e.g. Onboarding, Team offsite, Conference…' : 'e.g. Google Analytics Cert, LinkedIn Learning…'} autoFocus
-            style={{ width: '100%', height: 38, padding: '0 12px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Frequency</label>
-            <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
-              style={{ height: 36, padding: '0 8px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
-              {TRAINING_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>
-              {isOneTime ? 'Total hours' : 'Hours per session'}
-            </label>
-            <input type="number" value={draft.duration_hours} min={0} max={2000} step={0.5}
-              onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
-              style={{ width: 90, height: 36, padding: '0 10px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
-          </div>
-          {hpy > 0 && (
-            <div style={{ height: 36, display: 'flex', alignItems: 'center', padding: '0 12px', background: '#7c3aed14', border: '1px solid #7c3aed30', borderRadius: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>
-                {isOneTime ? `${hpy}h one-time` : `${hpy}h/yr · ${Math.round(hpy * pf)}h this period`}
-              </span>
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-            <button onClick={() => setAddingFor(null)}
-              style={{ height: 36, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
-            <button onClick={confirmAdd}
-              style={{ height: 36, padding: '0 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const currentSessions = people[activeTab]?.sessions ?? []
+  const isOneTimeDraft = draft.frequency === 'one-time'
+  const draftD = Number(draft.duration_hours) || 0
+  const previewHpy = trainingHPY({ ...draft, duration_hours: draftD })
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '24px 16px', overflowY: 'auto' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 700, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Training & Upskilling</div>
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Courses, workshops, one-time events · hours auto-computed and prorated to the selected date range</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Training & Upskilling</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>Courses, workshops, one-time events</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 24, lineHeight: 1, padding: '0 4px' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
-        {/* Allocated / Utilized / Remaining summary */}
-        {(() => {
-          const utilH    = Math.round(teamPeople.reduce((s, name) => {
-            const sessions = people[name]?.sessions ?? []
-            return s + sessions.reduce((sum, t) => {
-              const h = trainingHPY(t)
-              return sum + (t.frequency === 'one-time' ? h : h * pf)
-            }, 0)
-          }, 0))
-          const remaining = allocH - utilH
-          const pct       = allocH > 0 ? Math.round(utilH / allocH * 100) : 0
-          const remColor  = remaining >= 0 ? '#15803d' : '#dc2626'
-          const remBg     = remaining >= 0 ? '#f0fdf4' : '#fef2f2'
-          const remBorder = remaining >= 0 ? '#bbf7d0' : '#fecaca'
-          return (
-            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #f3f4f6' }}>
-              {[
-                { label: 'Allocated', val: allocH,            color: '#7c3aed', bg: '#faf5ff', border: '#ddd6fe', sub: '5% of available' },
-                { label: 'Utilized',  val: utilH,             color: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe', sub: `${pct}% of allocated` },
-                { label: 'Remaining', val: Math.abs(remaining), color: remColor, bg: remBg, border: remBorder,
-                  sub: remaining < 0 ? `${Math.abs(remaining)}h over budget` : `${Math.abs(remaining)}h left` },
-              ].map((b, i) => (
-                <div key={b.label} style={{
-                  flex: 1, padding: '14px 20px', background: b.bg,
-                  borderRight: i < 2 ? `1px solid ${b.border}` : 'none',
-                  display: 'flex', flexDirection: 'column', gap: 3,
-                }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: b.color, lineHeight: 1 }}>{b.val}<span style={{ fontSize: 12, fontWeight: 500, marginLeft: 2 }}>h</span></div>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{b.sub}</div>
-                </div>
-              ))}
+        {/* Summary bar */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
+          {[
+            { label: 'Allocated', val: allocH, color: '#7c3aed', bg: '#faf5ff', border: '#ddd6fe', sub: '5% of available' },
+            { label: 'Configured', val: utilH, color: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe', sub: `${pct}% of allocated` },
+            { label: remaining >= 0 ? 'Remaining' : 'Over budget',
+              val: Math.abs(remaining),
+              color: remaining >= 0 ? '#15803d' : '#dc2626',
+              bg:    remaining >= 0 ? '#f0fdf4' : '#fef2f2',
+              border: remaining >= 0 ? '#bbf7d0' : '#fecaca',
+              sub: remaining >= 0 ? `${Math.abs(remaining)}h headroom` : `${Math.abs(remaining)}h over` },
+          ].map((b, i) => (
+            <div key={b.label} style={{ flex: 1, padding: '10px 16px', background: b.bg, borderRight: i < 2 ? `1px solid ${b.border}` : 'none' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: b.color, lineHeight: 1.1 }}>{b.val}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 2 }}>h</span></div>
+              <div style={{ fontSize: 10, color: '#9ca3af' }}>{b.sub}</div>
             </div>
-          )
-        })()}
+          ))}
+        </div>
 
-        <div style={{ padding: '16px 24px', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Person tabs */}
+        <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '2px solid #f3f4f6', padding: '0 8px', gap: 2 }}>
           {teamPeople.map(name => {
-            const sessions = people[name]?.sessions ?? []
-            const yrTot = Math.round(sessions.reduce((s, t) => s + trainingHPY(t), 0) * 10) / 10
-            const pTot  = Math.round(sessions.reduce((s, t) => {
-              const h = trainingHPY(t)
-              return s + (t.frequency === 'one-time' ? h : h * pf)
-            }, 0))
+            const isActive = activeTab === name
             return (
-              <div key={name} style={{ border: '1px solid #e5e8ef', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 16px', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <button onClick={() => openAdd(name)} style={{
-                    height: 30, padding: '0 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 20,
-                    fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
-                  }}>
-                    <span style={{ fontSize: 15, fontWeight: 300, lineHeight: 1 }}>+</span> Add training
-                  </button>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {yrTot > 0
-                      ? <span style={{ fontSize: 12, color: '#6b7280' }}><strong style={{ color: '#7c3aed' }}>{yrTot}h</strong>/yr · <strong style={{ color: '#7c3aed' }}>{pTot}h</strong> this period</span>
-                      : <span style={{ fontSize: 12, color: '#d1d5db' }}>No training yet</span>
-                    }
-                    <span style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{name}</span>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                      {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
-                  </div>
-                </div>
-                {renderSessions(sessions, i => remove(name, i))}
-                {renderAddArea(name)}
-              </div>
+              <button key={name} onClick={() => { setActiveTab(name); setAdding(false) }} style={{
+                padding: '9px 14px', fontSize: 12, fontWeight: isActive ? 700 : 500, cursor: 'pointer',
+                background: 'none', border: 'none', whiteSpace: 'nowrap',
+                borderBottom: isActive ? '2px solid #7c3aed' : '2px solid transparent',
+                marginBottom: -2, color: isActive ? '#7c3aed' : '#6b7280',
+                fontFamily: 'Inter, sans-serif',
+              }}>
+                {name.split(' ')[0]}
+              </button>
             )
           })}
         </div>
 
-        <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Session list for active tab */}
+        <div style={{ maxHeight: 'calc(100vh - 360px)', overflowY: 'auto' }}>
+          {currentSessions.length === 0 && !adding && (
+            <div style={{ padding: '28px 20px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+              No training yet for {activeTab.split(' ')[0]} — click <strong>+ Add training</strong> below
+            </div>
+          )}
+          {currentSessions.map((s, i) => {
+            const hpy = trainingHPY(s)
+            const isOneTime = s.frequency === 'one-time'
+            const freq = TRAINING_FREQS.find(f => f.key === (s.frequency || 'annual'))?.label || 'Annual'
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f3f4f6', gap: 12 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{s.name}</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                    {isOneTime
+                      ? <span style={{ background: '#f3e8ff', color: '#7c3aed', borderRadius: 4, padding: '1px 6px', marginRight: 6, fontWeight: 600 }}>one-time</span>
+                      : <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', marginRight: 6 }}>{freq}</span>
+                    }
+                    {s.duration_hours}h {isOneTime ? 'total' : '/session'}
+                    <span style={{ color: '#7c3aed', fontWeight: 700, marginLeft: 8 }}>
+                      {isOneTime ? `${hpy}h one-time` : `${hpy}h/yr · ${Math.round(hpy * pf)}h this period`}
+                    </span>
+                  </div>
+                </div>
+                <button onClick={() => removeSession(activeTab, i)} style={{
+                  height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  color: '#ef4444', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 6,
+                  fontFamily: 'Inter, sans-serif', flexShrink: 0,
+                }}>Remove</button>
+              </div>
+            )
+          })}
+
+          {/* Add form — always visible at bottom */}
+          {!adding ? (
+            <button onClick={() => { setAdding(true); setDraft({ name: '', duration_hours: 1, frequency: 'annual' }) }} style={{
+              width: '100%', padding: '13px 20px', background: '#faf5ff', border: 'none',
+              borderTop: '1px solid #e5e8ef', color: '#7c3aed', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              fontFamily: 'Inter, sans-serif',
+            }}>
+              <span style={{ fontSize: 18, lineHeight: 1, fontWeight: 300 }}>+</span>
+              Add training for {activeTab.split(' ')[0]}
+            </button>
+          ) : (
+            <div style={{ padding: '16px 20px', background: '#faf5ff', borderTop: '1px solid #ddd6fe' }}>
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>
+                  {isOneTimeDraft ? 'Event name' : 'Training / course name'}
+                </label>
+                <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
+                  onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
+                  placeholder={isOneTimeDraft ? 'e.g. Onboarding, Team offsite…' : 'e.g. Google Analytics Cert, LinkedIn Learning…'} autoFocus
+                  style={{ width: '100%', height: 36, padding: '0 12px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Frequency</label>
+                  <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
+                    style={{ height: 34, padding: '0 8px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
+                    {TRAINING_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>
+                    {isOneTimeDraft ? 'Total hours' : 'Hours / session'}
+                  </label>
+                  <input type="number" value={draft.duration_hours} min={0} max={2000} step={0.5}
+                    onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
+                    style={{ width: 90, height: 34, padding: '0 10px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
+                </div>
+                {previewHpy > 0 && (
+                  <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 10px', background: '#7c3aed18', borderRadius: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>
+                      {isOneTimeDraft ? `${previewHpy}h one-time` : `${previewHpy}h/yr`}
+                    </span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                  <button onClick={() => setAdding(false)}
+                    style={{ height: 34, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                  <button onClick={confirmAdd}
+                    style={{ height: 34, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 20px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#dc2626' }}>{err}</span>}{saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}</div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ height: 36, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 36, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -1755,6 +1741,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           assigneeF={assigneeF}
           serviceF={serviceF}
           people={effectivePeople}
+          dateFrom={dateFrom}
         />
       )}
 

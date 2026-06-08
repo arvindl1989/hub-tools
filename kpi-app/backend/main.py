@@ -42,13 +42,21 @@ def _get_conn():
         import psycopg2
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
-        return psycopg2.connect(url, connect_timeout=5)
-    except Exception:
+        # Railway and most cloud Postgres require SSL — add if not already specified
+        if "sslmode" not in url:
+            sep = "&" if "?" in url else "?"
+            url = url + sep + "sslmode=require"
+        conn = psycopg2.connect(url, connect_timeout=10)
+        print(f"[DB] Connected to PostgreSQL", flush=True)
+        return conn
+    except Exception as e:
+        print(f"[DB] Connection failed: {e}", flush=True)
         return None
 
 def _init_db():
     conn = _get_conn()
     if not conn:
+        print("[DB] Skipping init — no DB connection", flush=True)
         return
     try:
         with conn:
@@ -59,14 +67,16 @@ def _init_db():
                         value TEXT NOT NULL
                     )
                 """)
-    except Exception:
-        pass
+        print("[DB] Table kpi_settings ready", flush=True)
+    except Exception as e:
+        print(f"[DB] Init error: {e}", flush=True)
     finally:
         conn.close()
 
 def _load_setting(key: str, default: dict) -> dict:
     conn = _get_conn()
     if not conn:
+        print(f"[DB] No connection — using default for '{key}'", flush=True)
         return dict(default)
     try:
         with conn:
@@ -77,9 +87,12 @@ def _load_setting(key: str, default: dict) -> dict:
                     loaded = json.loads(row[0])
                     merged = dict(default)
                     merged.update(loaded)
+                    print(f"[DB] Loaded '{key}' from DB", flush=True)
                     return merged
+        print(f"[DB] No saved value for '{key}' — using default", flush=True)
         return dict(default)
-    except Exception:
+    except Exception as e:
+        print(f"[DB] Error loading '{key}': {e}", flush=True)
         return dict(default)
     finally:
         conn.close()
@@ -87,6 +100,7 @@ def _load_setting(key: str, default: dict) -> dict:
 def _save_setting(key: str, value: dict) -> None:
     conn = _get_conn()
     if not conn:
+        print(f"[DB] No connection — cannot persist '{key}'", flush=True)
         return
     try:
         with conn:
@@ -95,8 +109,9 @@ def _save_setting(key: str, value: dict) -> None:
                     INSERT INTO kpi_settings (key, value) VALUES (%s, %s)
                     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
                 """, (key, json.dumps(value)))
-    except Exception:
-        pass
+        print(f"[DB] Saved '{key}' to DB", flush=True)
+    except Exception as e:
+        print(f"[DB] Error saving '{key}': {e}", flush=True)
     finally:
         conn.close()
 
