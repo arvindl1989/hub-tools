@@ -502,14 +502,9 @@ function InflowOutflowTable({ data = [], filters = {} }) {
   const totalOut = data.reduce((s, r) => s + r.outflow, 0)
   const totalRate = (totalIn > 0 || totalOut > 0) ? Math.round(totalOut / Math.max(totalIn, 1) * 1000) / 10 : null
 
-  // Pipeline at end of each period: cumulative created − cumulative closed (any closed_date)
-  let cumIn = 0, cumOut = 0
-  const pipelines = data.map(r => {
-    cumIn  += r.inflow  || 0
-    cumOut += r.outflow || 0
-    return cumIn - cumOut
-  })
-  const totalPipeline = totalIn - totalOut
+  // Pipeline snapshot comes from backend (created_date <= period_end AND no closed_date yet)
+  const pipelines    = data.map(r => r.open_pipeline ?? null)
+  const lastPipeline = pipelines.findLast(v => v != null) ?? null
 
   const NAME_W   = 150
   const METRIC_W = 140
@@ -608,14 +603,14 @@ function InflowOutflowTable({ data = [], filters = {} }) {
             <td style={{ ...numCell('#fffbeb'), ...stickyBase(NAME_W, '#fffbeb'), padding: '8px 12px', fontWeight: 700, color: '#b45309', borderRight: '2px solid #e5e8ef' }}>
               Open Pipeline
             </td>
-            <td style={{ ...numCell('#fffbeb'), fontWeight: 700, color: totalPipeline > 0 ? '#b45309' : '#15803d' }}>
-              {totalPipeline}
+            <td style={{ ...numCell('#fffbeb'), fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+              latest →
             </td>
             {pipelines.map((pl, i) => {
               const prev = i > 0 ? pipelines[i - 1] : null
               return (
                 <td key={data[i].period} style={{ ...numCell(), ..._pipelineStyle(pl, prev), fontWeight: 700 }}>
-                  {pl}
+                  {pl ?? '—'}
                 </td>
               )
             })}

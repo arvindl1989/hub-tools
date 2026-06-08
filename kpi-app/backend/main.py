@@ -670,6 +670,30 @@ def inflow_outflow(
     result = sorted(periods.values(), key=lambda x: x["period"])
     for r in result:
         r["net"] = r["inflow"] - r["outflow"]
+
+    # Open pipeline snapshot at end of each period:
+    # tickets created on/before period-end AND (no closed_date OR closed_date after period-end)
+    # Uses the full dimension-filtered df (no date-range restriction) so tickets created before
+    # the visible range are still counted if still open at that point.
+    has_created = "created_date" in df.columns
+    has_closed  = "closed_date"  in df.columns
+    for r in result:
+        p_start = date.fromisoformat(r["period"])
+        if group_by == "week":
+            p_end = p_start + timedelta(days=6)
+        else:
+            p_end = (pd.Timestamp(p_start) + pd.offsets.MonthEnd(0)).date()
+
+        created_by_end = (
+            df["created_date"].notna() & (df["created_date"].dt.date <= p_end)
+            if has_created else pd.Series(True, index=df.index)
+        )
+        not_yet_closed = (
+            df["closed_date"].isna() | (df["closed_date"].dt.date > p_end)
+            if has_closed else pd.Series(True, index=df.index)
+        )
+        r["open_pipeline"] = int((created_by_end & not_yet_closed).sum())
+
     return result
 
 
