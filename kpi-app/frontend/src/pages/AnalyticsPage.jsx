@@ -14,7 +14,6 @@ import AreaChartComp       from '../components/charts/AreaChart'
 import TeamChart           from '../components/charts/TeamChart'
 import CreatorChart        from '../components/charts/CreatorChart'
 import InflowOutflowChart  from '../components/charts/InflowOutflowChart'
-import PipelineChart, { PipelineTable } from '../components/charts/PipelineChart'
 import SlaPerformanceChart from '../components/charts/SlaPerformanceChart'
 import ResolutionTimeChart from '../components/charts/ResolutionTimeChart'
 import TeamPerformanceTable from '../components/charts/TeamPerformanceTable'
@@ -218,8 +217,6 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
       >
         <InflowOutflowChart data={inflowData} />
         <InflowOutflowTable data={inflowData} filters={inflow.filters} />
-        <PipelineChart data={inflowData} />
-        <PipelineTable data={inflowData} />
       </Section>
 
       {/* ── 3. Team Performance ── */}
@@ -490,6 +487,13 @@ function _filterName(filters) {
   return 'All'
 }
 
+function _pipelineStyle(val, prev) {
+  if (val == null) return {}
+  if (prev != null && val < prev)  return { background: '#dcfce7', color: '#15803d' }  // shrinking — good
+  if (prev != null && val > prev)  return { background: '#fee2e2', color: '#991b1b' }  // growing — bad
+  return { background: '#fef9c3', color: '#854d0e' }                                  // no change / first period
+}
+
 function InflowOutflowTable({ data = [], filters = {} }) {
   if (!data.length) return null
 
@@ -497,6 +501,15 @@ function InflowOutflowTable({ data = [], filters = {} }) {
   const totalIn  = data.reduce((s, r) => s + r.inflow,  0)
   const totalOut = data.reduce((s, r) => s + r.outflow, 0)
   const totalRate = (totalIn > 0 || totalOut > 0) ? Math.round(totalOut / Math.max(totalIn, 1) * 1000) / 10 : null
+
+  // Pipeline at end of each period: cumulative created − cumulative closed (any closed_date)
+  let cumIn = 0, cumOut = 0
+  const pipelines = data.map(r => {
+    cumIn  += r.inflow  || 0
+    cumOut += r.outflow || 0
+    return cumIn - cumOut
+  })
+  const totalPipeline = totalIn - totalOut
 
   const NAME_W   = 150
   const METRIC_W = 140
@@ -584,6 +597,25 @@ function InflowOutflowTable({ data = [], filters = {} }) {
               return (
                 <td key={r.period} style={{ ...numCell(), ..._rateStyle(rate), fontWeight: rate != null ? 600 : 400 }}>
                   {rate != null ? `${rate}%` : '—'}
+                </td>
+              )
+            })}
+          </tr>
+
+          {/* ── Open Pipeline ── */}
+          <tr style={{ borderTop: '2px solid #e5e8ef' }}>
+            <td style={{ ...numCell('#fffbeb'), ...stickyBase(0, '#fffbeb'), padding: '8px 12px', borderRight: '1px solid #e5e8ef' }} />
+            <td style={{ ...numCell('#fffbeb'), ...stickyBase(NAME_W, '#fffbeb'), padding: '8px 12px', fontWeight: 700, color: '#b45309', borderRight: '2px solid #e5e8ef' }}>
+              Open Pipeline
+            </td>
+            <td style={{ ...numCell('#fffbeb'), fontWeight: 700, color: totalPipeline > 0 ? '#b45309' : '#15803d' }}>
+              {totalPipeline}
+            </td>
+            {pipelines.map((pl, i) => {
+              const prev = i > 0 ? pipelines[i - 1] : null
+              return (
+                <td key={data[i].period} style={{ ...numCell(), ..._pipelineStyle(pl, prev), fontWeight: 700 }}>
+                  {pl}
                 </td>
               )
             })}
