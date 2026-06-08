@@ -671,28 +671,44 @@ def inflow_outflow(
     for r in result:
         r["net"] = r["inflow"] - r["outflow"]
 
-    # Open pipeline snapshot at end of each period:
-    # tickets created on/before period-end AND (no closed_date OR closed_date after period-end)
-    # Uses the full dimension-filtered df (no date-range restriction) so tickets created before
-    # the visible range are still counted if still open at that point.
+    # Open pipeline snapshot at end of each period.
+    # A ticket was in the pipeline at period-end if:
+    #   (a) it has a closed_date that is AFTER period-end  (was resolved later), OR
+    #   (b) it has NO closed_date AND its current state is not a closed state
+    #       (handles tickets in closed states that were never given a closed_date)
+    # Tickets created after period-end are excluded.
+    # Uses the full dimension-filtered df so tickets created before the date-range
+    # filter are still counted if they were open at a given period.
     has_created = "created_date" in df.columns
     has_closed  = "closed_date"  in df.columns
+    has_state   = "state"        in df.columns
+
     for r in result:
         p_start = date.fromisoformat(r["period"])
-        if group_by == "week":
-            p_end = p_start + timedelta(days=6)
-        else:
-            p_end = (pd.Timestamp(p_start) + pd.offsets.MonthEnd(0)).date()
+        p_end   = p_start + timedelta(days=6) if group_by == "week" \
+                  else (pd.Timestamp(p_start) + pd.offsets.MonthEnd(0)).date()
 
-        created_by_end = (
-            df["created_date"].notna() & (df["created_date"].dt.date <= p_end)
-            if has_created else pd.Series(True, index=df.index)
-        )
-        not_yet_closed = (
-            df["closed_date"].isna() | (df["closed_date"].dt.date > p_end)
-            if has_closed else pd.Series(True, index=df.index)
-        )
-        r["open_pipeline"] = int((created_by_end & not_yet_closed).sum())
+        if not has_created:
+            r["open_pipeline"] = 0
+            continue
+
+        created_by_end = df["created_date"].notna() & (df["created_date"].dt.date <= p_end)
+
+        if has_closed:
+            # Closed later → was in pipeline at p_end
+            closed_after = df["closed_date"].notna() & (df["closed_date"].dt.date > p_end)
+            # No closed_date → use state to decide (exclude known closed states)
+            if has_state:
+                no_date_active = df["closed_date"].isna() & ~df["state"].isin(EXCLUDED_STATES)
+            else:
+                no_date_active = df["closed_date"].isna()
+            in_pipeline = closed_after | no_date_active
+        elif has_state:
+            in_pipeline = ~df["state"].isin(EXCLUDED_STATES)
+        else:
+            in_pipeline = pd.Series(True, index=df.index)
+
+        r["open_pipeline"] = int((created_by_end & in_pipeline).sum())
 
     return result
 
