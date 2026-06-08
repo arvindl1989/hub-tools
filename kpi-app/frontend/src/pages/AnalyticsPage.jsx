@@ -14,6 +14,7 @@ import AreaChartComp       from '../components/charts/AreaChart'
 import TeamChart           from '../components/charts/TeamChart'
 import CreatorChart        from '../components/charts/CreatorChart'
 import InflowOutflowChart  from '../components/charts/InflowOutflowChart'
+import PipelineChart       from '../components/charts/PipelineChart'
 import SlaPerformanceChart from '../components/charts/SlaPerformanceChart'
 import ResolutionTimeChart from '../components/charts/ResolutionTimeChart'
 import TeamPerformanceTable from '../components/charts/TeamPerformanceTable'
@@ -217,6 +218,7 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
       >
         <InflowOutflowChart data={inflowData} />
         <InflowOutflowTable data={inflowData} filters={inflow.filters} />
+        <PipelineChart data={inflowData} />
       </Section>
 
       {/* ── 3. Team Performance ── */}
