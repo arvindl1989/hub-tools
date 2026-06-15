@@ -15,7 +15,18 @@ from pydantic import BaseModel
 from datetime import datetime, date, timedelta
 from openai import AsyncOpenAI
 
+import traceback
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
 app = FastAPI(title="Ticket Analytics API", version="1.0.0")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    print(f"[ERROR] Unhandled exception on {request.method} {request.url.path}:\n{tb}", flush=True)
+    return JSONResponse(status_code=500, content={"detail": f"{type(exc).__name__}: {exc}"})
 
 
 @app.get("/healthz")
@@ -728,15 +739,18 @@ def inflow_outflow(
         p_end   = p_start + timedelta(days=6) if group_by == "week" \
                   else (pd.Timestamp(p_start) + pd.offsets.MonthEnd(0)).date()
 
+        p_end_ts = pd.Timestamp(p_end) + pd.Timedelta(days=1)  # exclusive upper bound (start of next day)
+
         if not has_created:
             r["open_pipeline"] = 0
             continue
 
-        created_by_end = df["created_date"].notna() & (df["created_date"].dt.date <= p_end)
+        # Compare Timestamps directly — avoids None from .dt.date for NaT rows
+        created_by_end = df["created_date"].notna() & (df["created_date"] < p_end_ts)
 
         if has_closed:
             # Closed later → was in pipeline at p_end
-            closed_after = df["closed_date"].notna() & (df["closed_date"].dt.date > p_end)
+            closed_after = df["closed_date"].notna() & (df["closed_date"] >= p_end_ts)
             # No closed_date → use state to decide (exclude known closed states)
             if has_state:
                 no_date_active = df["closed_date"].isna() & ~df["state"].isin(EXCLUDED_STATES)
@@ -812,9 +826,10 @@ def inflow_outflow_export(
         if not has_created:
             pipelines.append(0)
             continue
-        created_by_end = df["created_date"].notna() & (df["created_date"].dt.date <= p_end)
+        p_end_ts = pd.Timestamp(p_end) + pd.Timedelta(days=1)
+        created_by_end = df["created_date"].notna() & (df["created_date"] < p_end_ts)
         if has_closed:
-            closed_after   = df["closed_date"].notna() & (df["closed_date"].dt.date > p_end)
+            closed_after   = df["closed_date"].notna() & (df["closed_date"] >= p_end_ts)
             no_date_active = df["closed_date"].isna() & (~df["state"].isin(EXCLUDED_STATES) if has_state else True)
             in_pipeline    = closed_after | no_date_active
         elif has_state:
