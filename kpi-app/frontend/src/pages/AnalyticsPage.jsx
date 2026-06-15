@@ -94,25 +94,25 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   }, [sessionId, onErr])
 
   useRefetch(() => getTeamPerformance(sessionId, teamPerfRange.from, teamPerfRange.to),
-    setTeamPerf, onErr, [teamPerfRange.from, teamPerfRange.to])
+    setTeamPerf, onErr, [sessionId, teamPerfRange.from, teamPerfRange.to])
 
   useRefetch(() => getInflowOutflow(sessionId, inflow.range.from, inflow.range.to, inflowGroupBy, inflow.filters),
-    setInflowData, onErr, [inflow.range.from, inflow.range.to, inflowGroupBy, JSON.stringify(inflow.filters)])
+    setInflowData, onErr, [sessionId, inflow.range.from, inflow.range.to, inflowGroupBy, JSON.stringify(inflow.filters)])
 
   useRefetch(() => getSlaPerformance(sessionId, slaperf.range.from, slaperf.range.to, slaperf.filters),
-    setSlaData, onErr, [slaperf.range.from, slaperf.range.to, JSON.stringify(slaperf.filters)])
+    setSlaData, onErr, [sessionId, slaperf.range.from, slaperf.range.to, JSON.stringify(slaperf.filters)])
 
   useRefetch(() => getResolutionTime(sessionId, restime.range.from, restime.range.to, restime.filters),
-    setResData, onErr, [restime.range.from, restime.range.to, JSON.stringify(restime.filters)])
+    setResData, onErr, [sessionId, restime.range.from, restime.range.to, JSON.stringify(restime.filters)])
 
   useRefetch(() => getByArea(sessionId, byArea.range.from, byArea.range.to, byArea.filters),
-    setAreaData, onErr, [byArea.range.from, byArea.range.to, JSON.stringify(byArea.filters)])
+    setAreaData, onErr, [sessionId, byArea.range.from, byArea.range.to, JSON.stringify(byArea.filters)])
 
   useRefetch(() => getByTeam(sessionId, byTeam.range.from, byTeam.range.to, byTeam.filters),
-    setTeamData, onErr, [byTeam.range.from, byTeam.range.to, JSON.stringify(byTeam.filters)])
+    setTeamData, onErr, [sessionId, byTeam.range.from, byTeam.range.to, JSON.stringify(byTeam.filters)])
 
   useRefetch(() => getByCreator(sessionId, byCreator.range.from, byCreator.range.to, byCreator.filters),
-    setCreatorData, onErr, [byCreator.range.from, byCreator.range.to, JSON.stringify(byCreator.filters)])
+    setCreatorData, onErr, [sessionId, byCreator.range.from, byCreator.range.to, JSON.stringify(byCreator.filters)])
 
   // ── Derived KPIs ────────────────────────────────────────────────────────────
   const totalOnTime = slaData.reduce((s, d) => s + (d.closed_on_time || 0), 0)
@@ -503,8 +503,7 @@ function InflowOutflowTable({ data = [], filters = {} }) {
   const totalRate = (totalIn > 0 || totalOut > 0) ? Math.round(totalOut / Math.max(totalIn, 1) * 1000) / 10 : null
 
   // Pipeline snapshot comes from backend (created_date <= period_end AND no closed_date yet)
-  const pipelines    = data.map(r => r.open_pipeline ?? null)
-  const lastPipeline = pipelines.findLast(v => v != null) ?? null
+  const pipelines = data.map(r => r.open_pipeline ?? null)
 
   const NAME_W   = 150
   const METRIC_W = 140
