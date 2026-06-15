@@ -342,8 +342,6 @@ def _parse_dates_robust(series: pd.Series) -> pd.Series:
         except Exception:
             return pd.NaT
     return pd.Series([_parse_one(v) for v in series], index=series.index, dtype="datetime64[ns]")
-            return pd.NaT
-    return pd.Series([_parse_one(v) for v in series], index=series.index, dtype="datetime64[ns]")
 
 
 def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
