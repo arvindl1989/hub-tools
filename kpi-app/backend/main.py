@@ -323,19 +323,25 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _parse_dates_robust(series: pd.Series) -> pd.Series:
-    """Parse a date series, handling mixed tz-aware/naive and unusual formats."""
+    """Parse dates — handles tz-aware ISO strings from Apps Script and plain dates from Excel."""
     try:
+        # utc=True converts ALL inputs to UTC-aware, then tz_convert(None) strips to tz-naive
         s = pd.to_datetime(series, errors="coerce", dayfirst=False, utc=True)
-        return s.dt.tz_localize(None) if s.dt.tz is not None else s
+        return s.dt.tz_convert(None)
     except Exception:
         pass
-    # Fallback: convert each value individually, coercing errors
+    # Per-value fallback for unusual formats
     def _parse_one(v):
         if v is None or (isinstance(v, float) and np.isnan(v)) or v == "":
             return pd.NaT
         try:
-            return pd.Timestamp(v).tz_localize(None) if pd.Timestamp(v).tzinfo else pd.Timestamp(v)
+            ts = pd.Timestamp(v)
+            if ts.tzinfo:
+                ts = ts.tz_convert("UTC").replace(tzinfo=None)
+            return ts
         except Exception:
+            return pd.NaT
+    return pd.Series([_parse_one(v) for v in series], index=series.index, dtype="datetime64[ns]")
             return pd.NaT
     return pd.Series([_parse_one(v) for v in series], index=series.index, dtype="datetime64[ns]")
 
@@ -517,7 +523,9 @@ def overview(sid: str):
         "due_within_5": int(
             ((active["days_to_sla"].dropna() >= 0) & (active["days_to_sla"].dropna() <= 5)).sum()
         ),
-        "pending_confirmation": int((active.get("state", pd.Series()) == "Pending Confirmation").sum()),
+        "pending_confirmation": int(
+            active["state"].isin(["Pending Confirmation"]).sum() if "state" in df.columns else 0
+        ),
         "closed_this_week": closed_this_week,
         "avg_age": round(float(ages.mean()), 1) if len(ages) else 0,
         "assigned_to_list":   _list("assigned_to"),
@@ -698,8 +706,8 @@ def inflow_outflow(
             periods.setdefault(k, _blank(k, p))
             periods[k]["outflow"] = int(len(grp))
             if has_state:
-                periods[k]["closed_completed"] = int((grp["state"] == "Closed Completed").sum())
-                periods[k]["closed_rejected"]  = int((grp["state"] == "Closed Rejected").sum())
+                periods[k]["closed_completed"] = int(grp["state"].isin(["Closed Completed"]).sum())
+                periods[k]["closed_rejected"]  = int(grp["state"].isin(["Closed Rejected"]).sum())
 
     result = sorted(periods.values(), key=lambda x: x["period"])
     for r in result:
