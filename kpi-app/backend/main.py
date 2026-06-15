@@ -338,7 +338,9 @@ def _parse_dates_robust(series: pd.Series) -> pd.Series:
     try:
         # utc=True converts ALL inputs to UTC-aware, then tz_convert(None) strips to tz-naive
         s = pd.to_datetime(series, errors="coerce", dayfirst=False, utc=True)
-        return s.dt.tz_convert(None)
+        result = s.dt.tz_convert(None)
+        # Force ns precision so datetime64[s] (pandas 2.0+) doesn't break date comparisons
+        return result.astype("datetime64[ns]")
     except Exception:
         pass
     # Per-value fallback for unusual formats
@@ -390,7 +392,7 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                 return add_working_days(cd, days)
         return pd.NaT
 
-    df["sla_due_date"] = df.apply(_sla, axis=1)
+    df["sla_due_date"] = pd.to_datetime(df.apply(_sla, axis=1), errors="coerce").astype("datetime64[ns]")
 
     if "state" in df.columns:
         df["is_active"] = ~df["state"].isin(EXCLUDED_STATES)
