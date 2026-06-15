@@ -20,8 +20,8 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
-export default function InflowOutflowChart({ data = [] }) {
-  if (!data.length) return <Empty />
+export default function InflowOutflowChart({ data = [], noDateCols = false }) {
+  if (!data.length) return <Empty noDateCols={noDateCols} />
 
   return (
     <ResponsiveContainer width="100%" height={320}>
@@ -56,6 +56,15 @@ export default function InflowOutflowChart({ data = [] }) {
   )
 }
 
-function Empty() {
-  return <div className="h-64 flex items-center justify-center text-gray-400 text-sm">No data for this range</div>
+function Empty({ noDateCols }) {
+  return (
+    <div style={{ height: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+      <span style={{ fontSize: 13, color: '#9ca3af' }}>No data for this range</span>
+      {noDateCols && (
+        <span style={{ fontSize: 11, color: '#c0305a', background: '#fff0f4', border: '1px solid #ffcdd7', borderRadius: 6, padding: '4px 10px' }}>
+          No "Created" date column recognised — check your Google Sheet column names
+        </span>
+      )}
+    </div>
+  )
 }

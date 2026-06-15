@@ -47,9 +47,13 @@ export default function App() {
     localStorage.removeItem('ticketMeta')
     setSessionId(null)
     setUploadMeta(null)
+    // Don't show upload zone — trigger auto-reconnect instead by bumping reconnectKey
+    setReconnectKey(k => k + 1)
   }, [])
 
-  // Auto-connect from Apps Script on every load (no session or manual refresh)
+  const [reconnectKey, setReconnectKey] = useState(0)
+
+  // Auto-connect from Apps Script on every load and whenever session expires
   useEffect(() => {
     if (showUpload) return
     setAutoConnecting(true)
@@ -63,7 +67,7 @@ export default function App() {
         setAutoError(err.message || 'Could not load sheet data')
         setAutoConnecting(false)
       })
-  }, [showUpload])
+  }, [showUpload, reconnectKey])
 
   if (autoConnecting) {
     return (

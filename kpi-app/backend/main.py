@@ -322,17 +322,37 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=rename)
 
 
+def _parse_dates_robust(series: pd.Series) -> pd.Series:
+    """Parse a date series, handling mixed tz-aware/naive and unusual formats."""
+    try:
+        s = pd.to_datetime(series, errors="coerce", dayfirst=False, utc=True)
+        return s.dt.tz_localize(None) if s.dt.tz is not None else s
+    except Exception:
+        pass
+    # Fallback: convert each value individually, coercing errors
+    def _parse_one(v):
+        if v is None or (isinstance(v, float) and np.isnan(v)) or v == "":
+            return pd.NaT
+        try:
+            return pd.Timestamp(v).tz_localize(None) if pd.Timestamp(v).tzinfo else pd.Timestamp(v)
+        except Exception:
+            return pd.NaT
+    return pd.Series([_parse_one(v) for v in series], index=series.index, dtype="datetime64[ns]")
+
+
 def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = normalize_columns(df.copy())
 
+    detected_cols = [c for c in ["created_date", "preferred_live_date", "due_date", "closed_date"] if c in df.columns]
+    print(f"[PARSE] Columns detected: {list(df.columns)}", flush=True)
+
     for dc in ["created_date", "preferred_live_date", "due_date", "closed_date"]:
         if dc in df.columns:
-            s = pd.to_datetime(df[dc], errors="coerce", dayfirst=False)
-            # Apps Script / Excel may produce tz-aware strings (e.g. "…Z" ISO).
-            # Strip timezone so date-range comparisons against plain YYYY-MM-DD strings
-            # never raise a TypeError that gets silently swallowed.
-            if s.dt.tz is not None:
-                s = s.dt.tz_convert("UTC").dt.tz_localize(None)
+            sample = df[dc].dropna().head(3).tolist()
+            print(f"[PARSE] {dc} sample (raw): {sample}", flush=True)
+            s = _parse_dates_robust(df[dc])
+            parsed_count = s.notna().sum()
+            print(f"[PARSE] {dc} parsed {parsed_count}/{len(s)} rows", flush=True)
             df[dc] = s
 
     str_cols = ["state", "sub_category", "assigned_to", "area", "team",
@@ -434,6 +454,13 @@ class JsonUploadBody(BaseModel):
 async def upload_json(body: JsonUploadBody):
     if not body.rows:
         raise HTTPException(400, "rows array is empty")
+    print(f"[UPLOAD] Received {len(body.rows)} rows from '{body.source_label}'", flush=True)
+    if body.rows:
+        print(f"[UPLOAD] First row keys: {list(body.rows[0].keys())}", flush=True)
+        # Log sample Created/Closed values to diagnose date format
+        for key in body.rows[0].keys():
+            if key.lower() in ("created", "closed", "created date", "closed date"):
+                print(f"[UPLOAD] Sample '{key}' values: {[r.get(key) for r in body.rows[:3]]}", flush=True)
     try:
         df = pd.DataFrame(body.rows)
     except Exception as exc:
@@ -442,6 +469,12 @@ async def upload_json(body: JsonUploadBody):
     sid = str(uuid.uuid4())
     sessions[sid] = df
     active = df[df["is_active"]]
+    date_col_status = {
+        col: int(df[col].notna().sum())
+        for col in ["created_date", "closed_date", "due_date", "preferred_live_date"]
+        if col in df.columns
+    }
+    print(f"[UPLOAD] Session {sid}: {len(df)} rows, date cols={date_col_status}", flush=True)
     return {
         "session_id": sid,
         "filename": body.source_label,
@@ -451,6 +484,7 @@ async def upload_json(body: JsonUploadBody):
         "due_within_5": int(
             ((active["days_to_sla"].dropna() >= 0) & (active["days_to_sla"].dropna() <= 5)).sum()
         ),
+        "date_cols": date_col_status,
         "columns_detected": list(df.columns),
     }
 
@@ -1831,6 +1865,29 @@ def _get_session(sid: str) -> pd.DataFrame:
     if df is None:
         raise HTTPException(404, f"Session '{sid}' not found. Please re-upload your file.")
     return df
+
+
+@app.get("/api/sessions/{sid}/debug")
+def session_debug(sid: str):
+    """Returns column metadata and sample values — useful for diagnosing mapping issues."""
+    df = _get_session(sid)
+    DATE_COLS = ["created_date", "preferred_live_date", "due_date", "closed_date"]
+    col_info = {}
+    for col in df.columns:
+        info: dict = {"dtype": str(df[col].dtype), "non_null": int(df[col].notna().sum())}
+        if col in DATE_COLS:
+            sample = df[col].dropna().head(3)
+            info["sample"] = [str(v) for v in sample]
+            if df[col].notna().any():
+                info["min"] = str(df[col].dropna().min())
+                info["max"] = str(df[col].dropna().max())
+        col_info[col] = info
+    return {
+        "total_rows": len(df),
+        "columns": col_info,
+        "date_columns_found": [c for c in DATE_COLS if c in df.columns],
+        "date_columns_with_data": [c for c in DATE_COLS if c in df.columns and df[c].notna().any()],
+    }
 
 
 def _week_label(d) -> str:

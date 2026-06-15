@@ -5,6 +5,7 @@ import {
   getByArea, getByTeam, getByCreator,
   getInflowOutflow, getSlaPerformance, getResolutionTime,
   getTeamPerformance, getBacklogAge, getInflowOutflowExportUrl,
+  getSessionDebug,
 } from '../api'
 
 import MonthlyChart        from '../components/charts/MonthlyChart'
@@ -80,17 +81,28 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   const [teamPerf,      setTeamPerf]      = useState([])
   const [inflowGroupBy, setInflowGroupBy] = useState('week')
   const [areaView,      setAreaView]      = useState('bar')
+  const [loadError,     setLoadError]     = useState(null)
+  const [loading,       setLoading]       = useState(true)
 
-  const onErr = useCallback((err) => { if (err.sessionExpired) onSessionExpired() }, [onSessionExpired])
+  const onErr = useCallback((err) => {
+    if (err.sessionExpired) { onSessionExpired(); return }
+    setLoadError(err?.response?.data?.detail || err?.message || 'Unknown error')
+  }, [onSessionExpired])
 
   useEffect(() => {
+    setLoading(true)
+    setLoadError(null)
     Promise.all([
       getOverview(sessionId), getMonthlyCreated(sessionId),
       getWeeklyComparison(sessionId), getWeeklyByAssignee(sessionId),
       getBacklogAge(sessionId),
     ]).then(([ov, mo, wk, wa, ba]) => {
       setOverview(ov); setMonthly(mo); setWeekly(wk); setWeeklyAss(wa); setBacklogAge(ba)
-    }).catch(onErr)
+      setLoading(false)
+    }).catch(err => {
+      setLoading(false)
+      onErr(err)
+    })
   }, [sessionId, onErr])
 
   useRefetch(() => getTeamPerformance(sessionId, teamPerfRange.from, teamPerfRange.to),
@@ -127,6 +139,23 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
 
   const filteredTeamPerf = teamPerf.filter((r) => !EXCLUDED_MEMBERS.has(r.assigned_to))
 
+  if (loadError) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 12 }}>
+        <div style={{ fontSize: 13, color: '#c0305a', background: '#fff0f4', border: '1px solid #ffcdd7', borderRadius: 10, padding: '12px 20px', maxWidth: 500, textAlign: 'center' }}>
+          <strong>Could not load analytics data</strong><br />
+          <span style={{ fontSize: 12, color: '#6b7280' }}>{loadError}</span>
+        </div>
+        <button
+          onClick={() => { setLoadError(null); setLoading(true); onSessionExpired() }}
+          style={{ fontSize: 13, fontWeight: 600, color: '#1450f5', background: '#eff4ff', border: '1px solid #c7d7fd', borderRadius: 8, padding: '8px 18px', cursor: 'pointer' }}
+        >
+          Refresh data
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48 }}>
 
@@ -143,6 +172,11 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
           Print
         </button>
       </div>
+
+      {/* ── Data quality banner (shown when overview loaded but no inflow data) ── */}
+      {!loading && overview != null && inflowData.length === 0 && (
+        <DataDiagnosticBanner sessionId={sessionId} />
+      )}
 
       {/* ── 1. KPI row ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
@@ -215,7 +249,7 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
           </Controls>
         }
       >
-        <InflowOutflowChart data={inflowData} />
+        <InflowOutflowChart data={inflowData} noDateCols={!loading && overview != null && inflowData.length === 0} />
         <InflowOutflowTable data={inflowData} filters={inflow.filters} />
       </Section>
 
@@ -348,6 +382,56 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
       >
         <WeeklyAssigneeChart data={weeklyAss} assignees={weeklyAss.assignees} limit={weeklyAss.weeks?.length} />
       </Section>
+    </div>
+  )
+}
+
+// ── Data diagnostic banner ────────────────────────────────────────────────────
+
+function DataDiagnosticBanner({ sessionId }) {
+  const [info, setInfo] = useState(null)
+  const [open, setOpen] = useState(false)
+
+  const load = () => {
+    if (info) { setOpen(o => !o); return }
+    getSessionDebug(sessionId).then(d => { setInfo(d); setOpen(true) }).catch(() => {})
+  }
+
+  const dateColsWithData = info?.date_columns_with_data ?? []
+  const dateColsFound    = info?.date_columns_found ?? []
+
+  return (
+    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <span style={{ fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+          ⚠ Charts are empty — your data was loaded but no date values could be read
+        </span>
+        <button
+          onClick={load}
+          style={{ fontSize: 12, fontWeight: 600, color: '#1450f5', background: '#eff4ff', border: '1px solid #c7d7fd', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', flexShrink: 0 }}
+        >
+          {open ? 'Hide details' : 'Diagnose'}
+        </button>
+      </div>
+      {open && info && (
+        <div style={{ marginTop: 10, fontSize: 12, color: '#374151', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div><strong>Total rows:</strong> {info.total_rows}</div>
+          <div><strong>Date columns found:</strong> {dateColsFound.length ? dateColsFound.join(', ') : 'None — check column names in your Google Sheet'}</div>
+          <div><strong>Date columns with data:</strong> {dateColsWithData.length ? dateColsWithData.join(', ') : 'None — dates may not have parsed correctly'}</div>
+          {dateColsFound.map(col => {
+            const ci = info.columns[col]
+            return (
+              <div key={col} style={{ background: '#f9fafb', border: '1px solid #e5e8ef', borderRadius: 6, padding: '6px 10px' }}>
+                <strong>{col}</strong>: {ci.non_null} rows with data
+                {ci.sample?.length ? <> · sample: <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 4 }}>{ci.sample[0]}</code></> : ' · (all empty)'}
+              </div>
+            )
+          })}
+          <div style={{ color: '#6b7280', marginTop: 4 }}>
+            Expected column names: <em>Created, Closed, Due date, Preferred Live Date</em> (or similar — see COLUMN_ALIASES)
+          </div>
+        </div>
+      )}
     </div>
   )
 }
