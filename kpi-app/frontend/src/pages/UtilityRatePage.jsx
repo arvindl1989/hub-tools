@@ -449,7 +449,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
         <div style={{ display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
           {[
             { label: 'Allocated', val: allocH, color: '#1450f5', bg: '#eff6ff', border: '#bfdbfe', sub: '20% of available' },
-            { label: 'Configured', val: utilH, color: '#1450f5', bg: '#f0f4ff', border: '#c7d7fd', sub: `${pct}% of allocated` },
+            { label: 'Utilized', val: utilH, color: '#1450f5', bg: '#f0f4ff', border: '#c7d7fd', sub: `${pct}% of allocated · from activities below` },
             { label: remaining >= 0 ? 'Remaining' : 'Over budget',
               val: Math.abs(remaining),
               color: remaining >= 0 ? '#15803d' : '#dc2626',
@@ -488,7 +488,8 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
         <div style={{ maxHeight: 'calc(100vh - 360px)', overflowY: 'auto' }}>
           {currentActs.length === 0 && !adding && (
             <div style={{ padding: '28px 20px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
-              No activities yet — click <strong>+ Add activity</strong> below
+              No activities yet — click <strong>+ Add activity</strong> below to record utilized cadence hours
+              <div style={{ fontSize: 11, color: '#c0b0d0', marginTop: 6 }}>Each activity (e.g. Weekly Sync, Daily Standup) adds to your Utilized hours total</div>
             </div>
           )}
           {currentActs.map((a, i) => {
@@ -674,7 +675,7 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
         <div style={{ display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
           {[
             { label: 'Allocated', val: allocH, color: '#7c3aed', bg: '#faf5ff', border: '#ddd6fe', sub: '5% of available' },
-            { label: 'Configured', val: utilH, color: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe', sub: `${pct}% of allocated` },
+            { label: 'Utilized', val: utilH, color: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe', sub: `${pct}% of allocated · from training below` },
             { label: remaining >= 0 ? 'Remaining' : 'Over budget',
               val: Math.abs(remaining),
               color: remaining >= 0 ? '#15803d' : '#dc2626',

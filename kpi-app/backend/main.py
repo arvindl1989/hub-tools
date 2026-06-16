@@ -84,10 +84,40 @@ def _init_db():
     finally:
         conn.close()
 
+_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "kpi_settings.json")
+
+def _file_load(key: str) -> dict | None:
+    try:
+        with open(_SETTINGS_FILE) as f:
+            return json.load(f).get(key)
+    except Exception:
+        return None
+
+def _file_save(key: str, value: dict) -> None:
+    try:
+        try:
+            with open(_SETTINGS_FILE) as f:
+                all_s = json.load(f)
+        except Exception:
+            all_s = {}
+        all_s[key] = value
+        with open(_SETTINGS_FILE, "w") as f:
+            json.dump(all_s, f)
+        print(f"[SETTINGS] Saved '{key}' to file", flush=True)
+    except Exception as e:
+        print(f"[SETTINGS] File save error for '{key}': {e}", flush=True)
+
 def _load_setting(key: str, default: dict) -> dict:
     conn = _get_conn()
     if not conn:
-        print(f"[DB] No connection — using default for '{key}'", flush=True)
+        # Fall back to local JSON file
+        saved = _file_load(key)
+        if saved is not None:
+            merged = dict(default)
+            merged.update(saved)
+            print(f"[SETTINGS] Loaded '{key}' from file", flush=True)
+            return merged
+        print(f"[SETTINGS] No DB or file — using default for '{key}'", flush=True)
         return dict(default)
     try:
         with conn:
@@ -111,7 +141,8 @@ def _load_setting(key: str, default: dict) -> dict:
 def _save_setting(key: str, value: dict) -> None:
     conn = _get_conn()
     if not conn:
-        print(f"[DB] No connection — cannot persist '{key}'", flush=True)
+        # Fall back to local JSON file
+        _file_save(key, value)
         return
     try:
         with conn:
@@ -123,6 +154,8 @@ def _save_setting(key: str, value: dict) -> None:
         print(f"[DB] Saved '{key}' to DB", flush=True)
     except Exception as e:
         print(f"[DB] Error saving '{key}': {e}", flush=True)
+        # Fall back to file on DB error
+        _file_save(key, value)
     finally:
         conn.close()
 
@@ -218,7 +251,9 @@ COLUMN_ALIASES: dict[str, list[str]] = {
     "created_date":        ["Created", "Created Date", "CreatedDate", "Date Created", "Date Opened"],
     "preferred_live_date": ["Preferred Live Date", "PreferredLiveDate", "Live Date"],
     "due_date":            ["Due date", "Due Date", "DueDate"],
-    "closed_date":         ["Closed", "Closed Date", "ClosedDate", "Date Closed", "Resolved Date"],
+    "closed_date":         ["Closed", "Closed Date", "ClosedDate", "Date Closed", "Resolved Date",
+                           "Resolution Date", "Date Resolved", "Resolved", "Closed On", "Close Date",
+                           "Closure Date", "Date of Closure", "Completion Date", "Date Completed"],
     "sub_category":        ["Sub-Category", "Sub Category", "SubCategory", "Sub-category", "Category"],
     "ticket_creator":      ["Requested by", "Requested By", "Ticket Creator", "Creator", "Created By", "Raised By"],
     "watch_list":          ["Watch list", "Watch List", "WatchList", "Watchers"],
@@ -520,9 +555,7 @@ def overview(sid: str):
     if "closed_date" in df.columns:
         week_start = today - timedelta(days=today.weekday())
         closed_this_week = int(
-            df["closed_date"].dropna()
-            .apply(lambda d: d.date() if isinstance(d, pd.Timestamp) else d)
-            .ge(week_start).sum()
+            (df["closed_date"].dropna() >= pd.Timestamp(week_start)).sum()
         )
 
     ages = active["ticket_age"].dropna()
@@ -1861,13 +1894,18 @@ def weekly_stacked(
     limit: int    = Query(26, ge=4, le=104),
 ):
     df = _get_session(sid)
-    if date_col not in df.columns or "sub_category" not in df.columns:
+    if date_col not in df.columns:
         return {"rows": [], "sub_categories": []}
     tmp = _filter_by_range(df, date_col, date_from, date_to)
     tmp = _apply_dim_filters(tmp, assigned_to=assigned_to, area=area, team=team, sub_category=sub_category)
-    tmp = tmp.dropna(subset=[date_col, "sub_category"]).copy()
+    tmp = tmp.dropna(subset=[date_col]).copy()
     if tmp.empty:
         return {"rows": [], "sub_categories": []}
+    # Fill missing sub_category so outflow chart shows tickets even without a category
+    if "sub_category" in tmp.columns:
+        tmp["sub_category"] = tmp["sub_category"].fillna("(Unknown)")
+    else:
+        tmp["sub_category"] = "(Unknown)"
     sub_cats = tmp.groupby("sub_category").size().nlargest(10).index.tolist()
     tmp2     = tmp[tmp["sub_category"].isin(sub_cats)].copy()
     tmp2["_w"] = tmp2[date_col].dt.to_period("W").apply(lambda p: p.start_time.date())
