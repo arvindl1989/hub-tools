@@ -199,7 +199,11 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
   // Team-wide cadence activities — use elapsedWeeks so only past meetings count
   const teamActs = cadenceSettings.team?.activities ?? []
-  const teamCadenceH = teamActs.reduce((s, a) => s + (Number(a.hours_per_week) || 0), 0) * elapsedWeeks * activePeople.length
+  const teamCadenceH = teamActs.reduce((s, a) => {
+    const attendees = a.attendees ?? activePeople
+    const count = activePeople.filter(p => attendees.includes(p)).length || attendees.length
+    return s + (Number(a.hours_per_week) || 0) * elapsedWeeks * count
+  }, 0)
 
   let cadenceUtilH = teamCadenceH
   activePeople.forEach(name => {
@@ -377,12 +381,13 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
     teamPeople.forEach(name => { r[name] = { activities: (cadenceSettings.people?.[name]?.activities ?? []).map(initCadenceAct) } })
     return r
   })
-  const [saving,    setSaving]    = useState(false)
-  const [saved,     setSaved]     = useState(false)
-  const [err,       setErr]       = useState(null)
-  const [activeTab, setActiveTab] = useState('team')
-  const [adding,    setAdding]    = useState(false)
-  const [draft,     setDraft]     = useState({ name: '', duration_hours: 1, frequency: 'weekly' })
+  const [saving,          setSaving]          = useState(false)
+  const [saved,           setSaved]           = useState(false)
+  const [err,             setErr]             = useState(null)
+  const [activeTab,       setActiveTab]       = useState('team')
+  const [adding,          setAdding]          = useState(false)
+  const [draft,           setDraft]           = useState({ name: '', duration_hours: 1, frequency: 'weekly' })
+  const [draftAttendees,  setDraftAttendees]  = useState(teamPeople)
 
   const tabs = ['team', ...teamPeople]
   const isTeam = activeTab === 'team'
@@ -396,7 +401,13 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
   function confirmAdd() {
     if (!String(draft.name).trim()) return
     const d = Number(draft.duration_hours) || 0
-    const act = { name: String(draft.name).trim(), duration_hours: d, frequency: draft.frequency, hours_per_week: cadenceHPW({ ...draft, duration_hours: d }) }
+    const act = {
+      name: String(draft.name).trim(),
+      duration_hours: d,
+      frequency: draft.frequency,
+      hours_per_week: cadenceHPW({ ...draft, duration_hours: d }),
+      ...(isTeam ? { attendees: [...draftAttendees] } : {}),
+    }
     if (isTeam) {
       setTeam(t => ({ activities: [...t.activities, act] }))
     } else {
@@ -404,6 +415,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
     }
     setAdding(false)
     setDraft({ name: '', duration_hours: 1, frequency: 'weekly' })
+    setDraftAttendees(teamPeople)
   }
 
   const serialize = acts => acts.filter(a => String(a.name).trim()).map(a => ({ ...a, hours_per_week: cadenceHPW(a) }))
@@ -423,7 +435,10 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
   }
 
   // Totals for summary bar (across all tabs)
-  const teamH   = team.activities.reduce((s, a) => s + cadenceHPW(a), 0) * spanWeeks * teamPeople.length
+  const teamH = team.activities.reduce((s, a) => {
+    const count = a.attendees?.length ?? teamPeople.length
+    return s + cadenceHPW(a) * spanWeeks * count
+  }, 0)
   const peopleH = teamPeople.reduce((s, name) => s + (people[name]?.activities ?? []).reduce((sum, a) => sum + cadenceHPW(a), 0) * spanWeeks, 0)
   const utilH   = Math.round(teamH + peopleH)
   const remaining = allocH - utilH
@@ -495,15 +510,23 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
           {currentActs.map((a, i) => {
             const hpw = cadenceHPW(a)
             const freq = CADENCE_FREQS.find(f => f.key === (a.frequency || 'weekly'))?.label || 'Weekly'
+            const attendees = a.attendees ?? teamPeople
+            const isAllAttendees = !a.attendees || a.attendees.length === teamPeople.length
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f3f4f6', gap: 12 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: accent, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{a.name}</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                    <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', marginRight: 6 }}>{freq}</span>
-                    {a.duration_hours}h/session
-                    <span style={{ color: accent, fontWeight: 700, marginLeft: 8 }}>{hpw}h/wk · {Math.round(hpw * spanWeeks)}h period</span>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                    <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px' }}>{freq}</span>
+                    <span>{a.duration_hours}h/session</span>
+                    <span style={{ color: accent, fontWeight: 700 }}>{hpw}h/wk · {Math.round(hpw * spanWeeks * attendees.length)}h period</span>
+                    {isTeam && (
+                      <span style={{ background: isAllAttendees ? '#f0f4ff' : '#fff7ed', color: isAllAttendees ? '#1450f5' : '#c2410c', borderRadius: 4, padding: '1px 6px', fontWeight: 600, fontSize: 10 }}>
+                        {isAllAttendees ? 'All ' + teamPeople.length : attendees.length + '/' + teamPeople.length} people
+                        {!isAllAttendees && ': ' + attendees.map(n => n.split(' ')[0]).join(', ')}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button onClick={() => removeAct(i)} style={{
@@ -555,12 +578,45 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                  <button onClick={() => setAdding(false)}
+                  <button onClick={() => { setAdding(false); setDraftAttendees(teamPeople) }}
                     style={{ height: 34, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
                   <button onClick={confirmAdd}
                     style={{ height: 34, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: accent, color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
                 </div>
               </div>
+              {/* Attendees picker — only shown on team-wide tab */}
+              {isTeam && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #c7d7fd' }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    Attendees
+                    <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af', marginLeft: 8 }}>
+                      {draftAttendees.length === teamPeople.length ? 'All team members' : `${draftAttendees.length} of ${teamPeople.length} selected`}
+                    </span>
+                  </label>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {teamPeople.map(name => {
+                      const sel = draftAttendees.includes(name)
+                      return (
+                        <button key={name} type="button"
+                          onClick={() => setDraftAttendees(prev => sel ? prev.filter(n => n !== name) : [...prev, name])}
+                          style={{
+                            height: 28, padding: '0 11px', fontSize: 12, fontWeight: sel ? 700 : 400, cursor: 'pointer',
+                            background: sel ? '#1450f5' : '#fff', color: sel ? '#fff' : '#6b7280',
+                            border: `1.5px solid ${sel ? '#1450f5' : '#d1d5db'}`, borderRadius: 7,
+                            fontFamily: 'Inter, sans-serif', transition: 'all 0.1s',
+                          }}>
+                          {name.split(' ')[0]}
+                        </button>
+                      )
+                    })}
+                    <button type="button"
+                      onClick={() => setDraftAttendees(draftAttendees.length === teamPeople.length ? [] : teamPeople)}
+                      style={{ height: 28, padding: '0 11px', fontSize: 11, cursor: 'pointer', background: 'none', color: '#9ca3af', border: '1px dashed #d1d5db', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
+                      {draftAttendees.length === teamPeople.length ? 'None' : 'All'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -579,6 +635,15 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
 }
 
 /* ── Training Settings Modal ─────────────────────────────────────────────── */
+function _genQuarters() {
+  const y = new Date().getFullYear()
+  const result = []
+  for (let yr = y - 1; yr <= y + 3; yr++)
+    for (let q = 1; q <= 4; q++) result.push(`Q${q} ${yr}`)
+  return result
+}
+const TRAINING_QUARTERS = _genQuarters()
+
 const TRAINING_FREQS = [
   { label: 'One-time',  key: 'one-time',  mult: 1   },
   { label: 'Annual',    key: 'annual',    mult: 1   },
@@ -616,17 +681,23 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
   const [err,       setErr]       = useState(null)
   const [activeTab, setActiveTab] = useState(teamPeople[0] ?? '')
   const [adding,    setAdding]    = useState(false)
-  const [draft,     setDraft]     = useState({ name: '', duration_hours: 1, frequency: 'annual' })
+  const [draft,     setDraft]     = useState({ name: '', duration_hours: 1, frequency: 'annual', quarter: '' })
 
   const removeSession = (name, i) => setPeople(p => ({ ...p, [name]: { sessions: p[name].sessions.filter((_, j) => j !== i) } }))
 
   function confirmAdd() {
     if (!String(draft.name).trim()) return
     const d = Number(draft.duration_hours) || 0
-    const sess = { name: String(draft.name).trim(), duration_hours: d, frequency: draft.frequency, hours_per_year: trainingHPY({ ...draft, duration_hours: d }) }
+    const sess = {
+      name: String(draft.name).trim(),
+      duration_hours: d,
+      frequency: draft.frequency,
+      hours_per_year: trainingHPY({ ...draft, duration_hours: d }),
+      ...(draft.frequency === 'one-time' && draft.quarter ? { quarter: draft.quarter } : {}),
+    }
     setPeople(p => ({ ...p, [activeTab]: { sessions: [...(p[activeTab]?.sessions ?? []), sess] } }))
     setAdding(false)
-    setDraft({ name: '', duration_hours: 1, frequency: 'annual' })
+    setDraft({ name: '', duration_hours: 1, frequency: 'annual', quarter: '' })
   }
 
   const serialize = sessions => sessions.filter(s => String(s.name).trim()).map(s => ({ ...s, hours_per_year: trainingHPY(s) }))
@@ -725,13 +796,16 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                     {isOneTime
-                      ? <span style={{ background: '#f3e8ff', color: '#7c3aed', borderRadius: 4, padding: '1px 6px', marginRight: 6, fontWeight: 600 }}>one-time</span>
-                      : <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', marginRight: 6 }}>{freq}</span>
+                      ? <span style={{ background: '#f3e8ff', color: '#7c3aed', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>one-time</span>
+                      : <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px' }}>{freq}</span>
                     }
-                    {s.duration_hours}h {isOneTime ? 'total' : '/session'}
-                    <span style={{ color: '#7c3aed', fontWeight: 700, marginLeft: 8 }}>
+                    {isOneTime && s.quarter && (
+                      <span style={{ background: '#fef3c7', color: '#92400e', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>{s.quarter}</span>
+                    )}
+                    <span>{s.duration_hours}h {isOneTime ? 'total' : '/session'}</span>
+                    <span style={{ color: '#7c3aed', fontWeight: 700 }}>
                       {isOneTime ? `${hpy}h one-time` : `${hpy}h/yr · ${Math.round(hpy * pf)}h this period`}
                     </span>
                   </div>
@@ -747,7 +821,7 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
 
           {/* Add form — always visible at bottom */}
           {!adding ? (
-            <button onClick={() => { setAdding(true); setDraft({ name: '', duration_hours: 1, frequency: 'annual' }) }} style={{
+            <button onClick={() => { setAdding(true); setDraft({ name: '', duration_hours: 1, frequency: 'annual', quarter: '' }) }} style={{
               width: '100%', padding: '13px 20px', background: '#faf5ff', border: 'none',
               borderTop: '1px solid #e5e8ef', color: '#7c3aed', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -770,11 +844,21 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Frequency</label>
-                  <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
+                  <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value, quarter: ''}))}
                     style={{ height: 34, padding: '0 8px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
                     {TRAINING_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                   </select>
                 </div>
+                {isOneTimeDraft && (
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Quarter</label>
+                    <select value={draft.quarter} onChange={e => setDraft(v => ({...v, quarter: e.target.value}))}
+                      style={{ height: 34, padding: '0 8px', fontSize: 13, border: '1.5px solid #fcd34d', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fffbeb', outline: 'none', color: draft.quarter ? '#92400e' : '#9ca3af' }}>
+                      <option value="">No specific quarter</option>
+                      {TRAINING_QUARTERS.map(q => <option key={q} value={q}>{q}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>
                     {isOneTimeDraft ? 'Total hours' : 'Hours / session'}
@@ -786,7 +870,7 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
                 {previewHpy > 0 && (
                   <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 10px', background: '#7c3aed18', borderRadius: 8 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>
-                      {isOneTimeDraft ? `${previewHpy}h one-time` : `${previewHpy}h/yr`}
+                      {isOneTimeDraft ? `${previewHpy}h${draft.quarter ? ' · ' + draft.quarter : ' one-time'}` : `${previewHpy}h/yr`}
                     </span>
                   </div>
                 )}
