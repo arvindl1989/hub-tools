@@ -1996,10 +1996,15 @@ def _apply_dim_filters(
     if team         and "team"         in df.columns: df = df[df["team"]         == team]
     if area         and "area"         in df.columns: df = df[df["area"]         == area]
     if sub_category and "sub_category" in df.columns:
-        if sub_category == "Demand Engagement Activations":
-            df = df[df["sub_category"].isin(DEMAND_ENGAGEMENT_SUBS)]
-        else:
-            df = df[df["sub_category"] == sub_category]
+        cats = [c.strip() for c in sub_category.split(',') if c.strip()]
+        if cats:
+            expanded_cats = []
+            for cat in cats:
+                if cat == "Demand Engagement Activations":
+                    expanded_cats.extend(DEMAND_ENGAGEMENT_SUBS)
+                else:
+                    expanded_cats.append(cat)
+            df = df[df["sub_category"].isin(expanded_cats)]
     return df
 
 
