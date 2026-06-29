@@ -76,6 +76,8 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   const [inflowData,    setInflowData]    = useState([])
   const [slaData,       setSlaData]       = useState([])
   const [resData,       setResData]       = useState(null)
+  const [kpiSlaData,    setKpiSlaData]    = useState([])
+  const [kpiResData,    setKpiResData]    = useState(null)
   const [areaData,      setAreaData]      = useState([])
   const [teamData,      setTeamData]      = useState([])
   const [creatorData,   setCreatorData]   = useState([])
@@ -121,6 +123,12 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   useRefetch(() => getResolutionTime(sessionId, restime.range.from, restime.range.to, restime.filters),
     setResData, onErr, [sessionId, restime.range.from, restime.range.to, JSON.stringify(restime.filters)])
 
+  useRefetch(() => getSlaPerformance(sessionId, kpiCards.range.from, kpiCards.range.to, kpiCards.filters),
+    setKpiSlaData, onErr, [sessionId, kpiCards.range.from, kpiCards.range.to, JSON.stringify(kpiCards.filters)])
+
+  useRefetch(() => getResolutionTime(sessionId, kpiCards.range.from, kpiCards.range.to, kpiCards.filters),
+    setKpiResData, onErr, [sessionId, kpiCards.range.from, kpiCards.range.to, JSON.stringify(kpiCards.filters)])
+
   useRefetch(() => getByArea(sessionId, byArea.range.from, byArea.range.to, byArea.filters),
     setAreaData, onErr, [sessionId, byArea.range.from, byArea.range.to, JSON.stringify(byArea.filters)])
 
@@ -131,11 +139,11 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
     setCreatorData, onErr, [sessionId, byCreator.range.from, byCreator.range.to, JSON.stringify(byCreator.filters)])
 
   // ── Derived KPIs ────────────────────────────────────────────────────────────
-  const totalOnTime = slaData.reduce((s, d) => s + (d.closed_on_time || 0), 0)
-  const totalClosed = slaData.reduce((s, d) => s + (d.total_closed  || 0), 0)
+  const totalOnTime = kpiSlaData.reduce((s, d) => s + (d.closed_on_time || 0), 0)
+  const totalClosed = kpiSlaData.reduce((s, d) => s + (d.total_closed  || 0), 0)
   const slaRate     = totalClosed > 0 ? Math.round(totalOnTime / totalClosed * 100) : null
 
-  const resRows  = resData?.by_sub_category ?? []
+  const resRows  = kpiResData?.by_sub_category ?? []
   const resCases = resRows.reduce((s, r) => s + r.count, 0)
   const avgRes   = resCases > 0
     ? Math.round(resRows.reduce((s, r) => s + r.avg_days * r.count, 0) / resCases * 10) / 10
