@@ -543,10 +543,16 @@ async def upload_json(body: JsonUploadBody):
 # ── Overview ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/overview")
-def overview(sid: str, assigned_to: str = '', team: str = '', area: str = '', sub_category: str = ''):
+def overview(sid: str, assigned_to: str = '', team: str = '', area: str = '', sub_category: str = '', date_from: str = '', date_to: str = ''):
     df = _get_session(sid)
 
-    # Apply filters if provided
+    # Apply date range filters if provided
+    if date_from:
+        df = df[df["created_date"].dropna() >= pd.Timestamp(date_from)]
+    if date_to:
+        df = df[df["created_date"].dropna() <= pd.Timestamp(date_to)]
+
+    # Apply dimension filters if provided
     if assigned_to:
         df = df[df["assigned_to"] == assigned_to]
     if team and "team" in df.columns:

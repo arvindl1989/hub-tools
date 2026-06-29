@@ -109,8 +109,8 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   useRefetch(() => getTeamPerformance(sessionId, teamPerfRange.from, teamPerfRange.to),
     setTeamPerf, onErr, [sessionId, teamPerfRange.from, teamPerfRange.to])
 
-  useRefetch(() => getOverview(sessionId, kpiCards.filters.assigned_to, kpiCards.filters.team, kpiCards.filters.area, kpiCards.filters.sub_category),
-    setOverview, onErr, [sessionId, JSON.stringify(kpiCards.filters)])
+  useRefetch(() => getOverview(sessionId, kpiCards.filters.assigned_to, kpiCards.filters.team, kpiCards.filters.area, kpiCards.filters.sub_category, kpiCards.range.from, kpiCards.range.to),
+    setOverview, onErr, [sessionId, JSON.stringify(kpiCards.filters), kpiCards.range.from, kpiCards.range.to])
 
   useRefetch(() => getInflowOutflow(sessionId, inflow.range.from, inflow.range.to, inflowGroupBy, inflow.filters),
     setInflowData, onErr, [sessionId, inflow.range.from, inflow.range.to, inflowGroupBy, JSON.stringify(inflow.filters)])
@@ -188,6 +188,8 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
           <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filter KPI Cards</span>
           <ChartFilters show={['assigned_to', 'team', 'area', 'sub_category']}
             overview={overview} filters={kpiCards.filters} onChange={kpiCards.setFilters} />
+          <DateRangePicker dateFrom={kpiCards.range.from} dateTo={kpiCards.range.to}
+            onChange={(from, to) => kpiCards.setRange({ from, to })} />
         </div>
       </div>
 

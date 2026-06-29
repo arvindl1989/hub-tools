@@ -37,9 +37,9 @@ export async function uploadFile(file, onProgress) {
   return data
 }
 
-export async function getOverview(sid, assigned_to = '', team = '', area = '', sub_category = '') {
+export async function getOverview(sid, assigned_to = '', team = '', area = '', sub_category = '', date_from = '', date_to = '') {
   const { data } = await client.get(`/sessions/${sid}/overview`, {
-    params: _clean({ assigned_to, team, area, sub_category }),
+    params: _clean({ assigned_to, team, area, sub_category, date_from, date_to }),
   })
   return data
 }
