@@ -65,6 +65,7 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   const [backlogAge,    setBacklogAge]    = useState([])
   const [teamPerfRange, setTeamPerfRange] = useState({ from: '', to: '' })
 
+  const kpiCards  = useSection(['assigned_to', 'team', 'area', 'sub_category'])
   const inflow    = useSection(['assigned_to', 'team', 'area', 'sub_category'])
   const slaperf   = useSection(['assigned_to', 'team', 'area', 'sub_category'])
   const restime   = useSection(['assigned_to', 'team', 'area', 'sub_category'])
@@ -107,6 +108,9 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
 
   useRefetch(() => getTeamPerformance(sessionId, teamPerfRange.from, teamPerfRange.to),
     setTeamPerf, onErr, [sessionId, teamPerfRange.from, teamPerfRange.to])
+
+  useRefetch(() => getOverview(sessionId, kpiCards.filters.assigned_to, kpiCards.filters.team, kpiCards.filters.area, kpiCards.filters.sub_category),
+    setOverview, onErr, [sessionId, JSON.stringify(kpiCards.filters)])
 
   useRefetch(() => getInflowOutflow(sessionId, inflow.range.from, inflow.range.to, inflowGroupBy, inflow.filters),
     setInflowData, onErr, [sessionId, inflow.range.from, inflow.range.to, inflowGroupBy, JSON.stringify(inflow.filters)])
@@ -177,6 +181,15 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
       {!loading && overview != null && inflowData.length === 0 && (
         <DataDiagnosticBanner sessionId={sessionId} />
       )}
+
+      {/* ── KPI Filters ── */}
+      <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filter KPI Cards</span>
+          <ChartFilters show={['assigned_to', 'team', 'area', 'sub_category']}
+            overview={overview} filters={kpiCards.filters} onChange={kpiCards.setFilters} />
+        </div>
+      </div>
 
       {/* ── 1. KPI row ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>

@@ -543,8 +543,19 @@ async def upload_json(body: JsonUploadBody):
 # ── Overview ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/overview")
-def overview(sid: str):
+def overview(sid: str, assigned_to: str = '', team: str = '', area: str = '', sub_category: str = ''):
     df = _get_session(sid)
+
+    # Apply filters if provided
+    if assigned_to:
+        df = df[df["assigned_to"] == assigned_to]
+    if team and "team" in df.columns:
+        df = df[df["team"] == team]
+    if area and "area" in df.columns:
+        df = df[df["area"] == area]
+    if sub_category and "sub_category" in df.columns:
+        df = df[df["sub_category"] == sub_category]
+
     active = df[df["is_active"]]
 
     def _list(col):
