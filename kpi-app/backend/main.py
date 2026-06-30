@@ -1074,6 +1074,14 @@ def inflow_outflow_projections(
 
     sorted_periods = sorted(periods.values(), key=lambda x: x["period"])
 
+    # Add Demand Engagement Activations aggregate to historical periods
+    for period in sorted_periods:
+        if all(s in period.get("services", {}) for s in DEMAND_ENGAGEMENT_SUBS):
+            period["services"]["Demand Engagement Activations"] = {
+                "inflow": sum(period["services"][s].get("inflow", 0) for s in DEMAND_ENGAGEMENT_SUBS),
+                "outflow": sum(period["services"][s].get("outflow", 0) for s in DEMAND_ENGAGEMENT_SUBS),
+            }
+
     # Calculate trends and project forward using numpy polyfit
     def _project_trend(values, forecast_count):
         if len(values) < 2:
@@ -1116,6 +1124,25 @@ def inflow_outflow_projections(
             "projected_outflow": outflow_proj,
         }
 
+    # Add aggregate for Demand Engagement Activations
+    if all(s in result["by_service"] for s in DEMAND_ENGAGEMENT_SUBS):
+        dea_inflow_proj = [
+            sum(result["by_service"][s]["projected_inflow"][i] for s in DEMAND_ENGAGEMENT_SUBS)
+            for i in range(forecast_periods)
+        ]
+        dea_outflow_proj = [
+            sum(result["by_service"][s]["projected_outflow"][i] for s in DEMAND_ENGAGEMENT_SUBS)
+            for i in range(forecast_periods)
+        ]
+        dea_hist_inflow = [sum(p["services"].get(s, {}).get("inflow", 0) for s in DEMAND_ENGAGEMENT_SUBS) for p in sorted_periods]
+        dea_hist_outflow = [sum(p["services"].get(s, {}).get("outflow", 0) for s in DEMAND_ENGAGEMENT_SUBS) for p in sorted_periods]
+        result["by_service"]["Demand Engagement Activations"] = {
+            "historical_inflow": dea_hist_inflow,
+            "historical_outflow": dea_hist_outflow,
+            "projected_inflow": dea_inflow_proj,
+            "projected_outflow": dea_outflow_proj,
+        }
+
     # Project overall
     inflows = [p["inflow"] for p in sorted_periods]
     outflows = [p["outflow"] for p in sorted_periods]
@@ -1135,6 +1162,20 @@ def inflow_outflow_projections(
             else:
                 proj_date = last_period.replace(month=last_period.month + i + 1, day=1)
 
+        # Build service breakdown for projected period
+        services_proj = {}
+        for service in sorted(all_services):
+            inflow_val = result["by_service"][service]["projected_inflow"][i]
+            outflow_val = result["by_service"][service]["projected_outflow"][i]
+            services_proj[service] = {"inflow": inflow_val, "outflow": outflow_val}
+
+        # Add Demand Engagement Activations aggregate if all sub-services exist
+        if all(s in services_proj for s in DEMAND_ENGAGEMENT_SUBS):
+            services_proj["Demand Engagement Activations"] = {
+                "inflow": sum(services_proj[s]["inflow"] for s in DEMAND_ENGAGEMENT_SUBS),
+                "outflow": sum(services_proj[s]["outflow"] for s in DEMAND_ENGAGEMENT_SUBS),
+            }
+
         result["projections"].append({
             "period": str(proj_date),
             "label": _period_label(proj_date, group_by),
@@ -1142,6 +1183,7 @@ def inflow_outflow_projections(
             "outflow": outflow_proj[i],
             "net": inflow_proj[i] - outflow_proj[i],
             "is_projected": True,
+            "services": services_proj,
         })
 
     return result
