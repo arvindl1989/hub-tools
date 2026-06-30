@@ -1122,7 +1122,7 @@ def inflow_outflow_projections(
     inflow_proj = _project_trend(inflows, forecast_periods)
     outflow_proj = _project_trend(outflows, forecast_periods)
 
-    # Generate projection periods
+    # Generate projection periods with service breakdown
     last_period = date.fromisoformat(sorted_periods[-1]["period"]) if sorted_periods else date.today()
     for i in range(forecast_periods):
         if group_by == "week":
@@ -1135,6 +1135,13 @@ def inflow_outflow_projections(
             else:
                 proj_date = last_period.replace(month=last_period.month + i + 1, day=1)
 
+        # Build service breakdown for projected period
+        services_proj = {}
+        for service in sorted(all_services):
+            inflow_val = result["by_service"][service]["projected_inflow"][i]
+            outflow_val = result["by_service"][service]["projected_outflow"][i]
+            services_proj[service] = {"inflow": inflow_val, "outflow": outflow_val}
+
         result["projections"].append({
             "period": str(proj_date),
             "label": _period_label(proj_date, group_by),
@@ -1142,6 +1149,7 @@ def inflow_outflow_projections(
             "outflow": outflow_proj[i],
             "net": inflow_proj[i] - outflow_proj[i],
             "is_projected": True,
+            "services": services_proj,
         })
 
     return result

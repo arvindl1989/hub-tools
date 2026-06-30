@@ -179,18 +179,25 @@ export default function InflowOutflowProjections({ data, groupBy = 'week', onFor
             ) : (
               <>
                 {filteredData.map((period, idx) => {
-                  const serviceName = Object.keys(SERVICES)[0]
+                  const services = period.services || {}
+                  const websiteCmInflow = services['Website Content Management']?.inflow || 0
+                  const demandEngInflow = services['Demand Engagement Activations']?.inflow || 0
+                  const contentProdInflow = services['Content Production – Graphic Design']?.inflow || 0
+                  const websiteCmOutflow = services['Website Content Management']?.outflow || 0
+                  const demandEngOutflow = services['Demand Engagement Activations']?.outflow || 0
+                  const contentProdOutflow = services['Content Production – Graphic Design']?.outflow || 0
+
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb', background: period.is_projected ? '#fef3c7' : '#fff' }}>
                       <td style={{ padding: '8px 12px', color: '#374151', fontWeight: period.is_projected ? 600 : 400 }}>{period.label}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0284c7', fontWeight: 600 }}>{period.inflow}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#3b82f6', fontWeight: 500 }}>—</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 500 }}>—</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#ec4899', fontWeight: 500 }}>—</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#3b82f6', fontWeight: 500 }}>{websiteCmInflow || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 500 }}>{demandEngInflow || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#ec4899', fontWeight: 500 }}>{contentProdInflow || '—'}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#be123c', fontWeight: 600 }}>{period.outflow}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#3b82f6', fontWeight: 500 }}>—</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 500 }}>—</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#ec4899', fontWeight: 500 }}>—</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#3b82f6', fontWeight: 500 }}>{websiteCmOutflow || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 500 }}>{demandEngOutflow || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#ec4899', fontWeight: 500 }}>{contentProdOutflow || '—'}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: period.net > 0 ? '#991b1b' : '#15803d' }}>{period.net}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center', color: '#9ca3af', fontSize: 10 }}>
                         {period.is_projected ? '📊' : 'Historical'}
@@ -206,15 +213,27 @@ export default function InflowOutflowProjections({ data, groupBy = 'week', onFor
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.inflow || 0), 0)}
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#3b82f6', fontWeight: 700 }}>—</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 700 }}>—</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ec4899', fontWeight: 700 }}>—</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#3b82f6', fontWeight: 700 }}>
+                      {filteredData.reduce((sum, p) => sum + (p.services?.['Website Content Management']?.inflow || 0), 0) || '—'}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 700 }}>
+                      {filteredData.reduce((sum, p) => sum + (p.services?.['Demand Engagement Activations']?.inflow || 0), 0) || '—'}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ec4899', fontWeight: 700 }}>
+                      {filteredData.reduce((sum, p) => sum + (p.services?.['Content Production – Graphic Design']?.inflow || 0), 0) || '—'}
+                    </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: '#be123c', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.outflow || 0), 0)}
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#3b82f6', fontWeight: 700 }}>—</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 700 }}>—</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ec4899', fontWeight: 700 }}>—</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#3b82f6', fontWeight: 700 }}>
+                      {filteredData.reduce((sum, p) => sum + (p.services?.['Website Content Management']?.outflow || 0), 0) || '—'}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 700 }}>
+                      {filteredData.reduce((sum, p) => sum + (p.services?.['Demand Engagement Activations']?.outflow || 0), 0) || '—'}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ec4899', fontWeight: 700 }}>
+                      {filteredData.reduce((sum, p) => sum + (p.services?.['Content Production – Graphic Design']?.outflow || 0), 0) || '—'}
+                    </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>
                       {filteredData.reduce((sum, p) => sum + (p.net || 0), 0)}
                     </td>
