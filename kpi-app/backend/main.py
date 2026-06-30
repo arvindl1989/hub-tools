@@ -1018,6 +1018,134 @@ def inflow_outflow_export(
     )
 
 
+@app.get("/api/sessions/{sid}/inflow-outflow/projections")
+def inflow_outflow_projections(
+    sid: str,
+    group_by: str = Query("week", pattern="^(week|month)$"),
+    forecast_periods: int = Query(12, ge=1, le=52),
+    assigned_to:  Optional[str] = None,
+    team:         Optional[str] = None,
+    area:         Optional[str] = None,
+):
+    """Generate inflow-outflow projections for upcoming periods by service."""
+    from sklearn.linear_model import LinearRegression
+
+    df = _get_session(sid)
+    df = _apply_dim_filters(df, assigned_to=assigned_to, team=team, area=area)
+
+    freq = "W" if group_by == "week" else "M"
+    periods: dict[str, dict] = {}
+
+    # Collect historical data
+    if "created_date" in df.columns:
+        tmp = df.dropna(subset=["created_date"]).copy()
+        tmp["_p"] = tmp["created_date"].dt.to_period(freq).apply(lambda p: p.start_time.date())
+        for p, grp in tmp.groupby("_p"):
+            k = str(p)
+            periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0, "services": {}})
+            periods[k]["inflow"] = int(len(grp))
+            for sc in grp["sub_category"].dropna().unique():
+                sc_count = int((grp["sub_category"] == sc).sum())
+                if sc == "Demand Engagement Activations":
+                    sc_list = list(DEMAND_ENGAGEMENT_SUBS)
+                else:
+                    sc_list = [sc]
+                for cat in sc_list:
+                    periods[k]["services"].setdefault(cat, {"inflow": 0, "outflow": 0})
+                    periods[k]["services"][cat]["inflow"] += sc_count // len(sc_list)
+
+    if "closed_date" in df.columns:
+        tmp = df.dropna(subset=["closed_date"]).copy()
+        tmp["_p"] = tmp["closed_date"].dt.to_period(freq).apply(lambda p: p.start_time.date())
+        for p, grp in tmp.groupby("_p"):
+            k = str(p)
+            periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0, "services": {}})
+            periods[k]["outflow"] = int(len(grp))
+            for sc in grp["sub_category"].dropna().unique():
+                sc_count = int((grp["sub_category"] == sc).sum())
+                if sc == "Demand Engagement Activations":
+                    sc_list = list(DEMAND_ENGAGEMENT_SUBS)
+                else:
+                    sc_list = [sc]
+                for cat in sc_list:
+                    periods[k]["services"].setdefault(cat, {"inflow": 0, "outflow": 0})
+                    periods[k]["services"][cat]["outflow"] += sc_count // len(sc_list)
+
+    sorted_periods = sorted(periods.values(), key=lambda x: x["period"])
+
+    # Calculate trends and project forward
+    def _project_trend(values, forecast_count):
+        if len(values) < 2:
+            return [values[-1] if values else 0] * forecast_count
+        X = np.arange(len(values)).reshape(-1, 1)
+        y = np.array(values)
+        try:
+            model = LinearRegression()
+            model.fit(X, y)
+            future_x = np.arange(len(values), len(values) + forecast_count).reshape(-1, 1)
+            predictions = model.predict(future_x)
+            return [max(0, int(p)) for p in predictions]
+        except:
+            return [int(np.mean(y))] * forecast_count
+
+    # Build results with history + projections
+    result = {
+        "historical": sorted_periods,
+        "projections": [],
+        "by_service": {},
+    }
+
+    # Get all services
+    all_services = set()
+    for period in sorted_periods:
+        all_services.update(period.get("services", {}).keys())
+
+    # Project by service
+    for service in sorted(all_services):
+        inflows = [p["services"].get(service, {}).get("inflow", 0) for p in sorted_periods]
+        outflows = [p["services"].get(service, {}).get("outflow", 0) for p in sorted_periods]
+
+        inflow_proj = _project_trend(inflows, forecast_periods)
+        outflow_proj = _project_trend(outflows, forecast_periods)
+
+        result["by_service"][service] = {
+            "historical_inflow": inflows,
+            "historical_outflow": outflows,
+            "projected_inflow": inflow_proj,
+            "projected_outflow": outflow_proj,
+        }
+
+    # Project overall
+    inflows = [p["inflow"] for p in sorted_periods]
+    outflows = [p["outflow"] for p in sorted_periods]
+    inflow_proj = _project_trend(inflows, forecast_periods)
+    outflow_proj = _project_trend(outflows, forecast_periods)
+
+    # Generate projection periods
+    last_period = date.fromisoformat(sorted_periods[-1]["period"]) if sorted_periods else date.today()
+    for i in range(forecast_periods):
+        if group_by == "week":
+            proj_date = last_period + timedelta(weeks=i+1)
+        else:
+            if (last_period.month + i + 1) > 12:
+                year_offset = (last_period.month + i) // 12
+                month = (last_period.month + i) % 12 or 12
+                proj_date = last_period.replace(year=last_period.year + year_offset, month=month, day=1)
+            else:
+                proj_date = last_period.replace(month=last_period.month + i + 1, day=1)
+
+        result["projections"].append({
+            "period": str(proj_date),
+            "label": _period_label(proj_date, group_by),
+            "inflow": inflow_proj[i],
+            "outflow": outflow_proj[i],
+            "net": inflow_proj[i] - outflow_proj[i],
+            "is_projected": True,
+        })
+
+    return result
+
+
 # ── SLA performance ────────────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/sla-performance")

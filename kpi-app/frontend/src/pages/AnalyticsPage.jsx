@@ -3,7 +3,7 @@ import {
   getOverview, getMonthlyCreated,
   getWeeklyComparison, getWeeklyByAssignee,
   getByArea, getByTeam, getByCreator,
-  getInflowOutflow, getSlaPerformance, getResolutionTime,
+  getInflowOutflow, getInflowOutflowProjections, getSlaPerformance, getResolutionTime,
   getTeamPerformance, getBacklogAge, getInflowOutflowExportUrl,
   getSessionDebug,
 } from '../api'
@@ -15,6 +15,7 @@ import AreaChartComp       from '../components/charts/AreaChart'
 import TeamChart           from '../components/charts/TeamChart'
 import CreatorChart        from '../components/charts/CreatorChart'
 import InflowOutflowChart  from '../components/charts/InflowOutflowChart'
+import InflowOutflowProjections from '../components/charts/InflowOutflowProjections'
 import SlaPerformanceChart from '../components/charts/SlaPerformanceChart'
 import ResolutionTimeChart from '../components/charts/ResolutionTimeChart'
 import TeamPerformanceTable from '../components/charts/TeamPerformanceTable'
@@ -73,19 +74,21 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   const byTeam    = useSection(['area', 'sub_category', 'assigned_to'])
   const byCreator = useSection(['team', 'area', 'sub_category'])
 
-  const [inflowData,    setInflowData]    = useState([])
-  const [slaData,       setSlaData]       = useState([])
-  const [resData,       setResData]       = useState(null)
-  const [kpiSlaData,    setKpiSlaData]    = useState([])
-  const [kpiResData,    setKpiResData]    = useState(null)
-  const [areaData,      setAreaData]      = useState([])
-  const [teamData,      setTeamData]      = useState([])
-  const [creatorData,   setCreatorData]   = useState([])
-  const [teamPerf,      setTeamPerf]      = useState([])
-  const [inflowGroupBy, setInflowGroupBy] = useState('week')
-  const [areaView,      setAreaView]      = useState('bar')
-  const [loadError,     setLoadError]     = useState(null)
-  const [loading,       setLoading]       = useState(true)
+  const [inflowData,      setInflowData]      = useState([])
+  const [projectionData,  setProjectionData]  = useState(null)
+  const [forecastPeriods, setForecastPeriods] = useState(12)
+  const [slaData,         setSlaData]         = useState([])
+  const [resData,         setResData]         = useState(null)
+  const [kpiSlaData,      setKpiSlaData]      = useState([])
+  const [kpiResData,      setKpiResData]      = useState(null)
+  const [areaData,        setAreaData]        = useState([])
+  const [teamData,        setTeamData]        = useState([])
+  const [creatorData,     setCreatorData]     = useState([])
+  const [teamPerf,        setTeamPerf]        = useState([])
+  const [inflowGroupBy,   setInflowGroupBy]   = useState('week')
+  const [areaView,        setAreaView]        = useState('bar')
+  const [loadError,       setLoadError]       = useState(null)
+  const [loading,         setLoading]         = useState(true)
 
   const onErr = useCallback((err) => {
     if (err.sessionExpired) { onSessionExpired(); return }
@@ -116,6 +119,9 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
 
   useRefetch(() => getInflowOutflow(sessionId, inflow.range.from, inflow.range.to, inflowGroupBy, inflow.filters),
     setInflowData, onErr, [sessionId, inflow.range.from, inflow.range.to, inflowGroupBy, JSON.stringify(inflow.filters)])
+
+  useRefetch(() => getInflowOutflowProjections(sessionId, inflowGroupBy, forecastPeriods, inflow.filters),
+    setProjectionData, onErr, [sessionId, inflowGroupBy, forecastPeriods, JSON.stringify(inflow.filters)])
 
   useRefetch(() => getSlaPerformance(sessionId, slaperf.range.from, slaperf.range.to, slaperf.filters),
     setSlaData, onErr, [sessionId, slaperf.range.from, slaperf.range.to, JSON.stringify(slaperf.filters)])
@@ -272,8 +278,20 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
           </Controls>
         }
       >
-        <InflowOutflowChart data={inflowData} noDateCols={!loading && overview != null && inflowData.length === 0} />
-        <InflowOutflowTable data={inflowData} filters={inflow.filters} />
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Historical Data</div>
+          <InflowOutflowChart data={inflowData} noDateCols={!loading && overview != null && inflowData.length === 0} />
+          <InflowOutflowTable data={inflowData} filters={inflow.filters} />
+        </div>
+
+        <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 12 }}>📊 Growth Projections</div>
+          <InflowOutflowProjections
+            data={projectionData}
+            groupBy={inflowGroupBy}
+            onForecastChange={setForecastPeriods}
+          />
+        </div>
       </Section>
 
       {/* ── 3. Team Performance ── */}
