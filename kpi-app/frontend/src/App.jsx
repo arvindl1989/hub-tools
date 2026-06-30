@@ -33,13 +33,13 @@ export default function App() {
   const [autoConnecting, setAutoConnecting] = useState(false)
   const [autoError,      setAutoError]     = useState(null)
 
-  const handleUpload = useCallback((result) => {
+  const handleUpload = useCallback((result, isAutoConnect = false) => {
     localStorage.setItem('ticketSessionId', result.session_id)
     localStorage.setItem('ticketMeta', JSON.stringify(result))
     setSessionId(result.session_id)
     setUploadMeta(result)
     setShowUpload(false)
-    setActiveTab('dashboard')
+    if (!isAutoConnect) setActiveTab('dashboard')
   }, [])
 
   const handleSessionExpired = useCallback(() => {
@@ -55,19 +55,19 @@ export default function App() {
 
   // Auto-connect from Apps Script on every load and whenever session expires
   useEffect(() => {
-    if (showUpload) return
+    if (showUpload || sessionId) return
     setAutoConnecting(true)
     setAutoError(null)
     uploadFromSheetUrl(APPS_SCRIPT_URL, () => {})
       .then(result => {
-        handleUpload(result)
+        handleUpload(result, true)
         setAutoConnecting(false)
       })
       .catch(err => {
         setAutoError(err.message || 'Could not load sheet data')
         setAutoConnecting(false)
       })
-  }, [showUpload, reconnectKey])
+  }, [showUpload, sessionId, reconnectKey, handleUpload])
 
   if (autoConnecting) {
     return (
