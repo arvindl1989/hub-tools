@@ -577,6 +577,12 @@ def overview(sid: str, assigned_to: str = '', team: str = '', area: str = '', su
 
     ages = active["ticket_age"].dropna()
 
+    sub_cats = _list("sub_category")
+    if "sub_category" in df.columns and any(sc in df["sub_category"].values for sc in DEMAND_ENGAGEMENT_SUBS):
+        if "Demand Engagement Activations" not in sub_cats:
+            sub_cats.append("Demand Engagement Activations")
+            sub_cats.sort()
+
     return {
         "total_active": int(len(active)),
         "total_all": int(len(df)),
@@ -590,7 +596,7 @@ def overview(sid: str, assigned_to: str = '', team: str = '', area: str = '', su
         "closed_this_week": closed_this_week,
         "avg_age": round(float(ages.mean()), 1) if len(ages) else 0,
         "assigned_to_list":   _list("assigned_to"),
-        "sub_category_list":  _list("sub_category"),
+        "sub_category_list":  sub_cats,
         "state_list":         _list("state"),
         "area_list":          _list("area"),
         "team_list":          _list("team"),
@@ -1989,7 +1995,11 @@ def _apply_dim_filters(
         df = df[df["assigned_to"].isin(names)]
     if team         and "team"         in df.columns: df = df[df["team"]         == team]
     if area         and "area"         in df.columns: df = df[df["area"]         == area]
-    if sub_category and "sub_category" in df.columns: df = df[df["sub_category"] == sub_category]
+    if sub_category and "sub_category" in df.columns:
+        if sub_category == "Demand Engagement Activations":
+            df = df[df["sub_category"].isin(DEMAND_ENGAGEMENT_SUBS)]
+        else:
+            df = df[df["sub_category"] == sub_category]
     return df
 
 
