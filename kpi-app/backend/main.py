@@ -1026,12 +1026,11 @@ def inflow_outflow_projections(
     assigned_to:  Optional[str] = None,
     team:         Optional[str] = None,
     area:         Optional[str] = None,
+    sub_category: Optional[str] = None,
 ):
     """Generate inflow-outflow projections for upcoming periods by service."""
-    from sklearn.linear_model import LinearRegression
-
     df = _get_session(sid)
-    df = _apply_dim_filters(df, assigned_to=assigned_to, team=team, area=area)
+    df = _apply_dim_filters(df, assigned_to=assigned_to, team=team, area=area, sub_category=sub_category)
 
     freq = "W" if group_by == "week" else "M"
     periods: dict[str, dict] = {}
@@ -1044,15 +1043,16 @@ def inflow_outflow_projections(
             k = str(p)
             periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0, "services": {}})
             periods[k]["inflow"] = int(len(grp))
-            for sc in grp["sub_category"].dropna().unique():
-                sc_count = int((grp["sub_category"] == sc).sum())
-                if sc == "Demand Engagement Activations":
-                    sc_list = list(DEMAND_ENGAGEMENT_SUBS)
-                else:
-                    sc_list = [sc]
-                for cat in sc_list:
-                    periods[k]["services"].setdefault(cat, {"inflow": 0, "outflow": 0})
-                    periods[k]["services"][cat]["inflow"] += sc_count // len(sc_list)
+            if "sub_category" in grp.columns:
+                for sc in grp["sub_category"].dropna().unique():
+                    sc_count = int((grp["sub_category"] == sc).sum())
+                    if sc == "Demand Engagement Activations":
+                        sc_list = list(DEMAND_ENGAGEMENT_SUBS)
+                    else:
+                        sc_list = [sc]
+                    for cat in sc_list:
+                        periods[k]["services"].setdefault(cat, {"inflow": 0, "outflow": 0})
+                        periods[k]["services"][cat]["inflow"] += sc_count // len(sc_list)
 
     if "closed_date" in df.columns:
         tmp = df.dropna(subset=["closed_date"]).copy()
@@ -1061,32 +1061,33 @@ def inflow_outflow_projections(
             k = str(p)
             periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0, "services": {}})
             periods[k]["outflow"] = int(len(grp))
-            for sc in grp["sub_category"].dropna().unique():
-                sc_count = int((grp["sub_category"] == sc).sum())
-                if sc == "Demand Engagement Activations":
-                    sc_list = list(DEMAND_ENGAGEMENT_SUBS)
-                else:
-                    sc_list = [sc]
-                for cat in sc_list:
-                    periods[k]["services"].setdefault(cat, {"inflow": 0, "outflow": 0})
-                    periods[k]["services"][cat]["outflow"] += sc_count // len(sc_list)
+            if "sub_category" in grp.columns:
+                for sc in grp["sub_category"].dropna().unique():
+                    sc_count = int((grp["sub_category"] == sc).sum())
+                    if sc == "Demand Engagement Activations":
+                        sc_list = list(DEMAND_ENGAGEMENT_SUBS)
+                    else:
+                        sc_list = [sc]
+                    for cat in sc_list:
+                        periods[k]["services"].setdefault(cat, {"inflow": 0, "outflow": 0})
+                        periods[k]["services"][cat]["outflow"] += sc_count // len(sc_list)
 
     sorted_periods = sorted(periods.values(), key=lambda x: x["period"])
 
-    # Calculate trends and project forward
+    # Calculate trends and project forward using numpy polyfit
     def _project_trend(values, forecast_count):
         if len(values) < 2:
             return [values[-1] if values else 0] * forecast_count
-        X = np.arange(len(values)).reshape(-1, 1)
-        y = np.array(values)
         try:
-            model = LinearRegression()
-            model.fit(X, y)
-            future_x = np.arange(len(values), len(values) + forecast_count).reshape(-1, 1)
-            predictions = model.predict(future_x)
+            x = np.arange(len(values), dtype=float)
+            y = np.array(values, dtype=float)
+            coeffs = np.polyfit(x, y, 1)
+            future_x = np.arange(len(values), len(values) + forecast_count, dtype=float)
+            predictions = np.polyval(coeffs, future_x)
             return [max(0, int(p)) for p in predictions]
-        except:
-            return [int(np.mean(y))] * forecast_count
+        except Exception:
+            avg_val = int(np.mean(values)) if len(values) > 0 else 0
+            return [avg_val] * forecast_count
 
     # Build results with history + projections
     result = {

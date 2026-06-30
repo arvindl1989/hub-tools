@@ -278,20 +278,32 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
           </Controls>
         }
       >
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Historical Data</div>
-          <InflowOutflowChart data={inflowData} noDateCols={!loading && overview != null && inflowData.length === 0} />
-          <InflowOutflowTable data={inflowData} filters={inflow.filters} />
-        </div>
+        <InflowOutflowChart data={inflowData} noDateCols={!loading && overview != null && inflowData.length === 0} />
+        <InflowOutflowTable data={inflowData} filters={inflow.filters} />
+      </Section>
 
-        <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 12 }}>📊 Growth Projections</div>
-          <InflowOutflowProjections
-            data={projectionData}
-            groupBy={inflowGroupBy}
-            onForecastChange={setForecastPeriods}
-          />
-        </div>
+      {/* ── Inflow vs Outflow Projections ── */}
+      <Section
+        color={COLOR.blue}
+        title="Inflow vs Outflow - Growth Projections"
+        subtitle="Forecasted trends based on historical data — realistic growth projections"
+        controls={
+          <Controls>
+            <TogglePill
+              options={[['week','Weekly'],['month','Monthly']]}
+              value={inflowGroupBy}
+              onChange={setInflowGroupBy}
+            />
+            <ChartFilters show={['assigned_to','team','area','sub_category']}
+              overview={overview} filters={inflow.filters} onChange={inflow.setFilters} />
+          </Controls>
+        }
+      >
+        <InflowOutflowProjections
+          data={projectionData}
+          groupBy={inflowGroupBy}
+          onForecastChange={setForecastPeriods}
+        />
       </Section>
 
       {/* ── 3. Team Performance ── */}
