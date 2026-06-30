@@ -231,14 +231,19 @@ function ProjectionLineGraph({ data, projections, groupBy }) {
   const chartHeight = height - padding.top - padding.bottom
 
   // Get inflow and outflow values from projections
-  const inflowValues = projections.map(p => p.inflow)
-  const outflowValues = projections.map(p => p.outflow)
+  const inflowValues = projections.map(p => p.inflow || 0)
+  const outflowValues = projections.map(p => p.outflow || 0)
 
-  const maxValue = Math.max(...inflowValues, ...outflowValues) * 1.1
+  if (inflowValues.length === 0 || outflowValues.length === 0) return null
+
+  const maxValue = Math.max(...inflowValues, ...outflowValues)
+  if (maxValue === 0) return null
+
+  const scaledMax = maxValue * 1.1
   const minValue = 0
 
   // Calculate scale
-  const yScale = (value) => chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight
+  const yScale = (value) => chartHeight - ((value - minValue) / (scaledMax - minValue)) * chartHeight
   const xScale = (index) => (index / Math.max(projections.length - 1, 1)) * chartWidth
 
   // Generate path strings for lines
@@ -282,7 +287,7 @@ function ProjectionLineGraph({ data, projections, groupBy }) {
 
           {/* Y-axis labels */}
           {Array.from({ length: gridCount + 1 }, (_, i) => {
-            const value = Math.round((maxValue * (gridCount - i)) / gridCount)
+            const value = Math.round((scaledMax * (gridCount - i)) / gridCount)
             const y = (i / gridCount) * chartHeight
             return (
               <g key={`y-label-${i}`}>
@@ -370,7 +375,7 @@ function ProjectionLineGraph({ data, projections, groupBy }) {
           <line x1={10} y1={15} x2={30} y2={15} stroke="#0284c7" strokeWidth={2} />
           <text x={40} y={19} fontSize={11} fill="#374151">Projected Inflow</text>
           <line x1={10} y1={35} x2={30} y2={35} stroke="#be123c" strokeWidth={2} />
-          <text x={40} y={39} fontSize={11} fill="#374151}>Projected Outflow</text>
+          <text x={40} y={39} fontSize={11} fill="#374151">Projected Outflow</text>
         </g>
       </svg>
     </div>
