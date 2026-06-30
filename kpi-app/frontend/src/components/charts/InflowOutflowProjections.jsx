@@ -17,6 +17,7 @@ export default function InflowOutflowProjections({ data, groupBy = 'week', onFor
   const [selectedForecast, setSelectedForecast] = useState(
     groupBy === 'week' ? 12 : 6
   )
+  const [selectedYear, setSelectedYear] = useState(null)
 
   if (!data?.projections?.length) {
     return (
@@ -136,45 +137,242 @@ export default function InflowOutflowProjections({ data, groupBy = 'week', onFor
         </table>
       </div>
 
-      {/* Service Breakdown */}
+      {/* Service Breakdown Table and Graph */}
       {data.by_service && Object.keys(data.by_service).length > 0 && (
-        <div style={{ marginTop: 12, padding: 12, background: '#f9fafb', borderRadius: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Projections by Service</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-            {Object.entries(data.by_service).map(([service, metrics]) => (
-              <div key={service} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, padding: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#1f2937', marginBottom: 8 }}>{service}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 11 }}>
-                  <div>
-                    <div style={{ color: '#9ca3af' }}>Historical Avg Inflow</div>
-                    <div style={{ fontWeight: 600, color: '#0284c7' }}>
-                      {Math.round(metrics.historical_inflow.reduce((s, v) => s + v, 0) / Math.max(metrics.historical_inflow.length, 1))}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#9ca3af' }}>Projected Avg Inflow</div>
-                    <div style={{ fontWeight: 600, color: '#92400e' }}>
-                      {Math.round(metrics.projected_inflow.reduce((s, v) => s + v, 0) / Math.max(metrics.projected_inflow.length, 1))}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#9ca3af' }}>Historical Avg Outflow</div>
-                    <div style={{ fontWeight: 600, color: '#be123c' }}>
-                      {Math.round(metrics.historical_outflow.reduce((s, v) => s + v, 0) / Math.max(metrics.historical_outflow.length, 1))}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#9ca3af' }}>Projected Avg Outflow</div>
-                    <div style={{ fontWeight: 600, color: '#15803d' }}>
-                      {Math.round(metrics.projected_outflow.reduce((s, v) => s + v, 0) / Math.max(metrics.projected_outflow.length, 1))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+        <div style={{ marginTop: 16, padding: 16, background: '#f9fafb', borderRadius: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Projected Growth by Service</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[2025, 2026, 2027].map((year) => (
+                <button
+                  key={year}
+                  onClick={() => setSelectedYear(selectedYear === year ? null : year)}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 6,
+                    background: selectedYear === year ? '#1450f5' : '#fff',
+                    color: selectedYear === year ? '#fff' : '#374151',
+                    transition: 'all 0.2s',
+                    fontFamily: 'Inter, sans-serif',
+                  }}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Service Breakdown Table */}
+          <div style={{ overflowX: 'auto', marginBottom: 20 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f0f4f8' }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#374151', minWidth: 200 }}>Service</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#374151', minWidth: 80 }}>Inflow</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#374151', minWidth: 80 }}>Outflow</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#374151', minWidth: 70 }}>Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(data.by_service).map(([service, metrics]) => {
+                  const projInflow = Math.round(metrics.projected_inflow.reduce((s, v) => s + v, 0) / Math.max(metrics.projected_inflow.length, 1))
+                  const projOutflow = Math.round(metrics.projected_outflow.reduce((s, v) => s + v, 0) / Math.max(metrics.projected_outflow.length, 1))
+                  const net = projInflow - projOutflow
+                  return (
+                    <tr key={service} style={{ borderBottom: '1px solid #e5e7eb', background: '#fff', _hover: { background: '#f9fafb' } }}>
+                      <td style={{ padding: '10px 12px', color: '#374151', fontWeight: 500 }}>{service}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7', fontWeight: 600 }}>{projInflow}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#be123c', fontWeight: 600 }}>{projOutflow}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: net > 0 ? '#991b1b' : '#15803d' }}>{net}</td>
+                    </tr>
+                  )
+                })}
+                {/* Totals row */}
+                <tr style={{ borderTop: '2px solid #e5e7eb', background: '#f0f4f8', fontWeight: 600 }}>
+                  <td style={{ padding: '10px 12px', color: '#374151', fontWeight: 600 }}>Total</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7', fontWeight: 700 }}>
+                    {Object.values(data.by_service).reduce((sum, m) => sum + Math.round(m.projected_inflow.reduce((s, v) => s + v, 0) / Math.max(m.projected_inflow.length, 1)), 0)}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#be123c', fontWeight: 700 }}>
+                    {Object.values(data.by_service).reduce((sum, m) => sum + Math.round(m.projected_outflow.reduce((s, v) => s + v, 0) / Math.max(m.projected_outflow.length, 1)), 0)}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#374151' }}>
+                    {Object.values(data.by_service).reduce((sum, m) => {
+                      const inflow = Math.round(m.projected_inflow.reduce((s, v) => s + v, 0) / Math.max(m.projected_inflow.length, 1))
+                      const outflow = Math.round(m.projected_outflow.reduce((s, v) => s + v, 0) / Math.max(m.projected_outflow.length, 1))
+                      return sum + (inflow - outflow)
+                    }, 0)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Projected Growth Line Graph */}
+          <ProjectionLineGraph data={data} projections={projections} groupBy={groupBy} />
         </div>
       )}
+    </div>
+  )
+}
+
+// Line graph component for projected growth visualization
+function ProjectionLineGraph({ data, projections, groupBy }) {
+  if (!projections || projections.length === 0) return null
+
+  const width = 800
+  const height = 300
+  const padding = { top: 20, right: 30, bottom: 40, left: 50 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
+  // Get inflow and outflow values from projections
+  const inflowValues = projections.map(p => p.inflow)
+  const outflowValues = projections.map(p => p.outflow)
+
+  const maxValue = Math.max(...inflowValues, ...outflowValues) * 1.1
+  const minValue = 0
+
+  // Calculate scale
+  const yScale = (value) => chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight
+  const xScale = (index) => (index / Math.max(projections.length - 1, 1)) * chartWidth
+
+  // Generate path strings for lines
+  const inflowPath = inflowValues
+    .map((v, i) => `${xScale(i)},${yScale(v)}`)
+    .join('L')
+  const outflowPath = outflowValues
+    .map((v, i) => `${xScale(i)},${yScale(v)}`)
+    .join('L')
+
+  // Generate grid lines
+  const gridLines = []
+  const gridCount = 5
+  for (let i = 0; i <= gridCount; i++) {
+    const y = (i / gridCount) * chartHeight
+    gridLines.push(
+      <line
+        key={`grid-${i}`}
+        x1={0}
+        y1={y}
+        x2={chartWidth}
+        y2={y}
+        stroke="#e5e7eb"
+        strokeWidth={1}
+        strokeDasharray="2,2"
+      />
+    )
+  }
+
+  return (
+    <div style={{ marginTop: 20, padding: 12, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflowX: 'auto' }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Projected Growth Trend</div>
+      <svg width={width} height={height} style={{ minWidth: width }}>
+        <g transform={`translate(${padding.left},${padding.top})`}>
+          {/* Grid lines */}
+          {gridLines}
+
+          {/* Axes */}
+          <line x1={0} y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="#374151" strokeWidth={2} />
+          <line x1={0} y1={0} x2={0} y2={chartHeight} stroke="#374151" strokeWidth={2} />
+
+          {/* Y-axis labels */}
+          {Array.from({ length: gridCount + 1 }, (_, i) => {
+            const value = Math.round((maxValue * (gridCount - i)) / gridCount)
+            const y = (i / gridCount) * chartHeight
+            return (
+              <g key={`y-label-${i}`}>
+                <text
+                  x={-10}
+                  y={y + 4}
+                  textAnchor="end"
+                  fontSize={10}
+                  fill="#9ca3af"
+                >
+                  {value}
+                </text>
+              </g>
+            )
+          })}
+
+          {/* X-axis labels */}
+          {projections.map((period, i) => {
+            if (i % Math.ceil(projections.length / 6) === 0 || i === projections.length - 1) {
+              return (
+                <g key={`x-label-${i}`}>
+                  <text
+                    x={xScale(i)}
+                    y={chartHeight + 20}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fill="#9ca3af"
+                  >
+                    {period.label}
+                  </text>
+                </g>
+              )
+            }
+            return null
+          })}
+
+          {/* Inflow line */}
+          <polyline
+            points={inflowPath}
+            fill="none"
+            stroke="#0284c7"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {/* Outflow line */}
+          <polyline
+            points={outflowPath}
+            fill="none"
+            stroke="#be123c"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {/* Data points for inflow */}
+          {inflowValues.map((v, i) => (
+            <circle
+              key={`inflow-point-${i}`}
+              cx={xScale(i)}
+              cy={yScale(v)}
+              r={3}
+              fill="#0284c7"
+              opacity={0.7}
+            />
+          ))}
+
+          {/* Data points for outflow */}
+          {outflowValues.map((v, i) => (
+            <circle
+              key={`outflow-point-${i}`}
+              cx={xScale(i)}
+              cy={yScale(v)}
+              r={3}
+              fill="#be123c"
+              opacity={0.7}
+            />
+          ))}
+        </g>
+
+        {/* Legend */}
+        <g transform={`translate(${padding.left + 10},10)`}>
+          <rect x={0} y={0} width={180} height={50} fill="#fff" stroke="#e5e7eb" strokeWidth={1} rx={4} />
+          <line x1={10} y1={15} x2={30} y2={15} stroke="#0284c7" strokeWidth={2} />
+          <text x={40} y={19} fontSize={11} fill="#374151">Projected Inflow</text>
+          <line x1={10} y1={35} x2={30} y2={35} stroke="#be123c" strokeWidth={2} />
+          <text x={40} y={39} fontSize={11} fill="#374151}>Projected Outflow</text>
+        </g>
+      </svg>
     </div>
   )
 }
