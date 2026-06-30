@@ -96,6 +96,13 @@ export async function getInflowOutflow(sid, dateFrom, dateTo, groupBy = 'week', 
   return data
 }
 
+export async function getInflowOutflowProjections(sid, groupBy = 'week', forecastPeriods = 12, dimFilters = {}) {
+  const { data } = await client.get(`/sessions/${sid}/inflow-outflow/projections`, {
+    params: _clean({ group_by: groupBy, forecast_periods: forecastPeriods, ...dimFilters }),
+  })
+  return data
+}
+
 export async function getSlaPerformance(sid, dateFrom, dateTo, dimFilters = {}) {
   const { data } = await client.get(`/sessions/${sid}/sla-performance`, {
     params: _clean({ date_from: dateFrom, date_to: dateTo, ...dimFilters }),
