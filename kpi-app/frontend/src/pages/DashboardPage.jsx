@@ -73,7 +73,7 @@ export default function DashboardPage({ sessionId, onSessionExpired }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Filters */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6', padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <DashboardFilters overview={overview} filters={filters} range={range} onFilter={onFilter} onRange={setRange} />
       </div>
 
@@ -82,13 +82,13 @@ export default function DashboardPage({ sessionId, onSessionExpired }) {
         <HubHealthBar data={hubHealth} />
       </Card>
 
-      {/* KPI Row */}
+      {/* KPI Row — flat KONE accent surfaces */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        <KpiTile label="Total Tickets"  value={totalAll}       icon={<TicketIcon />}   color="#1450f5" bg="#eff4ff" span={2} />
+        <KpiTile label="Total Tickets"  value={totalAll}       icon={<TicketIcon />}   surface="#1450f5" ink="#ffffff" labelColor="rgba(255,255,255,0.75)" iconBg="rgba(255,255,255,0.18)" iconColor="#ffffff" span={2} />
         <ClosedKpiTile completed={closedCompleted} rejected={closedRejected} />
-        <KpiTile label="In Pipeline"    value={inPipeline}     icon={<PipeIcon />}     color="#0077a8" bg="#f0faff" />
-        <KpiTile label="Unique Tickets" value={uniqueTickets}  icon={<StarIcon />}     color="#7c3aed" bg="#faf5ff" />
-        <KpiTile label="Dependency"     value={dependency}     icon={<LinkIcon />}     color="#b87d00" bg="#fffbeb" />
+        <KpiTile label="In Pipeline"    value={inPipeline}     icon={<PipeIcon />}     surface="#d2f5ff" ink="#141414" labelColor="#005f86" iconBg="rgba(255,255,255,0.6)" iconColor="#005f86" />
+        <KpiTile label="Unique Tickets" value={uniqueTickets}  icon={<StarIcon />}     surface="#ffcdd7" ink="#141414" labelColor="#8c1a2e" iconBg="rgba(255,255,255,0.6)" iconColor="#8c1a2e" />
+        <KpiTile label="Dependency"     value={dependency}     icon={<LinkIcon />}     surface="#ffe141" ink="#141414" labelColor="#7a5400" iconBg="rgba(255,255,255,0.55)" iconColor="#7a5400" />
       </div>
 
       {/* By Area + By Team */}
@@ -145,13 +145,13 @@ function Card({ title, subtitle, accent = '#1450f5', icon, controls, children })
     <div style={{
       background: '#ffffff',
       borderRadius: 12,
-      border: '1px solid #e5e8ef',
+      border: '1px solid #e8e2d6',
       borderLeft: `3px solid ${accent}`,
       boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.04)',
     }}>
       <div style={{
         padding: '14px 20px',
-        borderBottom: '1px solid #f3f4f6',
+        borderBottom: '1px solid #f1ede3',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -161,8 +161,8 @@ function Card({ title, subtitle, accent = '#1450f5', icon, controls, children })
             </div>
           )}
           <div style={{ minWidth: 0 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: '#111827', margin: 0, lineHeight: 1.3 }}>{title}</h3>
-            {subtitle && <p style={{ fontSize: 11, color: '#9ca3af', margin: '2px 0 0', lineHeight: 1.3 }}>{subtitle}</p>}
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: '#141414', margin: 0, lineHeight: 1.3 }}>{title}</h3>
+            {subtitle && <p style={{ fontSize: 11, color: '#9c9c9c', margin: '2px 0 0', lineHeight: 1.3 }}>{subtitle}</p>}
           </div>
         </div>
         {controls && <div style={{ flexShrink: 0 }}>{controls}</div>}
@@ -174,67 +174,63 @@ function Card({ title, subtitle, accent = '#1450f5', icon, controls, children })
 
 // ── KPI Tile ──────────────────────────────────────────────────────────
 
-function KpiTile({ label, value, icon, color, bg, span = 1 }) {
+function KpiTile({ label, value, icon, surface = '#ffffff', ink = '#141414', labelColor = '#6e6e6e', iconBg = '#f1ede3', iconColor = '#141414', span = 1 }) {
   return (
     <div style={{
-      background: '#ffffff',
+      background: surface,
       borderRadius: 12,
-      border: '1px solid #e5e8ef',
-      borderTop: `3px solid ${color}`,
       padding: '16px 18px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+      boxShadow: '0 1px 3px rgba(20,20,20,0.06)',
       gridColumn: `span ${span}`,
       display: 'flex', flexDirection: 'column', gap: 12,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#6b7280', textTransform: 'uppercase', margin: 0 }}>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: labelColor, textTransform: 'uppercase', margin: 0 }}>
           {label}
         </p>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color, flexShrink: 0 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: iconColor, flexShrink: 0 }}>
           {icon}
         </div>
       </div>
-      <p style={{ fontSize: 34, fontWeight: 800, color: '#111827', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
+      <p style={{ fontSize: 34, fontWeight: 800, color: ink, lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
         {value ?? '—'}
       </p>
     </div>
   )
 }
 
-// ── Closed KPI Tile (Completed + Rejected coupled) ────────────────────
+// ── Closed KPI Tile (Completed + Rejected coupled, KONE mint surface) ─
 
 function ClosedKpiTile({ completed, rejected }) {
   return (
     <div style={{
-      background: '#ffffff',
+      background: '#aae1c8',
       borderRadius: 12,
-      border: '1px solid #e5e8ef',
-      borderTop: '3px solid #1e8a5e',
       padding: '16px 18px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+      boxShadow: '0 1px 3px rgba(20,20,20,0.06)',
       display: 'flex', flexDirection: 'column', gap: 12,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#6b7280', textTransform: 'uppercase', margin: 0 }}>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#0f5132', textTransform: 'uppercase', margin: 0 }}>
           Closed
         </p>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1e8a5e', flexShrink: 0 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f5132', flexShrink: 0 }}>
           <CheckIcon />
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'stretch', gap: 14 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 28, fontWeight: 800, color: '#1e8a5e', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
+          <p style={{ fontSize: 28, fontWeight: 800, color: '#141414', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
             {completed ?? '—'}
           </p>
-          <p style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', margin: '4px 0 0' }}>Completed</p>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#0f5132', margin: '4px 0 0' }}>Completed</p>
         </div>
-        <div style={{ width: 1, background: '#e5e8ef' }} />
+        <div style={{ width: 1, background: 'rgba(20,20,20,0.15)' }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 28, fontWeight: 800, color: '#c0305a', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
+          <p style={{ fontSize: 28, fontWeight: 800, color: '#8c1a2e', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
             {rejected ?? '—'}
           </p>
-          <p style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', margin: '4px 0 0' }}>Rejected</p>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#8c1a2e', margin: '4px 0 0' }}>Rejected</p>
         </div>
       </div>
     </div>

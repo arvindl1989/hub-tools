@@ -34,12 +34,12 @@ export default function StackedColumnChart({ data, xKey = 'label', height = 320 
         <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
         <XAxis
           dataKey={xKey}
-          tick={{ fontSize: 11, fill: '#9ca3af', fontFamily: 'Inter' }}
+          tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }}
           angle={-40}
           textAnchor="end"
           interval={0}
         />
-        <YAxis tick={{ fontSize: 11, fill: '#9ca3af', fontFamily: 'Inter' }} allowDecimals={false} />
+        <YAxis tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }} allowDecimals={false} />
         <Tooltip content={<CustomTooltip />} />
         <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }} />
         {sub_categories.map((sc, i) => (

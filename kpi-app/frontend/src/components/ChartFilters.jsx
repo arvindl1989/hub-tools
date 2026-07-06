@@ -8,8 +8,8 @@ const CONFIG = {
 }
 
 const SELECT_STYLE = {
-  height: 30, padding: '0 8px', fontSize: 12, color: '#374151',
-  border: '1px solid #e5e7eb', borderRadius: 7, outline: 'none',
+  height: 30, padding: '0 8px', fontSize: 12, color: '#404040',
+  border: '1px solid #e8e2d6', borderRadius: 7, outline: 'none',
   background: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
 }
 
@@ -51,8 +51,8 @@ export default function ChartFilters({ show = [], overview, filters = {}, onChan
                 onClick={() => setExpandedDropdown(isExpanded ? null : key)}
                 style={{
                   ...SELECT_STYLE,
-                  color: selectedCount > 0 ? '#111827' : '#9ca3af',
-                  borderColor: selectedCount > 0 ? '#a5b4fc' : '#e5e7eb',
+                  color: selectedCount > 0 ? '#141414' : '#9c9c9c',
+                  borderColor: selectedCount > 0 ? '#a1b9fb' : '#e8e2d6',
                 }}
               >
                 {btnLabel}
@@ -60,7 +60,7 @@ export default function ChartFilters({ show = [], overview, filters = {}, onChan
               {isExpanded && (
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, marginTop: 4,
-                  background: '#fff', border: '1px solid #e5e7eb', borderRadius: 7,
+                  background: '#fff', border: '1px solid #e8e2d6', borderRadius: 7,
                   boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 10,
                   minWidth: 200, maxHeight: 300, overflowY: 'auto',
                 }}>
@@ -80,7 +80,7 @@ export default function ChartFilters({ show = [], overview, filters = {}, onChan
                       />
                       <span>All {cfg.label}s</span>
                     </label>
-                    <div style={{ borderTop: '1px solid #e5e7eb', margin: '6px 0' }} />
+                    <div style={{ borderTop: '1px solid #e8e2d6', margin: '6px 0' }} />
                     {options.map((v) => (
                       <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', cursor: 'pointer', fontSize: 12 }}>
                         <input
@@ -112,8 +112,8 @@ export default function ChartFilters({ show = [], overview, filters = {}, onChan
             onChange={(e) => onChange({ ...filters, [key]: e.target.value })}
             style={{
               ...SELECT_STYLE,
-              color: filters[key] ? '#111827' : '#9ca3af',
-              borderColor: filters[key] ? '#a5b4fc' : '#e5e7eb',
+              color: filters[key] ? '#141414' : '#9c9c9c',
+              borderColor: filters[key] ? '#a1b9fb' : '#e8e2d6',
             }}
           >
             <option value="">All {cfg.label}s</option>
@@ -129,8 +129,8 @@ export default function ChartFilters({ show = [], overview, filters = {}, onChan
           onClick={() => { onChange(Object.fromEntries(show.map((k) => [k, '']))); setExpandedDropdown(null) }}
           style={{
             height: 30, padding: '0 10px', fontSize: 12, cursor: 'pointer',
-            background: 'none', color: '#6b7280', fontFamily: 'Inter, sans-serif',
-            border: '1px solid #e5e7eb', borderRadius: 7, whiteSpace: 'nowrap',
+            background: 'none', color: '#6e6e6e', fontFamily: 'Inter, sans-serif',
+            border: '1px solid #e8e2d6', borderRadius: 7, whiteSpace: 'nowrap',
           }}
         >
           Clear

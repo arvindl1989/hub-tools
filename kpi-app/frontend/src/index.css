@@ -9,18 +9,19 @@
     -moz-osx-font-smoothing: grayscale;
   }
   body {
-    background-color: #f0f3fa;
-    color: #111827;
+    background-color: #f3eee6; /* KONE sand */
+    color: #141414;            /* KONE ink */
   }
   * { box-sizing: border-box; }
+  ::selection { background: #d2f5ff; color: #141414; }
 }
 
 @layer components {
   .card {
     background: #ffffff;
     border-radius: 12px;
-    border: 1px solid #e5e8ef;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.04);
+    border: 1px solid #e8e2d6;
+    box-shadow: 0 1px 3px rgba(20,20,20,0.04), 0 4px 12px rgba(20,20,20,0.03);
   }
   .btn-primary {
     background-color: #1450f5;
@@ -32,16 +33,16 @@
     font-family: 'Inter', sans-serif;
     border: none;
     cursor: pointer;
-    transition: filter 0.15s;
+    transition: background-color 0.15s;
     display: inline-flex;
     align-items: center;
     gap: 6px;
   }
-  .btn-primary:hover { filter: brightness(1.12); }
+  .btn-primary:hover { background-color: #0d3ac2; }
   .btn-secondary {
     background-color: #ffffff;
-    color: #374151;
-    border: 1px solid #e5e7eb;
+    color: #141414;
+    border: 1px solid #e8e2d6;
     border-radius: 8px;
     padding: 7px 16px;
     font-size: 13px;
@@ -53,5 +54,5 @@
     align-items: center;
     gap: 6px;
   }
-  .btn-secondary:hover { background-color: #f9fafb; }
+  .btn-secondary:hover { background-color: #f3eee6; }
 }

@@ -6,9 +6,9 @@ const stateColor = (state = '') => {
   if (s.includes('in progress') || s.includes('progress')) return '#1450f5'
   if (s.includes('assigned'))  return '#0077a8'
   if (s.includes('hold') || s.includes('pending')) return '#b87d00'
-  if (s.includes('review'))    return '#7c3aed'
-  if (s.includes('open'))      return '#64748b'
-  return '#94a3b8'
+  if (s.includes('review'))    return '#0077a8'
+  if (s.includes('open'))      return '#6e6e6e'
+  return '#9c9c9c'
 }
 
 export default function HubHealthBar({ data }) {
@@ -57,9 +57,9 @@ export default function HubHealthBar({ data }) {
           return (
             <div key={s.state} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
               <div style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, backgroundColor: stateColor(s.state) }} />
-              <span style={{ color: '#6b7280' }}>{s.state}</span>
+              <span style={{ color: '#6e6e6e' }}>{s.state}</span>
               <span style={{ fontWeight: 700, color: '#141414' }}>{s.count}</span>
-              <span style={{ color: '#9ca3af', fontSize: 11 }}>({pct}%)</span>
+              <span style={{ color: '#9c9c9c', fontSize: 11 }}>({pct}%)</span>
             </div>
           )
         })}

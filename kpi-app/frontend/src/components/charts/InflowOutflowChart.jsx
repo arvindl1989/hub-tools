@@ -26,29 +26,29 @@ export default function InflowOutflowChart({ data = [], noDateCols = false }) {
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ComposedChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 70 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#ece7dc" />
         <XAxis
           dataKey="label"
-          tick={{ fontSize: 10, fill: '#6b7280' }}
+          tick={{ fontSize: 10, fill: '#6e6e6e' }}
           angle={-40}
           textAnchor="end"
           interval={0}
         />
-        <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#6b7280' }} allowDecimals={false} />
-        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#9ca3af' }} allowDecimals={false} />
+        <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#6e6e6e' }} allowDecimals={false} />
+        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#9c9c9c' }} allowDecimals={false} />
         <Tooltip content={<CustomTooltip />} />
         <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
-        <ReferenceLine yAxisId="right" y={0} stroke="#d1d5db" strokeDasharray="4 4" />
-        <Bar yAxisId="left" dataKey="inflow"  name="Inflow (Created)" fill="#6366f1" radius={[3,3,0,0]} />
-        <Bar yAxisId="left" dataKey="outflow" name="Outflow (Closed)"  fill="#22c55e" radius={[3,3,0,0]} />
+        <ReferenceLine yAxisId="right" y={0} stroke="#d8d8d8" strokeDasharray="4 4" />
+        <Bar yAxisId="left" dataKey="inflow"  name="Inflow (Created)" fill="#1450f5" radius={[3,3,0,0]} />
+        <Bar yAxisId="left" dataKey="outflow" name="Outflow (Closed)"  fill="#1e8a5e" radius={[3,3,0,0]} />
         <Line
           yAxisId="right"
           type="monotone"
           dataKey="net"
           name="Net"
-          stroke="#f59e0b"
+          stroke="#b87d00"
           strokeWidth={2}
-          dot={{ r: 3, fill: '#f59e0b' }}
+          dot={{ r: 3, fill: '#b87d00' }}
           activeDot={{ r: 5 }}
         />
       </ComposedChart>
@@ -59,9 +59,9 @@ export default function InflowOutflowChart({ data = [], noDateCols = false }) {
 function Empty({ noDateCols }) {
   return (
     <div style={{ height: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-      <span style={{ fontSize: 13, color: '#9ca3af' }}>No data for this range</span>
+      <span style={{ fontSize: 13, color: '#9c9c9c' }}>No data for this range</span>
       {noDateCols && (
-        <span style={{ fontSize: 11, color: '#c0305a', background: '#fff0f4', border: '1px solid #ffcdd7', borderRadius: 6, padding: '4px 10px' }}>
+        <span style={{ fontSize: 11, color: '#c0305a', background: '#fff0f3', border: '1px solid #ffcdd7', borderRadius: 6, padding: '4px 10px' }}>
           No "Created" date column recognised — check your Google Sheet column names
         </span>
       )}

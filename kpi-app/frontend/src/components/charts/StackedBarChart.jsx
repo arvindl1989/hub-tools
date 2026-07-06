@@ -36,11 +36,11 @@ export default function StackedBarChart({ data, dimKey, height }) {
       <ResponsiveContainer width="100%" height={h}>
         <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 40, left: 120, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" horizontal={false} />
-          <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af', fontFamily: 'Inter' }} allowDecimals={false} />
+          <XAxis type="number" tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }} allowDecimals={false} />
           <YAxis
             type="category"
             dataKey={dimKey}
-            tick={{ fontSize: 11, fill: '#374151', fontFamily: 'Inter' }}
+            tick={{ fontSize: 11, fill: '#404040', fontFamily: 'Inter' }}
             width={115}
             tickFormatter={(v) => v?.length > 18 ? v.slice(0, 16) + '…' : v}
           />

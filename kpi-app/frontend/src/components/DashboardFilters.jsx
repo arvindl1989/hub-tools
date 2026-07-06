@@ -16,10 +16,10 @@ export default function DashboardFilters({ overview, filters, range, onFilter, o
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
       {/* Label */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 4 }}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6e6e6e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
         </svg>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filters</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filters</span>
         {activeCount > 0 && (
           <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: '#1450f5', borderRadius: 99, padding: '1px 6px' }}>
             {activeCount}
@@ -39,7 +39,7 @@ export default function DashboardFilters({ overview, filters, range, onFilter, o
           onClick={() => { onFilter('__reset__'); onRange({ from: '', to: '' }) }}
           style={{
             fontSize: 12, fontWeight: 500, color: '#c0305a',
-            background: '#fff0f4', border: '1px solid #ffcdd7',
+            background: '#fff0f3', border: '1px solid #ffcdd7',
             borderRadius: 8, padding: '5px 10px', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 4,
             fontFamily: 'Inter, sans-serif',
@@ -61,9 +61,9 @@ function FilterSelect({ label, value, onChange, opts }) {
       value={value}
       onChange={onChange}
       style={{
-        fontSize: 13, color: value ? '#111827' : '#6b7280',
-        border: value ? '1px solid #1450f5' : '1px solid #e5e7eb',
-        background: value ? '#eff4ff' : '#fff',
+        fontSize: 13, color: value ? '#141414' : '#6e6e6e',
+        border: value ? '1px solid #1450f5' : '1px solid #e8e2d6',
+        background: value ? '#eef3fe' : '#fff',
         borderRadius: 8, padding: '6px 10px',
         fontFamily: 'Inter, sans-serif',
         cursor: 'pointer', outline: 'none',

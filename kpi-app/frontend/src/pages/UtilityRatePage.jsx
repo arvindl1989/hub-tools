@@ -31,18 +31,18 @@ const BAU_SHORT = {
   'Content Production – Graphic Design': 'Graphic Design',
 }
 const BAU_COLORS = {
-  'Website Content Management':          '#3b82f6',
-  'Demand Engagement Activations':       '#8b5cf6',
-  'Content Production – Graphic Design': '#ef4444',
+  'Website Content Management':          '#1450f5',
+  'Demand Engagement Activations':       '#0077a8',
+  'Content Production – Graphic Design': '#c0305a',
 }
 
 // Original sub-category colors (used in ticket detail rows)
 const SUBCAT_COLORS = {
-  'Website Content Management':          '#3b82f6',
-  'Content Production – Graphic Design': '#ef4444',
-  'Demand Creation – Global':            '#8b5cf6',
-  'Email – Local':                       '#10b981',
-  'Retention – Activations':             '#f59e0b',
+  'Website Content Management':          '#1450f5',
+  'Content Production – Graphic Design': '#c0305a',
+  'Demand Creation – Global':            '#0077a8',
+  'Email – Local':                       '#1e8a5e',
+  'Retention – Activations':             '#b87d00',
 }
 const SUBCAT_SHORT = {
   'Website Content Management':          'Web Content',
@@ -53,17 +53,17 @@ const SUBCAT_SHORT = {
 }
 
 const STATUS_CFG = {
-  Available:  { color: '#1e8a5e', bg: '#ecfdf5', border: '#6ee7b7' },
-  Busy:       { color: '#b87d00', bg: '#fffbeb', border: '#fcd34d' },
-  Overloaded: { color: '#c0305a', bg: '#fff1f2', border: '#fda4af' },
+  Available:  { color: '#1e8a5e', bg: '#edf8f2', border: '#aae1c8' },
+  Busy:       { color: '#b87d00', bg: '#fffae3', border: '#ffe141' },
+  Overloaded: { color: '#c0305a', bg: '#fff0f3', border: '#f28ba0' },
 }
 
 const NON_BAU = ['Performance Analytics', 'Local SEO', 'PWR', 'Adhoc/Others']
 const NON_BAU_COLORS = {
-  'Performance Analytics': '#14b8a6',
-  'Local SEO':             '#f97316',
-  'PWR':                   '#6366f1',
-  'Adhoc/Others':          '#ec4899',
+  'Performance Analytics': '#0aa08f',
+  'Local SEO':             '#e86427',
+  'PWR':                   '#1450f5',
+  'Adhoc/Others':          '#c0305a',
 }
 
 function utilColor(pct) {
@@ -72,27 +72,27 @@ function utilColor(pct) {
   return '#1e8a5e'
 }
 function dtcColor(d) {
-  if (d == null) return '#9ca3af'
+  if (d == null) return '#9c9c9c'
   if (d <= 7)  return '#1e8a5e'
   if (d <= 14) return '#b87d00'
   if (d <= 30) return '#e86427'
   return '#c0305a'
 }
 function attStyle(pct) {
-  if (pct == null) return { color: '#9ca3af', bg: 'transparent' }
-  if (pct >= 100) return { color: '#0369a1', bg: '#e0f2fe' }
-  if (pct >= 80)  return { color: '#15803d', bg: '#dcfce7' }
-  if (pct >= 50)  return { color: '#854d0e', bg: '#fef9c3' }
-  return { color: '#991b1b', bg: '#fee2e2' }
+  if (pct == null) return { color: '#9c9c9c', bg: 'transparent' }
+  if (pct >= 100) return { color: '#005f86', bg: '#eafaff' }
+  if (pct >= 80)  return { color: '#147a50', bg: '#d3efe0' }
+  if (pct >= 50)  return { color: '#7a5400', bg: '#fff6c4' }
+  return { color: '#8c1a2e', bg: '#ffdee5' }
 }
 
 /* ── Shared primitives ──────────────────────────────────────────────────────── */
 function StatCard({ label, value, sub, color, bg, border, labelColor, subColor }) {
   return (
-    <div style={{ background: bg || '#fff', border: `1px solid ${border || '#e5e8ef'}`, borderRadius: 12, padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 150 }}>
-      <span style={{ fontSize: 11, color: labelColor || '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-      <span style={{ fontSize: 30, fontWeight: 800, color: color || '#111827', lineHeight: 1 }}>{value}</span>
-      {sub && <span style={{ fontSize: 11, color: subColor || '#9ca3af', marginTop: 2 }}>{sub}</span>}
+    <div style={{ background: bg || '#fff', border: `1px solid ${border || '#e8e2d6'}`, borderRadius: 12, padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 150 }}>
+      <span style={{ fontSize: 11, color: labelColor || '#6e6e6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      <span style={{ fontSize: 30, fontWeight: 800, color: color || '#141414', lineHeight: 1 }}>{value}</span>
+      {sub && <span style={{ fontSize: 11, color: subColor || '#9c9c9c', marginTop: 2 }}>{sub}</span>}
     </div>
   )
 }
@@ -100,7 +100,7 @@ function LoadBar({ pct }) {
   const col = utilColor(pct)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-      <div style={{ flex: 1, height: 7, background: '#f0f3fa', borderRadius: 4, overflow: 'hidden', minWidth: 60 }}>
+      <div style={{ flex: 1, height: 7, background: '#f3eee6', borderRadius: 4, overflow: 'hidden', minWidth: 60 }}>
         <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: col, borderRadius: 4 }} />
       </div>
       <span style={{ fontSize: 12, fontWeight: 700, color: col, minWidth: 42, textAlign: 'right' }}>{pct}%</span>
@@ -109,10 +109,10 @@ function LoadBar({ pct }) {
 }
 function SectionCard({ title, subtitle, children, accent = '#1450f5' }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', borderLeft: `3px solid ${accent}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-      <div style={{ padding: '12px 20px', borderBottom: '1px solid #f3f4f6' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6', borderLeft: `3px solid ${accent}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid #f1ede3' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#141414' }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 11, color: '#9c9c9c', marginTop: 2 }}>{subtitle}</div>}
       </div>
       <div style={{ padding: 20 }}>{children}</div>
     </div>
@@ -121,7 +121,7 @@ function SectionCard({ title, subtitle, children, accent = '#1450f5' }) {
 const NumInput = ({ value, onChange, min, max, step, width = 70, placeholder }) => (
   <input type="number" value={value ?? ''} placeholder={placeholder} step={step} min={min} max={max}
     onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
-    style={{ width, height: 30, padding: '0 6px', fontSize: 12, border: '1px solid #d1d5db', borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+    style={{ width, height: 30, padding: '0 6px', fontSize: 12, border: '1px solid #d8d8d8', borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
 )
 
 /* ── Pie tooltip ────────────────────────────────────────────────────────────── */
@@ -130,9 +130,9 @@ const PieTT = ({ active, payload }) => {
   const p = payload[0]
   const value = typeof p.value === 'number' ? p.value.toFixed(1) : p.value
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{BAU_SHORT[p.name] || p.name}</div>
-      <div style={{ color: '#374151' }}>{value} hrs · {p.payload.pct}%</div>
+    <div style={{ background: '#fff', border: '1px solid #e8e2d6', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ fontWeight: 700, color: '#141414', marginBottom: 4 }}>{BAU_SHORT[p.name] || p.name}</div>
+      <div style={{ color: '#404040' }}>{value} hrs · {p.payload.pct}%</div>
     </div>
   )
 }
@@ -140,11 +140,11 @@ const DtcTT = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   const d = payload[0].payload
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div>
+    <div style={{ background: '#fff', border: '1px solid #e8e2d6', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ fontWeight: 700, color: '#141414', marginBottom: 4 }}>{label}</div>
       <div style={{ color: dtcColor(d.avg_days_to_close) }}>Avg: <strong>{d.avg_days_to_close}d</strong></div>
       {d.min_days_to_close != null && d.min_days_to_close !== d.max_days_to_close && (
-        <div style={{ color: '#9ca3af', fontSize: 11 }}>Range: {d.min_days_to_close}d – {d.max_days_to_close}d</div>
+        <div style={{ color: '#9c9c9c', fontSize: 11 }}>Range: {d.min_days_to_close}d – {d.max_days_to_close}d</div>
       )}
       <div style={{ color: '#1450f5', marginTop: 2 }}>Tickets: <strong>{d.tracked_tickets}</strong></div>
     </div>
@@ -226,9 +226,9 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
   const r = n => Math.round(n)
 
   const ALL_SVC_BOXES = [
-    { key: 'Website Content Management',          label: 'Web Content Mgt',   allocH: wcmAllocH, utilH: svcMap['Website Content Management'] ?? 0,          color: '#fff', bg: '#1450f5', bc: '#1450f5' },
-    { key: 'Demand Engagement Activations',       label: 'Demand Engagement', allocH: deaAllocH, utilH: svcMap['Demand Engagement Activations'] ?? 0,        color: '#fff', bg: '#1450f5', bc: '#1450f5' },
-    { key: 'Content Production – Graphic Design', label: 'Graphic Design',    allocH: gdAllocH,  utilH: svcMap['Content Production – Graphic Design'] ?? 0,  color: '#fff', bg: '#1450f5', bc: '#1450f5' },
+    { key: 'Website Content Management',          label: 'Web Content Mgt',   allocH: wcmAllocH, utilH: svcMap['Website Content Management'] ?? 0,          color: '#0d3ac2', bg: '#dbe6fd', bc: '#1450f5', light: true },
+    { key: 'Demand Engagement Activations',       label: 'Demand Engagement', allocH: deaAllocH, utilH: svcMap['Demand Engagement Activations'] ?? 0,        color: '#005f86', bg: '#d2f5ff', bc: '#0077a8', light: true },
+    { key: 'Content Production – Graphic Design', label: 'Graphic Design',    allocH: gdAllocH,  utilH: svcMap['Content Production – Graphic Design'] ?? 0,  color: '#8c1a2e', bg: '#ffcdd7', bc: '#c0305a', light: true },
   ]
   const visibleSvcBoxes = serviceF ? ALL_SVC_BOXES.filter(s => s.key === serviceF) : ALL_SVC_BOXES
 
@@ -239,25 +239,29 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
   function utilPctStyle(pct) {
     if (pct == null) return null
-    if (pct >= 100) return { color: '#dc2626', bg: '#fef2f2' }
-    if (pct >= 60)  return { color: '#d97706', bg: '#fffbeb' }
-    return { color: '#16a34a', bg: '#f0fdf4' }
+    if (pct >= 100) return { color: '#c0305a', bg: '#fff0f3' }
+    if (pct >= 60)  return { color: '#a86f00', bg: '#fffae3' }
+    return { color: '#1e8a5e', bg: '#edf8f2' }
   }
 
-  function NumBox({ label, value, sub, color = '#fff', bg = '#1450f5', borderColor }) {
+  function NumBox({ label, value, sub, color, bg = '#1450f5', borderColor, light = false }) {
+    const labelColor = light ? '#6e6e6e' : 'rgba(255,255,255,0.75)'
+    const valueColor = color ?? (light ? '#141414' : '#fff')
+    const unitColor  = light ? '#9c9c9c' : 'rgba(255,255,255,0.6)'
+    const subColor   = light ? '#6e6e6e' : 'rgba(255,255,255,0.65)'
     return (
       <div style={{ flex: 1, minWidth: 0, background: bg, borderRadius: 9, padding: '11px 14px', borderLeft: borderColor ? `3px solid ${borderColor}` : undefined }}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1.1 }}>
-          {value}<span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.6)', marginLeft: 2 }}>h</span>
+        <div style={{ fontSize: 10, fontWeight: 600, color: labelColor, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: valueColor, lineHeight: 1.1 }}>
+          {value}<span style={{ fontSize: 11, fontWeight: 400, color: unitColor, marginLeft: 2 }}>h</span>
         </div>
-        {sub && <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>{sub}</div>}
+        {sub && <div style={{ fontSize: 10, color: subColor, marginTop: 2 }}>{sub}</div>}
       </div>
     )
   }
 
-  const sectionLabel = { fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '12px 0 8px' }
-  const cardStyle = { background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '18px 20px', flex: 1, minWidth: 0 }
+  const sectionLabel = { fontSize: 10, fontWeight: 700, color: '#9c9c9c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '12px 0 8px' }
+  const cardStyle = { background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6', padding: '18px 20px', flex: 1, minWidth: 0 }
 
   const remainItems = [
     { label: 'Total Remaining', val: totalAvailH - totalUtilH,     allocH: totalAvailH },
@@ -274,22 +278,22 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
       <div style={{ display: 'flex', gap: 16 }}>
         {/* Allocated Hours */}
         <div style={cardStyle}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#141414', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1450f5', flexShrink: 0 }} />
             Allocated Hours
-            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{periodLabel}</span>
+            <span style={{ fontSize: 11, color: '#9c9c9c', fontWeight: 400 }}>{periodLabel}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <NumBox label="Total Available" value={r(totalAvailH)}   bg="#1450f5" />
-            <NumBox label="Productivity"    value={r(prodAllocH)}    bg="#1450f5" sub="75% of avail" />
-            <NumBox label="Cadence"         value={r(cadenceAllocH)} bg="#1450f5" sub="20% of avail" />
-            <NumBox label="Training"        value={r(trainAllocH)}   bg="#1450f5" sub="5% of avail" />
+            <NumBox label="Productivity"    value={r(prodAllocH)}    bg="#dbe6fd" light sub="75% of avail" />
+            <NumBox label="Cadence"         value={r(cadenceAllocH)} bg="#dbe6fd" light sub="20% of avail" />
+            <NumBox label="Training"        value={r(trainAllocH)}   bg="#dbe6fd" light sub="5% of avail" />
           </div>
           {visibleSvcBoxes.length > 0 && <>
             <div style={sectionLabel}>Allocated by service</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {visibleSvcBoxes.map(s => (
-                <NumBox key={s.key} label={s.label} value={r(s.allocH)} color={s.color} bg={s.bg} borderColor={s.bc} />
+                <NumBox key={s.key} label={s.label} value={r(s.allocH)} color={s.color} bg={s.bg} borderColor={s.bc} light={s.light} />
               ))}
             </div>
           </>}
@@ -297,34 +301,34 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
         {/* Utilized Hours */}
         <div style={cardStyle}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#141414', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1e8a5e', flexShrink: 0 }} />
             Utilized Hours
-            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{periodLabel}</span>
+            <span style={{ fontSize: 11, color: '#9c9c9c', fontWeight: 400 }}>{periodLabel}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <NumBox label="Total Utilized"  value={r(totalUtilH)}   bg="#1450f5" />
-            <NumBox label="Productivity"    value={r(prodUtilH)}    bg="#1450f5" sub="ticket hours" />
-            <NumBox label="Cadence"         value={r(cadenceUtilH)} bg="#1450f5" sub="recurring meetings" />
-            <NumBox label="Training"        value={r(trainUtilH)}   bg="#1450f5" sub="upskilling" />
+            <NumBox label="Productivity"    value={r(prodUtilH)}    bg="#dbe6fd" light sub="ticket hours" />
+            <NumBox label="Cadence"         value={r(cadenceUtilH)} bg="#dbe6fd" light sub="recurring meetings" />
+            <NumBox label="Training"        value={r(trainUtilH)}   bg="#dbe6fd" light sub="upskilling" />
           </div>
           <div style={sectionLabel}>Utilized by service</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {visibleSvcBoxes.map(s => (
-              <NumBox key={s.key} label={s.label} value={r(s.utilH)} color={s.color} bg={s.bg} borderColor={s.bc} />
+              <NumBox key={s.key} label={s.label} value={r(s.utilH)} color={s.color} bg={s.bg} borderColor={s.bc} light={s.light} />
             ))}
           </div>
         </div>
       </div>
 
       {/* Utilization Remaining */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '14px 20px' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6', padding: '14px 20px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#404040', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
           </svg>
           Utilization Remaining
-          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>% of allocated hours used vs free</span>
+          <span style={{ fontSize: 11, color: '#9c9c9c', fontWeight: 400 }}>% of allocated hours used vs free</span>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {remainItems.map(({ label, val, allocH }) => {
@@ -332,7 +336,7 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
             const usedPct = allocH > 0 ? Math.min(Math.round(utilizedH / allocH * 100), 999) : 0
             const freePct = Math.max(0, 100 - usedPct)
             const bg = usedPct > 55 ? '#ffcdd7' : usedPct >= 45 ? '#ffe141' : '#aae1c8'
-            const textColor = usedPct > 55 ? '#8c1a2e' : usedPct >= 45 ? '#5c4200' : '#0f4c30'
+            const textColor = usedPct > 55 ? '#8c1a2e' : usedPct >= 45 ? '#5c4200' : '#0f5132'
             return (
               <div key={label} style={{ flex: 1, minWidth: 0, background: bg, borderRadius: 9, padding: '10px 14px' }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: textColor, opacity: 0.65, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
@@ -391,7 +395,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
 
   const tabs = ['team', ...teamPeople]
   const isTeam = activeTab === 'team'
-  const accent = isTeam ? '#1d4ed8' : '#1450f5'
+  const accent = isTeam ? '#0d3ac2' : '#1450f5'
 
   const currentActs = isTeam ? team.activities : (people[activeTab]?.activities ?? [])
   const removeAct = i => isTeam
@@ -452,36 +456,36 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Cadence Hours</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>Recurring meetings · {Math.round(spanWeeks)} week period</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#141414' }}>Cadence Hours</div>
+            <div style={{ fontSize: 11, color: '#9c9c9c', marginTop: 1 }}>Recurring meetings · {Math.round(spanWeeks)} week period</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9c9c9c', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
         {/* Summary bar */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #f1ede3' }}>
           {[
-            { label: 'Allocated', val: allocH, color: '#1450f5', bg: '#eff6ff', border: '#bfdbfe', sub: '20% of available' },
-            { label: 'Utilized', val: utilH, color: '#1450f5', bg: '#f0f4ff', border: '#c7d7fd', sub: `${pct}% of allocated · from activities below` },
+            { label: 'Allocated', val: allocH, color: '#1450f5', bg: '#eef3fe', border: '#c7d7fd', sub: '20% of available' },
+            { label: 'Utilized', val: utilH, color: '#1450f5', bg: '#eef3fe', border: '#c7d7fd', sub: `${pct}% of allocated · from activities below` },
             { label: remaining >= 0 ? 'Remaining' : 'Over budget',
               val: Math.abs(remaining),
-              color: remaining >= 0 ? '#15803d' : '#dc2626',
-              bg:    remaining >= 0 ? '#f0fdf4' : '#fef2f2',
-              border: remaining >= 0 ? '#bbf7d0' : '#fecaca',
+              color: remaining >= 0 ? '#147a50' : '#c0305a',
+              bg:    remaining >= 0 ? '#edf8f2' : '#fff0f3',
+              border: remaining >= 0 ? '#aae1c8' : '#ffd4dd',
               sub: remaining >= 0 ? `${Math.abs(remaining)}h headroom` : `${Math.abs(remaining)}h over` },
           ].map((b, i) => (
             <div key={b.label} style={{ flex: 1, padding: '10px 16px', background: b.bg, borderRight: i < 2 ? `1px solid ${b.border}` : 'none' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9c9c9c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: b.color, lineHeight: 1.1 }}>{b.val}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 2 }}>h</span></div>
-              <div style={{ fontSize: 10, color: '#9ca3af' }}>{b.sub}</div>
+              <div style={{ fontSize: 10, color: '#9c9c9c' }}>{b.sub}</div>
             </div>
           ))}
         </div>
 
         {/* Tab bar */}
-        <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '2px solid #f3f4f6', padding: '0 8px', gap: 2 }}>
+        <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '2px solid #f1ede3', padding: '0 8px', gap: 2 }}>
           {tabs.map(tab => {
             const label = tab === 'team' ? 'Team-wide' : tab.split(' ')[0]
             const isActive = activeTab === tab
@@ -490,7 +494,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
                 padding: '9px 14px', fontSize: 12, fontWeight: isActive ? 700 : 500, cursor: 'pointer',
                 background: 'none', border: 'none', whiteSpace: 'nowrap',
                 borderBottom: isActive ? '2px solid #1450f5' : '2px solid transparent',
-                marginBottom: -2, color: isActive ? '#1450f5' : '#6b7280',
+                marginBottom: -2, color: isActive ? '#1450f5' : '#6e6e6e',
                 fontFamily: 'Inter, sans-serif',
               }}>
                 {label}
@@ -502,9 +506,9 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
         {/* Activity list for active tab */}
         <div style={{ maxHeight: 'calc(100vh - 360px)', overflowY: 'auto' }}>
           {currentActs.length === 0 && !adding && (
-            <div style={{ padding: '28px 20px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+            <div style={{ padding: '28px 20px', textAlign: 'center', color: '#9c9c9c', fontSize: 13 }}>
               No activities yet — click <strong>+ Add activity</strong> below to record utilized cadence hours
-              <div style={{ fontSize: 11, color: '#c0b0d0', marginTop: 6 }}>Each activity (e.g. Weekly Sync, Daily Standup) adds to your Utilized hours total</div>
+              <div style={{ fontSize: 11, color: '#9c9c9c', marginTop: 6 }}>Each activity (e.g. Weekly Sync, Daily Standup) adds to your Utilized hours total</div>
             </div>
           )}
           {currentActs.map((a, i) => {
@@ -513,16 +517,16 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
             const attendees = a.attendees ?? teamPeople
             const isAllAttendees = !a.attendees || a.attendees.length === teamPeople.length
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f3f4f6', gap: 12 }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f1ede3', gap: 12 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: accent, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{a.name}</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                    <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px' }}>{freq}</span>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#141414' }}>{a.name}</div>
+                  <div style={{ fontSize: 11, color: '#9c9c9c', marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                    <span style={{ background: '#f1ede3', borderRadius: 4, padding: '1px 6px' }}>{freq}</span>
                     <span>{a.duration_hours}h/session</span>
                     <span style={{ color: accent, fontWeight: 700 }}>{hpw}h/wk · {Math.round(hpw * spanWeeks * attendees.length)}h period</span>
                     {isTeam && (
-                      <span style={{ background: isAllAttendees ? '#f0f4ff' : '#fff7ed', color: isAllAttendees ? '#1450f5' : '#c2410c', borderRadius: 4, padding: '1px 6px', fontWeight: 600, fontSize: 10 }}>
+                      <span style={{ background: isAllAttendees ? '#eef3fe' : '#fffae3', color: isAllAttendees ? '#1450f5' : '#b34e13', borderRadius: 4, padding: '1px 6px', fontWeight: 600, fontSize: 10 }}>
                         {isAllAttendees ? 'All ' + teamPeople.length : attendees.length + '/' + teamPeople.length} people
                         {!isAllAttendees && ': ' + attendees.map(n => n.split(' ')[0]).join(', ')}
                       </span>
@@ -531,7 +535,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
                 </div>
                 <button onClick={() => removeAct(i)} style={{
                   height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  color: '#ef4444', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 6,
+                  color: '#c0305a', background: '#fff0f3', border: '1px solid #ffd4dd', borderRadius: 6,
                   fontFamily: 'Inter, sans-serif', flexShrink: 0,
                 }}>Remove</button>
               </div>
@@ -541,8 +545,8 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
           {/* Add form — always at bottom */}
           {!adding ? (
             <button onClick={() => { setAdding(true); setDraft({ name: '', duration_hours: 1, frequency: 'weekly' }) }} style={{
-              width: '100%', padding: '13px 20px', background: '#f8faff', border: 'none',
-              borderTop: '1px solid #e5e8ef', color: '#1450f5', fontSize: 13, fontWeight: 600,
+              width: '100%', padding: '13px 20px', background: '#f5f8fe', border: 'none',
+              borderTop: '1px solid #e8e2d6', color: '#1450f5', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               fontFamily: 'Inter, sans-serif',
             }}>
@@ -550,9 +554,9 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
               Add activity {activeTab !== 'team' && `for ${activeTab.split(' ')[0]}`}
             </button>
           ) : (
-            <div style={{ padding: '16px 20px', background: '#f0f4ff', borderTop: '1px solid #c7d7fd' }}>
+            <div style={{ padding: '16px 20px', background: '#eef3fe', borderTop: '1px solid #c7d7fd' }}>
               <div style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Activity name</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Activity name</label>
                 <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
                   onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
                   placeholder="e.g. Weekly Sync, Daily Standup, All Hands…" autoFocus
@@ -560,14 +564,14 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Frequency</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Frequency</label>
                   <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value}))}
                     style={{ height: 34, padding: '0 8px', fontSize: 13, border: '1.5px solid #c7d7fd', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
                     {CADENCE_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Hours / session</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Hours / session</label>
                   <input type="number" value={draft.duration_hours} min={0} max={24} step={0.25}
                     onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
                     style={{ width: 80, height: 34, padding: '0 10px', fontSize: 13, border: '1.5px solid #c7d7fd', borderRadius: 8, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
@@ -579,7 +583,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
                 )}
                 <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
                   <button onClick={() => { setAdding(false); setDraftAttendees(teamPeople) }}
-                    style={{ height: 34, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                    style={{ height: 34, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6e6e6e', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
                   <button onClick={confirmAdd}
                     style={{ height: 34, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: accent, color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
                 </div>
@@ -587,9 +591,9 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
               {/* Attendees picker — only shown on team-wide tab */}
               {isTeam && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #c7d7fd' }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Attendees
-                    <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af', marginLeft: 8 }}>
+                    <span style={{ fontSize: 10, fontWeight: 400, color: '#9c9c9c', marginLeft: 8 }}>
                       {draftAttendees.length === teamPeople.length ? 'All team members' : `${draftAttendees.length} of ${teamPeople.length} selected`}
                     </span>
                   </label>
@@ -601,8 +605,8 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
                           onClick={() => setDraftAttendees(prev => sel ? prev.filter(n => n !== name) : [...prev, name])}
                           style={{
                             height: 28, padding: '0 11px', fontSize: 12, fontWeight: sel ? 700 : 400, cursor: 'pointer',
-                            background: sel ? '#1450f5' : '#fff', color: sel ? '#fff' : '#6b7280',
-                            border: `1.5px solid ${sel ? '#1450f5' : '#d1d5db'}`, borderRadius: 7,
+                            background: sel ? '#1450f5' : '#fff', color: sel ? '#fff' : '#6e6e6e',
+                            border: `1.5px solid ${sel ? '#1450f5' : '#d8d8d8'}`, borderRadius: 7,
                             fontFamily: 'Inter, sans-serif', transition: 'all 0.1s',
                           }}>
                           {name.split(' ')[0]}
@@ -611,7 +615,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
                     })}
                     <button type="button"
                       onClick={() => setDraftAttendees(draftAttendees.length === teamPeople.length ? [] : teamPeople)}
-                      style={{ height: 28, padding: '0 11px', fontSize: 11, cursor: 'pointer', background: 'none', color: '#9ca3af', border: '1px dashed #d1d5db', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
+                      style={{ height: 28, padding: '0 11px', fontSize: 11, cursor: 'pointer', background: 'none', color: '#9c9c9c', border: '1px dashed #d8d8d8', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
                       {draftAttendees.length === teamPeople.length ? 'None' : 'All'}
                     </button>
                   </div>
@@ -622,11 +626,11 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#dc2626' }}>{err}</span>}{saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}</div>
+        <div style={{ padding: '12px 20px', borderTop: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#c0305a' }}>{err}</span>}{saved && <span style={{ color: '#147a50' }}>✓ Saved</span>}</div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#404040', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#9c9c9c' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -734,44 +738,44 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Training & Upskilling</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>Courses, workshops, one-time events</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#141414' }}>Training & Upskilling</div>
+            <div style={{ fontSize: 11, color: '#9c9c9c', marginTop: 1 }}>Courses, workshops, one-time events</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9c9c9c', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
         {/* Summary bar */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #f1ede3' }}>
           {[
-            { label: 'Allocated', val: allocH, color: '#7c3aed', bg: '#faf5ff', border: '#ddd6fe', sub: '5% of available' },
-            { label: 'Utilized', val: utilH, color: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe', sub: `${pct}% of allocated · from training below` },
+            { label: 'Allocated', val: allocH, color: '#0077a8', bg: '#eafaff', border: '#c4ecfa', sub: '5% of available' },
+            { label: 'Utilized', val: utilH, color: '#0077a8', bg: '#eafaff', border: '#c4ecfa', sub: `${pct}% of allocated · from training below` },
             { label: remaining >= 0 ? 'Remaining' : 'Over budget',
               val: Math.abs(remaining),
-              color: remaining >= 0 ? '#15803d' : '#dc2626',
-              bg:    remaining >= 0 ? '#f0fdf4' : '#fef2f2',
-              border: remaining >= 0 ? '#bbf7d0' : '#fecaca',
+              color: remaining >= 0 ? '#147a50' : '#c0305a',
+              bg:    remaining >= 0 ? '#edf8f2' : '#fff0f3',
+              border: remaining >= 0 ? '#aae1c8' : '#ffd4dd',
               sub: remaining >= 0 ? `${Math.abs(remaining)}h headroom` : `${Math.abs(remaining)}h over` },
           ].map((b, i) => (
             <div key={b.label} style={{ flex: 1, padding: '10px 16px', background: b.bg, borderRight: i < 2 ? `1px solid ${b.border}` : 'none' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9c9c9c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.label}</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: b.color, lineHeight: 1.1 }}>{b.val}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 2 }}>h</span></div>
-              <div style={{ fontSize: 10, color: '#9ca3af' }}>{b.sub}</div>
+              <div style={{ fontSize: 10, color: '#9c9c9c' }}>{b.sub}</div>
             </div>
           ))}
         </div>
 
         {/* Person tabs */}
-        <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '2px solid #f3f4f6', padding: '0 8px', gap: 2 }}>
+        <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '2px solid #f1ede3', padding: '0 8px', gap: 2 }}>
           {teamPeople.map(name => {
             const isActive = activeTab === name
             return (
               <button key={name} onClick={() => { setActiveTab(name); setAdding(false) }} style={{
                 padding: '9px 14px', fontSize: 12, fontWeight: isActive ? 700 : 500, cursor: 'pointer',
                 background: 'none', border: 'none', whiteSpace: 'nowrap',
-                borderBottom: isActive ? '2px solid #7c3aed' : '2px solid transparent',
-                marginBottom: -2, color: isActive ? '#7c3aed' : '#6b7280',
+                borderBottom: isActive ? '2px solid #0077a8' : '2px solid transparent',
+                marginBottom: -2, color: isActive ? '#0077a8' : '#6e6e6e',
                 fontFamily: 'Inter, sans-serif',
               }}>
                 {name.split(' ')[0]}
@@ -783,7 +787,7 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
         {/* Session list for active tab */}
         <div style={{ maxHeight: 'calc(100vh - 360px)', overflowY: 'auto' }}>
           {currentSessions.length === 0 && !adding && (
-            <div style={{ padding: '28px 20px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+            <div style={{ padding: '28px 20px', textAlign: 'center', color: '#9c9c9c', fontSize: 13 }}>
               No training yet for {activeTab.split(' ')[0]} — click <strong>+ Add training</strong> below
             </div>
           )}
@@ -792,27 +796,27 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
             const isOneTime = s.frequency === 'one-time'
             const freq = TRAINING_FREQS.find(f => f.key === (s.frequency || 'annual'))?.label || 'Annual'
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f3f4f6', gap: 12 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed', flexShrink: 0 }} />
+              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f1ede3', gap: 12 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0077a8', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#141414' }}>{s.name}</div>
+                  <div style={{ fontSize: 11, color: '#9c9c9c', marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                     {isOneTime
-                      ? <span style={{ background: '#f3e8ff', color: '#7c3aed', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>one-time</span>
-                      : <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '1px 6px' }}>{freq}</span>
+                      ? <span style={{ background: '#eafaff', color: '#0077a8', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>one-time</span>
+                      : <span style={{ background: '#f1ede3', borderRadius: 4, padding: '1px 6px' }}>{freq}</span>
                     }
                     {isOneTime && s.quarter && (
-                      <span style={{ background: '#fef3c7', color: '#92400e', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>{s.quarter}</span>
+                      <span style={{ background: '#fff3b0', color: '#7a5400', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>{s.quarter}</span>
                     )}
                     <span>{s.duration_hours}h {isOneTime ? 'total' : '/session'}</span>
-                    <span style={{ color: '#7c3aed', fontWeight: 700 }}>
+                    <span style={{ color: '#0077a8', fontWeight: 700 }}>
                       {isOneTime ? `${hpy}h one-time` : `${hpy}h/yr · ${Math.round(hpy * pf)}h this period`}
                     </span>
                   </div>
                 </div>
                 <button onClick={() => removeSession(activeTab, i)} style={{
                   height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  color: '#ef4444', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 6,
+                  color: '#c0305a', background: '#fff0f3', border: '1px solid #ffd4dd', borderRadius: 6,
                   fontFamily: 'Inter, sans-serif', flexShrink: 0,
                 }}>Remove</button>
               </div>
@@ -822,8 +826,8 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
           {/* Add form — always visible at bottom */}
           {!adding ? (
             <button onClick={() => { setAdding(true); setDraft({ name: '', duration_hours: 1, frequency: 'annual', quarter: '' }) }} style={{
-              width: '100%', padding: '13px 20px', background: '#faf5ff', border: 'none',
-              borderTop: '1px solid #e5e8ef', color: '#7c3aed', fontSize: 13, fontWeight: 600,
+              width: '100%', padding: '13px 20px', background: '#eafaff', border: 'none',
+              borderTop: '1px solid #e8e2d6', color: '#0077a8', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               fontFamily: 'Inter, sans-serif',
             }}>
@@ -831,54 +835,54 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
               Add training for {activeTab.split(' ')[0]}
             </button>
           ) : (
-            <div style={{ padding: '16px 20px', background: '#faf5ff', borderTop: '1px solid #ddd6fe' }}>
+            <div style={{ padding: '16px 20px', background: '#eafaff', borderTop: '1px solid #c4ecfa' }}>
               <div style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>
                   {isOneTimeDraft ? 'Event name' : 'Training / course name'}
                 </label>
                 <input value={draft.name} onChange={e => setDraft(v => ({...v, name: e.target.value}))}
                   onKeyDown={e => { if (e.key === 'Enter') confirmAdd() }}
                   placeholder={isOneTimeDraft ? 'e.g. Onboarding, Team offsite…' : 'e.g. Google Analytics Cert, LinkedIn Learning…'} autoFocus
-                  style={{ width: '100%', height: 36, padding: '0 12px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', height: 36, padding: '0 12px', fontSize: 13, border: '1.5px solid #c4ecfa', borderRadius: 8, outline: 'none', fontFamily: 'Inter, sans-serif', background: '#fff', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Frequency</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Frequency</label>
                   <select value={draft.frequency} onChange={e => setDraft(v => ({...v, frequency: e.target.value, quarter: ''}))}
-                    style={{ height: 34, padding: '0 8px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
+                    style={{ height: 34, padding: '0 8px', fontSize: 13, border: '1.5px solid #c4ecfa', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fff', outline: 'none' }}>
                     {TRAINING_FREQS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                   </select>
                 </div>
                 {isOneTimeDraft && (
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Quarter</label>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Quarter</label>
                     <select value={draft.quarter} onChange={e => setDraft(v => ({...v, quarter: e.target.value}))}
-                      style={{ height: 34, padding: '0 8px', fontSize: 13, border: '1.5px solid #fcd34d', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fffbeb', outline: 'none', color: draft.quarter ? '#92400e' : '#9ca3af' }}>
+                      style={{ height: 34, padding: '0 8px', fontSize: 13, border: '1.5px solid #ffe141', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: '#fffae3', outline: 'none', color: draft.quarter ? '#7a5400' : '#9c9c9c' }}>
                       <option value="">No specific quarter</option>
                       {TRAINING_QUARTERS.map(q => <option key={q} value={q}>{q}</option>)}
                     </select>
                   </div>
                 )}
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>
                     {isOneTimeDraft ? 'Total hours' : 'Hours / session'}
                   </label>
                   <input type="number" value={draft.duration_hours} min={0} max={2000} step={0.5}
                     onChange={e => setDraft(v => ({...v, duration_hours: e.target.value}))}
-                    style={{ width: 90, height: 34, padding: '0 10px', fontSize: 13, border: '1.5px solid #ddd6fe', borderRadius: 8, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
+                    style={{ width: 90, height: 34, padding: '0 10px', fontSize: 13, border: '1.5px solid #c4ecfa', borderRadius: 8, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
                 </div>
                 {previewHpy > 0 && (
                   <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 10px', background: '#7c3aed18', borderRadius: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#0077a8' }}>
                       {isOneTimeDraft ? `${previewHpy}h${draft.quarter ? ' · ' + draft.quarter : ' one-time'}` : `${previewHpy}h/yr`}
                     </span>
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
                   <button onClick={() => setAdding(false)}
-                    style={{ height: 34, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                    style={{ height: 34, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6e6e6e', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
                   <button onClick={confirmAdd}
-                    style={{ height: 34, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
+                    style={{ height: 34, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#0077a8', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
                 </div>
               </div>
             </div>
@@ -886,11 +890,11 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#dc2626' }}>{err}</span>}{saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}</div>
+        <div style={{ padding: '12px 20px', borderTop: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#c0305a' }}>{err}</span>}{saved && <span style={{ color: '#147a50' }}>✓ Saved</span>}</div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#404040', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#9c9c9c' : '#0077a8', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -943,10 +947,10 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates, teamPeople = DE
     return { name, wd, avail, prodDays, ntPct, allRows, svcRows, totQuota, totActual, totAtt, totalSpan }
   })
 
-  const HDR = { padding: '8px 12px', fontWeight: 700, color: '#6b7280', fontSize: 11, borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
+  const HDR = { padding: '8px 12px', fontWeight: 700, color: '#6e6e6e', fontSize: 11, borderBottom: '2px solid #e8e2d6', whiteSpace: 'nowrap', background: '#faf8f3' }
 
   return (
-    <SectionCard title="Capacity Planning" subtitle="BAU ticket quota vs actual, plus non-BAU time reservations. Denominator = productivity days (75% of availability)." accent="#7c3aed">
+    <SectionCard title="Capacity Planning" subtitle="BAU ticket quota vs actual, plus non-BAU time reservations. Denominator = productivity days (75% of availability)." accent="#0077a8">
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
@@ -958,13 +962,13 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates, teamPeople = DE
           </thead>
           <tbody>
             {grouped.map(({ name, wd, avail, prodDays, ntPct, allRows, svcRows, totQuota, totActual, totAtt, totalSpan }, gi) => {
-              const personBg = gi % 2 === 0 ? '#fff' : '#fafbff'
+              const personBg = gi % 2 === 0 ? '#fff' : '#f5f8fe'
               const totAS = attStyle(totAtt)
               return [
                 ...allRows.map((r, ri) => (
-                  <tr key={`${name}-${r.type === 'nt' ? r.activity : r.svc}`} style={{ background: personBg, borderBottom: '1px solid #f0f3fa' }}>
+                  <tr key={`${name}-${r.type === 'nt' ? r.activity : r.svc}`} style={{ background: personBg, borderBottom: '1px solid #f3eee6' }}>
                     {ri === 0 && (
-                      <td rowSpan={totalSpan} style={{ padding: '10px 12px', fontWeight: 700, color: '#111827', verticalAlign: 'middle', borderRight: '1px solid #e5e8ef', whiteSpace: 'nowrap' }}>
+                      <td rowSpan={totalSpan} style={{ padding: '10px 12px', fontWeight: 700, color: '#141414', verticalAlign: 'middle', borderRight: '1px solid #e8e2d6', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                           <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
                             {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
@@ -976,54 +980,54 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates, teamPeople = DE
                     <td style={{ padding: '8px 12px' }}>
                       {r.type === 'nt' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: NON_BAU_COLORS[r.activity] || '#9ca3af', flexShrink: 0 }} />
-                          <span style={{ color: '#374151' }}>{r.activity}</span>
-                          <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 5px' }}>non-BAU</span>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: NON_BAU_COLORS[r.activity] || '#9c9c9c', flexShrink: 0 }} />
+                          <span style={{ color: '#404040' }}>{r.activity}</span>
+                          <span style={{ fontSize: 10, color: '#9c9c9c', background: '#f1ede3', borderRadius: 4, padding: '1px 5px' }}>non-BAU</span>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <div style={{ width: 7, height: 7, borderRadius: '50%', background: BAU_COLORS[r.svc], flexShrink: 0 }} />
-                          <span style={{ color: '#374151' }}>{BAU_SHORT[r.svc]}</span>
+                          <span style={{ color: '#404040' }}>{BAU_SHORT[r.svc]}</span>
                         </div>
                       )}
                     </td>
                     {ri === 0 && (
                       <td rowSpan={totalSpan} style={{ padding: '8px 12px', textAlign: 'center', verticalAlign: 'middle' }}>
-                        <div style={{ fontWeight: 700, color: '#7c3aed' }}>{prodDays}d</div>
-                        <div style={{ fontSize: 10, color: '#9ca3af' }}>of {avail}d avail</div>
+                        <div style={{ fontWeight: 700, color: '#0077a8' }}>{prodDays}d</div>
+                        <div style={{ fontSize: 10, color: '#9c9c9c' }}>of {avail}d avail</div>
                       </td>
                     )}
-                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocPct}%</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.allocDays}d</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#404040' }}>{r.allocPct}%</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#404040' }}>{r.allocDays}d</td>
                     {r.type === 'nt' ? (
-                      <td colSpan={4} style={{ padding: '8px 12px', textAlign: 'center', color: '#9ca3af', fontSize: 11 }}>time reserved — not ticket-tracked</td>
+                      <td colSpan={4} style={{ padding: '8px 12px', textAlign: 'center', color: '#9c9c9c', fontSize: 11 }}>time reserved — not ticket-tracked</td>
                     ) : (<>
-                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280' }}>{r.rate}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#6e6e6e' }}>{r.rate}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{r.quota}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#374151' }}>{r.actual}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#404040' }}>{r.actual}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                         {r.att != null
                           ? <span style={{ fontWeight: 700, color: attStyle(r.att).color, background: attStyle(r.att).bg, borderRadius: 6, padding: '2px 8px' }}>{r.att}%</span>
-                          : <span style={{ color: '#d1d5db' }}>—</span>}
+                          : <span style={{ color: '#d8d8d8' }}>—</span>}
                       </td>
                     </>)}
                   </tr>
                 )),
                 svcRows.length > 0 && (
-                  <tr key={`${name}-total`} style={{ background: personBg, borderBottom: '1px solid #e5e8ef' }}>
-                    <td style={{ padding: '7px 12px', fontStyle: 'italic', color: '#6b7280' }}>BAU Total</td>
+                  <tr key={`${name}-total`} style={{ background: personBg, borderBottom: '1px solid #e8e2d6' }}>
+                    <td style={{ padding: '7px 12px', fontStyle: 'italic', color: '#6e6e6e' }}>BAU Total</td>
                     <td colSpan={3} />
                     <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{totQuota}</td>
-                    <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#374151' }}>{totActual}</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: '#404040' }}>{totActual}</td>
                     <td style={{ padding: '7px 12px', textAlign: 'center' }}>
                       {totAtt != null
                         ? <span style={{ fontWeight: 700, color: totAS.color, background: totAS.bg, borderRadius: 6, padding: '2px 8px' }}>{totAtt}%</span>
-                        : <span style={{ color: '#d1d5db' }}>—</span>}
+                        : <span style={{ color: '#d8d8d8' }}>—</span>}
                     </td>
                   </tr>
                 ),
-                <tr key={`${name}-eff`} style={{ background: ntPct > 0 ? '#fdf4ff' : personBg, borderBottom: '2px solid #e5e8ef' }}>
-                  <td colSpan={7} style={{ padding: '7px 12px', fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
+                <tr key={`${name}-eff`} style={{ background: ntPct > 0 ? '#fff0f3' : personBg, borderBottom: '2px solid #e8e2d6' }}>
+                  <td colSpan={7} style={{ padding: '7px 12px', fontSize: 11, color: '#0077a8', fontWeight: 600 }}>
                     {`Productivity: ${prodDays}d (${wd}d working − ${wd - avail}d holidays = ${avail}d avail × 75%)`}
                     {ntPct > 0 && ` · ${ntPct}% reserved for non-BAU`}
                   </td>
@@ -1034,10 +1038,10 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates, teamPeople = DE
         </table>
       </div>
       <div style={{ marginTop: 10, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        {[['≥ 100%', '#0369a1', '#e0f2fe', 'Over target'], ['80–99%', '#15803d', '#dcfce7', 'On track'], ['50–79%', '#854d0e', '#fef9c3', 'Under target'], ['< 50%', '#991b1b', '#fee2e2', 'Far under']].map(([lbl, col, bg, desc]) => (
+        {[['≥ 100%', '#005f86', '#eafaff', 'Over target'], ['80–99%', '#147a50', '#d3efe0', 'On track'], ['50–79%', '#7a5400', '#fff6c4', 'Under target'], ['< 50%', '#8c1a2e', '#ffdee5', 'Far under']].map(([lbl, col, bg, desc]) => (
           <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: col, background: bg, borderRadius: 5, padding: '1px 7px' }}>{lbl}</span>
-            <span style={{ fontSize: 11, color: '#6b7280' }}>{desc}</span>
+            <span style={{ fontSize: 11, color: '#6e6e6e' }}>{desc}</span>
           </div>
         ))}
       </div>
@@ -1145,7 +1149,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
     finally { setSaving(false) }
   }
 
-  const TH = { padding: '7px 10px', fontWeight: 700, fontSize: 11, color: '#6b7280', background: '#f9fafb', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', textAlign: 'center' }
+  const TH = { padding: '7px 10px', fontWeight: 700, fontSize: 11, color: '#6e6e6e', background: '#faf8f3', borderBottom: '2px solid #e8e2d6', whiteSpace: 'nowrap', textAlign: 'center' }
   const THL = { ...TH, textAlign: 'left' }
 
   return (
@@ -1155,16 +1159,16 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Capacity Settings</div>
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Working days · holidays · availability breakdown · BAU and non-BAU allocations (% of productivity days)</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#141414' }}>Capacity Settings</div>
+            <div style={{ fontSize: 12, color: '#9c9c9c', marginTop: 2 }}>Working days · holidays · availability breakdown · BAU and non-BAU allocations (% of productivity days)</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9c9c9c', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
 
         {/* Period tab strip */}
-        <div style={{ background: '#f8fafc', borderBottom: '1px solid #e5e8ef' }}>
+        <div style={{ background: '#faf8f3', borderBottom: '1px solid #e8e2d6' }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', paddingLeft: 24, paddingRight: 24, paddingTop: 10, gap: 2, overflowX: 'auto' }}>
             {/* Annual tab */}
             {(() => {
@@ -1173,9 +1177,9 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                 <button onClick={() => setMode('annual')} style={{
                   height: 36, padding: '0 16px', fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
                   background: active ? '#fff' : 'transparent',
-                  color: active ? '#1450f5' : '#6b7280',
+                  color: active ? '#1450f5' : '#6e6e6e',
                   border: '1px solid transparent',
-                  borderColor: active ? '#e5e8ef' : 'transparent',
+                  borderColor: active ? '#e8e2d6' : 'transparent',
                   borderBottom: active ? '1px solid #fff' : undefined,
                   borderRadius: '8px 8px 0 0',
                   marginBottom: active ? -1 : 0,
@@ -1183,7 +1187,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                   display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
                 }}>
                   Annual
-                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#059669', background: '#dcfce7', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
+                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#1e8a5e', background: '#d3efe0', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
                 </button>
               )
             })()}
@@ -1194,9 +1198,9 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                 <button key={key} onClick={() => setMode(key)} style={{
                   height: 36, padding: '0 16px', fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
                   background: active ? '#fff' : 'transparent',
-                  color: active ? '#7c3aed' : '#6b7280',
+                  color: active ? '#0077a8' : '#6e6e6e',
                   border: '1px solid transparent',
-                  borderColor: active ? '#e5e8ef' : 'transparent',
+                  borderColor: active ? '#e8e2d6' : 'transparent',
                   borderBottom: active ? '1px solid #fff' : undefined,
                   borderRadius: '8px 8px 0 0',
                   marginBottom: active ? -1 : 0,
@@ -1204,7 +1208,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                   display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
                 }}>
                   {p.label}
-                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#059669', background: '#dcfce7', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
+                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#1e8a5e', background: '#d3efe0', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
                 </button>
               )
             })}
@@ -1212,8 +1216,8 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
             {!showNew && (
               <button onClick={() => setShowNew(true)} style={{
                 height: 36, padding: '0 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                background: 'transparent', color: '#9ca3af',
-                border: '1px dashed #d1d5db', borderBottom: 'none',
+                background: 'transparent', color: '#9c9c9c',
+                border: '1px dashed #d8d8d8', borderBottom: 'none',
                 borderRadius: '8px 8px 0 0',
                 fontFamily: 'Inter, sans-serif',
                 display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
@@ -1225,48 +1229,48 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
         </div>
 
         {/* Period settings bar — changes based on active tab */}
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f3f4f6', background: '#fff' }}>
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f1ede3', background: '#fff' }}>
           {mode === 'annual' ? (
             <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#1450f5' }}>Annual Defaults</span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#404040' }}>
                 Working days / year
                 <NumInput value={defWd} onChange={v => setDefWd(v ?? 250)} min={1} max={365} width={72} />
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#404040' }}>
                 Holidays / year
                 <NumInput value={defH} onChange={v => setDefH(v ?? 24)} min={0} max={60} width={60} />
               </label>
-              <span style={{ fontSize: 11, color: '#9ca3af' }}>Availability = WD − Holidays · Cadence 20% · Training 5% · Productivity 75%</span>
+              <span style={{ fontSize: 11, color: '#9c9c9c' }}>Availability = WD − Holidays · Cadence 20% · Training 5% · Productivity 75%</span>
             </div>
           ) : presets[mode] ? (
             <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#7c3aed' }}>{presets[mode].label}</span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#0077a8' }}>{presets[mode].label}</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#404040' }}>
                 Working days
                 <NumInput value={presets[mode].default_working_days} onChange={v => updatePreset(mode, 'default_working_days', v ?? 250)} min={1} max={365} width={72} />
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#404040' }}>
                 Holidays
                 <NumInput value={presets[mode].default_holidays} onChange={v => updatePreset(mode, 'default_holidays', v ?? 0)} min={0} max={60} width={60} />
               </label>
-              <button onClick={() => deletePreset(mode)} style={{ height: 28, padding: '0 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#fff', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Delete period</button>
+              <button onClick={() => deletePreset(mode)} style={{ height: 28, padding: '0 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#fff', color: '#c0305a', border: '1px solid #f28ba0', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Delete period</button>
             </div>
           ) : null}
           {/* New period form */}
           {showNew && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: mode !== 'annual' && !presets[mode] ? 0 : 10, flexWrap: 'wrap', padding: '10px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#15803d' }}>New period:</span>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: mode !== 'annual' && !presets[mode] ? 0 : 10, flexWrap: 'wrap', padding: '10px 14px', background: '#edf8f2', borderRadius: 8, border: '1px solid #aae1c8' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#147a50' }}>New period:</span>
               <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. Q1 2025"
-                style={{ height: 30, padding: '0 10px', fontSize: 12, border: '1px solid #d1d5db', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', width: 140 }} />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' }}>
+                style={{ height: 30, padding: '0 10px', fontSize: 12, border: '1px solid #d8d8d8', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', width: 140 }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#404040' }}>
                 WD/yr <NumInput value={newWd} onChange={v => setNewWd(v ?? 250)} min={1} max={365} width={68} />
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#404040' }}>
                 Holidays <NumInput value={newH} onChange={v => setNewH(v ?? 0)} min={0} max={60} width={60} />
               </label>
-              <button onClick={addPreset} style={{ height: 30, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#15803d', color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Create &amp; Activate</button>
-              <button onClick={() => setShowNew(false)} style={{ height: 30, padding: '0 12px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+              <button onClick={addPreset} style={{ height: 30, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#147a50', color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Create &amp; Activate</button>
+              <button onClick={() => setShowNew(false)} style={{ height: 30, padding: '0 12px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6e6e6e', border: '1px solid #d8d8d8', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
             </div>
           )}
         </div>
@@ -1276,25 +1280,25 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               {/* Group headers */}
-              <tr style={{ background: '#f0f4ff' }}>
-                <th style={{ ...THL, borderBottom: '1px solid #e5e8ef' }} rowSpan={2}>Person</th>
+              <tr style={{ background: '#eef3fe' }}>
+                <th style={{ ...THL, borderBottom: '1px solid #e8e2d6' }} rowSpan={2}>Person</th>
                 <th colSpan={6} style={{ ...TH, color: '#1450f5', borderBottom: '1px solid #c7d7fd', borderLeft: '2px solid #c7d7fd' }}>Capacity Breakdown</th>
-                <th colSpan={3} style={{ ...TH, color: '#059669', borderBottom: '1px solid #a7f3d0', borderLeft: '2px solid #a7f3d0' }}>BAU Allocation (% of Productivity)</th>
-                <th colSpan={4} style={{ ...TH, color: '#7c3aed', borderBottom: '1px solid #ddd6fe', borderLeft: '2px solid #ddd6fe' }}>Non-BAU Allocation (% of Productivity)</th>
-                <th style={{ ...TH, borderBottom: '1px solid #e5e8ef', borderLeft: '2px solid #e5e8ef' }} rowSpan={2}>Total %</th>
+                <th colSpan={3} style={{ ...TH, color: '#1e8a5e', borderBottom: '1px solid #aae1c8', borderLeft: '2px solid #aae1c8' }}>BAU Allocation (% of Productivity)</th>
+                <th colSpan={4} style={{ ...TH, color: '#0077a8', borderBottom: '1px solid #c4ecfa', borderLeft: '2px solid #c4ecfa' }}>Non-BAU Allocation (% of Productivity)</th>
+                <th style={{ ...TH, borderBottom: '1px solid #e8e2d6', borderLeft: '2px solid #e8e2d6' }} rowSpan={2}>Total %</th>
               </tr>
-              <tr style={{ background: '#f9fafb' }}>
+              <tr style={{ background: '#faf8f3' }}>
                 <th style={{ ...TH, borderLeft: '2px solid #c7d7fd' }}>Working Days</th>
                 <th style={TH}>Holidays</th>
                 <th style={{ ...TH, color: '#1450f5' }}>Availability</th>
-                <th style={{ ...TH, color: '#0891b2' }}>Cadence<br/><span style={{ fontWeight: 400, fontSize: 10 }}>20%</span></th>
-                <th style={{ ...TH, color: '#7c3aed' }}>Training/<br/>Upskilling<br/><span style={{ fontWeight: 400, fontSize: 10 }}>5%</span></th>
-                <th style={{ ...TH, color: '#059669' }}>Productivity<br/><span style={{ fontWeight: 400, fontSize: 10 }}>75%</span></th>
+                <th style={{ ...TH, color: '#0077a8' }}>Cadence<br/><span style={{ fontWeight: 400, fontSize: 10 }}>20%</span></th>
+                <th style={{ ...TH, color: '#0077a8' }}>Training/<br/>Upskilling<br/><span style={{ fontWeight: 400, fontSize: 10 }}>5%</span></th>
+                <th style={{ ...TH, color: '#1e8a5e' }}>Productivity<br/><span style={{ fontWeight: 400, fontSize: 10 }}>75%</span></th>
                 {BAU_SERVICES.map((sv, i) => (
-                  <th key={sv} style={{ ...TH, color: BAU_COLORS[sv], borderLeft: i === 0 ? '2px solid #a7f3d0' : undefined }}>{BAU_SHORT[sv]}</th>
+                  <th key={sv} style={{ ...TH, color: BAU_COLORS[sv], borderLeft: i === 0 ? '2px solid #aae1c8' : undefined }}>{BAU_SHORT[sv]}</th>
                 ))}
                 {NON_BAU.map((a, i) => (
-                  <th key={a} style={{ ...TH, color: NON_BAU_COLORS[a], borderLeft: i === 0 ? '2px solid #ddd6fe' : undefined }}>{a}</th>
+                  <th key={a} style={{ ...TH, color: NON_BAU_COLORS[a], borderLeft: i === 0 ? '2px solid #c4ecfa' : undefined }}>{a}</th>
                 ))}
               </tr>
             </thead>
@@ -1302,11 +1306,11 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
               {teamPeople.map((name, pi) => {
                 const d = derived(name)
                 const total = d.bauPct + d.nonBauPct
-                const totalColor = total > 100 ? '#991b1b' : total === 100 ? '#15803d' : '#854d0e'
+                const totalColor = total > 100 ? '#8c1a2e' : total === 100 ? '#147a50' : '#7a5400'
                 const p = people[name] || {}
                 return (
-                  <tr key={name} style={{ background: pi % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
-                    <td style={{ padding: '8px 12px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>
+                  <tr key={name} style={{ background: pi % 2 === 0 ? '#fff' : '#faf8f3', borderBottom: '1px solid #f3eee6' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 600, color: '#141414', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <div style={{ width: 24, height: 24, borderRadius: '50%', background: `hsl(${Math.abs(name.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
                           {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
@@ -1315,7 +1319,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                       </div>
                     </td>
                     {/* Working Days */}
-                    <td style={{ padding: '6px 8px', textAlign: 'center', borderLeft: '2px solid #e8f0fe' }}>
+                    <td style={{ padding: '6px 8px', textAlign: 'center', borderLeft: '2px solid #eef3fe' }}>
                       <NumInput value={p.working_days} onChange={v => setPeople(prev => ({ ...prev, [name]: { ...prev[name], working_days: v } }))} placeholder={String(defWd)} min={1} max={365} width={68} />
                     </td>
                     {/* Holidays */}
@@ -1324,12 +1328,12 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                     </td>
                     {/* Calculated columns */}
                     <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{d.av}d</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#0891b2' }}>{d.cadence}d</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#7c3aed' }}>{d.training}d</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#059669' }}>{d.productivity}d</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#0077a8' }}>{d.cadence}d</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#0077a8' }}>{d.training}d</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#1e8a5e' }}>{d.productivity}d</td>
                     {/* BAU % */}
                     {BAU_SERVICES.map((sv, i) => (
-                      <td key={sv} style={{ padding: '6px 6px', textAlign: 'center', borderLeft: i === 0 ? '2px solid #a7f3d0' : undefined }}>
+                      <td key={sv} style={{ padding: '6px 6px', textAlign: 'center', borderLeft: i === 0 ? '2px solid #aae1c8' : undefined }}>
                         <input type="number" value={p.bau?.[sv] ?? 0} min={0} max={100}
                           onChange={e => setPeople(prev => ({ ...prev, [name]: { ...prev[name], bau: { ...prev[name].bau, [sv]: Number(e.target.value) } } }))}
                           style={{ width: 56, height: 28, padding: '0 4px', fontSize: 12, border: `1px solid ${BAU_COLORS[sv]}50`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: BAU_COLORS[sv], outline: 'none', boxSizing: 'border-box' }} />
@@ -1337,16 +1341,16 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                     ))}
                     {/* Non-BAU % */}
                     {NON_BAU.map((a, i) => (
-                      <td key={a} style={{ padding: '6px 6px', textAlign: 'center', borderLeft: i === 0 ? '2px solid #ddd6fe' : undefined }}>
+                      <td key={a} style={{ padding: '6px 6px', textAlign: 'center', borderLeft: i === 0 ? '2px solid #c4ecfa' : undefined }}>
                         <input type="number" value={p.non_bau?.[a] ?? 0} min={0} max={100}
                           onChange={e => setPeople(prev => ({ ...prev, [name]: { ...prev[name], non_bau: { ...prev[name].non_bau, [a]: Number(e.target.value) } } }))}
                           style={{ width: 56, height: 28, padding: '0 4px', fontSize: 12, border: `1px solid ${NON_BAU_COLORS[a]}50`, borderRadius: 6, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: NON_BAU_COLORS[a], outline: 'none', boxSizing: 'border-box' }} />
                       </td>
                     ))}
                     {/* Total % */}
-                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: totalColor, borderLeft: '2px solid #e5e8ef' }}>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: totalColor, borderLeft: '2px solid #e8e2d6' }}>
                       {total}%
-                      {total > 100 && <div style={{ fontSize: 9, fontWeight: 400, color: '#991b1b' }}>↑ over</div>}
+                      {total > 100 && <div style={{ fontSize: 9, fontWeight: 400, color: '#8c1a2e' }}>↑ over</div>}
                     </td>
                   </tr>
                 )
@@ -1354,35 +1358,35 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
             </tbody>
             {/* Summary row */}
             <tfoot>
-              <tr style={{ background: '#f0f4ff', borderTop: '2px solid #c7d7fd' }}>
+              <tr style={{ background: '#eef3fe', borderTop: '2px solid #c7d7fd' }}>
                 <td style={{ padding: '9px 12px', fontWeight: 700, color: '#1450f5' }}>Team Total</td>
-                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#374151', borderLeft: '2px solid #e8f0fe' }}>{totals.wd}d</td>
-                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#374151' }}>{totals.h}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#404040', borderLeft: '2px solid #eef3fe' }}>{totals.wd}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#404040' }}>{totals.h}d</td>
                 <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{totals.av}d</td>
-                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#0891b2' }}>{totals.cadence}d</td>
-                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#7c3aed' }}>{totals.training}d</td>
-                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#059669' }}>{totals.productivity}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#0077a8' }}>{totals.cadence}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#0077a8' }}>{totals.training}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#1e8a5e' }}>{totals.productivity}d</td>
                 {BAU_SERVICES.map((sv, i) => (
-                  <td key={sv} style={{ padding: '9px 10px', textAlign: 'center', color: '#9ca3af', borderLeft: i === 0 ? '2px solid #a7f3d0' : undefined }}>—</td>
+                  <td key={sv} style={{ padding: '9px 10px', textAlign: 'center', color: '#9c9c9c', borderLeft: i === 0 ? '2px solid #aae1c8' : undefined }}>—</td>
                 ))}
                 {NON_BAU.map((a, i) => (
-                  <td key={a} style={{ padding: '9px 10px', textAlign: 'center', color: '#9ca3af', borderLeft: i === 0 ? '2px solid #ddd6fe' : undefined }}>—</td>
+                  <td key={a} style={{ padding: '9px 10px', textAlign: 'center', color: '#9c9c9c', borderLeft: i === 0 ? '2px solid #c4ecfa' : undefined }}>—</td>
                 ))}
-                <td style={{ borderLeft: '2px solid #e5e8ef' }} />
+                <td style={{ borderLeft: '2px solid #e8e2d6' }} />
               </tr>
             </tfoot>
           </table>
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12 }}>
-            {err  && <span style={{ color: '#dc2626' }}>{err}</span>}
-            {saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}
+            {err  && <span style={{ color: '#c0305a' }}>{err}</span>}
+            {saved && <span style={{ color: '#147a50' }}>✓ Saved</span>}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#404040', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#9c9c9c' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
@@ -1423,19 +1427,19 @@ function RatesSlaModal({ bwRates, slaRules, onClose, onSaved }) {
     finally { setSaving(false) }
   }
 
-  const TH = { padding: '8px 12px', fontWeight: 700, color: '#6b7280', fontSize: 11, textAlign: 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap', background: '#f9fafb' }
+  const TH = { padding: '8px 12px', fontWeight: 700, color: '#6e6e6e', fontSize: 11, textAlign: 'center', borderBottom: '2px solid #e8e2d6', whiteSpace: 'nowrap', background: '#faf8f3' }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '32px 16px', overflowY: 'auto' }}
       onClick={onClose}>
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 700, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', flexShrink: 0 }}
         onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Rates & SLA</div>
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>Hours per ticket and SLA targets per service</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#141414' }}>Rates & SLA</div>
+            <div style={{ fontSize: 12, color: '#9c9c9c', marginTop: 2 }}>Hours per ticket and SLA targets per service</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9c9c9c', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
         </div>
         <div style={{ padding: '20px 24px', overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -1449,34 +1453,34 @@ function RatesSlaModal({ bwRates, slaRules, onClose, onSaved }) {
             </thead>
             <tbody>
               {displayServices.map((svc, i) => {
-                const color = BAU_COLORS[svc] || SUBCAT_COLORS[svc] || '#94a3b8'
+                const color = BAU_COLORS[svc] || SUBCAT_COLORS[svc] || '#9c9c9c'
                 const isSubcat = !BAU_SERVICES.includes(svc)
                 return (
-                  <tr key={svc} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
+                  <tr key={svc} style={{ background: i % 2 === 0 ? '#fff' : '#faf8f3', borderBottom: '1px solid #f3eee6' }}>
                     <td style={{ padding: '10px 12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 9, height: 9, borderRadius: '50%', background: color }} />
-                        <span style={{ fontWeight: isSubcat ? 400 : 600, color: '#111827' }}>
-                          {isSubcat ? <span style={{ color: '#9ca3af', marginRight: 4 }}>↳</span> : null}{svc}
+                        <span style={{ fontWeight: isSubcat ? 400 : 600, color: '#141414' }}>
+                          {isSubcat ? <span style={{ color: '#9c9c9c', marginRight: 4 }}>↳</span> : null}{svc}
                         </span>
-                        {isSubcat && <span style={{ fontSize: 10, color: '#9ca3af', background: '#f3f4f6', borderRadius: 4, padding: '1px 5px' }}>sub-service</span>}
+                        {isSubcat && <span style={{ fontSize: 10, color: '#9c9c9c', background: '#f1ede3', borderRadius: 4, padding: '1px 5px' }}>sub-service</span>}
                       </div>
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                       <input type="number" value={localHours[svc] ?? ''} step={0.5} min={0.5}
                         onChange={e => setLocalHours(h => ({ ...h, [svc]: e.target.value }))}
-                        style={{ width: 80, height: 32, padding: '0 8px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 7, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
-                      <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>h</span>
+                        style={{ width: 80, height: 32, padding: '0 8px', fontSize: 13, border: '1px solid #d8d8d8', borderRadius: 7, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
+                      <span style={{ fontSize: 11, color: '#9c9c9c', marginLeft: 6 }}>h</span>
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#374151' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#404040' }}>
                       {localHours[svc] > 0 ? +(8 / localHours[svc]).toFixed(2) : '—'}
-                      <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400, marginLeft: 4 }}>/day</span>
+                      <span style={{ fontSize: 11, color: '#9c9c9c', fontWeight: 400, marginLeft: 4 }}>/day</span>
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                       <input type="number" value={localSla[svc] ?? ''} min={1} max={365}
                         onChange={e => setLocalSla(s => ({ ...s, [svc]: e.target.value }))}
-                        style={{ width: 80, height: 32, padding: '0 8px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 7, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
-                      <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>days</span>
+                        style={{ width: 80, height: 32, padding: '0 8px', fontSize: 13, border: '1px solid #d8d8d8', borderRadius: 7, textAlign: 'center', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
+                      <span style={{ fontSize: 11, color: '#9c9c9c', marginLeft: 6 }}>days</span>
                     </td>
                   </tr>
                 )
@@ -1484,14 +1488,14 @@ function RatesSlaModal({ bwRates, slaRules, onClose, onSaved }) {
             </tbody>
           </table>
         </div>
-        <div style={{ padding: '14px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12 }}>
-            {err  && <span style={{ color: '#dc2626' }}>{err}</span>}
-            {saved && <span style={{ color: '#15803d' }}>✓ Saved</span>}
+            {err  && <span style={{ color: '#c0305a' }}>{err}</span>}
+            {saved && <span style={{ color: '#147a50' }}>✓ Saved</span>}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#94a3b8' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>
+            <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#404040', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#9c9c9c' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
@@ -1519,7 +1523,7 @@ function AssigneeMultiSelect({ options, selected, onChange }) {
       <button onClick={() => setOpen(o => !o)} style={{
         height: 30, padding: '0 10px', fontSize: 12, borderRadius: 7, background: '#fff', outline: 'none',
         fontFamily: 'Inter, sans-serif', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-        color: hasSelected ? '#111827' : '#9ca3af', border: `1px solid ${hasSelected ? '#a5b4fc' : '#e5e7eb'}`,
+        color: hasSelected ? '#141414' : '#9c9c9c', border: `1px solid ${hasSelected ? '#a1b9fb' : '#e8e2d6'}`,
       }}>
         {label}
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0 }}>
@@ -1529,19 +1533,19 @@ function AssigneeMultiSelect({ options, selected, onChange }) {
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 200,
-          background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8,
+          background: '#fff', border: '1px solid #e8e2d6', borderRadius: 8,
           boxShadow: '0 4px 20px rgba(0,0,0,0.10)', minWidth: 210, maxHeight: 270, overflowY: 'auto', padding: '6px 0',
         }}>
           {options.length === 0 && (
-            <div style={{ padding: '8px 14px', fontSize: 12, color: '#9ca3af' }}>No assignees in data</div>
+            <div style={{ padding: '8px 14px', fontSize: 12, color: '#9c9c9c' }}>No assignees in data</div>
           )}
           {options.map(name => {
             const checked = selected.includes(name)
             return (
               <label key={name} style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px',
-                cursor: 'pointer', fontSize: 12, color: '#111827',
-                background: checked ? '#eff6ff' : 'transparent',
+                cursor: 'pointer', fontSize: 12, color: '#141414',
+                background: checked ? '#eef3fe' : 'transparent',
               }}>
                 <input type="checkbox" checked={checked}
                   onChange={() => onChange(checked ? selected.filter(n => n !== name) : [...selected, name])}
@@ -1551,9 +1555,9 @@ function AssigneeMultiSelect({ options, selected, onChange }) {
             )
           })}
           {hasSelected && (
-            <div style={{ borderTop: '1px solid #f0f3fa', padding: '6px 14px' }}>
+            <div style={{ borderTop: '1px solid #f3eee6', padding: '6px 14px' }}>
               <button onClick={() => { onChange([]); setOpen(false) }}
-                style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Inter, sans-serif' }}>
+                style={{ fontSize: 11, color: '#c0305a', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Inter, sans-serif' }}>
                 Clear selection
               </button>
             </div>
@@ -1613,7 +1617,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
     const totalH = data.total_committed_h || 1
     return (data.by_service || []).filter(r => r.committed_hours > 0).map(r => ({
       name: r.service, value: r.committed_hours,
-      fill: BAU_COLORS[r.service] || '#94a3b8',
+      fill: BAU_COLORS[r.service] || '#9c9c9c',
       pct: Math.round(r.committed_hours / totalH * 100),
     }))
   }, [data])
@@ -1676,7 +1680,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
   const SortIcon = ({ col }) =>
     sortCol !== col
-      ? <span style={{ color: '#d1d5db', marginLeft: 3 }}>⇅</span>
+      ? <span style={{ color: '#d8d8d8', marginLeft: 3 }}>⇅</span>
       : <span style={{ color: '#1450f5', marginLeft: 3 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
 
   const DATE_PRESETS = useMemo(() => {
@@ -1724,37 +1728,37 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
     return BAU_SERVICES.some(s => (p.bau?.[s] ?? 0) > 0) || NON_BAU.some(a => (p.non_bau?.[a] ?? 0) > 0)
   })
 
-  const btnStyle = { height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 6 }
+  const btnStyle = { height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#fff', color: '#404040', border: '1px solid #e8e2d6', borderRadius: 8, fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 6 }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>Utility Rate</h2>
-        <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#141414', margin: 0 }}>Utility Rate</h2>
+        <p style={{ fontSize: 13, color: '#6e6e6e', margin: '4px 0 0' }}>
           Capacity utilisation across services and assignees — denominator based on productivity days (75% of availability).
         </p>
       </div>
 
       {/* Filter bar */}
-      <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 12, padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ background: '#fff', border: '1px solid #e8e2d6', borderRadius: 12, padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* Row 1: filters + settings buttons */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 8, padding: 3, gap: 2, flexShrink: 0 }}>
+          <div style={{ display: 'flex', background: '#f1ede3', borderRadius: 8, padding: 3, gap: 2, flexShrink: 0 }}>
             {[['all', 'All Tracked'], ['closed', 'Closed Only']].map(([val, lbl]) => (
               <button key={val} onClick={() => setMode(val)} style={{
                 padding: '5px 14px', fontSize: 12, fontWeight: mode === val ? 700 : 500,
-                color: mode === val ? '#fff' : '#6b7280', background: mode === val ? '#1450f5' : 'transparent',
+                color: mode === val ? '#fff' : '#6e6e6e', background: mode === val ? '#1450f5' : 'transparent',
                 border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: 'Inter, sans-serif',
               }}>{lbl}</button>
             ))}
           </div>
-          <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
+          <div style={{ width: 1, height: 28, background: '#e8e2d6', flexShrink: 0 }} />
           <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
-          <div style={{ width: 1, height: 28, background: '#e5e7eb', flexShrink: 0 }} />
+          <div style={{ width: 1, height: 28, background: '#e8e2d6', flexShrink: 0 }} />
           <select value={serviceF} onChange={e => setServiceF(e.target.value)} style={{
             height: 30, padding: '0 8px', fontSize: 12, borderRadius: 7, background: '#fff', outline: 'none',
             fontFamily: 'Inter, sans-serif', cursor: 'pointer',
-            color: serviceF ? '#111827' : '#9ca3af', border: `1px solid ${serviceF ? '#a5b4fc' : '#e5e7eb'}`,
+            color: serviceF ? '#141414' : '#9c9c9c', border: `1px solid ${serviceF ? '#a1b9fb' : '#e8e2d6'}`,
           }}>
             <option value="">All Services</option>
             {BAU_SERVICES.map(s => <option key={s} value={s}>{BAU_SHORT[s]}</option>)}
@@ -1762,22 +1766,22 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           <AssigneeMultiSelect options={assignees} selected={assigneeF} onChange={setAssigneeF} />
           {hasFilter && (
             <button onClick={() => { setServiceF(''); setAssigneeF([]); setDateFrom(''); setDateTo('') }}
-              style={{ height: 30, padding: '0 10px', fontSize: 12, cursor: 'pointer', background: 'none', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
+              style={{ height: 30, padding: '0 10px', fontSize: 12, cursor: 'pointer', background: 'none', color: '#6e6e6e', border: '1px solid #e8e2d6', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
               Clear
             </button>
           )}
           <div style={{ flex: 1 }} />
           <button onClick={() => setShowCapacity(true)} style={{
             ...btnStyle,
-            borderColor: capSettings.mode && capSettings.mode !== 'annual' ? '#a78bfa' : undefined,
-            color:       capSettings.mode && capSettings.mode !== 'annual' ? '#7c3aed' : undefined,
+            borderColor: capSettings.mode && capSettings.mode !== 'annual' ? '#0077a8' : undefined,
+            color:       capSettings.mode && capSettings.mode !== 'annual' ? '#0077a8' : undefined,
           }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
             Capacity
             {capSettings.mode && capSettings.mode !== 'annual' && (
-              <span style={{ fontSize: 10, background: '#7c3aed', color: '#fff', borderRadius: 4, padding: '1px 5px', marginLeft: 2 }}>
+              <span style={{ fontSize: 10, background: '#0077a8', color: '#fff', borderRadius: 4, padding: '1px 5px', marginLeft: 2 }}>
                 {capSettings.presets?.[capSettings.mode]?.label ?? capSettings.mode}
               </span>
             )}
@@ -1788,13 +1792,13 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             </svg>
             Rates & SLA
           </button>
-          <button onClick={() => setShowCadence(true)} style={{ ...btnStyle, color: '#0891b2', borderColor: '#bae6fd' }}>
+          <button onClick={() => setShowCadence(true)} style={{ ...btnStyle, color: '#0077a8', borderColor: '#a8e8fa' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
             Cadence
           </button>
-          <button onClick={() => setShowTraining(true)} style={{ ...btnStyle, color: '#7c3aed', borderColor: '#ddd6fe' }}>
+          <button onClick={() => setShowTraining(true)} style={{ ...btnStyle, color: '#0077a8', borderColor: '#c4ecfa' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
             </svg>
@@ -1802,15 +1806,15 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           </button>
         </div>
         {/* Row 2: quick date presets */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', paddingTop: 6, borderTop: '1px solid #f3f4f6' }}>
-          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>Quick:</span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', paddingTop: 6, borderTop: '1px solid #f1ede3' }}>
+          <span style={{ fontSize: 11, color: '#9c9c9c', fontWeight: 600, flexShrink: 0 }}>Quick:</span>
           {DATE_PRESETS.map(p => {
             const active = dateFrom === p.from && dateTo === p.to
             return (
               <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }} style={{
                 height: 26, padding: '0 11px', fontSize: 11, cursor: 'pointer', borderRadius: 6, fontFamily: 'Inter, sans-serif',
-                fontWeight: active ? 700 : 500, border: active ? 'none' : '1px solid #e5e7eb',
-                background: active ? '#1450f5' : '#f9fafb', color: active ? '#fff' : '#374151',
+                fontWeight: active ? 700 : 500, border: active ? 'none' : '1px solid #e8e2d6',
+                background: active ? '#1450f5' : '#faf8f3', color: active ? '#fff' : '#404040',
               }}>{p.label}</button>
             )
           })}
@@ -1832,7 +1836,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
       {loading && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
-          <div style={{ width: 36, height: 36, border: '3px solid #e5e7eb', borderTopColor: '#1450f5', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+          <div style={{ width: 36, height: 36, border: '3px solid #e8e2d6', borderTopColor: '#1450f5', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
@@ -1846,8 +1850,8 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             value={`${data.team_util_pct}%`}
             sub={`${data.total_committed_h}h committed of ${data.total_capacity_h}h capacity`}
             color={utilColor(data.team_util_pct)}
-            bg={data.team_util_pct >= 85 ? '#fff1f2' : data.team_util_pct >= 60 ? '#fffbeb' : '#ecfdf5'}
-            border={data.team_util_pct >= 85 ? '#fda4af' : data.team_util_pct >= 60 ? '#fcd34d' : '#6ee7b7'}
+            bg={data.team_util_pct >= 85 ? '#fff0f3' : data.team_util_pct >= 60 ? '#fffae3' : '#edf8f2'}
+            border={data.team_util_pct >= 85 ? '#f28ba0' : data.team_util_pct >= 60 ? '#ffe141' : '#aae1c8'}
           />
           <StatCard label={isClosed ? 'Hours Delivered' : 'Committed Hours'} value={`${data.total_committed_h}h`}
             sub={isClosed ? 'estimated hours across closed tickets' : 'estimated hours in tracked tickets'}
@@ -1857,20 +1861,17 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             <StatCard label="Avg Days to Close" value={`${data.overall_avg_days_to_close}d`}
               sub="calendar days from created to closed"
               color={dtcColor(data.overall_avg_days_to_close)}
-              bg={data.overall_avg_days_to_close <= 7 ? '#ecfdf5' : data.overall_avg_days_to_close <= 14 ? '#fffbeb' : '#fff1f2'}
-              border={data.overall_avg_days_to_close <= 7 ? '#6ee7b7' : data.overall_avg_days_to_close <= 14 ? '#fcd34d' : '#fda4af'} />
+              bg={data.overall_avg_days_to_close <= 7 ? '#edf8f2' : data.overall_avg_days_to_close <= 14 ? '#fffae3' : '#fff0f3'}
+              border={data.overall_avg_days_to_close <= 7 ? '#aae1c8' : data.overall_avg_days_to_close <= 14 ? '#ffe141' : '#f28ba0'} />
           ) : (
             <StatCard label="Available Capacity" value={`${Math.round((Math.max(0, data.total_capacity_h - data.total_committed_h)) * 10) / 10}h`}
               sub={`${data.team_size} people · ${data.span_weeks}w`}
-              color="#fff" bg="#1450f5" border="#1450f5"
-              labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
+              color="#0d3ac2" bg="#dbe6fd" border="#1450f5" />
           )}
           <StatCard label="Time Span" value={`${data.span_weeks}w`} sub={`${data.span_days} calendar days`}
-            color="#fff" bg="#1450f5" border="#1450f5"
-            labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
+            color="#005f86" bg="#d2f5ff" border="#0077a8" />
           <StatCard label="Team Size" value={data.team_size} sub="assignees with tracked tickets"
-            color="#fff" bg="#1450f5" border="#1450f5"
-            labelColor="rgba(255,255,255,0.75)" subColor="rgba(255,255,255,0.65)" />
+            color="#141414" bg="#f3eee6" border="#141414" />
         </div>
 
         {/* Gauge + donut */}
@@ -1879,12 +1880,12 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             <div style={{ textAlign: 'center', padding: '8px 0' }}>
               <div style={{
                 width: 140, height: 140, borderRadius: '50%', margin: '0 auto 16px',
-                background: `conic-gradient(${utilColor(data.team_util_pct)} 0% ${Math.min(data.team_util_pct, 100)}%, #f0f3fa ${Math.min(data.team_util_pct, 100)}% 100%)`,
+                background: `conic-gradient(${utilColor(data.team_util_pct)} 0% ${Math.min(data.team_util_pct, 100)}%, #f3eee6 ${Math.min(data.team_util_pct, 100)}% 100%)`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <div style={{ width: 100, height: 100, borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontSize: 26, fontWeight: 800, color: utilColor(data.team_util_pct) }}>{data.team_util_pct}%</span>
-                  <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600 }}>{isClosed ? 'DELIVERED' : 'UTILISED'}</span>
+                  <span style={{ fontSize: 10, color: '#9c9c9c', fontWeight: 600 }}>{isClosed ? 'DELIVERED' : 'UTILISED'}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -1894,7 +1895,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                   return (
                     <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color }} />
-                      <span style={{ fontSize: 12, color: '#374151' }}>{s}: <strong>{cnt}</strong></span>
+                      <span style={{ fontSize: 12, color: '#404040' }}>{s}: <strong>{cnt}</strong></span>
                     </div>
                   )
                 })}
@@ -1909,9 +1910,9 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             </div>
           </SectionCard>
 
-          <SectionCard title="Capacity Mix by Service" subtitle={isClosed ? 'Share of delivered hours per service' : 'Share of committed hours per service'} accent="#4373f7">
+          <SectionCard title="Capacity Mix by Service" subtitle={isClosed ? 'Share of delivered hours per service' : 'Share of committed hours per service'} accent="#3b70f7">
             {servicePieData.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#9ca3af', padding: 40, fontSize: 13 }}>No tracked data</div>
+              <div style={{ textAlign: 'center', color: '#9c9c9c', padding: 40, fontSize: 13 }}>No tracked data</div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
@@ -1920,7 +1921,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                   </Pie>
                   <Tooltip content={<PieTT />} />
                   <Legend layout="vertical" align="right" verticalAlign="middle"
-                    formatter={(val) => <span style={{ fontSize: 11, color: '#374151' }}>{BAU_SHORT[val] || val}</span>}
+                    formatter={(val) => <span style={{ fontSize: 11, color: '#404040' }}>{BAU_SHORT[val] || val}</span>}
                     iconType="circle" iconSize={8} />
                 </PieChart>
               </ResponsiveContainer>
@@ -1930,26 +1931,26 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
 
         {/* Closed-mode charts */}
         {isClosed && data.by_assignee.length > 0 && (
-          <SectionCard title="Closed Ticket Analysis by Assignee" subtitle="Hours delivered vs avg calendar days from ticket creation to close" accent="#4373f7">
+          <SectionCard title="Closed Ticket Analysis by Assignee" subtitle="Hours delivered vs avg calendar days from ticket creation to close" accent="#3b70f7">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Hours Delivered</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#404040', marginBottom: 10 }}>Hours Delivered</div>
                 <ResponsiveContainer width="100%" height={Math.max(160, assigneesByHours.length * 34)}>
                   <BarChart data={assigneesByHours} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }} barSize={14}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="assigned_to" width={100} tick={{ fontSize: 11, fill: '#374151' }} axisLine={false} tickLine={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3eee6" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: '#9c9c9c' }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="assigned_to" width={100} tick={{ fontSize: 11, fill: '#404040' }} axisLine={false} tickLine={false} />
                     <Tooltip content={({ active, payload, label }) => {
                       if (!active || !payload?.length) return null
                       const d = payload[0].payload
                       return (
-                        <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-                          <div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div>
+                        <div style={{ background: '#fff', border: '1px solid #e8e2d6', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+                          <div style={{ fontWeight: 700, color: '#141414', marginBottom: 4 }}>{label}</div>
                           <div style={{ color: '#1450f5' }}>Hours: <strong>{d.committed_hours}h</strong></div>
-                          <div style={{ color: '#6b7280' }}>Tickets: {d.tracked_tickets}</div>
+                          <div style={{ color: '#6e6e6e' }}>Tickets: {d.tracked_tickets}</div>
                         </div>
                       )
-                    }} cursor={{ fill: '#f5f7ff' }} />
+                    }} cursor={{ fill: '#f5f8fe' }} />
                     <Bar dataKey="committed_hours" radius={[0, 4, 4, 0]}>
                       {assigneesByHours.map((r, i) => <Cell key={i} fill={utilColor(r.utility_pct)} />)}
                     </Bar>
@@ -1957,16 +1958,16 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                 </ResponsiveContainer>
               </div>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Avg Days to Close</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#404040', marginBottom: 10 }}>Avg Days to Close</div>
                 {assigneesByDtc.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#9ca3af', padding: 40, fontSize: 13 }}>No closed date data</div>
+                  <div style={{ textAlign: 'center', color: '#9c9c9c', padding: 40, fontSize: 13 }}>No closed date data</div>
                 ) : (<>
                   <ResponsiveContainer width="100%" height={Math.max(160, assigneesByDtc.length * 34)}>
                     <BarChart data={assigneesByDtc} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }} barSize={14}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                      <YAxis type="category" dataKey="assigned_to" width={100} tick={{ fontSize: 11, fill: '#374151' }} axisLine={false} tickLine={false} />
-                      <Tooltip content={<DtcTT />} cursor={{ fill: '#f5f7ff' }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3eee6" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#9c9c9c' }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="assigned_to" width={100} tick={{ fontSize: 11, fill: '#404040' }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<DtcTT />} cursor={{ fill: '#f5f8fe' }} />
                       <Bar dataKey="avg_days_to_close" radius={[0, 4, 4, 0]}>
                         {assigneesByDtc.map((r, i) => <Cell key={i} fill={dtcColor(r.avg_days_to_close)} />)}
                       </Bar>
@@ -1976,7 +1977,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                     {[['≤ 7d', '#1e8a5e'], ['8–14d', '#b87d00'], ['15–30d', '#e86427'], ['> 30d', '#c0305a']].map(([lbl, col]) => (
                       <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <div style={{ width: 8, height: 8, borderRadius: 2, background: col }} />
-                        <span style={{ fontSize: 11, color: '#6b7280' }}>{lbl}</span>
+                        <span style={{ fontSize: 11, color: '#6e6e6e' }}>{lbl}</span>
                       </div>
                     ))}
                   </div>
@@ -1995,40 +1996,40 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         <SectionCard title="Utility Rate by Service" subtitle={`Tickets · estimated hours · share of capacity${isClosed ? ' · closed tickets only' : ''}`} accent="#1450f5">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={data.by_service.map(r => ({ name: BAU_SHORT[r.service] || r.service, hours: r.committed_hours, fill: BAU_COLORS[r.service] || '#94a3b8' }))}
+              <BarChart data={data.by_service.map(r => ({ name: BAU_SHORT[r.service] || r.service, hours: r.committed_hours, fill: BAU_COLORS[r.service] || '#9c9c9c' }))}
                 layout="vertical" margin={{ top: 4, right: 60, left: 0, bottom: 4 }} barSize={14}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fill: '#374151' }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3eee6" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: '#9c9c9c' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fill: '#404040' }} axisLine={false} tickLine={false} />
                 <Tooltip content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null
-                  return <div style={{ background: '#fff', border: '1px solid #e5e8ef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}><div style={{ fontWeight: 700, color: '#111827', marginBottom: 4 }}>{label}</div><div style={{ color: '#1450f5' }}>Hours: <strong>{payload[0].value}h</strong></div></div>
-                }} cursor={{ fill: '#f5f7ff' }} />
+                  return <div style={{ background: '#fff', border: '1px solid #e8e2d6', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}><div style={{ fontWeight: 700, color: '#141414', marginBottom: 4 }}>{label}</div><div style={{ color: '#1450f5' }}>Hours: <strong>{payload[0].value}h</strong></div></div>
+                }} cursor={{ fill: '#f5f8fe' }} />
                 <Bar dataKey="hours" radius={[0, 4, 4, 0]}>
-                  {data.by_service.map((r, i) => <Cell key={i} fill={BAU_COLORS[r.service] || '#94a3b8'} />)}
+                  {data.by_service.map((r, i) => <Cell key={i} fill={BAU_COLORS[r.service] || '#9c9c9c'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: '#f9fafb' }}>
+                  <tr style={{ background: '#faf8f3' }}>
                     {['Service', 'Tickets', 'H/Ticket', 'Hours', '% of Capacity'].map(h => (
-                      <th key={h} style={{ padding: '8px 10px', fontWeight: 700, color: '#6b7280', fontSize: 11, textAlign: h === 'Service' ? 'left' : 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap' }}>{h}</th>
+                      <th key={h} style={{ padding: '8px 10px', fontWeight: 700, color: '#6e6e6e', fontSize: 11, textAlign: h === 'Service' ? 'left' : 'center', borderBottom: '2px solid #e8e2d6', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {data.by_service.map((r, i) => (
-                    <tr key={r.service} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
+                    <tr key={r.service} style={{ background: i % 2 === 0 ? '#fff' : '#faf8f3', borderBottom: '1px solid #f3eee6' }}>
                       <td style={{ padding: '8px 10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <div style={{ width: 8, height: 8, borderRadius: '50%', background: BAU_COLORS[r.service], flexShrink: 0 }} />
-                          <span style={{ color: '#111827', fontWeight: 500 }}>{BAU_SHORT[r.service] || r.service}</span>
+                          <span style={{ color: '#141414', fontWeight: 500 }}>{BAU_SHORT[r.service] || r.service}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center', color: '#374151' }}>{r.tickets}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center', color: '#6b7280' }}>{r.hours_per_ticket}h</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center', color: '#404040' }}>{r.tickets}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center', color: '#6e6e6e' }}>{r.hours_per_ticket}h</td>
                       <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{r.committed_hours}h</td>
                       <td style={{ padding: '8px 10px', minWidth: 120 }}><LoadBar pct={r.team_util_pct} /></td>
                     </tr>
@@ -2046,8 +2047,8 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
               {['monthly', 'weekly'].map(v => (
                 <button key={v} onClick={() => setTrendView(v)} style={{
                   height: 28, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', borderRadius: 6, fontFamily: 'Inter, sans-serif',
-                  background: trendView === v ? '#1450f5' : '#fff', color: trendView === v ? '#fff' : '#6b7280',
-                  border: `1px solid ${trendView === v ? '#1450f5' : '#d1d5db'}`,
+                  background: trendView === v ? '#1450f5' : '#fff', color: trendView === v ? '#fff' : '#6e6e6e',
+                  border: `1px solid ${trendView === v ? '#1450f5' : '#d8d8d8'}`,
                 }}>
                   {v.charAt(0).toUpperCase() + v.slice(1)}
                 </button>
@@ -2055,16 +2056,16 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             </div>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={trendView === 'monthly' ? monthlyTrend : data.weekly_trend} margin={{ top: 8, right: 20, left: 0, bottom: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6b7280' }} angle={-35} textAnchor="end" interval={0} />
-                <YAxis yAxisId="h" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="p" orientation="right" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} unit="%" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3eee6" />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6e6e6e' }} angle={-35} textAnchor="end" interval={0} />
+                <YAxis yAxisId="h" tick={{ fontSize: 11, fill: '#9c9c9c' }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="p" orientation="right" tick={{ fontSize: 11, fill: '#9c9c9c' }} axisLine={false} tickLine={false} unit="%" />
                 <Tooltip />
                 <ReferenceLine yAxisId="p" y={85} stroke="#c0305a" strokeDasharray="4 4" label={{ value: '85%', position: 'insideTopRight', fontSize: 10, fill: '#c0305a' }} />
                 <ReferenceLine yAxisId="p" y={60} stroke="#b87d00" strokeDasharray="4 4" label={{ value: '60%', position: 'insideTopRight', fontSize: 10, fill: '#b87d00' }} />
                 <Bar yAxisId="h" dataKey="committed_hours" name="Committed hrs" fill="#d0dcfd" radius={[3, 3, 0, 0]} />
                 <Line yAxisId="p" type="monotone" dataKey="utility_pct" name="Utility %" stroke="#1450f5" strokeWidth={2.5} dot={{ r: 3, fill: '#1450f5' }} activeDot={{ r: 5 }} />
-                {isClosed && <Line yAxisId="h" type="monotone" dataKey="avg_days_to_close" name="Avg Days to Close" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: '#0ea5e9' }} activeDot={{ r: 5 }} />}
+                {isClosed && <Line yAxisId="h" type="monotone" dataKey="avg_days_to_close" name="Avg Days to Close" stroke="#0077a8" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: '#0077a8' }} activeDot={{ r: 5 }} />}
               </LineChart>
             </ResponsiveContainer>
           </SectionCard>
@@ -2075,7 +2076,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ background: '#f9fafb' }}>
+                <tr style={{ background: '#faf8f3' }}>
                   {[
                     { label: 'Assignee',        col: 'assigned_to'    },
                     { label: 'Tracked Tickets', col: 'tracked_tickets' },
@@ -2086,10 +2087,10 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                     ...(isClosed ? [{ label: 'Avg Days to Close', col: 'avg_days_to_close' }] : []),
                   ].map(({ label, col }) => (
                     <th key={col} onClick={() => toggleSort(col)} style={{
-                      padding: '9px 12px', fontWeight: 700, color: '#6b7280', fontSize: 11,
+                      padding: '9px 12px', fontWeight: 700, color: '#6e6e6e', fontSize: 11,
                       textAlign: label === 'Assignee' ? 'left' : 'center',
-                      borderBottom: '2px solid #e5e8ef', cursor: 'pointer', userSelect: 'none',
-                      whiteSpace: 'nowrap', background: '#f9fafb',
+                      borderBottom: '2px solid #e8e2d6', cursor: 'pointer', userSelect: 'none',
+                      whiteSpace: 'nowrap', background: '#faf8f3',
                     }}>
                       {label} <SortIcon col={col} />
                     </th>
@@ -2097,23 +2098,23 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                   {BAU_SERVICES.map((sc, idx) => (
                     <th key={sc} style={{
                       padding: '9px 10px', fontWeight: 700, fontSize: 10, color: BAU_COLORS[sc],
-                      textAlign: 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap',
-                      background: '#f5f5ff', borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined,
+                      textAlign: 'center', borderBottom: '2px solid #e8e2d6', whiteSpace: 'nowrap',
+                      background: '#f5f8fe', borderLeft: idx === 0 ? '2px solid #dbe6fd' : undefined,
                     }}>{BAU_SHORT[sc]}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {sortedAssignees.length === 0 ? (
-                  <tr><td colSpan={6 + (isClosed ? 1 : 0) + BAU_SERVICES.length} style={{ padding: 32, textAlign: 'center', color: '#9ca3af' }}>No data</td></tr>
+                  <tr><td colSpan={6 + (isClosed ? 1 : 0) + BAU_SERVICES.length} style={{ padding: 32, textAlign: 'center', color: '#9c9c9c' }}>No data</td></tr>
                 ) : sortedAssignees.map((row, i) => {
                   const sCfg = STATUS_CFG[row.status] || STATUS_CFG.Available
-                  const bg = i % 2 === 0 ? '#fff' : '#fafafa'
+                  const bg = i % 2 === 0 ? '#fff' : '#faf8f3'
                   return (
-                    <tr key={row.assigned_to} style={{ background: bg, borderBottom: '1px solid #f0f3fa' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
+                    <tr key={row.assigned_to} style={{ background: bg, borderBottom: '1px solid #f3eee6' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#eef3fe'}
                       onMouseLeave={e => e.currentTarget.style.background = bg}>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#141414', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                           <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: `hsl(${Math.abs(row.assigned_to.charCodeAt(0) * 37) % 360},55%,88%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
                             {row.assigned_to.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
@@ -2121,9 +2122,9 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                           {row.assigned_to}
                         </div>
                       </td>
-                      <td style={{ padding: '9px 12px', textAlign: 'center', color: '#374151' }}>{row.tracked_tickets}</td>
+                      <td style={{ padding: '9px 12px', textAlign: 'center', color: '#404040' }}>{row.tracked_tickets}</td>
                       <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{row.committed_hours}h</td>
-                      <td style={{ padding: '9px 12px', textAlign: 'center', color: '#6b7280' }}>{row.capacity_hours}h</td>
+                      <td style={{ padding: '9px 12px', textAlign: 'center', color: '#6e6e6e' }}>{row.capacity_hours}h</td>
                       <td style={{ padding: '9px 12px', minWidth: 130 }}><LoadBar pct={row.utility_pct} /></td>
                       <td style={{ padding: '9px 12px', textAlign: 'center' }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: sCfg.color, background: sCfg.bg, border: `1px solid ${sCfg.border}`, borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap' }}>{row.status}</span>
@@ -2134,19 +2135,19 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                             <span style={{ fontSize: 12, fontWeight: 700, color: dtcColor(row.avg_days_to_close) }}>
                               {row.avg_days_to_close}d
                               {row.min_days_to_close != null && row.min_days_to_close !== row.max_days_to_close && (
-                                <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af', marginLeft: 4 }}>({row.min_days_to_close}–{row.max_days_to_close})</span>
+                                <span style={{ fontSize: 10, fontWeight: 400, color: '#9c9c9c', marginLeft: 4 }}>({row.min_days_to_close}–{row.max_days_to_close})</span>
                               )}
                             </span>
-                          ) : <span style={{ color: '#d1d5db' }}>—</span>}
+                          ) : <span style={{ color: '#d8d8d8' }}>—</span>}
                         </td>
                       )}
                       {BAU_SERVICES.map((sc, idx) => {
                         const cnt = row.breakdown[sc] ?? 0
                         return (
-                          <td key={sc} style={{ padding: '9px 10px', textAlign: 'center', background: idx % 2 === 0 ? `${BAU_COLORS[sc]}08` : `${BAU_COLORS[sc]}12`, borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined }}>
+                          <td key={sc} style={{ padding: '9px 10px', textAlign: 'center', background: idx % 2 === 0 ? `${BAU_COLORS[sc]}08` : `${BAU_COLORS[sc]}12`, borderLeft: idx === 0 ? '2px solid #dbe6fd' : undefined }}>
                             {cnt > 0
                               ? <span style={{ fontWeight: 700, fontSize: 12, color: BAU_COLORS[sc], background: `${BAU_COLORS[sc]}20`, borderRadius: 5, padding: '2px 7px' }}>{cnt}</span>
-                              : <span style={{ color: '#d1d5db' }}>—</span>}
+                              : <span style={{ color: '#d8d8d8' }}>—</span>}
                           </td>
                         )
                       })}
@@ -2156,22 +2157,22 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
               </tbody>
               {sortedAssignees.length > 0 && (
                 <tfoot>
-                  <tr style={{ background: '#f0f4ff', borderTop: '2px solid #c7d7fd' }}>
+                  <tr style={{ background: '#eef3fe', borderTop: '2px solid #c7d7fd' }}>
                     <td style={{ padding: '8px 12px', fontWeight: 700, color: '#1450f5' }}>Team Total</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{sortedAssignees.reduce((s, r) => s + r.tracked_tickets, 0)}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{data.total_committed_h}h</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#6b7280' }}>{data.total_capacity_h}h</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#6e6e6e' }}>{data.total_capacity_h}h</td>
                     <td style={{ padding: '8px 12px', minWidth: 130 }}><LoadBar pct={data.team_util_pct} /></td>
                     <td />
                     {isClosed && (
-                      <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: data.overall_avg_days_to_close != null ? dtcColor(data.overall_avg_days_to_close) : '#9ca3af' }}>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: data.overall_avg_days_to_close != null ? dtcColor(data.overall_avg_days_to_close) : '#9c9c9c' }}>
                         {data.overall_avg_days_to_close != null ? `${data.overall_avg_days_to_close}d` : '—'}
                       </td>
                     )}
                     {BAU_SERVICES.map((sc, idx) => {
                       const tot = sortedAssignees.reduce((s, r) => s + (r.breakdown[sc] ?? 0), 0)
                       return (
-                        <td key={sc} style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: BAU_COLORS[sc], borderLeft: idx === 0 ? '2px solid #e0e0ff' : undefined }}>
+                        <td key={sc} style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: BAU_COLORS[sc], borderLeft: idx === 0 ? '2px solid #dbe6fd' : undefined }}>
                           {tot > 0 ? tot : '—'}
                         </td>
                       )
@@ -2187,49 +2188,49 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
         <SectionCard title={`By Ticket (${data.by_ticket.length} tracked)`} subtitle={`Individual ticket estimated hours${isClosed ? ' · sorted by closed date' : ' · sorted by most recent'}`} accent="#a1b9fb">
           <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
-              <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9c9c9c" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input value={ticketSearch} onChange={e => setTicketSearch(e.target.value)} placeholder="Search ticket, assignee, service…"
-                style={{ width: '100%', boxSizing: 'border-box', paddingLeft: 28, height: 32, border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 12, color: '#374151', outline: 'none', fontFamily: 'Inter, sans-serif' }} />
+                style={{ width: '100%', boxSizing: 'border-box', paddingLeft: 28, height: 32, border: '1px solid #e8e2d6', borderRadius: 7, fontSize: 12, color: '#404040', outline: 'none', fontFamily: 'Inter, sans-serif' }} />
             </div>
-            <button onClick={() => setShowTickets(v => !v)} style={{ height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: showTickets ? '#f0f4ff' : '#fff', color: '#1450f5', border: '1px solid #c7d7fd', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
+            <button onClick={() => setShowTickets(v => !v)} style={{ height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: showTickets ? '#eef3fe' : '#fff', color: '#1450f5', border: '1px solid #c7d7fd', borderRadius: 7, fontFamily: 'Inter, sans-serif' }}>
               {showTickets ? '▲ Collapse' : '▼ Show tickets'}
             </button>
-            <span style={{ fontSize: 12, color: '#9ca3af' }}>{filteredTickets.length} tickets</span>
+            <span style={{ fontSize: 12, color: '#9c9c9c' }}>{filteredTickets.length} tickets</span>
           </div>
           {showTickets && (
-            <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #e5e8ef' }}>
+            <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #e8e2d6' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: '#f9fafb' }}>
+                  <tr style={{ background: '#faf8f3' }}>
                     {['Ticket #', 'Description', 'Service', 'Assignee', 'Created',
                       ...(isClosed ? ['Closed', 'Days to Close'] : []),
                       'Status', 'Est. Hours'].map(h => (
-                      <th key={h} style={{ padding: '8px 10px', fontWeight: 700, color: '#6b7280', fontSize: 11, textAlign: h === 'Description' ? 'left' : 'center', borderBottom: '2px solid #e5e8ef', whiteSpace: 'nowrap' }}>{h}</th>
+                      <th key={h} style={{ padding: '8px 10px', fontWeight: 700, color: '#6e6e6e', fontSize: 11, textAlign: h === 'Description' ? 'left' : 'center', borderBottom: '2px solid #e8e2d6', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredTickets.slice(0, 200).map((t, i) => (
-                    <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f3fa' }}>
+                    <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#faf8f3', borderBottom: '1px solid #f3eee6' }}>
                       <td style={{ padding: '7px 10px', textAlign: 'center', fontWeight: 600, color: '#1450f5', whiteSpace: 'nowrap' }}>{t.ticket_number || '—'}</td>
-                      <td style={{ padding: '7px 10px', color: '#374151', maxWidth: 280 }}>{t.short_description || '—'}</td>
+                      <td style={{ padding: '7px 10px', color: '#404040', maxWidth: 280 }}>{t.short_description || '—'}</td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: SUBCAT_COLORS[t.sub_category] || '#6b7280', background: (SUBCAT_COLORS[t.sub_category] || '#94a3b8') + '18', borderRadius: 5, padding: '2px 7px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: SUBCAT_COLORS[t.sub_category] || '#6e6e6e', background: (SUBCAT_COLORS[t.sub_category] || '#9c9c9c') + '18', borderRadius: 5, padding: '2px 7px' }}>
                           {SUBCAT_SHORT[t.sub_category] || t.sub_category}
                         </span>
                       </td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', color: '#374151', whiteSpace: 'nowrap' }}>{t.assigned_to || '—'}</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6b7280', whiteSpace: 'nowrap' }}>{t.created_date?.slice(0, 10) || '—'}</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', color: '#404040', whiteSpace: 'nowrap' }}>{t.assigned_to || '—'}</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6e6e6e', whiteSpace: 'nowrap' }}>{t.created_date?.slice(0, 10) || '—'}</td>
                       {isClosed && <>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6b7280', whiteSpace: 'nowrap' }}>{t.closed_date?.slice(0, 10) || '—'}</td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#6e6e6e', whiteSpace: 'nowrap' }}>{t.closed_date?.slice(0, 10) || '—'}</td>
                         <td style={{ padding: '7px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           {t.days_to_close != null
                             ? <span style={{ fontWeight: 700, color: dtcColor(t.days_to_close) }}>{t.days_to_close}d</span>
-                            : <span style={{ color: '#d1d5db' }}>—</span>}
+                            : <span style={{ color: '#d8d8d8' }}>—</span>}
                         </td>
                       </>}
                       <td style={{ padding: '7px 10px', textAlign: 'center' }}>
-                        <span style={{ fontSize: 10, color: '#6b7280', background: '#f3f4f6', borderRadius: 4, padding: '2px 6px' }}>{t.state || '—'}</span>
+                        <span style={{ fontSize: 10, color: '#6e6e6e', background: '#f1ede3', borderRadius: 4, padding: '2px 6px' }}>{t.state || '—'}</span>
                       </td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{t.estimated_hours}h</td>
                     </tr>

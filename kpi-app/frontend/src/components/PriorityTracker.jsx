@@ -7,8 +7,8 @@ const PRIORITY_BADGE = {
   Critical: { backgroundColor: '#ffe141', color: '#141414' },
   High:     { backgroundColor: '#d2f5ff', color: '#141414' },
   Medium:   { backgroundColor: '#aae1c8', color: '#141414' },
-  Normal:   { backgroundColor: '#f3f4f6', color: '#6b7280' },
-  'N/A':    { backgroundColor: '#f9fafb', color: '#9ca3af' },
+  Normal:   { backgroundColor: '#f1ede3', color: '#6e6e6e' },
+  'N/A':    { backgroundColor: '#faf8f3', color: '#9c9c9c' },
 }
 
 const FILTER_KEYS = {
@@ -29,10 +29,10 @@ function fmtDate(val) {
 }
 
 function DaysCell({ val }) {
-  if (val === null || val === undefined) return <span style={{ color: '#d1d5db' }}>—</span>
+  if (val === null || val === undefined) return <span style={{ color: '#d8d8d8' }}>—</span>
   if (val < 0)  return <span className="badge font-semibold" style={{ backgroundColor: '#ffcdd7', color: '#141414' }}>{val}d</span>
   if (val <= 5) return <span className="badge font-semibold" style={{ backgroundColor: '#ffe141', color: '#141414' }}>+{val}d</span>
-  return <span style={{ color: '#6b7280' }}>+{val}d</span>
+  return <span style={{ color: '#6e6e6e' }}>+{val}d</span>
 }
 
 // Defined outside the parent so React never remounts it on re-render
@@ -205,8 +205,8 @@ export default function PriorityTracker({ sessionId, onSessionExpired, overview 
                         onClick={() => handleHeaderClick(col)}
                         className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider whitespace-nowrap cursor-pointer select-none transition-colors"
                         style={active
-                          ? { color: '#1450f5', backgroundColor: '#eef3ff' }
-                          : { color: '#6b7280' }
+                          ? { color: '#1450f5', backgroundColor: '#eef3fe' }
+                          : { color: '#6e6e6e' }
                         }
                       >
                         {col.label}
@@ -240,7 +240,7 @@ export default function PriorityTracker({ sessionId, onSessionExpired, overview 
                         className="badge"
                         style={t.state === 'Pending Confirmation'
                           ? { backgroundColor: '#d2f5ff', color: '#141414' }
-                          : { backgroundColor: '#f3eee6', color: '#6b7280' }
+                          : { backgroundColor: '#f3eee6', color: '#6e6e6e' }
                         }
                       >
                         {t.state ?? '—'}

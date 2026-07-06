@@ -28,7 +28,7 @@ export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange }
 
       {/* Preset pills — horizontal button group */}
       <div style={{
-        display: 'flex', borderRadius: 8, border: '1px solid #e5e7eb',
+        display: 'flex', borderRadius: 8, border: '1px solid #e8e2d6',
         overflow: 'hidden', background: '#fff', flexShrink: 0,
       }}>
         {PRESETS.map((p, i) => {
@@ -40,10 +40,10 @@ export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange }
               style={{
                 ...BASE_BTN,
                 background: isActive ? '#1450f5' : '#fff',
-                color:      isActive ? '#fff'    : '#6b7280',
-                borderRight: i < PRESETS.length - 1 ? '1px solid #e5e7eb' : 'none',
+                color:      isActive ? '#fff'    : '#6e6e6e',
+                borderRight: i < PRESETS.length - 1 ? '1px solid #e8e2d6' : 'none',
               }}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f5f7ff' }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f5f8fe' }}
               onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = '#fff' }}
             >
               {p.label}
@@ -59,19 +59,19 @@ export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange }
           value={dateFrom}
           onChange={(e) => onChange(e.target.value, dateTo)}
           style={{
-            height: 30, padding: '0 8px', fontSize: 12, color: '#374151',
-            border: '1px solid #e5e7eb', borderRadius: 7, outline: 'none',
+            height: 30, padding: '0 8px', fontSize: 12, color: '#404040',
+            border: '1px solid #e8e2d6', borderRadius: 7, outline: 'none',
             fontFamily: 'Inter, sans-serif', background: '#fff', cursor: 'pointer',
           }}
         />
-        <span style={{ fontSize: 11, color: '#9ca3af' }}>→</span>
+        <span style={{ fontSize: 11, color: '#9c9c9c' }}>→</span>
         <input
           type="date"
           value={dateTo}
           onChange={(e) => onChange(dateFrom, e.target.value)}
           style={{
-            height: 30, padding: '0 8px', fontSize: 12, color: '#374151',
-            border: '1px solid #e5e7eb', borderRadius: 7, outline: 'none',
+            height: 30, padding: '0 8px', fontSize: 12, color: '#404040',
+            border: '1px solid #e8e2d6', borderRadius: 7, outline: 'none',
             fontFamily: 'Inter, sans-serif', background: '#fff', cursor: 'pointer',
           }}
         />
@@ -80,7 +80,7 @@ export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange }
             onClick={() => onChange('', '')}
             style={{
               ...BASE_BTN, padding: '4px 8px', fontSize: 11,
-              background: 'none', color: '#9ca3af', border: '1px solid #e5e7eb', borderRadius: 6,
+              background: 'none', color: '#9c9c9c', border: '1px solid #e8e2d6', borderRadius: 6,
             }}
             title="Clear dates"
           >✕</button>

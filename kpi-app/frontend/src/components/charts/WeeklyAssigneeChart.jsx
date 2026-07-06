@@ -5,7 +5,7 @@ import {
 
 const COLORS = [
   '#1450f5','#b87d00','#1e8a5e','#0077a8','#c0305a',
-  '#7c3aed','#ea580c','#0f766e','#db2777','#65a30d',
+  '#0077a8','#e86427','#0aa08f','#a63d5f','#6b8f00',
 ]
 
 export default function WeeklyAssigneeChart({ data = [], assignees = [], limit = 16 }) {
@@ -30,7 +30,7 @@ export default function WeeklyAssigneeChart({ data = [], assignees = [], limit =
               className="text-xs px-2.5 py-1 rounded-full border transition-colors"
               style={people.includes(a)
                 ? { backgroundColor: COLORS[i % COLORS.length], color: '#ffffff', borderColor: 'transparent' }
-                : { backgroundColor: '#ffffff', color: '#6b7280', borderColor: '#e5e7eb' }
+                : { backgroundColor: '#ffffff', color: '#6e6e6e', borderColor: '#e8e2d6' }
               }
             >
               {a}
@@ -49,12 +49,12 @@ export default function WeeklyAssigneeChart({ data = [], assignees = [], limit =
           <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: '#9ca3af', fontFamily: 'Inter' }}
+            tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }}
             angle={-45}
             textAnchor="end"
             interval={0}
           />
-          <YAxis tick={{ fontSize: 11, fill: '#9ca3af', fontFamily: 'Inter' }} allowDecimals={false} />
+          <YAxis tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }} allowDecimals={false} />
           <Tooltip
             contentStyle={{ borderRadius: 10, border: '1px solid #e8e3da', fontSize: 12, fontFamily: 'Inter' }}
             cursor={{ fill: '#f5f3ef' }}

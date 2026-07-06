@@ -22,15 +22,15 @@ export default function BacklogAgeChart({ data = [] }) {
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data} layout="vertical" margin={{ top: 0, right: 60, left: 10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" horizontal={false} />
-          <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af', fontFamily: 'Inter' }} allowDecimals={false} />
-          <YAxis type="category" dataKey="label" tick={{ fontSize: 12, fill: '#374151', fontFamily: 'Inter' }} width={85} />
+          <XAxis type="number" tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }} allowDecimals={false} />
+          <YAxis type="category" dataKey="label" tick={{ fontSize: 12, fill: '#404040', fontFamily: 'Inter' }} width={85} />
           <Tooltip
             formatter={(v) => [`${v} tickets (${total > 0 ? Math.round(v / total * 100) : 0}%)`, 'Count']}
             contentStyle={{ borderRadius: 10, border: '1px solid #e8e3da', fontSize: 12, fontFamily: 'Inter' }}
           />
           <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={32}>
             {data.map((d) => <Cell key={d.label} fill={getBucketColor(d.label, d.color)} />)}
-            <LabelList dataKey="count" position="right" style={{ fontSize: 12, fontWeight: 700, fill: '#374151', fontFamily: 'Inter' }} />
+            <LabelList dataKey="count" position="right" style={{ fontSize: 12, fontWeight: 700, fill: '#404040', fontFamily: 'Inter' }} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>

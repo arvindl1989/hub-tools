@@ -33,10 +33,10 @@ const COLOR = {
   green:  '#1e8a5e',
   amber:  '#b87d00',
   red:    '#c0305a',
-  violet: '#7c3aed',
+  violet: '#0077a8',
   pink:   '#c0305a',
-  teal:   '#0f766e',
-  slate:  '#94a3b8',
+  teal:   '#0aa08f',
+  slate:  '#9c9c9c',
 }
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
@@ -160,13 +160,13 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   if (loadError) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 12 }}>
-        <div style={{ fontSize: 13, color: '#c0305a', background: '#fff0f4', border: '1px solid #ffcdd7', borderRadius: 10, padding: '12px 20px', maxWidth: 500, textAlign: 'center' }}>
+        <div style={{ fontSize: 13, color: '#c0305a', background: '#fff0f3', border: '1px solid #ffcdd7', borderRadius: 10, padding: '12px 20px', maxWidth: 500, textAlign: 'center' }}>
           <strong>Could not load analytics data</strong><br />
-          <span style={{ fontSize: 12, color: '#6b7280' }}>{loadError}</span>
+          <span style={{ fontSize: 12, color: '#6e6e6e' }}>{loadError}</span>
         </div>
         <button
           onClick={() => { setLoadError(null); setLoading(true); onSessionExpired() }}
-          style={{ fontSize: 13, fontWeight: 600, color: '#1450f5', background: '#eff4ff', border: '1px solid #c7d7fd', borderRadius: 8, padding: '8px 18px', cursor: 'pointer' }}
+          style={{ fontSize: 13, fontWeight: 600, color: '#1450f5', background: '#eef3fe', border: '1px solid #c7d7fd', borderRadius: 8, padding: '8px 18px', cursor: 'pointer' }}
         >
           Refresh data
         </button>
@@ -180,8 +180,8 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
       {/* ── Page header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: 0 }}>Analytics</h2>
-          <p style={{ fontSize: 13, color: '#9ca3af', margin: '3px 0 0' }}>Executive overview · all figures based on uploaded data</p>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#141414', margin: 0 }}>Analytics</h2>
+          <p style={{ fontSize: 13, color: '#9c9c9c', margin: '3px 0 0' }}>Executive overview · all figures based on uploaded data</p>
         </div>
         <button onClick={() => window.print()} className="btn-secondary print:hidden">
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -197,9 +197,9 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
       )}
 
       {/* ── KPI Filters ── */}
-      <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e5e8ef', padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e8e2d6', padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filter KPI Cards</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filter KPI Cards</span>
           <ChartFilters show={['assigned_to', 'team', 'area', 'sub_category']}
             overview={overview} filters={kpiCards.filters} onChange={kpiCards.setFilters} />
           <DateRangePicker dateFrom={kpiCards.range.from} dateTo={kpiCards.range.to}
@@ -265,7 +265,7 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
                 height: 30, padding: '0 12px',
                 fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 background: '#fff', color: '#1e8a5e',
-                border: '1px solid #6ee7b7', borderRadius: 7,
+                border: '1px solid #aae1c8', borderRadius: 7,
                 fontFamily: 'Inter, sans-serif',
                 whiteSpace: 'nowrap',
               }}>
@@ -454,33 +454,33 @@ function DataDiagnosticBanner({ sessionId }) {
   const dateColsFound    = info?.date_columns_found ?? []
 
   return (
-    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 16px' }}>
+    <div style={{ background: '#fffae3', border: '1px solid #ffea82', borderRadius: 10, padding: '12px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <span style={{ fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+        <span style={{ fontSize: 13, color: '#7a5400', fontWeight: 600 }}>
           ⚠ Charts are empty — your data was loaded but no date values could be read
         </span>
         <button
           onClick={load}
-          style={{ fontSize: 12, fontWeight: 600, color: '#1450f5', background: '#eff4ff', border: '1px solid #c7d7fd', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', flexShrink: 0 }}
+          style={{ fontSize: 12, fontWeight: 600, color: '#1450f5', background: '#eef3fe', border: '1px solid #c7d7fd', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', flexShrink: 0 }}
         >
           {open ? 'Hide details' : 'Diagnose'}
         </button>
       </div>
       {open && info && (
-        <div style={{ marginTop: 10, fontSize: 12, color: '#374151', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ marginTop: 10, fontSize: 12, color: '#404040', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div><strong>Total rows:</strong> {info.total_rows}</div>
           <div><strong>Date columns found:</strong> {dateColsFound.length ? dateColsFound.join(', ') : 'None — check column names in your Google Sheet'}</div>
           <div><strong>Date columns with data:</strong> {dateColsWithData.length ? dateColsWithData.join(', ') : 'None — dates may not have parsed correctly'}</div>
           {dateColsFound.map(col => {
             const ci = info.columns[col]
             return (
-              <div key={col} style={{ background: '#f9fafb', border: '1px solid #e5e8ef', borderRadius: 6, padding: '6px 10px' }}>
+              <div key={col} style={{ background: '#faf8f3', border: '1px solid #e8e2d6', borderRadius: 6, padding: '6px 10px' }}>
                 <strong>{col}</strong>: {ci.non_null} rows with data
-                {ci.sample?.length ? <> · sample: <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 4 }}>{ci.sample[0]}</code></> : ' · (all empty)'}
+                {ci.sample?.length ? <> · sample: <code style={{ background: '#f1ede3', padding: '1px 4px', borderRadius: 4 }}>{ci.sample[0]}</code></> : ' · (all empty)'}
               </div>
             )
           })}
-          <div style={{ color: '#6b7280', marginTop: 4 }}>
+          <div style={{ color: '#6e6e6e', marginTop: 4 }}>
             Expected column names: <em>Created, Closed, Due date, Preferred Live Date</em> (or similar — see COLUMN_ALIASES)
           </div>
         </div>
@@ -496,7 +496,7 @@ function Section({ color, title, subtitle, controls, children }) {
     <div style={{
       background: '#ffffff',
       borderRadius: 12,
-      border: '1px solid #e5e8ef',
+      border: '1px solid #e8e2d6',
       borderLeft: `3px solid ${color}`,
       boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.04)',
       overflow: 'hidden',
@@ -504,7 +504,7 @@ function Section({ color, title, subtitle, controls, children }) {
       {/* Title row — compact, never crowded */}
       <div style={{
         padding: '12px 20px',
-        borderBottom: '1px solid #f3f4f6',
+        borderBottom: '1px solid #f1ede3',
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
         <div style={{
@@ -515,8 +515,8 @@ function Section({ color, title, subtitle, controls, children }) {
           <div style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />
         </div>
         <div style={{ minWidth: 0 }}>
-          <h3 style={{ fontSize: 13, fontWeight: 600, color: '#111827', lineHeight: 1.3, margin: 0 }}>{title}</h3>
-          {subtitle && <p style={{ fontSize: 11, color: '#9ca3af', margin: '2px 0 0' }}>{subtitle}</p>}
+          <h3 style={{ fontSize: 13, fontWeight: 600, color: '#141414', lineHeight: 1.3, margin: 0 }}>{title}</h3>
+          {subtitle && <p style={{ fontSize: 11, color: '#9c9c9c', margin: '2px 0 0' }}>{subtitle}</p>}
         </div>
       </div>
 
@@ -524,8 +524,8 @@ function Section({ color, title, subtitle, controls, children }) {
       {controls && (
         <div style={{
           padding: '10px 20px',
-          borderBottom: '1px solid #f3f4f6',
-          background: '#fafbff',
+          borderBottom: '1px solid #f1ede3',
+          background: '#f5f8fe',
           display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
         }}>
           {controls}
@@ -544,10 +544,10 @@ function Controls({ children }) {
 }
 
 const TIER = {
-  good:    { bar: '#1e8a5e', numColor: '#141414', bg: '#f0fff8', border: '#aae1c8' },
+  good:    { bar: '#1e8a5e', numColor: '#141414', bg: '#edf8f2', border: '#aae1c8' },
   warn:    { bar: '#b87d00', numColor: '#141414', bg: '#fffde8', border: '#ffe141' },
-  bad:     { bar: '#c0305a', numColor: '#141414', bg: '#fff0f4', border: '#ffcdd7' },
-  neutral: { bar: '#1450f5', numColor: '#1450f5', bg: '#eef3ff', border: '#d2f5ff' },
+  bad:     { bar: '#c0305a', numColor: '#141414', bg: '#fff0f3', border: '#ffcdd7' },
+  neutral: { bar: '#1450f5', numColor: '#1450f5', bg: '#eef3fe', border: '#d2f5ff' },
 }
 
 function KpiCard({ label, value, detail, tier = 'neutral', icon }) {
@@ -555,20 +555,20 @@ function KpiCard({ label, value, detail, tier = 'neutral', icon }) {
   return (
     <div style={{
       borderRadius: 12,
-      border: '1px solid #e5e8ef',
+      border: '1px solid #e8e2d6',
       borderTop: `3px solid ${t.bar}`,
       background: '#ffffff',
       boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
     }}>
       <div style={{ padding: '16px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 14 }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#6b7280', textTransform: 'uppercase', margin: 0 }}>{label}</p>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#6e6e6e', textTransform: 'uppercase', margin: 0 }}>{label}</p>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: t.bg, border: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.bar, flexShrink: 0 }}>
             {icon}
           </div>
         </div>
-        <p style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.02em', color: '#111827', lineHeight: 1, margin: '0 0 10px' }}>{value}</p>
-        <p style={{ fontSize: 12, color: '#9ca3af', margin: 0, lineHeight: 1.4 }}>{detail}</p>
+        <p style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.02em', color: '#141414', lineHeight: 1, margin: '0 0 10px' }}>{value}</p>
+        <p style={{ fontSize: 12, color: '#9c9c9c', margin: 0, lineHeight: 1.4 }}>{detail}</p>
       </div>
     </div>
   )
@@ -578,7 +578,7 @@ function TogglePill({ options, value, onChange }) {
   return (
     <div style={{
       display: 'flex', borderRadius: 8,
-      border: '1px solid #e5e7eb', overflow: 'hidden',
+      border: '1px solid #e8e2d6', overflow: 'hidden',
       background: '#fff', flexShrink: 0, height: 30,
     }}>
       {options.map(([v, label], i) => {
@@ -590,9 +590,9 @@ function TogglePill({ options, value, onChange }) {
             style={{
               padding: '0 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
               border: 'none', fontFamily: 'Inter, sans-serif',
-              borderRight: i < options.length - 1 ? '1px solid #e5e7eb' : 'none',
+              borderRight: i < options.length - 1 ? '1px solid #e8e2d6' : 'none',
               background: active ? '#1450f5' : '#fff',
-              color:      active ? '#fff'    : '#6b7280',
+              color:      active ? '#fff'    : '#6e6e6e',
               transition: 'background 0.12s, color 0.12s',
             }}
           >
@@ -608,11 +608,11 @@ function TogglePill({ options, value, onChange }) {
 
 function _rateStyle(rate) {
   if (rate === null || rate === undefined) return {}
-  if (rate < 50)   return { background: '#fee2e2', color: '#991b1b' }
-  if (rate < 80)   return { background: '#fecaca', color: '#dc2626' }
-  if (rate < 100)  return { background: '#fef9c3', color: '#854d0e' }
-  if (rate <= 150) return { background: '#dcfce7', color: '#15803d' }
-  return { background: '#bbf7d0', color: '#14532d' }
+  if (rate < 50)   return { background: '#ffdee5', color: '#8c1a2e' }
+  if (rate < 80)   return { background: '#ffd4dd', color: '#c0305a' }
+  if (rate < 100)  return { background: '#fff6c4', color: '#7a5400' }
+  if (rate <= 150) return { background: '#d3efe0', color: '#147a50' }
+  return { background: '#aae1c8', color: '#0f5132' }
 }
 
 function _filterName(filters) {
@@ -626,9 +626,9 @@ function _filterName(filters) {
 
 function _pipelineStyle(val, prev) {
   if (val == null) return {}
-  if (prev != null && val < prev)  return { background: '#dcfce7', color: '#15803d' }  // shrinking — good
-  if (prev != null && val > prev)  return { background: '#fee2e2', color: '#991b1b' }  // growing — bad
-  return { background: '#fef9c3', color: '#854d0e' }                                  // no change / first period
+  if (prev != null && val < prev)  return { background: '#d3efe0', color: '#147a50' }  // shrinking — good
+  if (prev != null && val > prev)  return { background: '#ffdee5', color: '#8c1a2e' }  // growing — bad
+  return { background: '#fff6c4', color: '#7a5400' }                                  // no change / first period
 }
 
 function InflowOutflowTable({ data = [], filters = {} }) {
@@ -663,20 +663,20 @@ function InflowOutflowTable({ data = [], filters = {} }) {
   const hdrCell = (extra = {}) => ({
     padding: '8px 12px', fontSize: 11, fontWeight: 700,
     background: '#1450f5', color: '#fff',
-    borderRight: '1px solid #3b6fff',
+    borderRight: '1px solid #3b70f7',
     textAlign: 'center', whiteSpace: 'nowrap',
     ...extra,
   })
 
   const numCell = (bg = '#fff') => ({
     padding: '7px 12px', textAlign: 'center',
-    fontSize: 12, color: '#374151',
-    borderRight: '1px solid #f0f3fa',
+    fontSize: 12, color: '#404040',
+    borderRight: '1px solid #f3eee6',
     background: bg,
   })
 
   return (
-    <div style={{ marginTop: 16, overflowX: 'auto', borderRadius: 8, border: '1px solid #e5e8ef' }}>
+    <div style={{ marginTop: 16, overflowX: 'auto', borderRadius: 8, border: '1px solid #e8e2d6' }}>
       <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: '100%' }}>
         <thead>
           <tr>
@@ -696,13 +696,13 @@ function InflowOutflowTable({ data = [], filters = {} }) {
 
           {/* ── Assigned ── */}
           <tr>
-            <td style={{ ...numCell(), ...stickyBase(0, '#fff'), padding: '8px 12px', fontWeight: 700, color: '#111827', borderRight: '1px solid #e5e8ef' }}>
+            <td style={{ ...numCell(), ...stickyBase(0, '#fff'), padding: '8px 12px', fontWeight: 700, color: '#141414', borderRight: '1px solid #e8e2d6' }}>
               {name}
             </td>
-            <td style={{ ...numCell(), ...stickyBase(NAME_W, '#fff'), padding: '8px 12px', fontWeight: 600, color: '#374151', borderRight: '2px solid #e5e8ef' }}>
+            <td style={{ ...numCell(), ...stickyBase(NAME_W, '#fff'), padding: '8px 12px', fontWeight: 600, color: '#404040', borderRight: '2px solid #e8e2d6' }}>
               Assigned
             </td>
-            <td style={{ ...numCell('#f0f4ff'), fontWeight: 700, color: '#1450f5' }}>
+            <td style={{ ...numCell('#eef3fe'), fontWeight: 700, color: '#1450f5' }}>
               {totalIn.toLocaleString()}
             </td>
             {data.map(r => (
@@ -712,22 +712,22 @@ function InflowOutflowTable({ data = [], filters = {} }) {
 
           {/* ── Resolved ── */}
           <tr>
-            <td style={{ ...numCell('#f9fafb'), ...stickyBase(0, '#f9fafb'), padding: '8px 12px', borderRight: '1px solid #e5e8ef' }} />
-            <td style={{ ...numCell('#f9fafb'), ...stickyBase(NAME_W, '#f9fafb'), padding: '8px 12px', fontWeight: 600, color: '#374151', borderRight: '2px solid #e5e8ef' }}>
+            <td style={{ ...numCell('#faf8f3'), ...stickyBase(0, '#faf8f3'), padding: '8px 12px', borderRight: '1px solid #e8e2d6' }} />
+            <td style={{ ...numCell('#faf8f3'), ...stickyBase(NAME_W, '#faf8f3'), padding: '8px 12px', fontWeight: 600, color: '#404040', borderRight: '2px solid #e8e2d6' }}>
               Resolved
             </td>
-            <td style={{ ...numCell('#f0f4ff'), fontWeight: 700, color: '#1450f5' }}>
+            <td style={{ ...numCell('#eef3fe'), fontWeight: 700, color: '#1450f5' }}>
               {totalOut.toLocaleString()}
             </td>
             {data.map(r => (
-              <td key={r.period} style={numCell('#f9fafb')}>{r.outflow || '—'}</td>
+              <td key={r.period} style={numCell('#faf8f3')}>{r.outflow || '—'}</td>
             ))}
           </tr>
 
           {/* ── Resolution Rate ── */}
           <tr>
-            <td style={{ ...numCell(), ...stickyBase(0, '#fff'), padding: '8px 12px', borderRight: '1px solid #e5e8ef' }} />
-            <td style={{ ...numCell(), ...stickyBase(NAME_W, '#fff'), padding: '8px 12px', fontWeight: 600, color: '#374151', borderRight: '2px solid #e5e8ef' }}>
+            <td style={{ ...numCell(), ...stickyBase(0, '#fff'), padding: '8px 12px', borderRight: '1px solid #e8e2d6' }} />
+            <td style={{ ...numCell(), ...stickyBase(NAME_W, '#fff'), padding: '8px 12px', fontWeight: 600, color: '#404040', borderRight: '2px solid #e8e2d6' }}>
               Resolution Rate
             </td>
             <td style={{ ...numCell(), ..._rateStyle(totalRate), fontWeight: 700, textAlign: 'center' }}>
@@ -744,12 +744,12 @@ function InflowOutflowTable({ data = [], filters = {} }) {
           </tr>
 
           {/* ── Open Pipeline ── */}
-          <tr style={{ borderTop: '2px solid #e5e8ef' }}>
-            <td style={{ ...numCell('#fffbeb'), ...stickyBase(0, '#fffbeb'), padding: '8px 12px', borderRight: '1px solid #e5e8ef' }} />
-            <td style={{ ...numCell('#fffbeb'), ...stickyBase(NAME_W, '#fffbeb'), padding: '8px 12px', fontWeight: 700, color: '#b45309', borderRight: '2px solid #e5e8ef' }}>
+          <tr style={{ borderTop: '2px solid #e8e2d6' }}>
+            <td style={{ ...numCell('#fffae3'), ...stickyBase(0, '#fffae3'), padding: '8px 12px', borderRight: '1px solid #e8e2d6' }} />
+            <td style={{ ...numCell('#fffae3'), ...stickyBase(NAME_W, '#fffae3'), padding: '8px 12px', fontWeight: 700, color: '#8a5f00', borderRight: '2px solid #e8e2d6' }}>
               Open Pipeline
             </td>
-            <td style={{ ...numCell('#fffbeb'), fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+            <td style={{ ...numCell('#fffae3'), fontSize: 11, color: '#9c9c9c', fontStyle: 'italic' }}>
               latest →
             </td>
             {pipelines.map((pl, i) => {
@@ -767,17 +767,17 @@ function InflowOutflowTable({ data = [], filters = {} }) {
             const muted = stage === 'Resolved Later'
             return (
               <tr key={stage}>
-                <td style={{ ...numCell('#fffdf5'), ...stickyBase(0, '#fffdf5'), padding: '6px 12px', borderRight: '1px solid #e5e8ef' }} />
-                <td style={{ ...numCell('#fffdf5'), ...stickyBase(NAME_W, '#fffdf5'), padding: '6px 12px 6px 24px', fontSize: 11, fontWeight: 500, color: muted ? '#9ca3af' : '#92400e', fontStyle: muted ? 'italic' : 'normal', borderRight: '2px solid #e5e8ef' }}>
+                <td style={{ ...numCell('#fffdf5'), ...stickyBase(0, '#fffdf5'), padding: '6px 12px', borderRight: '1px solid #e8e2d6' }} />
+                <td style={{ ...numCell('#fffdf5'), ...stickyBase(NAME_W, '#fffdf5'), padding: '6px 12px 6px 24px', fontSize: 11, fontWeight: 500, color: muted ? '#9c9c9c' : '#7a5400', fontStyle: muted ? 'italic' : 'normal', borderRight: '2px solid #e8e2d6' }}>
                   {stage}
                 </td>
-                <td style={{ ...numCell('#fffbeb'), fontSize: 11, fontWeight: 700, color: muted ? '#9ca3af' : '#b45309' }}>
+                <td style={{ ...numCell('#fffae3'), fontSize: 11, fontWeight: 700, color: muted ? '#9c9c9c' : '#8a5f00' }}>
                   {latestStages[stage] ?? '—'}
                 </td>
                 {data.map(r => {
                   const v = r.pipeline_stages?.[stage] ?? 0
                   return (
-                    <td key={r.period} style={{ ...numCell('#fffdf5'), fontSize: 11, color: muted ? '#9ca3af' : '#78350f', fontWeight: v ? 600 : 400 }}>
+                    <td key={r.period} style={{ ...numCell('#fffdf5'), fontSize: 11, color: muted ? '#9c9c9c' : '#5c4200', fontWeight: v ? 600 : 400 }}>
                       {v || '—'}
                     </td>
                   )
@@ -787,26 +787,26 @@ function InflowOutflowTable({ data = [], filters = {} }) {
           })}
 
           {/* ── Closed Break Up (by closed date) ── */}
-          <tr style={{ borderTop: '2px solid #e5e8ef' }}>
-            <td style={{ ...numCell('#f0fdf4'), ...stickyBase(0, '#f0fdf4'), padding: '8px 12px', borderRight: '1px solid #e5e8ef' }} />
-            <td style={{ ...numCell('#f0fdf4'), ...stickyBase(NAME_W, '#f0fdf4'), padding: '8px 12px', fontWeight: 700, color: '#15803d', borderRight: '2px solid #e5e8ef' }}>
+          <tr style={{ borderTop: '2px solid #e8e2d6' }}>
+            <td style={{ ...numCell('#edf8f2'), ...stickyBase(0, '#edf8f2'), padding: '8px 12px', borderRight: '1px solid #e8e2d6' }} />
+            <td style={{ ...numCell('#edf8f2'), ...stickyBase(NAME_W, '#edf8f2'), padding: '8px 12px', fontWeight: 700, color: '#147a50', borderRight: '2px solid #e8e2d6' }}>
               Closed Break Up
             </td>
-            <td style={{ ...numCell('#f0fdf4') }} />
+            <td style={{ ...numCell('#edf8f2') }} />
             {data.map(r => (
-              <td key={r.period} style={numCell('#f0fdf4')} />
+              <td key={r.period} style={numCell('#edf8f2')} />
             ))}
           </tr>
           {[
-            { key: 'closed_completed', label: 'Closed Completed', color: '#15803d' },
-            { key: 'closed_rejected',  label: 'Closed Rejected',  color: '#991b1b' },
+            { key: 'closed_completed', label: 'Closed Completed', color: '#147a50' },
+            { key: 'closed_rejected',  label: 'Closed Rejected',  color: '#8c1a2e' },
           ].map(({ key, label, color }) => (
             <tr key={key}>
-              <td style={{ ...numCell('#fbfefc'), ...stickyBase(0, '#fbfefc'), padding: '6px 12px', borderRight: '1px solid #e5e8ef' }} />
-              <td style={{ ...numCell('#fbfefc'), ...stickyBase(NAME_W, '#fbfefc'), padding: '6px 12px 6px 24px', fontSize: 11, fontWeight: 500, color, borderRight: '2px solid #e5e8ef' }}>
+              <td style={{ ...numCell('#fbfefc'), ...stickyBase(0, '#fbfefc'), padding: '6px 12px', borderRight: '1px solid #e8e2d6' }} />
+              <td style={{ ...numCell('#fbfefc'), ...stickyBase(NAME_W, '#fbfefc'), padding: '6px 12px 6px 24px', fontSize: 11, fontWeight: 500, color, borderRight: '2px solid #e8e2d6' }}>
                 {label}
               </td>
-              <td style={{ ...numCell('#f0fdf4'), fontSize: 11, fontWeight: 700, color }}>
+              <td style={{ ...numCell('#edf8f2'), fontSize: 11, fontWeight: 700, color }}>
                 {data.reduce((s, r) => s + (r[key] || 0), 0).toLocaleString()}
               </td>
               {data.map(r => {

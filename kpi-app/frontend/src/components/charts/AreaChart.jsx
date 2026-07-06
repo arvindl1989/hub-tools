@@ -3,7 +3,7 @@ import {
   PieChart, Pie, Cell,
 } from 'recharts'
 
-const COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16']
+const COLORS = ['#1450f5','#b87d00','#1e8a5e','#c0305a','#1450f5','#0077a8','#c0305a','#0aa08f','#e86427','#6b8f00']
 
 export default function AreaChart({ data = [], view = 'bar' }) {
   if (!data.length) return <Empty />
@@ -15,10 +15,10 @@ export default function AreaChart({ data = [], view = 'bar' }) {
       {view === 'bar' ? (
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={sorted} layout="vertical" margin={{ top: 0, right: 30, left: 100, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11, fill: '#6b7280' }} allowDecimals={false} />
-            <YAxis type="category" dataKey="area" tick={{ fontSize: 11, fill: '#6b7280' }} width={95} />
-            <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 12 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#ece7dc" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11, fill: '#6e6e6e' }} allowDecimals={false} />
+            <YAxis type="category" dataKey="area" tick={{ fontSize: 11, fill: '#6e6e6e' }} width={95} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e8e2d6', fontSize: 12 }} />
             <Bar dataKey="count" name="Tickets" radius={[0, 4, 4, 0]}>
               {sorted.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
             </Bar>
@@ -32,7 +32,7 @@ export default function AreaChart({ data = [], view = 'bar' }) {
               labelLine={{ strokeWidth: 1 }}>
               {sorted.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
             </Pie>
-            <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 12 }} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e8e2d6', fontSize: 12 }} />
           </PieChart>
         </ResponsiveContainer>
       )}

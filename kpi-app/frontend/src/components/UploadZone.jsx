@@ -57,20 +57,20 @@ export default function UploadZone({ onUpload }) {
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div style={{
           width: 52, height: 52, borderRadius: 14,
-          background: 'linear-gradient(135deg, #1450f5 0%, #3b70f7 100%)',
+          background: '#1450f5',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 16px',
           boxShadow: '0 4px 14px rgba(20,80,245,0.3)',
         }}>
           <span style={{ color: '#fff', fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px' }}>IQ</span>
         </div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 6px', letterSpacing: '-0.3px' }}>TicketIQ</h1>
-        <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>Connect your ticket data to get started</p>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#141414', margin: '0 0 6px', letterSpacing: '-0.3px' }}>TicketIQ</h1>
+        <p style={{ fontSize: 14, color: '#6e6e6e', margin: 0 }}>Connect your ticket data to get started</p>
       </div>
 
       {/* Mode toggle */}
       <div style={{
-        display: 'flex', background: '#f3f4f6', borderRadius: 10,
+        display: 'flex', background: '#f1ede3', borderRadius: 10,
         padding: 3, marginBottom: 20, gap: 3,
       }}>
         {[['file', '⬆ Upload Excel'], ['sheet', '⚡ Google Sheet']].map(([m, label]) => (
@@ -78,7 +78,7 @@ export default function UploadZone({ onUpload }) {
             flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
             fontSize: 13, fontWeight: 600, fontFamily: 'Inter, sans-serif',
             background: mode === m ? '#ffffff' : 'transparent',
-            color: mode === m ? blue : '#6b7280',
+            color: mode === m ? blue : '#6e6e6e',
             boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
             transition: 'all 0.15s',
           }}>{label}</button>
@@ -88,7 +88,7 @@ export default function UploadZone({ onUpload }) {
       {/* Loading state (shared) */}
       {uploading ? (
         <div style={{
-          border: '2px dashed #d1d5db', borderRadius: 16,
+          border: '2px dashed #d8d8d8', borderRadius: 16,
           padding: '40px 32px', textAlign: 'center', background: '#fff',
         }}>
           <div style={{ width: 48, height: 48, borderRadius: '50%', background: blueFaint, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
@@ -98,18 +98,18 @@ export default function UploadZone({ onUpload }) {
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
           </div>
-          <p style={{ fontSize: 14, color: '#374151', fontWeight: 500, marginBottom: 12 }}>
+          <p style={{ fontSize: 14, color: '#404040', fontWeight: 500, marginBottom: 12 }}>
             {mode === 'sheet' ? 'Fetching & processing sheet…' : 'Processing your file…'}
           </p>
-          <div style={{ height: 6, background: '#e5e7eb', borderRadius: 99, overflow: 'hidden', marginBottom: 6 }}>
+          <div style={{ height: 6, background: '#e8e2d6', borderRadius: 99, overflow: 'hidden', marginBottom: 6 }}>
             <div style={{ height: '100%', background: blue, borderRadius: 99, width: `${progress}%`, transition: 'width 0.3s' }} />
           </div>
-          <p style={{ fontSize: 12, color: '#9ca3af' }}>{progress}%</p>
+          <p style={{ fontSize: 12, color: '#9c9c9c' }}>{progress}%</p>
         </div>
       ) : mode === 'file' ? (
         /* ── File upload ── */
         <div {...getRootProps()} style={{
-          border: `2px dashed ${isDragActive ? blue : '#d1d5db'}`,
+          border: `2px dashed ${isDragActive ? blue : '#d8d8d8'}`,
           borderRadius: 16, padding: '40px 32px', textAlign: 'center',
           cursor: 'pointer',
           background: isDragActive ? blueFaint : '#ffffff',
@@ -119,35 +119,35 @@ export default function UploadZone({ onUpload }) {
           <input {...getInputProps()} />
           <div style={{
             width: 56, height: 56, borderRadius: 14,
-            background: isDragActive ? '#dbeafe' : '#f3f4f6',
+            background: isDragActive ? '#dbe6fd' : '#f1ede3',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 18px', transition: 'background 0.2s',
           }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={isDragActive ? blue : '#6b7280'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={isDragActive ? blue : '#6e6e6e'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
               <line x1="12" y1="18" x2="12" y2="12"/>
               <line x1="9" y1="15" x2="15" y2="15"/>
             </svg>
           </div>
-          <p style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 6 }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: '#141414', marginBottom: 6 }}>
             {isDragActive ? 'Drop your file here' : 'Drag & drop your Excel file'}
           </p>
-          <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>
+          <p style={{ fontSize: 13, color: '#6e6e6e', marginBottom: 20 }}>
             or <span style={{ color: blue, fontWeight: 500, textDecoration: 'underline', cursor: 'pointer' }}>browse to upload</span> · .xlsx / .xls
           </p>
-          <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 16px', textAlign: 'left' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Expected columns</p>
+          <div style={{ background: '#faf8f3', border: '1px solid #e8e2d6', borderRadius: 10, padding: '12px 16px', textAlign: 'left' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Expected columns</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px' }}>
               {['Number', 'Assigned to', 'State', 'Created', 'Sub-Category', 'Area', 'Team'].map(col => (
-                <span key={col} style={{ fontSize: 11, color: '#374151', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 4, padding: '2px 6px' }}>{col}</span>
+                <span key={col} style={{ fontSize: 11, color: '#404040', background: '#fff', border: '1px solid #e8e2d6', borderRadius: 4, padding: '2px 6px' }}>{col}</span>
               ))}
             </div>
           </div>
         </div>
       ) : (
         /* ── Google Sheet ── */
-        <div style={{ border: '2px solid #e5e7eb', borderRadius: 16, padding: '28px 28px', background: '#fff' }}>
+        <div style={{ border: '2px solid #e8e2d6', borderRadius: 16, padding: '28px 28px', background: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             <div style={{ width: 36, height: 36, borderRadius: 9, background: blueFaint, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -156,12 +156,12 @@ export default function UploadZone({ onUpload }) {
               </svg>
             </div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>Connect via Google Apps Script</p>
-              <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>Uses the same URL already saved in Email Tracker</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#141414', margin: 0 }}>Connect via Google Apps Script</p>
+              <p style={{ fontSize: 12, color: '#6e6e6e', margin: 0 }}>Uses the same URL already saved in Email Tracker</p>
             </div>
           </div>
 
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
             Apps Script Web App URL
           </label>
           <input
@@ -170,13 +170,13 @@ export default function UploadZone({ onUpload }) {
             onChange={e => setSheetUrl(e.target.value)}
             placeholder="https://script.google.com/macros/s/…/exec"
             style={{
-              width: '100%', padding: '10px 12px', border: '1px solid #e5e7eb',
+              width: '100%', padding: '10px 12px', border: '1px solid #e8e2d6',
               borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif',
-              color: '#111827', outline: 'none', marginBottom: 14,
-              background: '#f9fafb',
+              color: '#141414', outline: 'none', marginBottom: 14,
+              background: '#faf8f3',
             }}
             onFocus={e => e.target.style.borderColor = blue}
-            onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+            onBlur={e => e.target.style.borderColor = '#e8e2d6'}
           />
 
           <button onClick={connectSheet} style={{
@@ -192,7 +192,7 @@ export default function UploadZone({ onUpload }) {
             Load from Sheet
           </button>
 
-          <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 12, marginBottom: 0 }}>
+          <p style={{ fontSize: 11, color: '#9c9c9c', textAlign: 'center', marginTop: 12, marginBottom: 0 }}>
             URL is saved locally and shared with the Email Tracker
           </p>
         </div>
@@ -201,7 +201,7 @@ export default function UploadZone({ onUpload }) {
       {error && (
         <div style={{
           marginTop: 16, padding: '12px 16px',
-          background: '#fff0f4', border: '1px solid #ffcdd7',
+          background: '#fff0f3', border: '1px solid #ffcdd7',
           borderRadius: 10, fontSize: 13, color: '#c0305a',
           display: 'flex', alignItems: 'center', gap: 8,
         }}>

@@ -12,12 +12,12 @@ export default function WeeklyChart({ data = [], limit = 26 }) {
         <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
         <XAxis
           dataKey="label"
-          tick={{ fontSize: 11, fill: '#9ca3af', fontFamily: 'Inter' }}
+          tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }}
           angle={-45}
           textAnchor="end"
           interval={0}
         />
-        <YAxis tick={{ fontSize: 11, fill: '#9ca3af', fontFamily: 'Inter' }} allowDecimals={false} />
+        <YAxis tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }} allowDecimals={false} />
         <Tooltip
           contentStyle={{ borderRadius: 10, border: '1px solid #e8e3da', fontSize: 12, fontFamily: 'Inter' }}
           cursor={{ fill: '#f5f3ef' }}

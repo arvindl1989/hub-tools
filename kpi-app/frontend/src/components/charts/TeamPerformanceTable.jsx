@@ -7,7 +7,7 @@ export default function TeamPerformanceTable({ data = [] }) {
         <thead>
           <tr style={{ borderBottom: '2px solid #ede8e0' }}>
             {['Team Member', 'Active', 'Overdue', 'Critical+', 'SLA Compliance', 'Avg Resolution', 'Total Closed'].map((h) => (
-              <th key={h} className="text-left px-4 py-3 whitespace-nowrap" style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              <th key={h} className="text-left px-4 py-3 whitespace-nowrap" style={{ fontSize: 10, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                 {h}
               </th>
             ))}
@@ -20,7 +20,7 @@ export default function TeamPerformanceTable({ data = [] }) {
 
               {/* Active */}
               <td className="px-4 py-3.5">
-                <span style={{ fontWeight: 700, fontSize: 15, color: r.active > 15 ? '#b87d00' : '#374151' }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: r.active > 15 ? '#b87d00' : '#404040' }}>
                   {r.active}
                 </span>
               </td>
@@ -43,7 +43,7 @@ export default function TeamPerformanceTable({ data = [] }) {
                     {r.critical}
                   </span>
                 ) : (
-                  <span style={{ color: '#d1d5db', fontSize: 12 }}>—</span>
+                  <span style={{ color: '#d8d8d8', fontSize: 12 }}>—</span>
                 )}
               </td>
 
@@ -74,12 +74,12 @@ export default function TeamPerformanceTable({ data = [] }) {
                     </span>
                   </div>
                 ) : (
-                  <span style={{ color: '#d1d5db', fontSize: 12 }}>No closed tickets</span>
+                  <span style={{ color: '#d8d8d8', fontSize: 12 }}>No closed tickets</span>
                 )}
               </td>
 
               {/* Avg resolution */}
-              <td className="px-4 py-3.5" style={{ color: '#6b7280' }}>
+              <td className="px-4 py-3.5" style={{ color: '#6e6e6e' }}>
                 {r.avg_resolution_days != null ? (
                   <span style={r.avg_resolution_days > 20 ? { color: '#b87d00', fontWeight: 600 } : {}}>
                     {r.avg_resolution_days}d
@@ -88,7 +88,7 @@ export default function TeamPerformanceTable({ data = [] }) {
               </td>
 
               {/* Total closed */}
-              <td className="px-4 py-3.5" style={{ color: '#6b7280', fontWeight: 500 }}>{r.closed_total}</td>
+              <td className="px-4 py-3.5" style={{ color: '#6e6e6e', fontWeight: 500 }}>{r.closed_total}</td>
             </tr>
           ))}
         </tbody>

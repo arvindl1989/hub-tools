@@ -12,17 +12,17 @@ function PipelineTooltip({ active, payload, label }) {
   const open      = payload.find(p => p.dataKey === 'open')?.value      ?? 0
   return (
     <div style={{
-      background: '#fff', border: '1px solid #e5e8ef', borderRadius: 10,
+      background: '#fff', border: '1px solid #e8e2d6', borderRadius: 10,
       boxShadow: '0 4px 16px rgba(0,0,0,0.1)', padding: '10px 14px',
       fontSize: 12, minWidth: 190,
     }}>
-      <p style={{ fontWeight: 700, color: '#374151', marginBottom: 8, marginTop: 0 }}>{label}</p>
+      <p style={{ fontWeight: 700, color: '#404040', marginBottom: 8, marginTop: 0 }}>{label}</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <TRow color="#22c55e" label="Cumul. Completed" value={completed} />
-        <TRow color="#94a3b8" label="Cumul. Rejected"  value={rejected}  />
-        <TRow color="#f59e0b" label="Open Pipeline"    value={open}      bold />
-        <div style={{ borderTop: '1px solid #f3f4f6', marginTop: 3, paddingTop: 5 }}>
-          <TRow color="#6366f1" label="Cumul. Created" value={completed + rejected + open} bold />
+        <TRow color="#1e8a5e" label="Cumul. Completed" value={completed} />
+        <TRow color="#9c9c9c" label="Cumul. Rejected"  value={rejected}  />
+        <TRow color="#b87d00" label="Open Pipeline"    value={open}      bold />
+        <div style={{ borderTop: '1px solid #f1ede3', marginTop: 3, paddingTop: 5 }}>
+          <TRow color="#1450f5" label="Cumul. Created" value={completed + rejected + open} bold />
         </div>
       </div>
     </div>
@@ -33,7 +33,7 @@ function TRow({ color, label, value, bold }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
       <span style={{ color, fontWeight: bold ? 700 : 500 }}>{label}</span>
-      <span style={{ fontWeight: bold ? 700 : 600, color: '#111827' }}>{value}</span>
+      <span style={{ fontWeight: bold ? 700 : 600, color: '#141414' }}>{value}</span>
     </div>
   )
 }
@@ -53,7 +53,7 @@ export function buildPipelineData(data) {
 
 export default function PipelineChart({ data = [] }) {
   if (!data.length) return (
-    <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+    <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9c9c9c', fontSize: 13 }}>
       No data for this range
     </div>
   )
@@ -65,16 +65,16 @@ export default function PipelineChart({ data = [] }) {
     <div style={{ marginTop: 20 }}>
       <ResponsiveContainer width="100%" height={220}>
         <ComposedChart data={chartData} margin={{ top: 4, right: 20, left: 0, bottom: 70 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#ece7dc" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 10, fill: '#6b7280' }}
+            tick={{ fontSize: 10, fill: '#6e6e6e' }}
             angle={-40}
             textAnchor="end"
             interval={0}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: '#6b7280' }}
+            tick={{ fontSize: 11, fill: '#6e6e6e' }}
             allowDecimals={false}
             domain={[0, Math.ceil(maxY * 1.1)]}
           />
@@ -90,14 +90,14 @@ export default function PipelineChart({ data = [] }) {
           />
           {/* Stacked: completed (green) + rejected (gray) + open pipeline (amber) */}
           <Area type="monotone" dataKey="completed" name="completed" stackId="pl"
-            fill="#dcfce7" stroke="#22c55e" strokeWidth={2} fillOpacity={0.85} dot={false}
-            activeDot={{ r: 4, fill: '#22c55e' }} />
+            fill="#d3efe0" stroke="#1e8a5e" strokeWidth={2} fillOpacity={0.85} dot={false}
+            activeDot={{ r: 4, fill: '#1e8a5e' }} />
           <Area type="monotone" dataKey="rejected"  name="rejected"  stackId="pl"
-            fill="#f1f5f9" stroke="#94a3b8" strokeWidth={1.5} fillOpacity={0.75} dot={false}
-            activeDot={{ r: 4, fill: '#94a3b8' }} />
+            fill="#f1ede3" stroke="#9c9c9c" strokeWidth={1.5} fillOpacity={0.75} dot={false}
+            activeDot={{ r: 4, fill: '#9c9c9c' }} />
           <Area type="monotone" dataKey="open"      name="open"      stackId="pl"
-            fill="#fef3c7" stroke="#f59e0b" strokeWidth={2} fillOpacity={0.75} dot={false}
-            activeDot={{ r: 4, fill: '#f59e0b' }} />
+            fill="#fff3b0" stroke="#b87d00" strokeWidth={2} fillOpacity={0.75} dot={false}
+            activeDot={{ r: 4, fill: '#b87d00' }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -109,8 +109,8 @@ export default function PipelineChart({ data = [] }) {
 function _cellStyle(bg = '#fff') {
   return {
     padding: '7px 12px', textAlign: 'center',
-    fontSize: 12, color: '#374151',
-    borderRight: '1px solid #f0f3fa',
+    fontSize: 12, color: '#404040',
+    borderRight: '1px solid #f3eee6',
     background: bg,
   }
 }
@@ -118,7 +118,7 @@ function _cellStyle(bg = '#fff') {
 const HDR = {
   padding: '8px 12px', fontSize: 11, fontWeight: 700,
   background: '#1450f5', color: '#fff',
-  borderRight: '1px solid #3b6fff',
+  borderRight: '1px solid #3b70f7',
   textAlign: 'center', whiteSpace: 'nowrap',
 }
 
@@ -129,9 +129,9 @@ const METRIC_W = 140
 function pipelineColor(open, totalCreated) {
   if (!totalCreated) return {}
   const pct = open / totalCreated * 100
-  if (pct > 60) return { background: '#fee2e2', color: '#991b1b' }
-  if (pct > 30) return { background: '#fef9c3', color: '#854d0e' }
-  return { background: '#dcfce7', color: '#15803d' }
+  if (pct > 60) return { background: '#ffdee5', color: '#8c1a2e' }
+  if (pct > 30) return { background: '#fff6c4', color: '#7a5400' }
+  return { background: '#d3efe0', color: '#147a50' }
 }
 
 export function PipelineTable({ data = [] }) {
@@ -158,14 +158,14 @@ export function PipelineTable({ data = [] }) {
   const finalOpen      = Math.max(0, totalCreated - totalCompleted - totalRejected)
 
   const metrics = [
-    { key: 'inflow',           label: 'Created',         total: totalCreated,   color: '#1450f5', bg: '#f0f4ff' },
-    { key: 'closed_completed', label: 'Closed Completed',total: totalCompleted, color: '#15803d', bg: '#dcfce7' },
-    { key: 'closed_rejected',  label: 'Closed Rejected', total: totalRejected,  color: '#64748b', bg: '#f1f5f9' },
-    { key: 'open_pipeline',    label: 'Open Pipeline',   total: finalOpen,      color: '#b45309', bg: '#fef3c7', derived: true },
+    { key: 'inflow',           label: 'Created',         total: totalCreated,   color: '#1450f5', bg: '#eef3fe' },
+    { key: 'closed_completed', label: 'Closed Completed',total: totalCompleted, color: '#147a50', bg: '#d3efe0' },
+    { key: 'closed_rejected',  label: 'Closed Rejected', total: totalRejected,  color: '#6e6e6e', bg: '#f1ede3' },
+    { key: 'open_pipeline',    label: 'Open Pipeline',   total: finalOpen,      color: '#8a5f00', bg: '#fff3b0', derived: true },
   ]
 
   return (
-    <div style={{ marginTop: 16, overflowX: 'auto', borderRadius: 8, border: '1px solid #e5e8ef' }}>
+    <div style={{ marginTop: 16, overflowX: 'auto', borderRadius: 8, border: '1px solid #e8e2d6' }}>
       <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: '100%' }}>
         <thead>
           <tr>
@@ -180,16 +180,16 @@ export function PipelineTable({ data = [] }) {
         </thead>
         <tbody>
           {metrics.map((m, mi) => {
-            const rowBg = mi % 2 === 0 ? '#fff' : '#f9fafb'
+            const rowBg = mi % 2 === 0 ? '#fff' : '#faf8f3'
             return (
               <tr key={m.key}>
                 <td style={{
                   ..._cellStyle(rowBg), ...STICKY(0, rowBg),
                   textAlign: 'left', fontWeight: 600,
-                  color: m.derived ? m.color : '#374151',
-                  borderRight: '2px solid #e5e8ef',
-                  borderBottom: m.derived ? '2px solid #e5e8ef' : undefined,
-                  borderTop:    m.derived ? '2px solid #e5e8ef' : undefined,
+                  color: m.derived ? m.color : '#404040',
+                  borderRight: '2px solid #e8e2d6',
+                  borderBottom: m.derived ? '2px solid #e8e2d6' : undefined,
+                  borderTop:    m.derived ? '2px solid #e8e2d6' : undefined,
                 }}>
                   {m.label}
                 </td>
@@ -208,7 +208,7 @@ export function PipelineTable({ data = [] }) {
                       ..._cellStyle(rowBg),
                       ...extra,
                       fontWeight: m.derived ? 700 : val ? 500 : 400,
-                      color: extra.color ?? (val ? m.color : '#d1d5db'),
+                      color: extra.color ?? (val ? m.color : '#d8d8d8'),
                     }}>
                       {val || '—'}
                     </td>
