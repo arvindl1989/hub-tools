@@ -773,7 +773,7 @@ def inflow_outflow(
             periods.setdefault(k, _blank(k, p))
             periods[k]["outflow"] = int(len(grp))
             if has_state:
-                periods[k]["closed_completed"] = int(grp["state"].isin(["Closed Completed"]).sum())
+                periods[k]["closed_completed"] = int(grp["state"].isin(["Closed Completed", "Confirmation Completed"]).sum())
                 periods[k]["closed_rejected"]  = int(grp["state"].isin(["Closed Rejected"]).sum())
 
     result = sorted(periods.values(), key=lambda x: x["period"])

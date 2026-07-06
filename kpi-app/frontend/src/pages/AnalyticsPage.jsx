@@ -786,6 +786,40 @@ function InflowOutflowTable({ data = [], filters = {} }) {
             )
           })}
 
+          {/* ── Closed Break Up (by closed date) ── */}
+          <tr style={{ borderTop: '2px solid #e5e8ef' }}>
+            <td style={{ ...numCell('#f0fdf4'), ...stickyBase(0, '#f0fdf4'), padding: '8px 12px', borderRight: '1px solid #e5e8ef' }} />
+            <td style={{ ...numCell('#f0fdf4'), ...stickyBase(NAME_W, '#f0fdf4'), padding: '8px 12px', fontWeight: 700, color: '#15803d', borderRight: '2px solid #e5e8ef' }}>
+              Closed Break Up
+            </td>
+            <td style={{ ...numCell('#f0fdf4') }} />
+            {data.map(r => (
+              <td key={r.period} style={numCell('#f0fdf4')} />
+            ))}
+          </tr>
+          {[
+            { key: 'closed_completed', label: 'Closed Completed', color: '#15803d' },
+            { key: 'closed_rejected',  label: 'Closed Rejected',  color: '#991b1b' },
+          ].map(({ key, label, color }) => (
+            <tr key={key}>
+              <td style={{ ...numCell('#fbfefc'), ...stickyBase(0, '#fbfefc'), padding: '6px 12px', borderRight: '1px solid #e5e8ef' }} />
+              <td style={{ ...numCell('#fbfefc'), ...stickyBase(NAME_W, '#fbfefc'), padding: '6px 12px 6px 24px', fontSize: 11, fontWeight: 500, color, borderRight: '2px solid #e5e8ef' }}>
+                {label}
+              </td>
+              <td style={{ ...numCell('#f0fdf4'), fontSize: 11, fontWeight: 700, color }}>
+                {data.reduce((s, r) => s + (r[key] || 0), 0).toLocaleString()}
+              </td>
+              {data.map(r => {
+                const v = r[key] ?? 0
+                return (
+                  <td key={r.period} style={{ ...numCell('#fbfefc'), fontSize: 11, color, fontWeight: v ? 600 : 400 }}>
+                    {v || '—'}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+
         </tbody>
       </table>
     </div>
