@@ -801,6 +801,7 @@ def inflow_outflow(
 
         if not has_created:
             r["open_pipeline"] = 0
+            r["pipeline_stages"] = {}
             continue
 
         # Compare Timestamps directly — avoids None from .dt.date for NaT rows
@@ -820,7 +821,19 @@ def inflow_outflow(
         else:
             in_pipeline = pd.Series(True, index=df.index)
 
-        r["open_pipeline"] = int((created_by_end & in_pipeline).sum())
+        mask = created_by_end & in_pipeline
+        r["open_pipeline"] = int(mask.sum())
+
+        # Stage breakdown of the pipeline snapshot. Tickets that have since
+        # reached a closed state (they were open at p_end but resolved later)
+        # are grouped under "Resolved Later" — their current state no longer
+        # reflects where they sat in the pipeline at the time.
+        if has_state:
+            stages = df["state"].where(~df["state"].isin(EXCLUDED_STATES), "Resolved Later")
+            counts = stages[mask].fillna("Unspecified").value_counts()
+            r["pipeline_stages"] = {str(s): int(c) for s, c in counts.items()}
+        else:
+            r["pipeline_stages"] = {}
 
     return result
 
@@ -1921,6 +1934,8 @@ def hub_health(
     total = len(tmp)
     RESOLVED = {"Closed Completed", "Closed Rejected", "Confirmation Completed"}
     resolved  = int(tmp["state"].isin(RESOLVED).sum()) if "state" in tmp.columns else 0
+    closed_completed = int(tmp["state"].isin({"Closed Completed", "Confirmation Completed"}).sum()) if "state" in tmp.columns else 0
+    closed_rejected  = int((tmp["state"] == "Closed Rejected").sum()) if "state" in tmp.columns else 0
     active_ct = int(tmp["is_active"].sum())             if "is_active" in tmp.columns else 0
     unique    = int(tmp["ticket_number"].dropna().nunique()) if "ticket_number" in tmp.columns else total
 
@@ -1935,13 +1950,15 @@ def hub_health(
                     for _, r in counts.sort_values("count", ascending=False).iterrows()]
 
     return {
-        "total":       total,
-        "resolved":    resolved,
-        "unique":      unique,
-        "in_pipeline": active_ct,
-        "dependency":  dependency,
-        "done_pct":    round(resolved / total * 100) if total > 0 else 0,
-        "by_state":    by_state,
+        "total":            total,
+        "resolved":         resolved,
+        "closed_completed": closed_completed,
+        "closed_rejected":  closed_rejected,
+        "unique":           unique,
+        "in_pipeline":      active_ct,
+        "dependency":       dependency,
+        "done_pct":         round(resolved / total * 100) if total > 0 else 0,
+        "by_state":         by_state,
     }
 
 

@@ -62,7 +62,8 @@ export default function DashboardPage({ sessionId, onSessionExpired }) {
   useRefetch(() => getWeeklyStacked(sessionId, 'created_date', range.from, range.to, filters), setInflow,  onErr, fDeps)
   useRefetch(() => getWeeklyStacked(sessionId, 'closed_date',  range.from, range.to, filters), setOutflow, onErr, fDeps)
 
-  const resolvedCount = hubHealth?.resolved    ?? 0
+  const closedCompleted = hubHealth?.closed_completed ?? 0
+  const closedRejected  = hubHealth?.closed_rejected  ?? 0
   const totalAll      = hubHealth?.total       ?? overview?.total_all ?? 0
   const inPipeline    = hubHealth?.in_pipeline ?? overview?.total_active ?? 0
   const uniqueTickets = hubHealth?.unique      ?? totalAll
@@ -84,7 +85,7 @@ export default function DashboardPage({ sessionId, onSessionExpired }) {
       {/* KPI Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         <KpiTile label="Total Tickets"  value={totalAll}       icon={<TicketIcon />}   color="#1450f5" bg="#eff4ff" span={2} />
-        <KpiTile label="Resolved"       value={resolvedCount}  icon={<CheckIcon />}    color="#1e8a5e" bg="#f0fdf4" />
+        <ClosedKpiTile completed={closedCompleted} rejected={closedRejected} />
         <KpiTile label="In Pipeline"    value={inPipeline}     icon={<PipeIcon />}     color="#0077a8" bg="#f0faff" />
         <KpiTile label="Unique Tickets" value={uniqueTickets}  icon={<StarIcon />}     color="#7c3aed" bg="#faf5ff" />
         <KpiTile label="Dependency"     value={dependency}     icon={<LinkIcon />}     color="#b87d00" bg="#fffbeb" />
@@ -196,6 +197,46 @@ function KpiTile({ label, value, icon, color, bg, span = 1 }) {
       <p style={{ fontSize: 34, fontWeight: 800, color: '#111827', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
         {value ?? '—'}
       </p>
+    </div>
+  )
+}
+
+// ── Closed KPI Tile (Completed + Rejected coupled) ────────────────────
+
+function ClosedKpiTile({ completed, rejected }) {
+  return (
+    <div style={{
+      background: '#ffffff',
+      borderRadius: 12,
+      border: '1px solid #e5e8ef',
+      borderTop: '3px solid #1e8a5e',
+      padding: '16px 18px',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+      display: 'flex', flexDirection: 'column', gap: 12,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#6b7280', textTransform: 'uppercase', margin: 0 }}>
+          Closed
+        </p>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1e8a5e', flexShrink: 0 }}>
+          <CheckIcon />
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 14 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 28, fontWeight: 800, color: '#1e8a5e', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
+            {completed ?? '—'}
+          </p>
+          <p style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', margin: '4px 0 0' }}>Completed</p>
+        </div>
+        <div style={{ width: 1, background: '#e5e8ef' }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 28, fontWeight: 800, color: '#c0305a', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
+            {rejected ?? '—'}
+          </p>
+          <p style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', margin: '4px 0 0' }}>Rejected</p>
+        </div>
+      </div>
     </div>
   )
 }

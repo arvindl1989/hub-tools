@@ -642,6 +642,16 @@ function InflowOutflowTable({ data = [], filters = {} }) {
   // Pipeline snapshot comes from backend (created_date <= period_end AND no closed_date yet)
   const pipelines = data.map(r => r.open_pipeline ?? null)
 
+  // Union of pipeline stages across all periods, sorted by latest-period count
+  // (descending). "Resolved Later" always sinks to the bottom.
+  const latestStages = data[data.length - 1]?.pipeline_stages ?? {}
+  const stageNames = [...new Set(data.flatMap(r => Object.keys(r.pipeline_stages ?? {})))]
+    .sort((a, b) => {
+      if (a === 'Resolved Later') return 1
+      if (b === 'Resolved Later') return -1
+      return (latestStages[b] ?? 0) - (latestStages[a] ?? 0)
+    })
+
   const NAME_W   = 150
   const METRIC_W = 140
 
@@ -751,6 +761,30 @@ function InflowOutflowTable({ data = [], filters = {} }) {
               )
             })}
           </tr>
+
+          {/* ── Pipeline stages (breakdown of the open pipeline snapshot) ── */}
+          {stageNames.map(stage => {
+            const muted = stage === 'Resolved Later'
+            return (
+              <tr key={stage}>
+                <td style={{ ...numCell('#fffdf5'), ...stickyBase(0, '#fffdf5'), padding: '6px 12px', borderRight: '1px solid #e5e8ef' }} />
+                <td style={{ ...numCell('#fffdf5'), ...stickyBase(NAME_W, '#fffdf5'), padding: '6px 12px 6px 24px', fontSize: 11, fontWeight: 500, color: muted ? '#9ca3af' : '#92400e', fontStyle: muted ? 'italic' : 'normal', borderRight: '2px solid #e5e8ef' }}>
+                  {stage}
+                </td>
+                <td style={{ ...numCell('#fffbeb'), fontSize: 11, fontWeight: 700, color: muted ? '#9ca3af' : '#b45309' }}>
+                  {latestStages[stage] ?? '—'}
+                </td>
+                {data.map(r => {
+                  const v = r.pipeline_stages?.[stage] ?? 0
+                  return (
+                    <td key={r.period} style={{ ...numCell('#fffdf5'), fontSize: 11, color: muted ? '#9ca3af' : '#78350f', fontWeight: v ? 600 : 400 }}>
+                      {v || '—'}
+                    </td>
+                  )
+                })}
+              </tr>
+            )
+          })}
 
         </tbody>
       </table>
