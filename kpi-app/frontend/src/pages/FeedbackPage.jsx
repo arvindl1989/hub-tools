@@ -636,17 +636,16 @@ function RecentList({ rows = [], scaleMax }) {
                   {r.score} / {scaleMax}
                 </span>
               )}
+              {r.requester && (
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#0077a8' }}>{r.requester}</span>
+              )}
+              {r.requester && r.user && <span style={{ fontSize: 11, color: '#9c9c9c' }}>→</span>}
               {r.user && <span style={{ fontSize: 12, fontWeight: 600, color: '#141414' }}>{r.user}</span>}
               {r.service && <span style={{ fontSize: 11, color: '#6e6e6e' }}>· {r.service}</span>}
               {r.ticket && <span style={{ fontSize: 11, color: '#1450f5' }}>· {r.ticket}</span>}
               <span style={{ fontSize: 11, color: '#9c9c9c', marginLeft: 'auto' }}>{r.date ?? ''}</span>
             </div>
             {r.comment && <p style={{ fontSize: 12, color: '#404040', margin: '7px 0 0', lineHeight: 1.5 }}>{r.comment}</p>}
-            {r.requester && (
-              <p style={{ fontSize: 11, color: '#6e6e6e', margin: '6px 0 0', fontStyle: 'italic' }}>
-                — {r.requester}
-              </p>
-            )}
           </div>
         )
       })}
