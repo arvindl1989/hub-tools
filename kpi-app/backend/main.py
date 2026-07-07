@@ -2263,33 +2263,55 @@ _TEXT_SCORES = {
     "poor": 1, "very poor": 1, "bad": 1,
 }
 
+# Individual rating parameters that may exist as separate sheet columns
+_FEEDBACK_PARAM_ALIASES = {
+    "timeliness":  ["timel", "on time", "speed", "turnaround"],
+    "quality":     ["quality"],
+    "interaction": ["interact", "communication", "courtesy"],
+    "overall":     ["overall"],
+}
+
 def _detect_feedback_columns(df: pd.DataFrame) -> dict:
     """Map free-form sheet headers onto canonical feedback fields."""
     cols = {c.strip().lower(): c for c in df.columns}
 
-    def find(cands, exclude=()):
+    def find(cands, exclude=(), skip=()):
         for cand in cands:
             for low, orig in cols.items():
+                if orig in skip:
+                    continue
                 if cand in low and not any(x in low for x in exclude):
                     return orig
         return None
 
+    # Rating parameters first so the generic score detection can skip them
+    params = {k: find(aliases) for k, aliases in _FEEDBACK_PARAM_ALIASES.items()}
+    param_cols = [c for c in params.values() if c]
+
     mapping = {
-        "date":    find(["timestamp", "date", "submitted", "created", "time"]),
-        "score":   find(["rating", "score", "stars", "csat", "satisfaction"]),
+        "date":    find(["timestamp", "date", "submitted", "created", "time"], skip=param_cols),
+        "score":   params.get("overall") or find(["rating", "score", "stars", "csat", "satisfaction"], skip=param_cols),
         "user":    find(["assigned to", "assignee", "specialist", "agent",
                          "resolved by", "team member", "handled by", "owner", "name"],
-                        exclude=("ticket", "requester", "client")),
+                        exclude=("ticket", "requester", "client"), skip=param_cols),
         "service": find(["sub category", "sub-category", "subcategory", "service",
-                         "category", "type"]),
-        "comment": find(["comment", "remarks", "notes", "review", "suggestion"]),
-        "ticket":  find(["ticket", "number", "id"]),
+                         "category", "type"], skip=param_cols),
+        "comment": find(["comment", "remarks", "notes", "review", "suggestion"], skip=param_cols),
+        "ticket":  find(["ticket", "number", "id"], skip=param_cols),
+        "params":  params,
     }
+
+    # Who gave the feedback (form respondent) — must not steal the specialist column
+    mapping["requester"] = find(
+        ["requested by", "submitted by", "your name", "requester", "client",
+         "customer", "stakeholder", "given by", "name", "email"],
+        skip=param_cols + [mapping["user"], mapping["ticket"]],
+    )
 
     # Score fallback: any mostly-numeric column with values in a 0–10 band
     if mapping["score"] is None:
         for c in df.columns:
-            if c in mapping.values():
+            if c in mapping.values() or c in param_cols:
                 continue
             vals = pd.to_numeric(df[c], errors="coerce").dropna()
             if len(vals) >= max(3, len(df) // 2) and vals.between(0, 10).all():
@@ -2298,7 +2320,7 @@ def _detect_feedback_columns(df: pd.DataFrame) -> dict:
 
     # "Feedback" alone is a comment unless it's the only score-ish column
     if mapping["comment"] is None:
-        fb = find(["feedback"], exclude=("rating", "score"))
+        fb = find(["feedback"], exclude=("rating", "score"), skip=param_cols)
         if fb and fb != mapping["score"]:
             mapping["comment"] = fb
 
@@ -2329,19 +2351,32 @@ def _load_feedback_df(force: bool = False):
     raw.columns = [str(c).strip() for c in raw.columns]
     mapping = _detect_feedback_columns(raw)
 
+    def _to_score(series):
+        s = pd.to_numeric(series, errors="coerce")
+        txt = series.astype(str).str.strip().str.lower().map(_TEXT_SCORES)
+        return s.fillna(txt)
+
     df = pd.DataFrame(index=raw.index)
-    df["date"]    = pd.to_datetime(raw[mapping["date"]], errors="coerce", dayfirst=False) if mapping["date"] else pd.NaT
+    df["date"] = pd.to_datetime(raw[mapping["date"]], errors="coerce", dayfirst=False) if mapping["date"] else pd.NaT
+
+    # Individual rating parameters (timeliness / quality / interaction / overall)
+    param_cols = {k: c for k, c in mapping["params"].items() if c}
+    for k, c in param_cols.items():
+        df[f"param_{k}"] = _to_score(raw[c])
+
     if mapping["score"]:
-        s = pd.to_numeric(raw[mapping["score"]], errors="coerce")
-        txt = raw[mapping["score"]].astype(str).str.strip().str.lower().map(_TEXT_SCORES)
-        df["score"] = s.fillna(txt)
+        df["score"] = _to_score(raw[mapping["score"]])
+    elif param_cols:
+        df["score"] = df[[f"param_{k}" for k in param_cols]].mean(axis=1).round(2)
     else:
         df["score"] = pd.NA
-    df["user"]    = raw[mapping["user"]].astype(str).str.strip()    if mapping["user"]    else ""
-    df["service"] = raw[mapping["service"]].astype(str).str.strip() if mapping["service"] else ""
-    df["comment"] = raw[mapping["comment"]].astype(str).str.strip() if mapping["comment"] else ""
-    df["ticket"]  = raw[mapping["ticket"]].astype(str).str.strip()  if mapping["ticket"]  else ""
-    for c in ("user", "service", "comment", "ticket"):
+
+    df["user"]      = raw[mapping["user"]].astype(str).str.strip()      if mapping["user"]      else ""
+    df["service"]   = raw[mapping["service"]].astype(str).str.strip()   if mapping["service"]   else ""
+    df["comment"]   = raw[mapping["comment"]].astype(str).str.strip()   if mapping["comment"]   else ""
+    df["ticket"]    = raw[mapping["ticket"]].astype(str).str.strip()    if mapping["ticket"]    else ""
+    df["requester"] = raw[mapping["requester"]].astype(str).str.strip() if mapping["requester"] else ""
+    for c in ("user", "service", "comment", "ticket", "requester"):
         df[c] = df[c].fillna("").replace({"nan": "", "None": "", "NaN": ""})
 
     df = df[df["score"].notna() | (df["comment"] != "")]
@@ -2380,13 +2415,21 @@ def feedback_summary(
     def _avg(s):
         return round(float(s.mean()), 2) if len(s) else None
 
-    # Score distribution (1..scale_max)
-    distribution = [
-        {"score": i, "count": int((scores.round() == i).sum())}
-        for i in range(1, scale_max + 1)
-    ]
+    # Detected rating parameters, in display order
+    param_keys = [k for k in ("timeliness", "quality", "interaction", "overall")
+                  if f"param_{k}" in df.columns]
 
-    # Inflow per period + avg score per period
+    # Score distributions (1..scale_max) — overall plus one per rating parameter
+    def _dist(series):
+        vals = series.dropna().astype(float)
+        return [{"score": i, "count": int((vals.round() == i).sum())}
+                for i in range(1, scale_max + 1)]
+
+    distribution  = _dist(scored["score"])
+    distributions = {k: _dist(tmp[f"param_{k}"]) for k in param_keys}
+    param_avgs    = {k: _avg(tmp[f"param_{k}"].dropna().astype(float)) for k in param_keys}
+
+    # Inflow per period + avg score + per-specialist split (for stacked bars)
     by_period = []
     dated = scored[scored["date"].notna()]
     if len(dated):
@@ -2399,43 +2442,56 @@ def feedback_summary(
                 "label": _period_label(p, group_by),
                 "count": int(len(grp)),
                 "avg_score": _avg(grp["score"].astype(float)),
+                "by_user": {u: int(c) for u, c in grp[grp["user"] != ""].groupby("user").size().items()},
             })
 
-    def _group(col):
+    def _group(col, with_params=False):
         out = []
         for val, grp in scored.groupby(col):
             if not val:
                 continue
-            out.append({
+            row = {
                 col: val,
                 "count": int(len(grp)),
                 "avg_score": _avg(grp["score"].astype(float)),
-            })
+            }
+            if with_params:
+                row["params"] = {
+                    k: _avg(grp[f"param_{k}"].dropna().astype(float))
+                    for k in param_keys
+                }
+            out.append(row)
         return sorted(out, key=lambda x: x["count"], reverse=True)
 
-    recent = tmp.sort_values("date", ascending=False).head(25)
+    # All entries (filters applied), newest first
+    recent = tmp.sort_values("date", ascending=False)
     recent_rows = [
         {
             "date": r["date"].date().isoformat() if pd.notna(r["date"]) else None,
             "user": r["user"], "service": r["service"], "ticket": r["ticket"],
+            "requester": r["requester"],
             "score": float(r["score"]) if pd.notna(r["score"]) else None,
             "comment": r["comment"],
         }
         for _, r in recent.iterrows()
     ]
 
-    pos_threshold = 4 if scale_max == 5 else 8
+    five_star_count = int((scores.round() >= scale_max).sum())
     return {
         "columns_detected": {k: v for k, v in mapping.items()},
         "scale_max": scale_max,
+        "param_keys": param_keys,
         "total": int(len(tmp)),
         "rated": int(len(scored)),
         "avg_score": _avg(scores),
-        "positive_pct": round(float((scores >= pos_threshold).mean() * 100), 1) if len(scores) else None,
+        "five_star_count": five_star_count,
+        "five_star_pct": round(five_star_count / len(scores) * 100, 1) if len(scores) else None,
         "distribution": distribution,
+        "distributions": distributions,
+        "param_avgs": param_avgs,
         "by_period": by_period,
-        "by_service": _group("service"),
-        "by_user": _group("user"),
+        "by_service": _group("service", with_params=True),
+        "by_user": _group("user", with_params=True),
         "users": users,
         "services": services,
         "recent": recent_rows,

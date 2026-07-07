@@ -15,6 +15,11 @@ function scoreTone(score, max = 5) {
 
 const svcColor = (name, i) => SUB_CAT_COLORS[name] ?? PALETTE[i % PALETTE.length]
 
+const PARAM_LABELS = {
+  timeliness: 'Timeliness', quality: 'Quality',
+  interaction: 'Interaction', overall: 'Overall',
+}
+
 function Stars({ score, max = 5, size = 18, color = '#b87d00' }) {
   if (score == null) return null
   const full = Math.round(score)
@@ -23,6 +28,43 @@ function Stars({ score, max = 5, size = 18, color = '#b87d00' }) {
       {'★'.repeat(Math.min(full, max))}
       <span style={{ opacity: 0.25 }}>{'★'.repeat(Math.max(0, max - full))}</span>
     </span>
+  )
+}
+
+// ── Hover tooltip helpers ─────────────────────────────────────────────────────
+function useTooltip() {
+  const [tip, setTip] = useState(null)
+  const wrapRef = useRef(null)
+  const show = (e, lines) => {
+    const r = wrapRef.current?.getBoundingClientRect()
+    if (!r) return
+    setTip({ x: e.clientX - r.left, y: e.clientY - r.top, lines })
+  }
+  const hide = () => setTip(null)
+  return { tip, wrapRef, show, hide }
+}
+
+function Tooltip({ tip }) {
+  if (!tip) return null
+  const flip = tip.x > 420
+  return (
+    <div style={{
+      position: 'absolute',
+      left: flip ? undefined : tip.x + 12,
+      right: flip ? `calc(100% - ${tip.x}px + 12px)` : undefined,
+      top: Math.max(0, tip.y - 14),
+      background: '#141414', color: '#fff', borderRadius: 8,
+      padding: '8px 11px', fontSize: 11.5, lineHeight: 1.55,
+      pointerEvents: 'none', zIndex: 10, whiteSpace: 'nowrap',
+      boxShadow: '0 4px 14px rgba(20,20,20,0.25)',
+    }}>
+      {tip.lines.map((l, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: i === 0 ? 700 : 400 }}>
+          {l.swatch && <span style={{ width: 8, height: 8, borderRadius: 2, background: l.swatch, flexShrink: 0 }} />}
+          <span>{l.text ?? l}</span>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -36,6 +78,7 @@ export default function FeedbackPage() {
   const [user,    setUser]    = useState('')
   const [service, setService] = useState('')
   const [groupBy, setGroupBy] = useState('week')
+  const [splitByUser, setSplitByUser] = useState(false)
 
   const reqRef = useRef(0)
   const load = useCallback((refresh = false) => {
@@ -122,6 +165,15 @@ export default function FeedbackPage() {
               <span style={{ fontSize: 14, fontWeight: 600, color: tone.fg }}>/ {scaleMax}</span>
             </div>
             <div style={{ marginTop: 6 }}><Stars score={data.avg_score} max={scaleMax} color={tone.fg} /></div>
+            {(data.param_keys ?? []).length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {data.param_keys.map(k => (
+                  <span key={k} style={{ fontSize: 10, fontWeight: 700, color: tone.fg, background: 'rgba(255,255,255,0.55)', borderRadius: 5, padding: '2px 7px' }}>
+                    {(PARAM_LABELS[k] ?? k).slice(0, 4)} {data.param_avgs?.[k] ?? '—'}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Total feedbacks — KONE blue hero */}
@@ -131,13 +183,15 @@ export default function FeedbackPage() {
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 6 }}>{data.rated} with a rating</div>
           </div>
 
-          {/* Positive share */}
+          {/* 5-star share */}
           <div style={{ background: '#d2f5ff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#005f86', textTransform: 'uppercase' }}>Positive ({scaleMax === 5 ? '4★+' : '8+'})</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#005f86', textTransform: 'uppercase' }}>Overall {scaleMax}★ Rating</div>
             <div style={{ fontSize: 40, fontWeight: 800, color: '#141414', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>
-              {data.positive_pct != null ? `${data.positive_pct}%` : '—'}
+              {data.five_star_pct != null ? `${data.five_star_pct}%` : '—'}
             </div>
-            <div style={{ fontSize: 11, color: '#005f86', marginTop: 6 }}>of rated feedbacks</div>
+            <div style={{ fontSize: 11, color: '#005f86', marginTop: 6 }}>
+              ({data.five_star_count ?? 0} {scaleMax}★ / {data.rated} feedbacks)
+            </div>
           </div>
 
           {/* Services covered */}
@@ -152,42 +206,66 @@ export default function FeedbackPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 }}>
           <Card title="Feedback Inflow" subtitle={`Feedbacks received per ${groupBy}`} accent="#1450f5"
             controls={
-              <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #e8e2d6', overflow: 'hidden' }}>
-                {['week', 'month'].map(g => (
-                  <button key={g} onClick={() => setGroupBy(g)} style={{
-                    padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
-                    fontFamily: 'Inter, sans-serif',
-                    background: groupBy === g ? '#1450f5' : '#fff',
-                    color: groupBy === g ? '#fff' : '#6e6e6e',
-                  }}>
-                    {g === 'week' ? 'Weekly' : 'Monthly'}
-                  </button>
-                ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => setSplitByUser(v => !v)}
+                  style={{
+                    padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    fontFamily: 'Inter, sans-serif', borderRadius: 8,
+                    border: `1px solid ${splitByUser ? '#1450f5' : '#e8e2d6'}`,
+                    background: splitByUser ? '#eef3fe' : '#fff',
+                    color: splitByUser ? '#1450f5' : '#6e6e6e',
+                  }}
+                >
+                  ⫽ Split by specialist
+                </button>
+                <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #e8e2d6', overflow: 'hidden' }}>
+                  {['week', 'month'].map(g => (
+                    <button key={g} onClick={() => setGroupBy(g)} style={{
+                      padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                      fontFamily: 'Inter, sans-serif',
+                      background: groupBy === g ? '#1450f5' : '#fff',
+                      color: groupBy === g ? '#fff' : '#6e6e6e',
+                    }}>
+                      {g === 'week' ? 'Weekly' : 'Monthly'}
+                    </button>
+                  ))}
+                </div>
               </div>
             }>
-            <InflowBars data={data.by_period} />
+            <InflowBars data={data.by_period} users={data.users} stacked={splitByUser} />
           </Card>
-          <Card title="Average Score Trend" subtitle={`Mean rating per ${groupBy}`} accent="#1e8a5e">
+          <Card title="Average Score Trend" subtitle={`Mean rating per ${groupBy} — hover for values`} accent="#1e8a5e">
             <ScoreTrend data={data.by_period} max={scaleMax} />
           </Card>
         </div>
 
         {/* Distribution + by service */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 16 }}>
-          <Card title="Score Distribution" subtitle="How ratings spread across the scale" accent="#b87d00">
-            <Distribution data={data.distribution} max={scaleMax} />
+          <Card title="Score Distribution"
+            subtitle={data.param_keys?.length ? 'Per rating parameter · how scores spread across the scale' : 'How ratings spread across the scale'}
+            accent="#b87d00">
+            {data.param_keys?.length
+              ? <ParamDistributions distributions={data.distributions} paramKeys={data.param_keys} avgs={data.param_avgs} max={scaleMax} />
+              : <Distribution data={data.distribution} max={scaleMax} />}
           </Card>
-          <Card title="Feedback by Service" subtitle="Volume and average score per service" accent="#0077a8">
-            <ServiceBreakdown rows={data.by_service} scaleMax={scaleMax} onPick={s => setService(s === service ? '' : s)} active={service} />
+          <Card title="Feedback by Service"
+            subtitle={data.param_keys?.length ? 'Volume and average per rating parameter' : 'Volume and average score per service'}
+            accent="#0077a8">
+            <ServiceBreakdown rows={data.by_service} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={s => setService(s === service ? '' : s)} active={service} />
           </Card>
         </div>
 
         {/* By specialist + recent comments */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card title="Feedback by Specialist" subtitle="Click a row to focus the whole page on that person" accent="#c0305a">
-            <UserTable rows={data.by_user} scaleMax={scaleMax} onPick={u => setUser(u === user ? '' : u)} active={user} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16 }}>
+          <Card title="Feedback by Specialist"
+            subtitle={data.param_keys?.length ? 'Average per rating parameter · click a row to focus on that person' : 'Click a row to focus the whole page on that person'}
+            accent="#c0305a">
+            <UserTable rows={data.by_user} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={u => setUser(u === user ? '' : u)} active={user} />
           </Card>
-          <Card title="Latest Feedback" subtitle="Most recent entries from the sheet" accent="#1e8a5e">
+          <Card title="Feedback Entries"
+            subtitle={`All ${data.recent.length} entries for this filter · newest to oldest`}
+            accent="#1e8a5e">
             <RecentList rows={data.recent} scaleMax={scaleMax} />
           </Card>
         </div>
@@ -224,19 +302,36 @@ function Card({ title, subtitle, accent = '#1450f5', controls, children }) {
   )
 }
 
-// ── Inflow bar chart ──────────────────────────────────────────────────────────
-function InflowBars({ data = [] }) {
+// ── Inflow bar chart (hoverable, optional per-specialist stacking) ────────────
+function InflowBars({ data = [], users = [], stacked = false }) {
+  const { tip, wrapRef, show, hide } = useTooltip()
   if (!data.length) return <Empty />
-  const W = 760, H = 240, PAD = { t: 12, r: 8, b: 46, l: 34 }
+
+  const W = 760, H = stacked ? 262 : 240, PAD = { t: 12, r: 8, b: 46, l: 34 }
   const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b
   const max = Math.max(...data.map(d => d.count), 1)
   const bw = Math.min(40, (cw / data.length) * 0.72)
   const step = cw / data.length
   const labelEvery = Math.ceil(data.length / 10)
+  const userColor = Object.fromEntries(users.map((u, i) => [u, PALETTE[i % PALETTE.length]]))
+  const shownUsers = users.filter(u => data.some(d => (d.by_user ?? {})[u]))
+
+  const tipLines = d => {
+    const lines = [{ text: `${d.label} — ${d.count} feedback${d.count === 1 ? '' : 's'}` }]
+    if (stacked) {
+      shownUsers.forEach(u => {
+        const c = (d.by_user ?? {})[u]
+        if (c) lines.push({ text: `${u}: ${c}`, swatch: userColor[u] })
+      })
+    } else if (d.avg_score != null) {
+      lines.push({ text: `avg score ${d.avg_score}` })
+    }
+    return lines
+  }
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{ minWidth: 480 }}>
+    <div ref={wrapRef} style={{ position: 'relative', overflowX: 'auto' }}>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{ minWidth: 480 }} onMouseLeave={hide}>
         {[...new Set([0, 0.25, 0.5, 0.75, 1].map(f => Math.round(f * max)))].map(v => {
           const y = PAD.t + ch - (v / max) * ch
           return (
@@ -247,13 +342,27 @@ function InflowBars({ data = [] }) {
           )
         })}
         {data.map((d, i) => {
-          const h = (d.count / max) * ch
           const x = PAD.l + i * step + (step - bw) / 2
+          let bars
+          if (stacked) {
+            let yCursor = PAD.t + ch
+            bars = shownUsers.map(u => {
+              const c = (d.by_user ?? {})[u] ?? 0
+              if (!c) return null
+              const h = (c / max) * ch
+              yCursor -= h
+              return <rect key={u} x={x} y={yCursor + 1} width={bw} height={Math.max(h - 2, 1)} rx={2} fill={userColor[u]} />
+            })
+          } else {
+            const h = (d.count / max) * ch
+            bars = <rect x={x} y={PAD.t + ch - h} width={bw} height={Math.max(h, d.count ? 2 : 0)} rx={4} fill="#1450f5" />
+          }
           return (
             <g key={d.period}>
-              <rect x={x} y={PAD.t + ch - h} width={bw} height={Math.max(h, d.count ? 2 : 0)} rx={4} fill="#1450f5">
-                <title>{d.label}: {d.count} feedbacks{d.avg_score != null ? ` · avg ${d.avg_score}` : ''}</title>
-              </rect>
+              {bars}
+              {/* full-height hover target */}
+              <rect x={PAD.l + i * step} y={PAD.t} width={step} height={ch} fill="transparent"
+                onMouseMove={e => show(e, tipLines(d))} onMouseLeave={hide} style={{ cursor: 'pointer' }} />
               {i % labelEvery === 0 && (
                 <text x={PAD.l + i * step + step / 2} y={H - 30} textAnchor="end" fontSize={9} fill="#9c9c9c"
                   transform={`rotate(-35 ${PAD.l + i * step + step / 2} ${H - 30})`}>
@@ -265,12 +374,24 @@ function InflowBars({ data = [] }) {
         })}
         <line x1={PAD.l} y1={PAD.t + ch} x2={W - PAD.r} y2={PAD.t + ch} stroke="#d8d8d8" strokeWidth={1.5} />
       </svg>
+      {stacked && shownUsers.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', paddingTop: 6 }}>
+          {shownUsers.map(u => (
+            <span key={u} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#404040' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: userColor[u] }} />
+              {u}
+            </span>
+          ))}
+        </div>
+      )}
+      <Tooltip tip={tip} />
     </div>
   )
 }
 
-// ── Average score trend line ──────────────────────────────────────────────────
+// ── Average score trend line (hoverable) ──────────────────────────────────────
 function ScoreTrend({ data = [], max = 5 }) {
+  const { tip, wrapRef, show, hide } = useTooltip()
   const pts = data.filter(d => d.avg_score != null)
   if (!pts.length) return <Empty />
   const W = 480, H = 240, PAD = { t: 12, r: 12, b: 46, l: 28 }
@@ -279,29 +400,39 @@ function ScoreTrend({ data = [], max = 5 }) {
   const y = v => PAD.t + ch - (v / max) * ch
   const path = pts.map((d, i) => `${i ? 'L' : 'M'} ${x(i)},${y(d.avg_score)}`).join(' ')
   const labelEvery = Math.ceil(pts.length / 6)
+  const colW = pts.length > 1 ? (x(1) - x(0)) : cw
 
   return (
-    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
-      {Array.from({ length: max + 1 }, (_, v) => (
-        <g key={v}>
-          <line x1={PAD.l} y1={y(v)} x2={W - PAD.r} y2={y(v)} stroke="#f1ede3" strokeWidth={1} />
-          <text x={PAD.l - 6} y={y(v) + 3} textAnchor="end" fontSize={10} fill="#9c9c9c">{v}</text>
-        </g>
-      ))}
-      <path d={`${path} L ${x(pts.length - 1)},${PAD.t + ch} L ${x(0)},${PAD.t + ch} Z`} fill="#1e8a5e" opacity={0.08} />
-      <path d={path} fill="none" stroke="#1e8a5e" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-      {pts.map((d, i) => (
-        <g key={d.period}>
-          <circle cx={x(i)} cy={y(d.avg_score)} r={3.5} fill="#fff" stroke="#1e8a5e" strokeWidth={2}>
-            <title>{d.label}: avg {d.avg_score} ({d.count} feedbacks)</title>
-          </circle>
-          {i % labelEvery === 0 && (
-            <text x={x(i)} y={H - 30} textAnchor="end" fontSize={9} fill="#9c9c9c"
-              transform={`rotate(-35 ${x(i)} ${H - 30})`}>{d.label}</text>
-          )}
-        </g>
-      ))}
-    </svg>
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} onMouseLeave={hide}>
+        {Array.from({ length: max + 1 }, (_, v) => (
+          <g key={v}>
+            <line x1={PAD.l} y1={y(v)} x2={W - PAD.r} y2={y(v)} stroke="#f1ede3" strokeWidth={1} />
+            <text x={PAD.l - 6} y={y(v) + 3} textAnchor="end" fontSize={10} fill="#9c9c9c">{v}</text>
+          </g>
+        ))}
+        <path d={`${path} L ${x(pts.length - 1)},${PAD.t + ch} L ${x(0)},${PAD.t + ch} Z`} fill="#1e8a5e" opacity={0.08} />
+        <path d={path} fill="none" stroke="#1e8a5e" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        {pts.map((d, i) => (
+          <g key={d.period}>
+            <circle cx={x(i)} cy={y(d.avg_score)} r={3.5} fill="#fff" stroke="#1e8a5e" strokeWidth={2} />
+            {/* column-wide hover target */}
+            <rect x={x(i) - colW / 2} y={PAD.t} width={colW} height={ch} fill="transparent"
+              onMouseMove={e => show(e, [
+                { text: `${d.label}` },
+                { text: `avg score ${d.avg_score} / ${max}` },
+                { text: `${d.count} feedback${d.count === 1 ? '' : 's'}` },
+              ])}
+              onMouseLeave={hide} style={{ cursor: 'pointer' }} />
+            {i % labelEvery === 0 && (
+              <text x={x(i)} y={H - 30} textAnchor="end" fontSize={9} fill="#9c9c9c"
+                transform={`rotate(-35 ${x(i)} ${H - 30})`}>{d.label}</text>
+            )}
+          </g>
+        ))}
+      </svg>
+      <Tooltip tip={tip} />
+    </div>
   )
 }
 
@@ -330,38 +461,41 @@ function Distribution({ data = [], max = 5 }) {
   )
 }
 
-// ── Per-service breakdown ─────────────────────────────────────────────────────
-function ServiceBreakdown({ rows = [], scaleMax, onPick, active }) {
-  if (!rows.length) return <Empty />
-  const maxCount = Math.max(...rows.map(r => r.count), 1)
+// ── Per-parameter score distributions (grid of mini charts) ───────────────────
+function ParamDistributions({ distributions = {}, paramKeys = [], avgs = {}, max = 5 }) {
+  const any = paramKeys.some(k => (distributions[k] ?? []).some(d => d.count > 0))
+  if (!any) return <Empty />
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {rows.map((r, i) => {
-        const t = scoreTone(r.avg_score, scaleMax)
-        const c = svcColor(r.service, i)
-        const isActive = active === r.service
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 22px' }}>
+      {paramKeys.map(k => {
+        const rows = distributions[k] ?? []
+        const total = rows.reduce((s, d) => s + d.count, 0)
+        const biggest = Math.max(...rows.map(d => d.count), 1)
+        const t = scoreTone(avgs?.[k], max)
         return (
-          <div key={r.service} onClick={() => onPick(r.service)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
-              padding: '8px 10px', borderRadius: 8,
-              background: isActive ? '#eef3fe' : 'transparent',
-              border: isActive ? '1px solid #c7d7fd' : '1px solid transparent',
-            }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: c, flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.service}</div>
-              <div style={{ height: 8, background: '#f1ede3', borderRadius: 4, marginTop: 5, overflow: 'hidden' }}>
-                <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: c, borderRadius: 4 }} />
-              </div>
+          <div key={k}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#404040', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {PARAM_LABELS[k] ?? k}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 5, padding: '2px 7px' }}>
+                avg {avgs?.[k] ?? '—'}
+              </span>
             </div>
-            <span style={{ fontSize: 12, color: '#6e6e6e', width: 74, textAlign: 'right' }}>{r.count} fb</span>
-            <span style={{
-              fontSize: 12, fontWeight: 700, color: t.fg, background: t.bg,
-              borderRadius: 6, padding: '3px 8px', width: 52, textAlign: 'center', flexShrink: 0,
-            }}>
-              {r.avg_score ?? '—'}
-            </span>
+            {[...rows].reverse().map(d => {
+              const dt = scoreTone(d.score, max)
+              const pct = total ? Math.round((d.count / total) * 100) : 0
+              return (
+                <div key={d.score} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                  <span style={{ width: 24, fontSize: 10.5, fontWeight: 700, color: '#404040', textAlign: 'right' }}>{d.score}★</span>
+                  <div style={{ flex: 1, height: 12, background: '#f1ede3', borderRadius: 4, overflow: 'hidden' }}
+                    title={`${PARAM_LABELS[k] ?? k} ${d.score}★: ${d.count} (${pct}%)`}>
+                    <div style={{ width: `${(d.count / biggest) * 100}%`, height: '100%', background: dt.bar, borderRadius: 4 }} />
+                  </div>
+                  <span style={{ width: 56, fontSize: 10, color: '#6e6e6e' }}>{d.count} · {pct}%</span>
+                </div>
+              )
+            })}
           </div>
         )
       })}
@@ -369,39 +503,115 @@ function ServiceBreakdown({ rows = [], scaleMax, onPick, active }) {
   )
 }
 
-// ── Per-specialist table ──────────────────────────────────────────────────────
-function UserTable({ rows = [], scaleMax, onPick, active }) {
+// ── Per-service breakdown (table with rating-parameter columns) ───────────────
+function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   if (!rows.length) return <Empty />
+  const maxCount = Math.max(...rows.map(r => r.count), 1)
+  const hasParams = paramKeys.length > 0
+
+  const scoreBadge = (v) => {
+    const t = scoreTone(v, scaleMax)
+    return (
+      <span style={{ fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12 }}>
+        {v ?? '—'}
+      </span>
+    )
+  }
+
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-      <thead>
-        <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
-          <th style={thStyle}>Specialist</th>
-          <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
-          <th style={{ ...thStyle, textAlign: 'right' }}>Avg Score</th>
-          <th style={{ ...thStyle, textAlign: 'left', paddingLeft: 14 }}>Rating</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map(r => {
-          const t = scoreTone(r.avg_score, scaleMax)
-          const isActive = active === r.user
-          return (
-            <tr key={r.user} onClick={() => onPick(r.user)}
-              style={{ borderBottom: '1px solid #f1ede3', cursor: 'pointer', background: isActive ? '#eef3fe' : 'transparent' }}>
-              <td style={{ padding: '9px 6px', fontWeight: 600, color: isActive ? '#1450f5' : '#141414' }}>{r.user}</td>
-              <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
-              <td style={{ padding: '9px 6px', textAlign: 'right' }}>
-                <span style={{ fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 6, padding: '3px 8px' }}>
-                  {r.avg_score ?? '—'}
-                </span>
-              </td>
-              <td style={{ padding: '9px 6px 9px 14px' }}><Stars score={r.avg_score} max={scaleMax} size={13} color="#b87d00" /></td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
+            <th style={thStyle}>Service</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
+            {hasParams
+              ? paramKeys.map(k => (
+                  <th key={k} style={{ ...thStyle, textAlign: 'center' }}>{PARAM_LABELS[k] ?? k}</th>
+                ))
+              : <th style={{ ...thStyle, textAlign: 'center' }}>Avg Score</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const c = svcColor(r.service, i)
+            const isActive = active === r.service
+            return (
+              <tr key={r.service} onClick={() => onPick(r.service)}
+                style={{ borderBottom: '1px solid #f1ede3', cursor: 'pointer', background: isActive ? '#eef3fe' : 'transparent' }}>
+                <td style={{ padding: '9px 6px', minWidth: 170 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: c, flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, color: isActive ? '#1450f5' : '#141414' }}>{r.service}</span>
+                  </div>
+                  <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
+                    <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: c, borderRadius: 3 }} />
+                  </div>
+                </td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
+                {hasParams
+                  ? paramKeys.map(k => (
+                      <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.params?.[k])}</td>
+                    ))
+                  : <td style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.avg_score)}</td>}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ── Per-specialist table with rating-parameter breakdown ──────────────────────
+function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
+  if (!rows.length) return <Empty />
+  const hasParams = paramKeys.length > 0
+
+  const scoreBadge = (v) => {
+    const t = scoreTone(v, scaleMax)
+    return (
+      <span style={{ fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12 }}>
+        {v ?? '—'}
+      </span>
+    )
+  }
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
+            <th style={thStyle}>Specialist</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
+            {hasParams
+              ? paramKeys.map(k => (
+                  <th key={k} style={{ ...thStyle, textAlign: 'center' }}>{PARAM_LABELS[k] ?? k}</th>
+                ))
+              : <th style={{ ...thStyle, textAlign: 'center' }}>Avg Score</th>}
+            <th style={{ ...thStyle, textAlign: 'left', paddingLeft: 14 }}>Rating</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const isActive = active === r.user
+            return (
+              <tr key={r.user} onClick={() => onPick(r.user)}
+                style={{ borderBottom: '1px solid #f1ede3', cursor: 'pointer', background: isActive ? '#eef3fe' : 'transparent' }}>
+                <td style={{ padding: '9px 6px', fontWeight: 600, color: isActive ? '#1450f5' : '#141414', whiteSpace: 'nowrap' }}>{r.user}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
+                {hasParams
+                  ? paramKeys.map(k => (
+                      <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.params?.[k])}</td>
+                    ))
+                  : <td style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.avg_score)}</td>}
+                <td style={{ padding: '9px 6px 9px 14px' }}><Stars score={r.avg_score} max={scaleMax} size={13} color="#b87d00" /></td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -415,7 +625,7 @@ function RecentList({ rows = [], scaleMax }) {
   const items = rows.filter(r => r.score != null || r.comment)
   if (!items.length) return <Empty />
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 420, overflowY: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 480, overflowY: 'auto' }}>
       {items.map((r, i) => {
         const t = scoreTone(r.score, scaleMax)
         return (
@@ -432,6 +642,11 @@ function RecentList({ rows = [], scaleMax }) {
               <span style={{ fontSize: 11, color: '#9c9c9c', marginLeft: 'auto' }}>{r.date ?? ''}</span>
             </div>
             {r.comment && <p style={{ fontSize: 12, color: '#404040', margin: '7px 0 0', lineHeight: 1.5 }}>{r.comment}</p>}
+            {r.requester && (
+              <p style={{ fontSize: 11, color: '#6e6e6e', margin: '6px 0 0', fontStyle: 'italic' }}>
+                — {r.requester}
+              </p>
+            )}
           </div>
         )
       })}
