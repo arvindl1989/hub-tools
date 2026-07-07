@@ -2247,6 +2247,201 @@ async def get_tickets():
         raise HTTPException(502, f"Could not fetch ticket data: {exc}")
 
 
+# ── Feedback (Sheet 2 of the connected Google Sheet) ──────────────────────────
+_FEEDBACK_SHEET_ID = "1FchAuDdhodOiZdoUWfOkqcTYyEkscVXJ38ohwWVU5TY"
+_FEEDBACK_GID      = "876285921"
+_FEEDBACK_CSV_URL  = os.environ.get(
+    "FEEDBACK_CSV_URL",
+    f"https://docs.google.com/spreadsheets/d/{_FEEDBACK_SHEET_ID}/export?format=csv&gid={_FEEDBACK_GID}",
+)
+_FEEDBACK_CACHE_TTL = 300  # seconds
+_feedback_cache: dict = {"ts": 0.0, "df": None, "columns": {}}
+
+# Text ratings occasionally used instead of numbers
+_TEXT_SCORES = {
+    "excellent": 5, "very good": 4, "good": 3, "average": 2, "fair": 2,
+    "poor": 1, "very poor": 1, "bad": 1,
+}
+
+def _detect_feedback_columns(df: pd.DataFrame) -> dict:
+    """Map free-form sheet headers onto canonical feedback fields."""
+    cols = {c.strip().lower(): c for c in df.columns}
+
+    def find(cands, exclude=()):
+        for cand in cands:
+            for low, orig in cols.items():
+                if cand in low and not any(x in low for x in exclude):
+                    return orig
+        return None
+
+    mapping = {
+        "date":    find(["timestamp", "date", "submitted", "created", "time"]),
+        "score":   find(["rating", "score", "stars", "csat", "satisfaction"]),
+        "user":    find(["assigned to", "assignee", "specialist", "agent",
+                         "resolved by", "team member", "handled by", "owner", "name"],
+                        exclude=("ticket", "requester", "client")),
+        "service": find(["sub category", "sub-category", "subcategory", "service",
+                         "category", "type"]),
+        "comment": find(["comment", "remarks", "notes", "review", "suggestion"]),
+        "ticket":  find(["ticket", "number", "id"]),
+    }
+
+    # Score fallback: any mostly-numeric column with values in a 0–10 band
+    if mapping["score"] is None:
+        for c in df.columns:
+            if c in mapping.values():
+                continue
+            vals = pd.to_numeric(df[c], errors="coerce").dropna()
+            if len(vals) >= max(3, len(df) // 2) and vals.between(0, 10).all():
+                mapping["score"] = c
+                break
+
+    # "Feedback" alone is a comment unless it's the only score-ish column
+    if mapping["comment"] is None:
+        fb = find(["feedback"], exclude=("rating", "score"))
+        if fb and fb != mapping["score"]:
+            mapping["comment"] = fb
+
+    return mapping
+
+def _load_feedback_df(force: bool = False):
+    """Fetch Sheet 2 as CSV, normalize, and cache for a few minutes."""
+    import time as _time
+    now = _time.time()
+    if not force and _feedback_cache["df"] is not None and now - _feedback_cache["ts"] < _FEEDBACK_CACHE_TTL:
+        return _feedback_cache["df"], _feedback_cache["columns"]
+
+    import httpx
+    try:
+        with httpx.Client(follow_redirects=True, timeout=30) as client:
+            resp = client.get(_FEEDBACK_CSV_URL)
+            resp.raise_for_status()
+            raw = pd.read_csv(io.StringIO(resp.text))
+    except Exception as exc:
+        if _feedback_cache["df"] is not None:   # serve stale on transient failure
+            return _feedback_cache["df"], _feedback_cache["columns"]
+        raise HTTPException(
+            502,
+            f"Could not fetch the feedback sheet (make sure link sharing is on): {exc}",
+        )
+
+    raw = raw.dropna(how="all").dropna(axis=1, how="all")
+    raw.columns = [str(c).strip() for c in raw.columns]
+    mapping = _detect_feedback_columns(raw)
+
+    df = pd.DataFrame(index=raw.index)
+    df["date"]    = pd.to_datetime(raw[mapping["date"]], errors="coerce", dayfirst=False) if mapping["date"] else pd.NaT
+    if mapping["score"]:
+        s = pd.to_numeric(raw[mapping["score"]], errors="coerce")
+        txt = raw[mapping["score"]].astype(str).str.strip().str.lower().map(_TEXT_SCORES)
+        df["score"] = s.fillna(txt)
+    else:
+        df["score"] = pd.NA
+    df["user"]    = raw[mapping["user"]].astype(str).str.strip()    if mapping["user"]    else ""
+    df["service"] = raw[mapping["service"]].astype(str).str.strip() if mapping["service"] else ""
+    df["comment"] = raw[mapping["comment"]].astype(str).str.strip() if mapping["comment"] else ""
+    df["ticket"]  = raw[mapping["ticket"]].astype(str).str.strip()  if mapping["ticket"]  else ""
+    for c in ("user", "service", "comment", "ticket"):
+        df[c] = df[c].fillna("").replace({"nan": "", "None": "", "NaN": ""})
+
+    df = df[df["score"].notna() | (df["comment"] != "")]
+
+    _feedback_cache.update({"ts": now, "df": df, "columns": mapping})
+    return df, mapping
+
+@app.get("/api/feedback")
+def feedback_summary(
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+    user:      Optional[str] = None,
+    service:   Optional[str] = None,
+    group_by:  str = Query("week", pattern="^(week|month)$"),
+    refresh:   bool = False,
+):
+    df, mapping = _load_feedback_df(force=refresh)
+
+    users    = sorted(u for u in df["user"].unique() if u)
+    services = sorted(s for s in df["service"].unique() if s)
+
+    tmp = df.copy()
+    if date_from:
+        tmp = tmp[tmp["date"].isna() | (tmp["date"] >= pd.Timestamp(date_from))]
+    if date_to:
+        tmp = tmp[tmp["date"].isna() | (tmp["date"] <= pd.Timestamp(date_to) + pd.Timedelta(days=1))]
+    if user:
+        tmp = tmp[tmp["user"] == user]
+    if service:
+        tmp = tmp[tmp["service"] == service]
+
+    scored = tmp[tmp["score"].notna()]
+    scores = scored["score"].astype(float)
+    scale_max = 5 if (len(scores) == 0 or scores.max() <= 5) else 10
+
+    def _avg(s):
+        return round(float(s.mean()), 2) if len(s) else None
+
+    # Score distribution (1..scale_max)
+    distribution = [
+        {"score": i, "count": int((scores.round() == i).sum())}
+        for i in range(1, scale_max + 1)
+    ]
+
+    # Inflow per period + avg score per period
+    by_period = []
+    dated = scored[scored["date"].notna()]
+    if len(dated):
+        freq = "W" if group_by == "week" else "M"
+        g = dated.copy()
+        g["_p"] = g["date"].dt.to_period(freq).apply(lambda p: p.start_time.date())
+        for p, grp in sorted(g.groupby("_p"), key=lambda kv: kv[0]):
+            by_period.append({
+                "period": str(p),
+                "label": _period_label(p, group_by),
+                "count": int(len(grp)),
+                "avg_score": _avg(grp["score"].astype(float)),
+            })
+
+    def _group(col):
+        out = []
+        for val, grp in scored.groupby(col):
+            if not val:
+                continue
+            out.append({
+                col: val,
+                "count": int(len(grp)),
+                "avg_score": _avg(grp["score"].astype(float)),
+            })
+        return sorted(out, key=lambda x: x["count"], reverse=True)
+
+    recent = tmp.sort_values("date", ascending=False).head(25)
+    recent_rows = [
+        {
+            "date": r["date"].date().isoformat() if pd.notna(r["date"]) else None,
+            "user": r["user"], "service": r["service"], "ticket": r["ticket"],
+            "score": float(r["score"]) if pd.notna(r["score"]) else None,
+            "comment": r["comment"],
+        }
+        for _, r in recent.iterrows()
+    ]
+
+    pos_threshold = 4 if scale_max == 5 else 8
+    return {
+        "columns_detected": {k: v for k, v in mapping.items()},
+        "scale_max": scale_max,
+        "total": int(len(tmp)),
+        "rated": int(len(scored)),
+        "avg_score": _avg(scores),
+        "positive_pct": round(float((scores >= pos_threshold).mean() * 100), 1) if len(scores) else None,
+        "distribution": distribution,
+        "by_period": by_period,
+        "by_service": _group("service"),
+        "by_user": _group("user"),
+        "users": users,
+        "services": services,
+        "recent": recent_rows,
+    }
+
+
 # ── AI proxy endpoints ─────────────────────────────────────────────────────────
 # Key is read from the OPENAI_API_KEY environment variable set in Railway.
 # Never hardcode a key in this file.
