@@ -2304,6 +2304,15 @@ def _detect_feedback_columns(df: pd.DataFrame) -> dict:
                     return orig
         return None
 
+    def find_exact(cands, skip=()):
+        for cand in cands:
+            for low, orig in cols.items():
+                if orig in skip:
+                    continue
+                if low == cand:
+                    return orig
+        return None
+
     # Rating parameters first so the generic score detection can skip them
     params = {k: find(aliases) for k, aliases in _FEEDBACK_PARAM_ALIASES.items()}
     param_cols = [c for c in params.values() if c]
@@ -2318,14 +2327,24 @@ def _detect_feedback_columns(df: pd.DataFrame) -> dict:
                          "category", "type"], skip=param_cols),
         "comment": find(["comment", "remarks", "notes", "review", "suggestion"], skip=param_cols),
         "ticket":  find(["ticket", "number", "id"], skip=param_cols),
+        "area":    find(["area", "region"], skip=param_cols),
         "params":  params,
     }
 
-    # Who gave the feedback (form respondent) — must not steal the specialist column
+    # Who gave the feedback (form respondent, an individual) — must not steal
+    # the specialist column. "frontline" matches a "Frontlines" header.
     mapping["requester"] = find(
         ["requested by", "submitted by", "your name", "requester", "client",
-         "customer", "stakeholder", "given by", "name", "email"],
-        skip=param_cols + [mapping["user"], mapping["ticket"]],
+         "customer", "stakeholder", "given by", "frontline", "name", "email"],
+        skip=param_cols + [mapping["user"], mapping["ticket"], mapping["area"]],
+    )
+
+    # The feedback-giver's team/segment (e.g. a literal "FL" column holding a
+    # department like "Customer Marketing") — distinct from their individual
+    # name above. Exact-match only: "fl" is too short to safely substring-match.
+    mapping["fl_segment"] = find_exact(
+        ["fl", "fl segment", "frontline segment", "segment", "business segment", "division"],
+        skip=param_cols + [mapping["user"], mapping["ticket"], mapping["area"], mapping["requester"]],
     )
 
     # Score fallback: any mostly-numeric column with values in a 0–10 band
@@ -2391,12 +2410,14 @@ def _load_feedback_df(force: bool = False):
     else:
         df["score"] = pd.NA
 
-    df["user"]      = raw[mapping["user"]].astype(str).str.strip()      if mapping["user"]      else ""
-    df["service"]   = raw[mapping["service"]].astype(str).str.strip()   if mapping["service"]   else ""
-    df["comment"]   = raw[mapping["comment"]].astype(str).str.strip()   if mapping["comment"]   else ""
-    df["ticket"]    = raw[mapping["ticket"]].astype(str).str.strip()    if mapping["ticket"]    else ""
-    df["requester"] = raw[mapping["requester"]].astype(str).str.strip() if mapping["requester"] else ""
-    for c in ("user", "service", "comment", "ticket", "requester"):
+    df["user"]       = raw[mapping["user"]].astype(str).str.strip()       if mapping["user"]       else ""
+    df["service"]    = raw[mapping["service"]].astype(str).str.strip()    if mapping["service"]    else ""
+    df["comment"]    = raw[mapping["comment"]].astype(str).str.strip()    if mapping["comment"]    else ""
+    df["ticket"]     = raw[mapping["ticket"]].astype(str).str.strip()     if mapping["ticket"]     else ""
+    df["requester"]  = raw[mapping["requester"]].astype(str).str.strip()  if mapping["requester"]  else ""
+    df["fl_segment"] = raw[mapping["fl_segment"]].astype(str).str.strip() if mapping["fl_segment"] else ""
+    df["sheet_area"] = raw[mapping["area"]].astype(str).str.strip()       if mapping["area"]       else ""
+    for c in ("user", "service", "comment", "ticket", "requester", "fl_segment", "sheet_area"):
         df[c] = df[c].fillna("").replace({"nan": "", "None": "", "NaN": ""})
 
     df = df[df["score"].notna() | (df["comment"] != "")]
@@ -2421,7 +2442,8 @@ def feedback_summary(
     users    = sorted(u for u in df["user"].unique() if u)
     services = sorted(s for s in df["service"].unique() if s)
 
-    # ── Optional ticket-sheet join: pulls Area per feedback + total ticket count ──
+    # ── Area: prefer the feedback sheet's own Area column; fall back to a
+    # ticket-sheet join by ticket number only if the sheet doesn't have one. ──
     ticket_df = sessions.get(sid) if sid else None
     area_by_ticket: dict[str, str] = {}
     total_tickets = None
@@ -2438,10 +2460,14 @@ def feedback_summary(
             area_by_ticket = dict(zip(norm["_k"], norm["area"].fillna("")))
 
     df = df.copy()
-    if area_by_ticket:
+    sheet_has_area = "sheet_area" in df.columns and (df["sheet_area"] != "").any()
+    if sheet_has_area:
+        df["area"] = df["sheet_area"]
+    elif area_by_ticket:
         df["area"] = df["ticket"].astype(str).str.strip().str.upper().map(area_by_ticket).fillna("")
     else:
         df["area"] = ""
+    has_area = bool(sheet_has_area or area_by_ticket)
 
     def _apply_filters(base, u, s):
         out = base
@@ -2601,8 +2627,10 @@ def feedback_summary(
         "by_service": _group("service", with_params=True),
         "by_user": _group("user", with_params=True),
         "by_requester": _group("requester", top_n=12),
-        "by_area": _group("area", top_n=12) if area_by_ticket else [],
-        "has_area": bool(area_by_ticket),
+        "by_fl": _group("fl_segment", top_n=12),
+        "has_fl_segment": bool(mapping.get("fl_segment")),
+        "by_area": _group("area", top_n=12) if has_area else [],
+        "has_area": has_area,
         "users": users,
         "services": services,
         "entries": entries_rows,

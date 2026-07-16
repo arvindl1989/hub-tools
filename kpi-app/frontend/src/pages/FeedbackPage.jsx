@@ -196,10 +196,12 @@ export default function FeedbackPage({ sessionId }) {
 
         {/* Feedback by FL + Feedback by Area */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card title="Feedback by FL" subtitle="Volume and average score per feedback giver" accent="#0077a8">
-            <RankedList rows={data.by_requester} labelKey="requester" scaleMax={scaleMax} />
+          <Card title="Feedback by FL" subtitle="Volume and average score per FL segment" accent="#0077a8">
+            {data.has_fl_segment
+              ? <RankedList rows={data.by_fl} labelKey="fl_segment" scaleMax={scaleMax} />
+              : <Empty text={'No "FL" column detected in the sheet'} />}
           </Card>
-          <Card title="Feedback by Area" subtitle="Volume and average score per ticket area" accent="#c0305a">
+          <Card title="Feedback by Area" subtitle="Volume and average score per area" accent="#c0305a">
             {data.has_area
               ? <RankedList rows={data.by_area} labelKey="area" scaleMax={scaleMax} />
               : <ConnectTicketsNote />}
@@ -451,8 +453,8 @@ function RankedList({ rows = [], labelKey, scaleMax }) {
 function ConnectTicketsNote() {
   return (
     <div style={{ padding: '20px 10px', textAlign: 'center', color: '#9c9c9c', fontSize: 12, lineHeight: 1.6 }}>
-      Connect ticket data on the Dashboard tab to see Feedback by Area —<br />
-      it's matched from Sheet 1 by ticket number.
+      No Area data available — add an "Area" column to the feedback sheet,<br />
+      or connect ticket data on the Dashboard tab to match it by ticket number.
     </div>
   )
 }
