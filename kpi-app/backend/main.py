@@ -2542,8 +2542,13 @@ def feedback_summary(
     nps_counts = {b: int((nps_src["_bucket"] == b).sum()) for b in ("promoter", "passive", "detractor")}
     nps_total = sum(nps_counts.values())
 
+    # Respondents who submitted without a name (sheet stores this as "Anonymous")
+    # can't be ranked as an individual — exclude them from the Top-3 FL lists.
+    _ANONYMOUS = {"anonymous", "anon", "n/a", "na"}
+
     def _top_fls(bucket, n=3):
-        grp = nps_src[(nps_src["_bucket"] == bucket) & (nps_src["requester"] != "")]
+        named = nps_src["requester"].str.strip().str.lower()
+        grp = nps_src[(nps_src["_bucket"] == bucket) & (nps_src["requester"] != "") & (~named.isin(_ANONYMOUS))]
         counts = grp.groupby("requester").size().sort_values(ascending=False).head(n)
         return [{"name": name, "count": int(c)} for name, c in counts.items()]
 
