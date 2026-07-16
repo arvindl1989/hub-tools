@@ -13,12 +13,24 @@ function scoreTone(score, max = 5) {
   return { fg: '#8c1a2e', bg: '#ffcdd7', bar: '#c0305a' }
 }
 
+// Tone for a "% of ratings that are top-mark" metric — different bands than a raw score
+function pctTone(pct) {
+  if (pct == null) return { fg: '#6e6e6e', bg: '#f1ede3' }
+  if (pct >= 50) return { fg: '#0f5132', bg: '#aae1c8' }
+  if (pct >= 30) return { fg: '#1e8a5e', bg: '#d3efe0' }
+  if (pct >= 15) return { fg: '#7a5400', bg: '#ffe141' }
+  return { fg: '#8c1a2e', bg: '#ffcdd7' }
+}
+
 const svcColor = (name, i) => SUB_CAT_COLORS[name] ?? PALETTE[i % PALETTE.length]
 
 const PARAM_LABELS = {
-  timeliness: 'Timeliness', quality: 'Quality',
-  interaction: 'Interaction', overall: 'Overall',
+  overall: 'Overall', quality: 'Quality',
+  timeliness: 'Timeliness', interaction: 'Interaction',
 }
+// Fixed card order for the four rating-parameter metrics, regardless of which
+// columns the sheet actually has — missing ones render as a dashed placeholder.
+const ORDERED_PARAMS = ['overall', 'quality', 'timeliness', 'interaction']
 
 function Stars({ score, max = 5, size = 18, color = '#b87d00' }) {
   if (score == null) return null
@@ -69,7 +81,7 @@ function Tooltip({ tip }) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-export default function FeedbackPage() {
+export default function FeedbackPage({ sessionId }) {
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
@@ -80,24 +92,30 @@ export default function FeedbackPage() {
   const [groupBy, setGroupBy] = useState('week')
   const [splitByUser, setSplitByUser] = useState(false)
 
+  // Feedback Entries has its own independent Specialist/Service filters
+  const [entriesUser,    setEntriesUser]    = useState('')
+  const [entriesService, setEntriesService] = useState('')
+
   const reqRef = useRef(0)
   const load = useCallback((refresh = false) => {
     const id = ++reqRef.current
     setLoading(true)
     setError(null)
-    getFeedback({ dateFrom: range.from, dateTo: range.to, user, service, groupBy, refresh })
+    getFeedback({
+      dateFrom: range.from, dateTo: range.to, user, service, groupBy, refresh,
+      sid: sessionId, entriesUser, entriesService,
+    })
       .then(d => { if (id === reqRef.current) { setData(d); setLoading(false) } })
       .catch(e => {
         if (id !== reqRef.current) return
         setError(e?.response?.data?.detail || e?.message || 'Could not load feedback')
         setLoading(false)
       })
-  }, [range.from, range.to, user, service, groupBy])
+  }, [range.from, range.to, user, service, groupBy, sessionId, entriesUser, entriesService])
 
   useEffect(() => { load() }, [load])
 
   const scaleMax = data?.scale_max ?? 5
-  const tone = scoreTone(data?.avg_score, scaleMax)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -151,58 +169,85 @@ export default function FeedbackPage() {
 
       {data && (<>
 
-        {/* Hero cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          {/* Average score — sentiment-tinted hero */}
-          <div style={{ background: tone.bg, borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: tone.fg, textTransform: 'uppercase' }}>
-              {user ? `${user} — Avg Score` : 'Average Score'}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
-              <span style={{ fontSize: 40, fontWeight: 800, color: '#141414', lineHeight: 1, letterSpacing: '-0.02em' }}>
-                {data.avg_score ?? '—'}
-              </span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: tone.fg }}>/ {scaleMax}</span>
-            </div>
-            <div style={{ marginTop: 6 }}><Stars score={data.avg_score} max={scaleMax} color={tone.fg} /></div>
-            {(data.param_keys ?? []).length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {data.param_keys.map(k => (
-                  <span key={k} style={{ fontSize: 10, fontWeight: 700, color: tone.fg, background: 'rgba(255,255,255,0.55)', borderRadius: 5, padding: '2px 7px' }}>
-                    {(PARAM_LABELS[k] ?? k).slice(0, 4)} {data.param_avgs?.[k] ?? '—'}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Total feedbacks — KONE blue hero */}
+        {/* 6 metric cards: Total, Rate, Overall/Quality/Timeliness/Interaction 5★ */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <div style={{ background: '#1450f5', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase' }}>Total Feedbacks</div>
-            <div style={{ fontSize: 40, fontWeight: 800, color: '#fff', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>{data.total}</div>
+            <div style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>{data.total}</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 6 }}>{data.rated} with a rating</div>
           </div>
 
-          {/* 5-star share */}
-          <div style={{ background: '#d2f5ff', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#005f86', textTransform: 'uppercase' }}>Overall {scaleMax}★ Rating</div>
-            <div style={{ fontSize: 40, fontWeight: 800, color: '#141414', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>
-              {data.five_star_pct != null ? `${data.five_star_pct}%` : '—'}
-            </div>
-            <div style={{ fontSize: 11, color: '#005f86', marginTop: 6 }}>
-              ({data.five_star_count ?? 0} {scaleMax}★ / {data.rated} feedbacks)
-            </div>
-          </div>
+          <FeedbackRateCard rate={data.feedback_rate} />
 
-          {/* Services covered */}
-          <div style={{ background: '#f3eee6', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#6e6e6e', textTransform: 'uppercase' }}>Services Rated</div>
-            <div style={{ fontSize: 40, fontWeight: 800, color: '#141414', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>{data.by_service.length}</div>
-            <div style={{ fontSize: 11, color: '#6e6e6e', marginTop: 6 }}>{data.by_user.length} specialists rated</div>
-          </div>
+          {ORDERED_PARAMS.map(k => (
+            <FiveStarCard
+              key={k}
+              label={PARAM_LABELS[k]}
+              five={k === 'overall'
+                ? (data.param_five_star?.overall ?? { count: data.five_star_count, pct: data.five_star_pct, rated: data.rated })
+                : data.param_five_star?.[k]}
+              scaleMax={scaleMax}
+            />
+          ))}
         </div>
 
-        {/* Inflow + score trend */}
+        {/* Promoter / Passive / Detractor */}
+        <NpsSection nps={data.nps} scaleMax={scaleMax} />
+
+        {/* Feedback by FL + Feedback by Area */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <Card title="Feedback by FL" subtitle="Volume and average score per feedback giver" accent="#0077a8">
+            <RankedList rows={data.by_requester} labelKey="requester" scaleMax={scaleMax} />
+          </Card>
+          <Card title="Feedback by Area" subtitle="Volume and average score per ticket area" accent="#c0305a">
+            {data.has_area
+              ? <RankedList rows={data.by_area} labelKey="area" scaleMax={scaleMax} />
+              : <ConnectTicketsNote />}
+          </Card>
+        </div>
+
+        {/* Feedback by Service + Feedback by Specialist */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 16 }}>
+          <Card title="Feedback by Service"
+            subtitle={data.param_keys?.length ? 'Volume and average per rating parameter' : 'Volume and average score per service'}
+            accent="#b87d00">
+            <ServiceBreakdown rows={data.by_service} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={s => setService(s === service ? '' : s)} active={service} />
+          </Card>
+          <Card title="Feedback by Specialist"
+            subtitle={data.param_keys?.length ? 'Average per rating parameter · click a row to focus on that person' : 'Click a row to focus the whole page on that person'}
+            accent="#1e8a5e">
+            <UserTable rows={data.by_user} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={u => setUser(u === user ? '' : u)} active={user} />
+          </Card>
+        </div>
+
+        {/* Feedback Entries — full width, own Specialist/Service filters */}
+        <Card title="Feedback Entries"
+          subtitle={`${data.entries.length} entries · newest to oldest${range.from || range.to ? ' · within the selected date range' : ''}`}
+          accent="#1450f5"
+          controls={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <select value={entriesUser} onChange={e => setEntriesUser(e.target.value)} style={selStyle}>
+                <option value="">All Specialists</option>
+                {(data.users ?? []).map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <select value={entriesService} onChange={e => setEntriesService(e.target.value)} style={selStyle}>
+                <option value="">All Services</option>
+                {(data.services ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              {(entriesUser || entriesService) && (
+                <button
+                  onClick={() => { setEntriesUser(''); setEntriesService('') }}
+                  style={{ border: 'none', background: 'none', color: '#c0305a', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          }>
+          <RecentList rows={data.entries} scaleMax={scaleMax} />
+        </Card>
+
+        {/* Feedback Inflow + Average Score Trend */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 }}>
           <Card title="Feedback Inflow" subtitle={`Feedbacks received per ${groupBy}`} accent="#1450f5"
             controls={
@@ -240,36 +285,6 @@ export default function FeedbackPage() {
           </Card>
         </div>
 
-        {/* Distribution + by service */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 16 }}>
-          <Card title="Score Distribution"
-            subtitle={data.param_keys?.length ? 'Per rating parameter · how scores spread across the scale' : 'How ratings spread across the scale'}
-            accent="#b87d00">
-            {data.param_keys?.length
-              ? <ParamDistributions distributions={data.distributions} paramKeys={data.param_keys} avgs={data.param_avgs} max={scaleMax} />
-              : <Distribution data={data.distribution} max={scaleMax} />}
-          </Card>
-          <Card title="Feedback by Service"
-            subtitle={data.param_keys?.length ? 'Volume and average per rating parameter' : 'Volume and average score per service'}
-            accent="#0077a8">
-            <ServiceBreakdown rows={data.by_service} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={s => setService(s === service ? '' : s)} active={service} />
-          </Card>
-        </div>
-
-        {/* By specialist + recent comments */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16 }}>
-          <Card title="Feedback by Specialist"
-            subtitle={data.param_keys?.length ? 'Average per rating parameter · click a row to focus on that person' : 'Click a row to focus the whole page on that person'}
-            accent="#c0305a">
-            <UserTable rows={data.by_user} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={u => setUser(u === user ? '' : u)} active={user} />
-          </Card>
-          <Card title="Feedback Entries"
-            subtitle={`All ${data.recent.length} entries for this filter · newest to oldest`}
-            accent="#1e8a5e">
-            <RecentList rows={data.recent} scaleMax={scaleMax} />
-          </Card>
-        </div>
-
       </>)}
     </div>
   )
@@ -298,6 +313,146 @@ function Card({ title, subtitle, accent = '#1450f5', controls, children }) {
         {controls}
       </div>
       <div style={{ padding: 20 }}>{children}</div>
+    </div>
+  )
+}
+
+// ── Feedback Rate card (feedbacks ÷ tickets, needs ticket-session join) ───────
+function FeedbackRateCard({ rate }) {
+  return (
+    <div style={{ background: '#f3eee6', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#6e6e6e', textTransform: 'uppercase' }}>Feedback Rate</div>
+      <div style={{ fontSize: 34, fontWeight: 800, color: '#141414', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>
+        {rate ? `1 : ${rate.ratio}` : '—'}
+      </div>
+      <div style={{ fontSize: 11, color: '#6e6e6e', marginTop: 6 }}>
+        {rate
+          ? `${rate.pct}% of tickets rated · ${rate.feedbacks} of ${rate.tickets} tickets`
+          : 'Connect ticket data on Dashboard to see this metric'}
+      </div>
+    </div>
+  )
+}
+
+// ── One of the four rating-parameter 5★ cards ──────────────────────────────────
+function FiveStarCard({ label, five, scaleMax }) {
+  const pct = five?.pct ?? null
+  const tone = pctTone(pct)
+  return (
+    <div style={{ background: tone.bg, borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: tone.fg, textTransform: 'uppercase' }}>
+        {label} {scaleMax}★ Rating
+      </div>
+      <div style={{ fontSize: 34, fontWeight: 800, color: '#141414', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>
+        {pct != null ? `${pct}%` : '—'}
+      </div>
+      <div style={{ fontSize: 11, color: tone.fg, marginTop: 6 }}>
+        {five ? `(${five.count} ${scaleMax}★ / ${five.rated} feedbacks)` : 'No data for this parameter'}
+      </div>
+    </div>
+  )
+}
+
+// ── Promoter / Passive / Detractor section ─────────────────────────────────────
+function NpsSection({ nps, scaleMax }) {
+  if (!nps) return null
+  const buckets = [
+    { key: 'promoters',  label: 'Promoters',  count: nps.promoters,  pct: nps.promoter_pct,  tone: { fg: '#0f5132', bg: '#aae1c8' } },
+    { key: 'passives',   label: 'Passives',   count: nps.passives,   pct: nps.passive_pct,   tone: { fg: '#7a5400', bg: '#ffe141' } },
+    { key: 'detractors', label: 'Detractors', count: nps.detractors, pct: nps.detractor_pct, tone: { fg: '#8c1a2e', bg: '#ffcdd7' } },
+  ]
+  const topLists = [
+    { key: 'top_promoters',  title: 'Top 3 Promoters',  items: nps.top_promoters,  tone: buckets[0].tone },
+    { key: 'top_passives',   title: 'Top 3 Passives',   items: nps.top_passives,   tone: buckets[1].tone },
+    { key: 'top_detractors', title: 'Top 3 Detractors', items: nps.top_detractors, tone: buckets[2].tone },
+  ]
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#141414', margin: 0 }}>Promoter / Passive / Detractor</h3>
+          <p style={{ fontSize: 11, color: '#9c9c9c', margin: '3px 0 0' }}>
+            Based on Overall score · {scaleMax}★ promoter · {scaleMax - 1}★ passive · below {scaleMax - 1}★ detractor
+          </p>
+        </div>
+        {nps.score != null && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px' }}>
+            NPS Score {nps.score > 0 ? '+' : ''}{nps.score}
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {buckets.map(b => (
+          <div key={b.key} style={{ background: b.tone.bg, borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: b.tone.fg, textTransform: 'uppercase' }}>{b.label}</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: '#141414', lineHeight: 1, marginTop: 8 }}>{b.count}</div>
+            <div style={{ fontSize: 11, color: b.tone.fg, marginTop: 6 }}>{b.pct != null ? `${b.pct}% of rated feedback` : '—'}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {topLists.map(t => (
+          <div key={t.key} style={{ background: '#fff', border: '1px solid #e8e2d6', borderLeft: `3px solid ${t.tone.fg}`, borderRadius: 12, padding: '14px 16px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#404040', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>{t.title}</div>
+            {!t.items?.length ? (
+              <div style={{ fontSize: 12, color: '#9c9c9c' }}>No data</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {t.items.map((it, i) => (
+                  <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{
+                      width: 20, height: 20, borderRadius: '50%', background: t.tone.bg, color: t.tone.fg,
+                      fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>{i + 1}</span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#141414', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
+                    <span style={{ fontSize: 12, color: '#6e6e6e' }}>{it.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Generic ranked bar list (Feedback by FL / Feedback by Area) ───────────────
+function RankedList({ rows = [], labelKey, scaleMax }) {
+  if (!rows.length) return <Empty />
+  const maxCount = Math.max(...rows.map(r => r.count), 1)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {rows.map((r, i) => {
+        const c = PALETTE[i % PALETTE.length]
+        const t = scoreTone(r.avg_score, scaleMax)
+        return (
+          <div key={r[labelKey]} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: c, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</div>
+              <div style={{ height: 8, background: '#f1ede3', borderRadius: 4, marginTop: 5, overflow: 'hidden' }}>
+                <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: c, borderRadius: 4 }} />
+              </div>
+            </div>
+            <span style={{ fontSize: 12, color: '#6e6e6e', width: 60, textAlign: 'right' }}>{r.count} fb</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 6, padding: '3px 8px', width: 52, textAlign: 'center', flexShrink: 0 }}>
+              {r.avg_score ?? '—'}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ConnectTicketsNote() {
+  return (
+    <div style={{ padding: '20px 10px', textAlign: 'center', color: '#9c9c9c', fontSize: 12, lineHeight: 1.6 }}>
+      Connect ticket data on the Dashboard tab to see Feedback by Area —<br />
+      it's matched from Sheet 1 by ticket number.
     </div>
   )
 }
@@ -436,74 +591,7 @@ function ScoreTrend({ data = [], max = 5 }) {
   )
 }
 
-// ── Score distribution (horizontal, 5★ → 1★) ─────────────────────────────────
-function Distribution({ data = [], max = 5 }) {
-  const total = data.reduce((s, d) => s + d.count, 0)
-  if (!total) return <Empty />
-  const biggest = Math.max(...data.map(d => d.count), 1)
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {[...data].reverse().map(d => {
-        const t = scoreTone(d.score, max)
-        const pct = total ? Math.round((d.count / total) * 100) : 0
-        return (
-          <div key={d.score} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 34, fontSize: 12, fontWeight: 700, color: '#404040', textAlign: 'right' }}>{d.score}★</span>
-            <div style={{ flex: 1, height: 18, background: '#f1ede3', borderRadius: 5, overflow: 'hidden' }}>
-              <div style={{ width: `${(d.count / biggest) * 100}%`, height: '100%', background: t.bar, borderRadius: 5, transition: 'width 0.3s' }}
-                title={`${d.count} feedbacks (${pct}%)`} />
-            </div>
-            <span style={{ width: 70, fontSize: 11, color: '#6e6e6e' }}>{d.count} · {pct}%</span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ── Per-parameter score distributions (grid of mini charts) ───────────────────
-function ParamDistributions({ distributions = {}, paramKeys = [], avgs = {}, max = 5 }) {
-  const any = paramKeys.some(k => (distributions[k] ?? []).some(d => d.count > 0))
-  if (!any) return <Empty />
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 22px' }}>
-      {paramKeys.map(k => {
-        const rows = distributions[k] ?? []
-        const total = rows.reduce((s, d) => s + d.count, 0)
-        const biggest = Math.max(...rows.map(d => d.count), 1)
-        const t = scoreTone(avgs?.[k], max)
-        return (
-          <div key={k}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#404040', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                {PARAM_LABELS[k] ?? k}
-              </span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 5, padding: '2px 7px' }}>
-                avg {avgs?.[k] ?? '—'}
-              </span>
-            </div>
-            {[...rows].reverse().map(d => {
-              const dt = scoreTone(d.score, max)
-              const pct = total ? Math.round((d.count / total) * 100) : 0
-              return (
-                <div key={d.score} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
-                  <span style={{ width: 24, fontSize: 10.5, fontWeight: 700, color: '#404040', textAlign: 'right' }}>{d.score}★</span>
-                  <div style={{ flex: 1, height: 12, background: '#f1ede3', borderRadius: 4, overflow: 'hidden' }}
-                    title={`${PARAM_LABELS[k] ?? k} ${d.score}★: ${d.count} (${pct}%)`}>
-                    <div style={{ width: `${(d.count / biggest) * 100}%`, height: '100%', background: dt.bar, borderRadius: 4 }} />
-                  </div>
-                  <span style={{ width: 56, fontSize: 10, color: '#6e6e6e' }}>{d.count} · {pct}%</span>
-                </div>
-              )
-            })}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ── Per-service breakdown (table with rating-parameter columns) ───────────────
+// ── Per-service breakdown (chart bar + rating-parameter columns) ──────────────
 function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   if (!rows.length) return <Empty />
   const maxCount = Math.max(...rows.map(r => r.count), 1)
@@ -563,9 +651,10 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
   )
 }
 
-// ── Per-specialist table with rating-parameter breakdown ──────────────────────
+// ── Per-specialist table (chart bar + rating-parameter breakdown) ─────────────
 function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   if (!rows.length) return <Empty />
+  const maxCount = Math.max(...rows.map(r => r.count), 1)
   const hasParams = paramKeys.length > 0
 
   const scoreBadge = (v) => {
@@ -593,19 +682,28 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => {
+          {rows.map((r, i) => {
+            const c = PALETTE[i % PALETTE.length]
             const isActive = active === r.user
             return (
               <tr key={r.user} onClick={() => onPick(r.user)}
                 style={{ borderBottom: '1px solid #f1ede3', cursor: 'pointer', background: isActive ? '#eef3fe' : 'transparent' }}>
-                <td style={{ padding: '9px 6px', fontWeight: 600, color: isActive ? '#1450f5' : '#141414', whiteSpace: 'nowrap' }}>{r.user}</td>
+                <td style={{ padding: '9px 6px', minWidth: 150 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: c, flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, color: isActive ? '#1450f5' : '#141414', whiteSpace: 'nowrap' }}>{r.user}</span>
+                  </div>
+                  <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
+                    <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: c, borderRadius: 3 }} />
+                  </div>
+                </td>
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
                 {hasParams
                   ? paramKeys.map(k => (
                       <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.params?.[k])}</td>
                     ))
                   : <td style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.avg_score)}</td>}
-                <td style={{ padding: '9px 6px 9px 14px' }}><Stars score={r.avg_score} max={scaleMax} size={13} color="#b87d00" /></td>
+                <td style={{ padding: '9px 6px 9px 14px' }}><Stars score={r.avg_score} max={scaleMax} size={13} /></td>
               </tr>
             )
           })}
@@ -620,12 +718,12 @@ const thStyle = {
   textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left',
 }
 
-// ── Recent feedback list ──────────────────────────────────────────────────────
+// ── Feedback entries list ──────────────────────────────────────────────────────
 function RecentList({ rows = [], scaleMax }) {
   const items = rows.filter(r => r.score != null || r.comment)
   if (!items.length) return <Empty />
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 480, overflowY: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 560, overflowY: 'auto' }}>
       {items.map((r, i) => {
         const t = scoreTone(r.score, scaleMax)
         return (
@@ -653,6 +751,6 @@ function RecentList({ rows = [], scaleMax }) {
   )
 }
 
-function Empty() {
-  return <div style={{ padding: 30, textAlign: 'center', color: '#9c9c9c', fontSize: 12 }}>No feedback for this filter</div>
+function Empty({ text = 'No feedback for this filter' }) {
+  return <div style={{ padding: 30, textAlign: 'center', color: '#9c9c9c', fontSize: 12 }}>{text}</div>
 }

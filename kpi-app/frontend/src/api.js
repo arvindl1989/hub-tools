@@ -270,11 +270,15 @@ export async function getInsights(sid, dateFrom, dateTo, subCategory = null) {
   return data
 }
 
-export async function getFeedback({ dateFrom, dateTo, user, service, groupBy = 'week', refresh = false } = {}) {
+export async function getFeedback({
+  dateFrom, dateTo, user, service, groupBy = 'week', refresh = false, sid,
+  entriesUser, entriesService,
+} = {}) {
   const { data } = await client.get('/feedback', {
     params: _clean({
       date_from: dateFrom, date_to: dateTo, user, service,
-      group_by: groupBy, refresh: refresh || undefined,
+      group_by: groupBy, refresh: refresh || undefined, sid,
+      entries_user: entriesUser, entries_service: entriesService,
     }),
     timeout: 45000,
   })

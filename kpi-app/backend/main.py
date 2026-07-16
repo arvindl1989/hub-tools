@@ -2281,12 +2281,14 @@ _TEXT_SCORES = {
     "poor": 1, "very poor": 1, "bad": 1,
 }
 
-# Individual rating parameters that may exist as separate sheet columns
+# Individual rating parameters that may exist as separate sheet columns.
+# Fixed display order used everywhere: Overall, Quality, Timeliness, Interaction.
+_FEEDBACK_PARAM_ORDER = ("overall", "quality", "timeliness", "interaction")
 _FEEDBACK_PARAM_ALIASES = {
-    "timeliness":  ["timel", "on time", "speed", "turnaround"],
-    "quality":     ["quality"],
-    "interaction": ["interact", "communication", "courtesy"],
     "overall":     ["overall"],
+    "quality":     ["quality"],
+    "timeliness":  ["timel", "on time", "speed", "turnaround"],
+    "interaction": ["interact", "communication", "courtesy"],
 }
 
 def _detect_feedback_columns(df: pd.DataFrame) -> dict:
@@ -2410,21 +2412,50 @@ def feedback_summary(
     service:   Optional[str] = None,
     group_by:  str = Query("week", pattern="^(week|month)$"),
     refresh:   bool = False,
+    sid:       Optional[str] = None,   # ticket session — enables Area join + feedback rate
+    entries_user:    Optional[str] = None,
+    entries_service: Optional[str] = None,
 ):
     df, mapping = _load_feedback_df(force=refresh)
 
     users    = sorted(u for u in df["user"].unique() if u)
     services = sorted(s for s in df["service"].unique() if s)
 
-    tmp = df.copy()
-    if date_from:
-        tmp = tmp[tmp["date"].isna() | (tmp["date"] >= pd.Timestamp(date_from))]
-    if date_to:
-        tmp = tmp[tmp["date"].isna() | (tmp["date"] <= pd.Timestamp(date_to) + pd.Timedelta(days=1))]
-    if user:
-        tmp = tmp[tmp["user"] == user]
-    if service:
-        tmp = tmp[tmp["service"] == service]
+    # ── Optional ticket-sheet join: pulls Area per feedback + total ticket count ──
+    ticket_df = sessions.get(sid) if sid else None
+    area_by_ticket: dict[str, str] = {}
+    total_tickets = None
+    if ticket_df is not None and "ticket_number" in ticket_df.columns:
+        tdf = ticket_df
+        if date_from and "created_date" in tdf.columns:
+            tdf = tdf[tdf["created_date"].isna() | (tdf["created_date"] >= pd.Timestamp(date_from))]
+        if date_to and "created_date" in tdf.columns:
+            tdf = tdf[tdf["created_date"].isna() | (tdf["created_date"] <= pd.Timestamp(date_to) + pd.Timedelta(days=1))]
+        total_tickets = int(len(tdf))
+        if "area" in ticket_df.columns:
+            norm = ticket_df.dropna(subset=["ticket_number"]).copy()
+            norm["_k"] = norm["ticket_number"].astype(str).str.strip().str.upper()
+            area_by_ticket = dict(zip(norm["_k"], norm["area"].fillna("")))
+
+    df = df.copy()
+    if area_by_ticket:
+        df["area"] = df["ticket"].astype(str).str.strip().str.upper().map(area_by_ticket).fillna("")
+    else:
+        df["area"] = ""
+
+    def _apply_filters(base, u, s):
+        out = base
+        if date_from:
+            out = out[out["date"].isna() | (out["date"] >= pd.Timestamp(date_from))]
+        if date_to:
+            out = out[out["date"].isna() | (out["date"] <= pd.Timestamp(date_to) + pd.Timedelta(days=1))]
+        if u:
+            out = out[out["user"] == u]
+        if s:
+            out = out[out["service"] == s]
+        return out
+
+    tmp = _apply_filters(df, user, service)
 
     scored = tmp[tmp["score"].notna()]
     scores = scored["score"].astype(float)
@@ -2433,9 +2464,8 @@ def feedback_summary(
     def _avg(s):
         return round(float(s.mean()), 2) if len(s) else None
 
-    # Detected rating parameters, in display order
-    param_keys = [k for k in ("timeliness", "quality", "interaction", "overall")
-                  if f"param_{k}" in df.columns]
+    # Detected rating parameters, in fixed display order: Overall, Quality, Timeliness, Interaction
+    param_keys = [k for k in _FEEDBACK_PARAM_ORDER if f"param_{k}" in df.columns]
 
     # Score distributions (1..scale_max) — overall plus one per rating parameter
     def _dist(series):
@@ -2446,6 +2476,59 @@ def feedback_summary(
     distribution  = _dist(scored["score"])
     distributions = {k: _dist(tmp[f"param_{k}"]) for k in param_keys}
     param_avgs    = {k: _avg(tmp[f"param_{k}"].dropna().astype(float)) for k in param_keys}
+
+    def _five_star(series):
+        vals = series.dropna().astype(float)
+        five = int((vals.round() >= scale_max).sum())
+        return five, (round(five / len(vals) * 100, 1) if len(vals) else None), int(len(vals))
+
+    five_star_count, five_star_pct, _ = _five_star(scored["score"])
+    param_five_star = {}
+    for k in param_keys:
+        f, p, n = _five_star(tmp[f"param_{k}"])
+        param_five_star[k] = {"count": f, "pct": p, "rated": n}
+
+    # ── Feedback rate: rated feedbacks per ticket raised (needs ticket-session join) ──
+    feedback_rate = None
+    if total_tickets:
+        rated_ct = int(len(scored))
+        feedback_rate = {
+            "feedbacks": rated_ct,
+            "tickets": total_tickets,
+            "pct": round(rated_ct / total_tickets * 100, 1) if total_tickets else None,
+            "ratio": round(total_tickets / rated_ct, 1) if rated_ct else None,
+        }
+
+    # ── NPS-style classification on the Overall score: 5=promoter,4=passive,1-3=detractor ──
+    def _nps_bucket(v):
+        if pd.isna(v):
+            return None
+        if v >= scale_max:
+            return "promoter"
+        if v >= scale_max - 1:
+            return "passive"
+        return "detractor"
+
+    nps_src = scored.copy()
+    nps_src["_bucket"] = nps_src["score"].apply(_nps_bucket)
+    nps_counts = {b: int((nps_src["_bucket"] == b).sum()) for b in ("promoter", "passive", "detractor")}
+    nps_total = sum(nps_counts.values())
+
+    def _top_fls(bucket, n=3):
+        grp = nps_src[(nps_src["_bucket"] == bucket) & (nps_src["requester"] != "")]
+        counts = grp.groupby("requester").size().sort_values(ascending=False).head(n)
+        return [{"name": name, "count": int(c)} for name, c in counts.items()]
+
+    nps = {
+        "promoters": nps_counts["promoter"], "passives": nps_counts["passive"], "detractors": nps_counts["detractor"],
+        "promoter_pct":  round(nps_counts["promoter"]  / nps_total * 100, 1) if nps_total else None,
+        "passive_pct":   round(nps_counts["passive"]   / nps_total * 100, 1) if nps_total else None,
+        "detractor_pct": round(nps_counts["detractor"] / nps_total * 100, 1) if nps_total else None,
+        "score": round((nps_counts["promoter"] - nps_counts["detractor"]) / nps_total * 100, 1) if nps_total else None,
+        "top_promoters":  _top_fls("promoter"),
+        "top_passives":   _top_fls("passive"),
+        "top_detractors": _top_fls("detractor"),
+    }
 
     # Inflow per period + avg score + per-specialist split (for stacked bars)
     by_period = []
@@ -2463,7 +2546,7 @@ def feedback_summary(
                 "by_user": {u: int(c) for u, c in grp[grp["user"] != ""].groupby("user").size().items()},
             })
 
-    def _group(col, with_params=False):
+    def _group(col, with_params=False, top_n=None):
         out = []
         for val, grp in scored.groupby(col):
             if not val:
@@ -2479,11 +2562,13 @@ def feedback_summary(
                     for k in param_keys
                 }
             out.append(row)
-        return sorted(out, key=lambda x: x["count"], reverse=True)
+        out = sorted(out, key=lambda x: x["count"], reverse=True)
+        return out[:top_n] if top_n else out
 
-    # All entries (filters applied), newest first
-    recent = tmp.sort_values("date", ascending=False)
-    recent_rows = [
+    # Entries: independent Specialist/Service filters, page-level date range still applies
+    entries_df = _apply_filters(df, entries_user, entries_service)
+    entries = entries_df.sort_values("date", ascending=False)
+    entries_rows = [
         {
             "date": r["date"].date().isoformat() if pd.notna(r["date"]) else None,
             "user": r["user"], "service": r["service"], "ticket": r["ticket"],
@@ -2491,10 +2576,10 @@ def feedback_summary(
             "score": float(r["score"]) if pd.notna(r["score"]) else None,
             "comment": r["comment"],
         }
-        for _, r in recent.iterrows()
+        for _, r in entries.iterrows()
+        if pd.notna(r["score"]) or r["comment"]
     ]
 
-    five_star_count = int((scores.round() >= scale_max).sum())
     return {
         "columns_detected": {k: v for k, v in mapping.items()},
         "scale_max": scale_max,
@@ -2503,16 +2588,22 @@ def feedback_summary(
         "rated": int(len(scored)),
         "avg_score": _avg(scores),
         "five_star_count": five_star_count,
-        "five_star_pct": round(five_star_count / len(scores) * 100, 1) if len(scores) else None,
+        "five_star_pct": five_star_pct,
+        "param_five_star": param_five_star,
+        "feedback_rate": feedback_rate,
+        "nps": nps,
         "distribution": distribution,
         "distributions": distributions,
         "param_avgs": param_avgs,
         "by_period": by_period,
         "by_service": _group("service", with_params=True),
         "by_user": _group("user", with_params=True),
+        "by_requester": _group("requester", top_n=12),
+        "by_area": _group("area", top_n=12) if area_by_ticket else [],
+        "has_area": bool(area_by_ticket),
         "users": users,
         "services": services,
-        "recent": recent_rows,
+        "entries": entries_rows,
     }
 
 

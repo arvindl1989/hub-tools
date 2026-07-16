@@ -172,7 +172,7 @@ export default function App() {
           {activeTab === 'bandwidth'     && <BandwidthPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'insights'      && <InsightsPage     sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'utility-rate' && <UtilityRatePage  sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
-          {activeTab === 'feedback'      && <FeedbackPage />}
+          {activeTab === 'feedback'      && <FeedbackPage sessionId={sessionId} />}
         </div>
       </main>
 
