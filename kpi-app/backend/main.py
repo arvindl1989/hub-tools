@@ -2550,7 +2550,13 @@ def feedback_summary(
         named = nps_src["requester"].str.strip().str.lower()
         grp = nps_src[(nps_src["_bucket"] == bucket) & (nps_src["requester"] != "") & (~named.isin(_ANONYMOUS))]
         counts = grp.groupby("requester").size().sort_values(ascending=False).head(n)
-        return [{"name": name, "count": int(c)} for name, c in counts.items()]
+        result = []
+        for name, c in counts.items():
+            segs = grp.loc[grp["requester"] == name, "fl_segment"]
+            segs = segs[segs != ""]
+            fl = segs.mode().iat[0] if len(segs) else ""
+            result.append({"name": name, "count": int(c), "fl": fl})
+        return result
 
     nps = {
         "promoters": nps_counts["promoter"], "passives": nps_counts["passive"], "detractors": nps_counts["detractor"],

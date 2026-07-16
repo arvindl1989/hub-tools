@@ -402,15 +402,18 @@ function NpsSection({ nps, scaleMax }) {
             {!t.items?.length ? (
               <div style={{ fontSize: 12, color: '#9c9c9c' }}>No data</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {t.items.map((it, i) => (
                   <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{
                       width: 20, height: 20, borderRadius: '50%', background: t.tone.bg, color: t.tone.fg,
                       fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                     }}>{i + 1}</span>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#141414', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
-                    <span style={{ fontSize: 12, color: '#6e6e6e' }}>{it.count}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#141414', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
+                      {it.fl && <div style={{ fontSize: 10.5, color: '#9c9c9c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.fl}</div>}
+                    </div>
+                    <span style={{ fontSize: 12, color: '#6e6e6e', flexShrink: 0 }}>{it.count}</span>
                   </div>
                 ))}
               </div>
