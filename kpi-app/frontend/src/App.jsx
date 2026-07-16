@@ -55,21 +55,28 @@ export default function App() {
 
   const [reconnectKey, setReconnectKey] = useState(0)
 
-  // Auto-connect from Apps Script on every load and whenever session expires
+  // Re-fetch fresh sheet data on EVERY page load (and when a session expires).
+  // A stored session is only used to render instantly while the refresh runs
+  // in the background — otherwise the browser keeps showing stale data forever.
   useEffect(() => {
-    if (showUpload || sessionId) return
-    setAutoConnecting(true)
-    setAutoError(null)
+    if (showUpload) return
+    const hadSession = !!localStorage.getItem('ticketSessionId')
+    if (!hadSession) {
+      setAutoConnecting(true)
+      setAutoError(null)
+    }
     uploadFromSheetUrl(APPS_SCRIPT_URL, () => {})
       .then(result => {
         handleUpload(result, true)
         setAutoConnecting(false)
       })
       .catch(err => {
-        setAutoError(err.message || 'Could not load sheet data')
+        // Silent failure when stale data is still on screen; error page otherwise
+        if (!hadSession) setAutoError(err.message || 'Could not load sheet data')
         setAutoConnecting(false)
       })
-  }, [showUpload, sessionId, reconnectKey, handleUpload])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showUpload, reconnectKey, handleUpload])
 
   if (autoConnecting) {
     return (

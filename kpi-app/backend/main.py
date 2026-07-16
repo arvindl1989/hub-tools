@@ -42,6 +42,24 @@ app.add_middleware(
 )
 
 sessions: dict[str, pd.DataFrame] = {}
+_MAX_SESSIONS = 20  # every page load creates a fresh session; drop the oldest
+
+def _register_session(sid: str, df: pd.DataFrame) -> None:
+    sessions[sid] = df
+    while len(sessions) > _MAX_SESSIONS:
+        sessions.pop(next(iter(sessions)))
+
+
+# Browsers must never cache the app shell — after a deploy a cached index.html
+# would keep pointing at old hashed bundles until a hard refresh.
+@app.middleware("http")
+async def _no_cache_html(request, call_next):
+    response = await call_next(request)
+    ct = response.headers.get("content-type", "")
+    if "text/html" in ct:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 # ── Persistence (PostgreSQL via DATABASE_URL env var) ─────────────────────────
 
@@ -483,7 +501,7 @@ async def upload_file(file: UploadFile = File(...)):
 
     df = process_dataframe(df)
     sid = str(uuid.uuid4())
-    sessions[sid] = df
+    _register_session(sid, df)
 
     active = df[df["is_active"]]
     return {
@@ -519,7 +537,7 @@ async def upload_json(body: JsonUploadBody):
         raise HTTPException(400, f"Could not build DataFrame: {exc}")
     df = process_dataframe(df)
     sid = str(uuid.uuid4())
-    sessions[sid] = df
+    _register_session(sid, df)
     active = df[df["is_active"]]
     date_col_status = {
         col: int(df[col].notna().sum())
