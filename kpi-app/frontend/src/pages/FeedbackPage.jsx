@@ -322,12 +322,12 @@ function FeedbackRateCard({ rate }) {
   return (
     <div style={{ background: '#f3eee6', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#6e6e6e', textTransform: 'uppercase' }}>Feedback Rate</div>
-      <div style={{ fontSize: 34, fontWeight: 800, color: '#141414', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>
-        {rate ? `1 : ${rate.ratio}` : '—'}
+      <div style={{ fontSize: 26, fontWeight: 800, color: '#141414', lineHeight: 1.2, marginTop: 8, letterSpacing: '-0.01em' }}>
+        {rate ? (rate.ratio <= 1 ? 'Every ticket got feedback' : `1 in ${rate.ratio} tickets got feedback`) : '—'}
       </div>
       <div style={{ fontSize: 11, color: '#6e6e6e', marginTop: 6 }}>
         {rate
-          ? `${rate.pct}% of tickets rated · ${rate.feedbacks} of ${rate.tickets} tickets`
+          ? `${rate.pct}% · ${rate.feedbacks} of ${rate.tickets} tickets`
           : 'Connect ticket data on Dashboard to see this metric'}
       </div>
     </div>

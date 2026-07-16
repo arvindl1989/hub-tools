@@ -2496,7 +2496,9 @@ def feedback_summary(
             "feedbacks": rated_ct,
             "tickets": total_tickets,
             "pct": round(rated_ct / total_tickets * 100, 1) if total_tickets else None,
-            "ratio": round(total_tickets / rated_ct, 1) if rated_ct else None,
+            # Conventional round-half-up (not Python's banker's rounding) so
+            # e.g. 2.5 reads as "1 in 3", matching everyday rounding intuition.
+            "ratio": int(total_tickets / rated_ct + 0.5) if rated_ct else None,
         }
 
     # ── NPS-style classification on the Overall score: 5=promoter,4=passive,1-3=detractor ──
