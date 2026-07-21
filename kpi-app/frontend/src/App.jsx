@@ -8,12 +8,15 @@ import UserActivityPage  from './pages/UserActivityPage'
 import FeedbackPage      from './pages/FeedbackPage'
 import ExperimentalReportsPage from './pages/ExperimentalReportsPage'
 import SlaConfigModal    from './components/SlaConfigModal'
+import PasswordGateModal from './components/PasswordGateModal'
 
 const TABS = [
   { id: 'dashboard',     label: 'Dashboard',       icon: <GridIcon /> },
   { id: 'user-activity', label: 'User Activity',    icon: <UsersIcon /> },
   { id: 'feedback',      label: 'Feedback',         icon: <SmileIcon /> },
 ]
+
+const EXPERIMENTAL_PASSWORD = 'Whiteshadows'
 
 export default function App() {
   const [sessionId,  setSessionId]  = useState(() => localStorage.getItem('ticketSessionId'))
@@ -25,6 +28,26 @@ export default function App() {
   const [showSlaConfig,  setShowSlaConfig] = useState(false)
   const [autoConnecting, setAutoConnecting] = useState(false)
   const [autoError,      setAutoError]     = useState(null)
+
+  // Experimental Reports stays behind a password for the session (cleared on tab close)
+  const [experimentalUnlocked, setExperimentalUnlocked] = useState(
+    () => sessionStorage.getItem('experimentalUnlocked') === 'true'
+  )
+  const [showPasswordGate, setShowPasswordGate] = useState(false)
+
+  const openExperimental = useCallback(() => {
+    if (experimentalUnlocked) { setActiveTab('experimental'); return }
+    setShowPasswordGate(true)
+  }, [experimentalUnlocked])
+
+  const handleUnlockAttempt = useCallback((password) => {
+    if (password !== EXPERIMENTAL_PASSWORD) return false
+    sessionStorage.setItem('experimentalUnlocked', 'true')
+    setExperimentalUnlocked(true)
+    setShowPasswordGate(false)
+    setActiveTab('experimental')
+    return true
+  }, [])
 
   const handleUpload = useCallback((result, isAutoConnect = false) => {
     localStorage.setItem('ticketSessionId', result.session_id)
@@ -156,14 +179,17 @@ export default function App() {
 
       <main style={{ flex: 1, padding: '24px', paddingBottom: 48 }}>
         <div style={{ maxWidth: 1600, margin: '0 auto' }}>
-          {activeTab === 'dashboard'     && <DashboardPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} onOpenExperimental={() => setActiveTab('experimental')} />}
+          {activeTab === 'dashboard'     && <DashboardPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} onOpenExperimental={openExperimental} />}
           {activeTab === 'user-activity' && <UserActivityPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'feedback'      && <FeedbackPage sessionId={sessionId} />}
-          {activeTab === 'experimental'  && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}
+          {activeTab === 'experimental'  && experimentalUnlocked && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}
         </div>
       </main>
 
       {showSlaConfig && <SlaConfigModal onClose={() => setShowSlaConfig(false)} />}
+      {showPasswordGate && (
+        <PasswordGateModal onSubmit={handleUnlockAttempt} onCancel={() => setShowPasswordGate(false)} />
+      )}
     </div>
   )
 }
