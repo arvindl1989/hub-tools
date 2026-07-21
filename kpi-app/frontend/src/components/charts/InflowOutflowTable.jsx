@@ -9,12 +9,20 @@ function _rateStyle(rate) {
   return { background: '#aae1c8', color: '#0f5132' }
 }
 
+// Values may be comma-separated (multi-select) — summarize as "N selected"
+// once there's more than one, otherwise show the single value as-is.
+function _fmtMulti(val, prefix = '') {
+  const vals = val.split(',').map(v => v.trim()).filter(Boolean)
+  if (vals.length <= 1) return `${prefix}${vals[0] ?? ''}`
+  return `${prefix}${vals.length} selected`
+}
+
 function _filterName(filters) {
   if (!filters) return 'All'
-  if (filters.assigned_to) return filters.assigned_to
-  if (filters.team)        return `Team: ${filters.team}`
-  if (filters.area)        return `Area: ${filters.area}`
-  if (filters.sub_category) return filters.sub_category
+  if (filters.assigned_to) return _fmtMulti(filters.assigned_to)
+  if (filters.team)        return _fmtMulti(filters.team, 'Team: ')
+  if (filters.area)        return _fmtMulti(filters.area, 'Area: ')
+  if (filters.sub_category) return _fmtMulti(filters.sub_category)
   return 'All'
 }
 

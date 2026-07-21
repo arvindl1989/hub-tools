@@ -47,40 +47,76 @@ const PRESETS = [
   { label: 'Last year',    from: yearStart(-1),  to: yearEnd(-1)      },
 ]
 
+// Explicit year-labeled Half/Quarter buttons — always unambiguous, unlike the
+// relative ones above. Covers the current year and the one before it, so the
+// set quietly rolls forward (e.g. 2026/2027) without needing a code change.
+function yearHalfBounds(year, half) {
+  const startMonth = half === 1 ? 0 : 6
+  return {
+    start: localDate(new Date(year, startMonth, 1)),
+    end:   localDate(new Date(year, startMonth + 6, 0)),
+  }
+}
+function yearQuarterBounds(year, q) {
+  const startMonth = (q - 1) * 3
+  return {
+    start: localDate(new Date(year, startMonth, 1)),
+    end:   localDate(new Date(year, startMonth + 3, 0)),
+  }
+}
+
+const YEARS = [new Date().getFullYear() - 1, new Date().getFullYear()]
+
+const YEAR_HALF_PRESETS = YEARS.flatMap((y) => [1, 2].map((h) => {
+  const b = yearHalfBounds(y, h)
+  return { label: `${y} ${h === 1 ? 'First' : 'Second'} Half`, from: b.start, to: b.end }
+}))
+
+const YEAR_QUARTER_PRESETS = YEARS.flatMap((y) => [1, 2, 3, 4].map((q) => {
+  const b = yearQuarterBounds(y, q)
+  return { label: `${y} Q${q}`, from: b.start, to: b.end }
+}))
+
 const BASE_BTN = {
   padding: '5px 10px', fontSize: 12, fontWeight: 500,
   border: '1px solid #e8e2d6', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap',
   fontFamily: 'Inter, sans-serif', transition: 'background 0.12s, color 0.12s, border-color 0.12s',
 }
 
+function PresetRow({ presets, active, onChange }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+      {presets.map((p) => {
+        const isActive = active?.label === p.label
+        return (
+          <button
+            key={p.label}
+            onClick={() => onChange(p.from, p.to)}
+            style={{
+              ...BASE_BTN,
+              background:  isActive ? '#1450f5' : '#fff',
+              color:       isActive ? '#fff'    : '#6e6e6e',
+              borderColor: isActive ? '#1450f5' : '#e8e2d6',
+            }}
+            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f5f8fe' }}
+            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = '#fff' }}
+          >
+            {p.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange }) {
-  const active = PRESETS.find((p) => p.from === dateFrom && p.to === dateTo)
+  const ALL_PRESETS = [...PRESETS, ...YEAR_HALF_PRESETS, ...YEAR_QUARTER_PRESETS]
+  const active = ALL_PRESETS.find((p) => p.from === dateFrom && p.to === dateTo)
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-
-      {/* Preset pills — wraps to multiple rows, no clipping */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-        {PRESETS.map((p) => {
-          const isActive = active?.label === p.label
-          return (
-            <button
-              key={p.label}
-              onClick={() => onChange(p.from, p.to)}
-              style={{
-                ...BASE_BTN,
-                background:  isActive ? '#1450f5' : '#fff',
-                color:       isActive ? '#fff'    : '#6e6e6e',
-                borderColor: isActive ? '#1450f5' : '#e8e2d6',
-              }}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f5f8fe' }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = '#fff' }}
-            >
-              {p.label}
-            </button>
-          )
-        })}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <PresetRow presets={PRESETS} active={active} onChange={onChange} />
 
       {/* Custom date inputs */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -115,6 +151,16 @@ export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange }
             title="Clear dates"
           >✕</button>
         )}
+      </div>
+      </div>
+
+      {/* Explicit year-labeled Half/Quarter buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#9c9c9c', textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>
+          By period:
+        </span>
+        <PresetRow presets={YEAR_HALF_PRESETS} active={active} onChange={onChange} />
+        <PresetRow presets={YEAR_QUARTER_PRESETS} active={active} onChange={onChange} />
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 import DateRangePicker from './DateRangePicker'
+import MultiSelectFilter from './MultiSelectFilter'
 
 const EXCLUDED = new Set(['Dheera Sameera', 'Pooja V', 'Suresh Karthik'])
 
@@ -8,7 +9,6 @@ export default function DashboardFilters({ overview, filters, range, onFilter, o
   const areas     = overview?.area_list         ?? []
   const subCats   = overview?.sub_category_list ?? []
 
-  const set = (key) => (e) => onFilter(key, e.target.value)
   const hasActive = Object.values(filters).some(Boolean) || range.from || range.to
   const activeCount = Object.values(filters).filter(Boolean).length + (range.from || range.to ? 1 : 0)
 
@@ -27,10 +27,10 @@ export default function DashboardFilters({ overview, filters, range, onFilter, o
         )}
       </div>
 
-      <FilterSelect label="Assignee"     value={filters.assigned_to}  onChange={set('assigned_to')}  opts={assignees} />
-      <FilterSelect label="Team"         value={filters.team}         onChange={set('team')}          opts={teams} />
-      <FilterSelect label="Area"         value={filters.area}         onChange={set('area')}          opts={areas} />
-      <FilterSelect label="Sub-Category" value={filters.sub_category} onChange={set('sub_category')} opts={subCats} />
+      <MultiSelectFilter label="Assignee"     value={filters.assigned_to}  onChange={(v) => onFilter('assigned_to', v)}  options={assignees} />
+      <MultiSelectFilter label="Team"         value={filters.team}         onChange={(v) => onFilter('team', v)}         options={teams} />
+      <MultiSelectFilter label="Area"         value={filters.area}         onChange={(v) => onFilter('area', v)}         options={areas} />
+      <MultiSelectFilter label="Sub-Category" value={filters.sub_category} onChange={(v) => onFilter('sub_category', v)} options={subCats} />
 
       <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => onRange({ from, to })} />
 
@@ -52,27 +52,5 @@ export default function DashboardFilters({ overview, filters, range, onFilter, o
         </button>
       )}
     </div>
-  )
-}
-
-function FilterSelect({ label, value, onChange, opts }) {
-  return (
-    <select
-      value={value}
-      onChange={onChange}
-      style={{
-        fontSize: 13, color: value ? '#141414' : '#6e6e6e',
-        border: value ? '1px solid #1450f5' : '1px solid #e8e2d6',
-        background: value ? '#eef3fe' : '#fff',
-        borderRadius: 8, padding: '6px 10px',
-        fontFamily: 'Inter, sans-serif',
-        cursor: 'pointer', outline: 'none',
-        fontWeight: value ? 500 : 400,
-        transition: 'all 0.15s',
-      }}
-    >
-      <option value="">All {label}s</option>
-      {opts.map((o) => <option key={o} value={o}>{o}</option>)}
-    </select>
   )
 }

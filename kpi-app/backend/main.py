@@ -570,15 +570,8 @@ def overview(sid: str, assigned_to: str = '', team: str = '', area: str = '', su
     if date_to:
         df = df[df["created_date"].dropna() <= pd.Timestamp(date_to)]
 
-    # Apply dimension filters if provided
-    if assigned_to:
-        df = df[df["assigned_to"] == assigned_to]
-    if team and "team" in df.columns:
-        df = df[df["team"] == team]
-    if area and "area" in df.columns:
-        df = df[df["area"] == area]
-    if sub_category and "sub_category" in df.columns:
-        df = df[df["sub_category"] == sub_category]
+    # Apply dimension filters if provided (comma-separated = multi-select)
+    df = _apply_dim_filters(df, assigned_to=assigned_to, team=team, area=area, sub_category=sub_category)
 
     active = df[df["is_active"]]
 
@@ -2219,8 +2212,12 @@ def _apply_dim_filters(
     if assigned_to and "assigned_to" in df.columns:
         names = [n.strip() for n in assigned_to.split(',') if n.strip()]
         df = df[df["assigned_to"].isin(names)]
-    if team         and "team"         in df.columns: df = df[df["team"]         == team]
-    if area         and "area"         in df.columns: df = df[df["area"]         == area]
+    if team and "team" in df.columns:
+        teams = [t.strip() for t in team.split(',') if t.strip()]
+        df = df[df["team"].isin(teams)]
+    if area and "area" in df.columns:
+        areas = [a.strip() for a in area.split(',') if a.strip()]
+        df = df[df["area"].isin(areas)]
     if sub_category and "sub_category" in df.columns:
         cats = [c.strip() for c in sub_category.split(',') if c.strip()]
         if cats:
