@@ -117,7 +117,23 @@ function PresetButton({ label, isActive, onClick, small = false }) {
   )
 }
 
-function PeriodPickerButton({ dateFrom, dateTo, onChange }) {
+// Friendly label for any {from,to} pair — matches a named preset when
+// possible (e.g. "2025 First Half"), otherwise formats the raw dates.
+// Exported for reuse anywhere a period needs a human-readable name
+// (e.g. period-comparison labels).
+export function labelForRange(from, to) {
+  if (!from && !to) return 'All time'
+  const named = [...PRESETS, ...ALL_YEAR_PERIODS].find((p) => p.from === from && p.to === to)
+  if (named) return named.label
+  const fmt = (s) => {
+    if (!s) return '…'
+    const d = new Date(`${s}T00:00:00`)
+    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  return `${fmt(from)} – ${fmt(to)}`
+}
+
+export function PeriodPickerButton({ dateFrom, dateTo, onChange, placeholder = 'By Period' }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const activeYearPeriod = ALL_YEAR_PERIODS.find((p) => p.from === dateFrom && p.to === dateTo)
@@ -143,7 +159,7 @@ function PeriodPickerButton({ dateFrom, dateTo, onChange }) {
           borderColor: activeYearPeriod ? '#1450f5' : '#e8e2d6',
         }}
       >
-        {activeYearPeriod ? activeYearPeriod.label : 'By Period'}
+        {activeYearPeriod ? activeYearPeriod.label : placeholder}
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7, flexShrink: 0 }}>
           <polyline points="6 9 12 15 18 9"/>
         </svg>
