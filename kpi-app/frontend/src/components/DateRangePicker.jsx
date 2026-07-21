@@ -70,10 +70,11 @@ function yearQuarterBounds(year, q) {
 const thisYear = new Date().getFullYear()
 const YEARS = [thisYear - 2, thisYear - 1, thisYear]
 
-// { [year]: { halves: [...], quarters: [...] } }
+// { [year]: { fullYear: {...}, halves: [...], quarters: [...] } }
 const YEAR_PERIODS = Object.fromEntries(YEARS.map((y) => [
   y,
   {
+    fullYear: { label: `${y} Full Year`, from: `${y}-01-01`, to: `${y}-12-31` },
     halves: [1, 2].map((h) => {
       const b = yearHalfBounds(y, h)
       return { label: h === 1 ? 'First Half' : 'Second Half', from: b.start, to: b.end }
@@ -86,6 +87,7 @@ const YEAR_PERIODS = Object.fromEntries(YEARS.map((y) => [
 ]))
 
 const ALL_YEAR_PERIODS = YEARS.flatMap((y) => [
+  YEAR_PERIODS[y].fullYear,
   ...YEAR_PERIODS[y].halves.map((p) => ({ ...p, label: `${y} ${p.label}` })),
   ...YEAR_PERIODS[y].quarters.map((p) => ({ ...p, label: `${y} ${p.label}` })),
 ])
@@ -156,7 +158,12 @@ function PeriodPickerButton({ dateFrom, dateTo, onChange }) {
         }}>
           {[...YEARS].reverse().map((y) => (
             <div key={y}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#141414', marginBottom: 6 }}>{y}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#141414' }}>{y}</span>
+                <PresetButton label="Full Year"
+                  isActive={YEAR_PERIODS[y].fullYear.from === dateFrom && YEAR_PERIODS[y].fullYear.to === dateTo}
+                  onClick={() => pick(YEAR_PERIODS[y].fullYear)} small />
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
                 {YEAR_PERIODS[y].halves.map((p) => (
                   <PresetButton key={p.label} label={p.label}

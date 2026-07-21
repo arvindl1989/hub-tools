@@ -1,10 +1,21 @@
 import DateRangePicker from './DateRangePicker'
 import MultiSelectFilter from './MultiSelectFilter'
 
-const EXCLUDED = new Set(['Dheera Sameera', 'Pooja V', 'Suresh Karthik'])
+// Only these specialists are offered as an Assignee filter option — everyone
+// else (Pooja, Sameera, Suresh, etc.) still counts fully in all report data,
+// they're just not individually selectable here.
+const ALLOWED_ASSIGNEES = [
+  'Arvind Lakshminarayanan',
+  'Akshayaa Rajeswari AS',
+  'Akshaya Praveen',
+  'Nitish JK',
+  'Ranjithkumar Ashokkumar',
+  'Ajith A',
+]
 
 export default function DashboardFilters({ overview, filters, range, onFilter, onRange }) {
-  const assignees = (overview?.assigned_to_list ?? []).filter((a) => !EXCLUDED.has(a))
+  const available = new Set(overview?.assigned_to_list ?? [])
+  const assignees = ALLOWED_ASSIGNEES.filter((a) => available.has(a))
   const teams     = overview?.team_list         ?? []
   const areas     = overview?.area_list         ?? []
   const subCats   = overview?.sub_category_list ?? []

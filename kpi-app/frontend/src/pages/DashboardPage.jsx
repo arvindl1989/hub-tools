@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   getOverview, getHubHealth,
-  getByArea, getByTeam, getByAssignee,
+  getByArea, getByAssignee,
+  getStackedByTeam, getStackedByCreator,
   getMonthlyStacked, getInflowOutflow,
 } from '../api'
 import HubHealthBar     from '../components/HubHealthBar'
@@ -26,8 +27,9 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
   const [overview,    setOverview]    = useState(null)
   const [hubHealth,   setHubHealth]   = useState(null)
   const [byArea,      setByArea]      = useState([])
-  const [byTeam,      setByTeam]      = useState([])
   const [byAssignee,  setByAssignee]  = useState([])
+  const [byTeam,      setByTeam]      = useState({ rows: [], sub_categories: [] })
+  const [byCreator,   setByCreator]   = useState({ rows: [], sub_categories: [] })
   const [monthly,     setMonthly]     = useState({ rows: [], sub_categories: [] })
   const [inflowOutflow, setInflowOutflow] = useState([])
 
@@ -50,8 +52,9 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
 
   useRefetch(() => getHubHealth(sessionId, range.from, range.to, filters),   setHubHealth,   onErr, fDeps)
   useRefetch(() => getByArea(sessionId, range.from, range.to, filters),      setByArea,      onErr, fDeps)
-  useRefetch(() => getByTeam(sessionId, range.from, range.to, filters),      setByTeam,      onErr, fDeps)
   useRefetch(() => getByAssignee(sessionId, range.from, range.to, filters),  setByAssignee,  onErr, fDeps)
+  useRefetch(() => getStackedByTeam(sessionId, range.from, range.to, filters),          setByTeam,    onErr, fDeps)
+  useRefetch(() => getStackedByCreator(sessionId, range.from, range.to, filters, 15),   setByCreator, onErr, fDeps)
   useRefetch(() => getMonthlyStacked(sessionId, range.from, range.to, filters), setMonthly,  onErr, fDeps)
   useRefetch(() => getInflowOutflow(sessionId, range.from, range.to, groupBy, filters), setInflowOutflow, onErr,
     [...fDeps, groupBy])
@@ -105,20 +108,27 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
         <InflowOutflowTable data={inflowOutflow} filters={filters} />
       </Card>
 
-      {/* Tickets by User / Team / Area — pie charts, one row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+      {/* Row 1: Tickets by User + Tickets by Area — pie charts */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Card title="Tickets by User" subtitle="Volume per specialist" accent="#1450f5" icon={<UserIcon />}>
           <MiniPieChart data={byAssignee} labelKey="assigned_to" />
-        </Card>
-        <Card title="Tickets by Team" subtitle="Volume per team" accent="#b87d00" icon={<TeamIcon />}>
-          <MiniPieChart data={byTeam} labelKey="team" />
         </Card>
         <Card title="Tickets by Area" subtitle="Volume per area" accent="#c0305a" icon={<MapIcon />}>
           <MiniPieChart data={byArea} labelKey="area" />
         </Card>
       </div>
 
-      {/* Monthly Trend */}
+      {/* Row 2: Tickets by Team + Tickets by Requested By — bar charts */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <Card title="Tickets by Team" subtitle="Ticket volume over time · stacked by sub-category" accent="#b87d00" icon={<TeamIcon />}>
+          <StackedColumnChart data={byTeam} xKey="team" height={300} />
+        </Card>
+        <Card title="Tickets by Requested By" subtitle="Top 15 requestors · stacked by sub-category" accent="#0aa08f" icon={<InboxIcon />}>
+          <StackedColumnChart data={byCreator} xKey="ticket_creator" height={300} />
+        </Card>
+      </div>
+
+      {/* Row 3: Monthly Trend */}
       <Card title="Monthly Inflow Trend" subtitle="Ticket creation over time · stacked by sub-category" accent="#0077a8" icon={<TrendIcon />}>
         <StackedColumnChart data={monthly} xKey="label" height={320} />
       </Card>
@@ -267,3 +277,4 @@ const MapIcon     = I(<><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2
 const TeamIcon    = I(<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>)
 const UserIcon    = I(<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>)
 const TrendIcon   = I(<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>)
+const InboxIcon   = I(<><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></>)

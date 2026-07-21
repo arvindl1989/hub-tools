@@ -1,14 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
-  getOverview, getStackedByCreator, getResolvedBySpecialist,
+  getOverview, getResolvedBySpecialist,
   getWeeklyStacked, getBacklogAge,
 } from '../api'
 import DashboardFilters from '../components/DashboardFilters'
 import StackedBarChart   from '../components/charts/StackedBarChart'
 import StackedColumnChart from '../components/charts/StackedColumnChart'
 import BacklogAgeChart   from '../components/charts/BacklogAgeChart'
-
-const EXCLUDED = new Set(['Dheera Sameera', 'Pooja V', 'Suresh Karthik'])
 
 function useRefetch(fn, set, onErr, deps) {
   const ref = useRef(0)
@@ -25,7 +23,6 @@ const INIT_FILTERS = { assigned_to: '', team: '', area: '', sub_category: '' }
 // same data, same logic, just relocated here under Experimental Reports.
 export default function DashboardExtrasPage({ sessionId, onSessionExpired }) {
   const [overview,    setOverview]    = useState(null)
-  const [byCreator,   setByCreator]   = useState({ rows: [], sub_categories: [] })
   const [bySpecialist,setBySpecialist]= useState({ rows: [], sub_categories: [] })
   const [inflow,      setInflow]      = useState({ rows: [], sub_categories: [] })
   const [outflow,     setOutflow]     = useState({ rows: [], sub_categories: [] })
@@ -48,7 +45,6 @@ export default function DashboardExtrasPage({ sessionId, onSessionExpired }) {
 
   const fDeps = [range.from, range.to, JSON.stringify(filters)]
 
-  useRefetch(() => getStackedByCreator(sessionId, range.from, range.to, filters, 20), setByCreator,    onErr, fDeps)
   useRefetch(() => getResolvedBySpecialist(sessionId, range.from, range.to, filters), setBySpecialist, onErr, fDeps)
   useRefetch(() => getWeeklyStacked(sessionId, 'created_date', range.from, range.to, filters), setInflow,  onErr, fDeps)
   useRefetch(() => getWeeklyStacked(sessionId, 'closed_date',  range.from, range.to, filters), setOutflow, onErr, fDeps)
@@ -59,7 +55,7 @@ export default function DashboardExtrasPage({ sessionId, onSessionExpired }) {
       <div>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: '#141414', margin: 0 }}>Dashboard Extras</h2>
         <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0' }}>
-          Widgets retired from the main Dashboard — Resolved by Specialist, Tickets by Requestor, Weekly Inflow/Outflow, Backlog Age.
+          Widgets retired from the main Dashboard — Resolved by Specialist, Weekly Inflow/Outflow, Backlog Age.
         </p>
       </div>
 
@@ -69,15 +65,7 @@ export default function DashboardExtrasPage({ sessionId, onSessionExpired }) {
 
       {/* Resolved by Specialist */}
       <Card title="Resolved by Specialist" subtitle="Closed tickets per team member · stacked by sub-category" accent="#1e8a5e">
-        <StackedBarChart
-          data={{ ...bySpecialist, rows: bySpecialist.rows.filter((r) => !EXCLUDED.has(r.assigned_to)) }}
-          dimKey="assigned_to"
-        />
-      </Card>
-
-      {/* By Requestor */}
-      <Card title="Tickets by Requestor" subtitle="Top 20 ticket creators · stacked by sub-category" accent="#c0305a">
-        <StackedBarChart data={byCreator} dimKey="ticket_creator" />
+        <StackedBarChart data={bySpecialist} dimKey="assigned_to" />
       </Card>
 
       {/* Weekly Inflow + Outflow */}
