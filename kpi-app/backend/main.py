@@ -727,6 +727,26 @@ def by_team(
     counts = tmp.dropna(subset=["team"]).groupby("team").size().reset_index(name="count")
     return [{"team": r["team"], "count": int(r["count"])} for _, r in counts.sort_values("count", ascending=False).iterrows()]
 
+# ── By assignee ────────────────────────────────────────────────────────────────
+
+@app.get("/api/sessions/{sid}/by-assignee")
+def by_assignee(
+    sid: str,
+    date_from:    Optional[str] = None,
+    date_to:      Optional[str] = None,
+    team:         Optional[str] = None,
+    area:         Optional[str] = None,
+    sub_category: Optional[str] = None,
+):
+    df = _get_session(sid)
+    if "assigned_to" not in df.columns:
+        return []
+    tmp = _filter_by_range(df, "created_date", date_from, date_to)
+    tmp = _apply_dim_filters(tmp, team=team, area=area, sub_category=sub_category)
+    tmp = tmp[~tmp["assigned_to"].isin(EXCLUDED_PEOPLE)]
+    counts = tmp.dropna(subset=["assigned_to"]).groupby("assigned_to").size().reset_index(name="count")
+    return [{"assigned_to": r["assigned_to"], "count": int(r["count"])} for _, r in counts.sort_values("count", ascending=False).iterrows()]
+
 # ── By creator ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/by-creator")

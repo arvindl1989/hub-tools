@@ -1,17 +1,15 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   getOverview, getHubHealth,
-  getStackedByArea, getStackedByTeam, getStackedByCreator,
-  getResolvedBySpecialist, getMonthlyStacked, getWeeklyStacked,
-  getBacklogAge,
+  getByArea, getByTeam, getByAssignee,
+  getMonthlyStacked, getInflowOutflow,
 } from '../api'
-import HubHealthBar    from '../components/HubHealthBar'
+import HubHealthBar     from '../components/HubHealthBar'
 import DashboardFilters from '../components/DashboardFilters'
-import StackedBarChart  from '../components/charts/StackedBarChart'
 import StackedColumnChart from '../components/charts/StackedColumnChart'
-import BacklogAgeChart  from '../components/charts/BacklogAgeChart'
-
-const EXCLUDED = new Set(['Dheera Sameera', 'Pooja V', 'Suresh Karthik'])
+import InflowOutflowChart from '../components/charts/InflowOutflowChart'
+import InflowOutflowTable from '../components/charts/InflowOutflowTable'
+import MiniPieChart      from '../components/charts/MiniPieChart'
 
 function useRefetch(fn, set, onErr, deps) {
   const ref = useRef(0)
@@ -24,20 +22,18 @@ function useRefetch(fn, set, onErr, deps) {
 
 const INIT_FILTERS = { assigned_to: '', team: '', area: '', sub_category: '' }
 
-export default function DashboardPage({ sessionId, onSessionExpired }) {
+export default function DashboardPage({ sessionId, onSessionExpired, onOpenExperimental }) {
   const [overview,    setOverview]    = useState(null)
   const [hubHealth,   setHubHealth]   = useState(null)
-  const [byArea,      setByArea]      = useState({ rows: [], sub_categories: [] })
-  const [byTeam,      setByTeam]      = useState({ rows: [], sub_categories: [] })
-  const [byCreator,   setByCreator]   = useState({ rows: [], sub_categories: [] })
-  const [bySpecialist,setBySpecialist]= useState({ rows: [], sub_categories: [] })
+  const [byArea,      setByArea]      = useState([])
+  const [byTeam,      setByTeam]      = useState([])
+  const [byAssignee,  setByAssignee]  = useState([])
   const [monthly,     setMonthly]     = useState({ rows: [], sub_categories: [] })
-  const [inflow,      setInflow]      = useState({ rows: [], sub_categories: [] })
-  const [outflow,     setOutflow]     = useState({ rows: [], sub_categories: [] })
-  const [backlogAge,  setBacklogAge]  = useState([])
+  const [inflowOutflow, setInflowOutflow] = useState([])
 
   const [filters, setFilters] = useState(INIT_FILTERS)
   const [range,   setRange]   = useState({ from: '', to: '' })
+  const [groupBy, setGroupBy] = useState('week')
 
   const onErr = useCallback((err) => { if (err.sessionExpired) onSessionExpired() }, [onSessionExpired])
 
@@ -48,19 +44,17 @@ export default function DashboardPage({ sessionId, onSessionExpired }) {
 
   useEffect(() => {
     getOverview(sessionId).then(setOverview).catch(onErr)
-    getBacklogAge(sessionId).then(setBacklogAge).catch(onErr)
   }, [sessionId, onErr])
 
   const fDeps = [range.from, range.to, JSON.stringify(filters)]
 
-  useRefetch(() => getHubHealth(sessionId, range.from, range.to, filters),            setHubHealth,    onErr, fDeps)
-  useRefetch(() => getStackedByArea(sessionId, range.from, range.to, filters),        setByArea,       onErr, fDeps)
-  useRefetch(() => getStackedByTeam(sessionId, range.from, range.to, filters),        setByTeam,       onErr, fDeps)
-  useRefetch(() => getStackedByCreator(sessionId, range.from, range.to, filters, 20), setByCreator,    onErr, fDeps)
-  useRefetch(() => getResolvedBySpecialist(sessionId, range.from, range.to, filters), setBySpecialist, onErr, fDeps)
-  useRefetch(() => getMonthlyStacked(sessionId, range.from, range.to, filters),       setMonthly,      onErr, fDeps)
-  useRefetch(() => getWeeklyStacked(sessionId, 'created_date', range.from, range.to, filters), setInflow,  onErr, fDeps)
-  useRefetch(() => getWeeklyStacked(sessionId, 'closed_date',  range.from, range.to, filters), setOutflow, onErr, fDeps)
+  useRefetch(() => getHubHealth(sessionId, range.from, range.to, filters),   setHubHealth,   onErr, fDeps)
+  useRefetch(() => getByArea(sessionId, range.from, range.to, filters),      setByArea,      onErr, fDeps)
+  useRefetch(() => getByTeam(sessionId, range.from, range.to, filters),      setByTeam,      onErr, fDeps)
+  useRefetch(() => getByAssignee(sessionId, range.from, range.to, filters),  setByAssignee,  onErr, fDeps)
+  useRefetch(() => getMonthlyStacked(sessionId, range.from, range.to, filters), setMonthly,  onErr, fDeps)
+  useRefetch(() => getInflowOutflow(sessionId, range.from, range.to, groupBy, filters), setInflowOutflow, onErr,
+    [...fDeps, groupBy])
 
   const closedCompleted = hubHealth?.closed_completed ?? 0
   const closedRejected  = hubHealth?.closed_rejected  ?? 0
@@ -72,7 +66,7 @@ export default function DashboardPage({ sessionId, onSessionExpired }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Filters */}
+      {/* Filters — govern every component on this page */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6', padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <DashboardFilters overview={overview} filters={filters} range={range} onFilter={onFilter} onRange={setRange} />
       </div>
@@ -91,48 +85,70 @@ export default function DashboardPage({ sessionId, onSessionExpired }) {
         <KpiTile label="Dependency"     value={dependency}     icon={<LinkIcon />}     surface="#ffe141" ink="#141414" labelColor="#7a5400" iconBg="rgba(255,255,255,0.55)" iconColor="#7a5400" />
       </div>
 
-      {/* By Area + By Team */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <Card title="Tickets by Area" subtitle="Stacked by sub-category" accent="#1450f5" icon={<MapIcon />}>
-          <StackedBarChart data={byArea} dimKey="area" />
+      {/* Inflow vs Outflow */}
+      <Card title="Inflow vs Outflow" subtitle="Ticket creation vs resolution — positive net means backlog is growing" accent="#1450f5" icon={<TrendIcon />}
+        controls={
+          <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #e8e2d6', overflow: 'hidden' }}>
+            {['week', 'month'].map(g => (
+              <button key={g} onClick={() => setGroupBy(g)} style={{
+                padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                fontFamily: 'Inter, sans-serif',
+                background: groupBy === g ? '#1450f5' : '#fff',
+                color: groupBy === g ? '#fff' : '#6e6e6e',
+              }}>
+                {g === 'week' ? 'Weekly' : 'Monthly'}
+              </button>
+            ))}
+          </div>
+        }>
+        <InflowOutflowChart data={inflowOutflow} noDateCols={overview != null && inflowOutflow.length === 0} />
+        <InflowOutflowTable data={inflowOutflow} filters={filters} />
+      </Card>
+
+      {/* Tickets by User / Team / Area — pie charts, one row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <Card title="Tickets by User" subtitle="Volume per specialist" accent="#1450f5" icon={<UserIcon />}>
+          <MiniPieChart data={byAssignee} labelKey="assigned_to" />
         </Card>
-        <Card title="Tickets by Team" subtitle="Stacked by sub-category" accent="#b87d00" icon={<TeamIcon />}>
-          <StackedBarChart data={byTeam} dimKey="team" />
+        <Card title="Tickets by Team" subtitle="Volume per team" accent="#b87d00" icon={<TeamIcon />}>
+          <MiniPieChart data={byTeam} labelKey="team" />
+        </Card>
+        <Card title="Tickets by Area" subtitle="Volume per area" accent="#c0305a" icon={<MapIcon />}>
+          <MiniPieChart data={byArea} labelKey="area" />
         </Card>
       </div>
-
-      {/* Resolved by Specialist */}
-      <Card title="Resolved by Specialist" subtitle="Closed tickets per team member · stacked by sub-category" accent="#1e8a5e" icon={<UserIcon />}>
-        <StackedBarChart
-          data={{ ...bySpecialist, rows: bySpecialist.rows.filter((r) => !EXCLUDED.has(r.assigned_to)) }}
-          dimKey="assigned_to"
-        />
-      </Card>
-
-      {/* By Requestor */}
-      <Card title="Tickets by Requestor" subtitle="Top 20 ticket creators · stacked by sub-category" accent="#c0305a" icon={<InboxIcon />}>
-        <StackedBarChart data={byCreator} dimKey="ticket_creator" />
-      </Card>
 
       {/* Monthly Trend */}
       <Card title="Monthly Inflow Trend" subtitle="Ticket creation over time · stacked by sub-category" accent="#0077a8" icon={<TrendIcon />}>
         <StackedColumnChart data={monthly} xKey="label" height={320} />
       </Card>
 
-      {/* Weekly Inflow + Outflow */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <Card title="Weekly Ticket Inflow" subtitle="Created tickets · last 26 weeks" accent="#1450f5" icon={<ArrowDownIcon />}>
-          <StackedColumnChart data={inflow} xKey="label" height={300} />
-        </Card>
-        <Card title="Weekly Ticket Outflow" subtitle="Closed tickets · last 26 weeks" accent="#1e8a5e" icon={<ArrowUpIcon />}>
-          <StackedColumnChart data={outflow} xKey="label" height={300} />
-        </Card>
+      {/* Experimental Reports */}
+      <div style={{
+        background: '#f3eee6', borderRadius: 12, padding: '18px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+      }}>
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#141414', margin: 0 }}>Experimental Reports</h3>
+          <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0' }}>
+            Priority Tracker, Analytics, Bandwidth, Insights, Utility Rate and other legacy widgets — moved out of the main navigation.
+          </p>
+        </div>
+        <button
+          onClick={onOpenExperimental}
+          style={{
+            background: '#1450f5', color: '#fff', border: 'none', borderRadius: 8,
+            padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          Open Experimental Reports
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </button>
       </div>
-
-      {/* Backlog Age */}
-      <Card title="Backlog Age Distribution" subtitle="How long active tickets have been open" accent="#c0305a" icon={<HourglassIcon />}>
-        <BacklogAgeChart data={backlogAge} />
-      </Card>
 
     </div>
   )
@@ -250,8 +266,4 @@ const PulseIcon   = I(<><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></>)
 const MapIcon     = I(<><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></>)
 const TeamIcon    = I(<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>)
 const UserIcon    = I(<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>)
-const InboxIcon   = I(<><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></>)
 const TrendIcon   = I(<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>)
-const ArrowDownIcon = I(<><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></>)
-const ArrowUpIcon   = I(<><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></>)
-const HourglassIcon = I(<><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 00-.586-1.414L12 12l-4.414 4.414A2 2 0 007 17.828V22"/><path d="M7 2v4.172a2 2 0 00.586 1.414L12 12l4.414-4.414A2 2 0 0017 6.172V2"/></>)

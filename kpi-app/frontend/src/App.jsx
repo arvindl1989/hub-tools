@@ -4,23 +4,14 @@ import { uploadFromSheetUrl } from './api'
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec'
 import DashboardPage     from './pages/DashboardPage'
-import PriorityPage      from './pages/PriorityPage'
-import AnalyticsPage     from './pages/AnalyticsPage'
 import UserActivityPage  from './pages/UserActivityPage'
-import BandwidthPage     from './pages/BandwidthPage'
-import InsightsPage      from './pages/InsightsPage'
-import UtilityRatePage  from './pages/UtilityRatePage'
-import FeedbackPage     from './pages/FeedbackPage'
+import FeedbackPage      from './pages/FeedbackPage'
+import ExperimentalReportsPage from './pages/ExperimentalReportsPage'
 import SlaConfigModal    from './components/SlaConfigModal'
 
 const TABS = [
   { id: 'dashboard',     label: 'Dashboard',       icon: <GridIcon /> },
-  { id: 'priority',      label: 'Priority Tracker', icon: <FlagIcon /> },
-  { id: 'analytics',     label: 'Analytics',        icon: <ChartIcon /> },
   { id: 'user-activity', label: 'User Activity',    icon: <UsersIcon /> },
-  { id: 'bandwidth',     label: 'Bandwidth',        icon: <BoltIcon /> },
-  { id: 'insights',      label: 'Insights',         icon: <SparklesIcon /> },
-  { id: 'utility-rate', label: 'Utility Rate',     icon: <GaugeIcon /> },
   { id: 'feedback',      label: 'Feedback',         icon: <SmileIcon /> },
 ]
 
@@ -165,14 +156,10 @@ export default function App() {
 
       <main style={{ flex: 1, padding: '24px', paddingBottom: 48 }}>
         <div style={{ maxWidth: 1600, margin: '0 auto' }}>
-          {activeTab === 'dashboard'     && <DashboardPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
-          {activeTab === 'priority'      && <PriorityPage     sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
-          {activeTab === 'analytics'     && <AnalyticsPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
+          {activeTab === 'dashboard'     && <DashboardPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} onOpenExperimental={() => setActiveTab('experimental')} />}
           {activeTab === 'user-activity' && <UserActivityPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
-          {activeTab === 'bandwidth'     && <BandwidthPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
-          {activeTab === 'insights'      && <InsightsPage     sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
-          {activeTab === 'utility-rate' && <UtilityRatePage  sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'feedback'      && <FeedbackPage sessionId={sessionId} />}
+          {activeTab === 'experimental'  && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}
         </div>
       </main>
 
@@ -297,25 +284,10 @@ function AppHeader({ filename, totalRows, onReupload, onBack, onSlaConfig }) {
 function GridIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
 }
-function FlagIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-}
-function ChartIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
-}
 function UsersIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
 }
-function BoltIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-}
-function SparklesIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3L13.5 8.5L19 10L13.5 11.5L12 17L10.5 11.5L5 10L10.5 8.5Z"/><path d="M19 3L19.75 5.25L22 6L19.75 6.75L19 9L18.25 6.75L16 6L18.25 5.25Z"/><path d="M5 17L5.5 18.5L7 19L5.5 19.5L5 21L4.5 19.5L3 19L4.5 18.5Z"/></svg>
-}
 function SmileIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-}
-function GaugeIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10"/><path d="M12 16V12"/><path d="M8 12H4"/><path d="M16 12h-1"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
 }
 

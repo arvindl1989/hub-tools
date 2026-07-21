@@ -74,6 +74,13 @@ export async function getByTeam(sid, dateFrom, dateTo, dimFilters = {}) {
   return data
 }
 
+export async function getByAssignee(sid, dateFrom, dateTo, dimFilters = {}) {
+  const { data } = await client.get(`/sessions/${sid}/by-assignee`, {
+    params: _clean({ date_from: dateFrom, date_to: dateTo, ...dimFilters }),
+  })
+  return data
+}
+
 export async function getByCreator(sid, dateFrom, dateTo, dimFilters = {}) {
   const { data } = await client.get(`/sessions/${sid}/by-creator`, {
     params: _clean({ date_from: dateFrom, date_to: dateTo, ...dimFilters }),
