@@ -1,3 +1,5 @@
+import { useState, useRef, useEffect } from 'react'
+
 const pad = (n) => String(n).padStart(2, '0')
 const localDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 const today    = () => localDate(new Date())
@@ -47,9 +49,9 @@ const PRESETS = [
   { label: 'Last year',    from: yearStart(-1),  to: yearEnd(-1)      },
 ]
 
-// Explicit year-labeled Half/Quarter buttons — always unambiguous, unlike the
-// relative ones above. Covers the current year and the one before it, so the
-// set quietly rolls forward (e.g. 2026/2027) without needing a code change.
+// Explicit year-labeled Half/Quarter options — always unambiguous, unlike the
+// relative ones above. Covers the current year and the two before it, so the
+// set quietly rolls forward (e.g. 2025/2026/2027) without needing a code change.
 function yearHalfBounds(year, half) {
   const startMonth = half === 1 ? 0 : 6
   return {
@@ -65,17 +67,28 @@ function yearQuarterBounds(year, q) {
   }
 }
 
-const YEARS = [new Date().getFullYear() - 1, new Date().getFullYear()]
+const thisYear = new Date().getFullYear()
+const YEARS = [thisYear - 2, thisYear - 1, thisYear]
 
-const YEAR_HALF_PRESETS = YEARS.flatMap((y) => [1, 2].map((h) => {
-  const b = yearHalfBounds(y, h)
-  return { label: `${y} ${h === 1 ? 'First' : 'Second'} Half`, from: b.start, to: b.end }
-}))
+// { [year]: { halves: [...], quarters: [...] } }
+const YEAR_PERIODS = Object.fromEntries(YEARS.map((y) => [
+  y,
+  {
+    halves: [1, 2].map((h) => {
+      const b = yearHalfBounds(y, h)
+      return { label: h === 1 ? 'First Half' : 'Second Half', from: b.start, to: b.end }
+    }),
+    quarters: [1, 2, 3, 4].map((q) => {
+      const b = yearQuarterBounds(y, q)
+      return { label: `Q${q}`, from: b.start, to: b.end }
+    }),
+  },
+]))
 
-const YEAR_QUARTER_PRESETS = YEARS.flatMap((y) => [1, 2, 3, 4].map((q) => {
-  const b = yearQuarterBounds(y, q)
-  return { label: `${y} Q${q}`, from: b.start, to: b.end }
-}))
+const ALL_YEAR_PERIODS = YEARS.flatMap((y) => [
+  ...YEAR_PERIODS[y].halves.map((p) => ({ ...p, label: `${y} ${p.label}` })),
+  ...YEAR_PERIODS[y].quarters.map((p) => ({ ...p, label: `${y} ${p.label}` })),
+])
 
 const BASE_BTN = {
   padding: '5px 10px', fontSize: 12, fontWeight: 500,
@@ -83,40 +96,103 @@ const BASE_BTN = {
   fontFamily: 'Inter, sans-serif', transition: 'background 0.12s, color 0.12s, border-color 0.12s',
 }
 
-function PresetRow({ presets, active, onChange }) {
+function PresetButton({ label, isActive, onClick, small = false }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-      {presets.map((p) => {
-        const isActive = active?.label === p.label
-        return (
-          <button
-            key={p.label}
-            onClick={() => onChange(p.from, p.to)}
-            style={{
-              ...BASE_BTN,
-              background:  isActive ? '#1450f5' : '#fff',
-              color:       isActive ? '#fff'    : '#6e6e6e',
-              borderColor: isActive ? '#1450f5' : '#e8e2d6',
-            }}
-            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f5f8fe' }}
-            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = '#fff' }}
-          >
-            {p.label}
-          </button>
-        )
-      })}
+    <button
+      onClick={onClick}
+      style={{
+        ...BASE_BTN,
+        ...(small ? { padding: '4px 9px', fontSize: 11.5 } : {}),
+        background:  isActive ? '#1450f5' : '#fff',
+        color:       isActive ? '#fff'    : '#6e6e6e',
+        borderColor: isActive ? '#1450f5' : '#e8e2d6',
+      }}
+      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f5f8fe' }}
+      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = '#fff' }}
+    >
+      {label}
+    </button>
+  )
+}
+
+function PeriodPickerButton({ dateFrom, dateTo, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const activeYearPeriod = ALL_YEAR_PERIODS.find((p) => p.from === dateFrom && p.to === dateTo)
+
+  useEffect(() => {
+    if (!open) return
+    const onClickOutside = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  const pick = (p) => { onChange(p.from, p.to); setOpen(false) }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          ...BASE_BTN,
+          display: 'flex', alignItems: 'center', gap: 6,
+          background:  activeYearPeriod ? '#1450f5' : '#fff',
+          color:       activeYearPeriod ? '#fff'    : '#6e6e6e',
+          borderColor: activeYearPeriod ? '#1450f5' : '#e8e2d6',
+        }}
+      >
+        {activeYearPeriod ? activeYearPeriod.label : 'By Period'}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7, flexShrink: 0 }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 30,
+          background: '#fff', border: '1px solid #e8e2d6', borderRadius: 10,
+          boxShadow: '0 8px 20px rgba(20,20,20,0.12)',
+          padding: 12, minWidth: 300, display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          {[...YEARS].reverse().map((y) => (
+            <div key={y}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#141414', marginBottom: 6 }}>{y}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                {YEAR_PERIODS[y].halves.map((p) => (
+                  <PresetButton key={p.label} label={p.label}
+                    isActive={p.from === dateFrom && p.to === dateTo}
+                    onClick={() => pick(p)} small />
+                ))}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {YEAR_PERIODS[y].quarters.map((p) => (
+                  <PresetButton key={p.label} label={p.label}
+                    isActive={p.from === dateFrom && p.to === dateTo}
+                    onClick={() => pick(p)} small />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange }) {
-  const ALL_PRESETS = [...PRESETS, ...YEAR_HALF_PRESETS, ...YEAR_QUARTER_PRESETS]
-  const active = ALL_PRESETS.find((p) => p.from === dateFrom && p.to === dateTo)
+  const active = PRESETS.find((p) => p.from === dateFrom && p.to === dateTo)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <PresetRow presets={PRESETS} active={active} onChange={onChange} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+
+      {/* Preset pills — wraps to multiple rows, no clipping */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {PRESETS.map((p) => (
+          <PresetButton key={p.label} label={p.label} isActive={active?.label === p.label} onClick={() => onChange(p.from, p.to)} />
+        ))}
+      </div>
+
+      <PeriodPickerButton dateFrom={dateFrom} dateTo={dateTo} onChange={onChange} />
 
       {/* Custom date inputs */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -151,16 +227,6 @@ export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange }
             title="Clear dates"
           >✕</button>
         )}
-      </div>
-      </div>
-
-      {/* Explicit year-labeled Half/Quarter buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: '#9c9c9c', textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>
-          By period:
-        </span>
-        <PresetRow presets={YEAR_HALF_PRESETS} active={active} onChange={onChange} />
-        <PresetRow presets={YEAR_QUARTER_PRESETS} active={active} onChange={onChange} />
       </div>
     </div>
   )
