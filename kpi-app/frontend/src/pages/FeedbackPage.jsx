@@ -13,16 +13,12 @@ function scoreTone(score, max = 5) {
   return { fg: '#8c1a2e', bg: '#ffcdd7', bar: '#c0305a' }
 }
 
-// Tone for a "% of ratings that are top-mark" metric — different bands than a raw score
-function pctTone(pct) {
-  if (pct == null) return { fg: '#6e6e6e', bg: '#f1ede3' }
-  if (pct >= 50) return { fg: '#0f5132', bg: '#aae1c8' }
-  if (pct >= 30) return { fg: '#1e8a5e', bg: '#d3efe0' }
-  if (pct >= 15) return { fg: '#7a5400', bg: '#ffe141' }
-  return { fg: '#8c1a2e', bg: '#ffcdd7' }
-}
-
 const svcColor = (name, i) => SUB_CAT_COLORS[name] ?? PALETTE[i % PALETTE.length]
+
+// KONE Information — the brand's secondary typeface, self-hosted (see index.css).
+// Used for KONE-style figures (big numbers) and ALL-CAPS labels; body/sentence
+// text stays on Inter per brand rule.
+const KONE_FONT = "'KONE Information', 'Inter', sans-serif"
 
 const PARAM_LABELS = {
   overall: 'Overall', quality: 'Quality',
@@ -169,12 +165,11 @@ export default function FeedbackPage({ sessionId }) {
 
       {data && (<>
 
-        {/* 6 metric cards: Total, Rate, Overall/Quality/Timeliness/Interaction 5★ */}
+        {/* 6 metric cards: Total, Rate, Overall/Quality/Timeliness/Interaction */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          <div style={{ background: '#1450f5', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase' }}>Total Feedbacks</div>
-            <div style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>{data.total}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 6 }}>{data.rated} with a rating</div>
+          <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase', fontFamily: KONE_FONT }}>Total Feedbacks</div>
+            <div style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, marginTop: 8, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>{data.total}</div>
           </div>
 
           <FeedbackRateCard rate={data.feedback_rate} />
@@ -183,9 +178,7 @@ export default function FeedbackPage({ sessionId }) {
             <FiveStarCard
               key={k}
               label={PARAM_LABELS[k]}
-              five={k === 'overall'
-                ? (data.param_five_star?.overall ?? { count: data.five_star_count, pct: data.five_star_pct, rated: data.rated })
-                : data.param_five_star?.[k]}
+              avg={data.param_avgs?.[k] ?? (k === 'overall' ? data.avg_score : null)}
               scaleMax={scaleMax}
             />
           ))}
@@ -221,6 +214,11 @@ export default function FeedbackPage({ sessionId }) {
             <UserTable rows={data.by_user} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={u => setUser(u === user ? '' : u)} active={user} />
           </Card>
         </div>
+
+        {/* Score Distribution — rows = star level, columns = rating parameter */}
+        <Card title="Score Distribution" subtitle="How many feedbacks gave each star rating, per parameter" accent="#1450f5">
+          <ScoreDistributionTable distributions={data.distributions} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} />
+        </Card>
 
         {/* Feedback Entries — full width, own Specialist/Service filters */}
         <Card title="Feedback Entries"
@@ -320,54 +318,50 @@ function Card({ title, subtitle, accent = '#1450f5', controls, children }) {
 }
 
 // ── Feedback Rate card (feedbacks ÷ tickets, needs ticket-session join) ───────
+// White box, KONE-blue square outline — matches the rating cards. Only the
+// figures use KONE Information; the surrounding words stay Inter.
 function FeedbackRateCard({ rate }) {
-  // Same green used by the Overall/Quality/Timeliness/Interaction 5★ cards
   return (
-    <div style={{ background: '#d3efe0', borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#1e8a5e', textTransform: 'uppercase' }}>Feedback Rate</div>
-      <div style={{ fontSize: 26, fontWeight: 800, color: '#141414', lineHeight: 1.2, marginTop: 8, letterSpacing: '-0.01em' }}>
-        {rate ? (rate.ratio <= 1 ? 'Every ticket got feedback' : `1 in ${rate.ratio} tickets got feedback`) : '—'}
-      </div>
-      <div style={{ fontSize: 11, color: '#1e8a5e', marginTop: 6 }}>
-        {rate
-          ? `${rate.pct}% · ${rate.feedbacks} of ${rate.tickets} tickets`
-          : 'Connect ticket data on Dashboard to see this metric'}
+    <div style={{ background: '#fff', border: '2px solid #1450f5', borderRadius: 8, padding: '18px 20px' }}>
+      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: '#1450f5', textTransform: 'uppercase', fontFamily: KONE_FONT }}>Feedback Rate</div>
+      <div style={{ fontSize: 20, fontWeight: 500, color: '#141414', lineHeight: 1.35, marginTop: 10 }}>
+        {rate ? (
+          rate.ratio <= 1
+            ? 'Every ticket got feedback'
+            : <>1 in <span style={{ fontFamily: KONE_FONT, fontSize: 26, fontWeight: 700 }}>{rate.ratio}</span> tickets got feedback</>
+        ) : <span style={{ fontFamily: KONE_FONT, fontSize: 34, fontWeight: 700 }}>—</span>}
       </div>
     </div>
   )
 }
 
-// ── One of the four rating-parameter 5★ cards ──────────────────────────────────
-function FiveStarCard({ label, five, scaleMax }) {
-  const pct = five?.pct ?? null
-  const tone = pctTone(pct)
+// ── One of the four rating-parameter cards — average score out of scaleMax ────
+function FiveStarCard({ label, avg, scaleMax }) {
   return (
-    <div style={{ background: tone.bg, borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: tone.fg, textTransform: 'uppercase' }}>
-        {label} {scaleMax}★ Rating
+    <div style={{ background: '#fff', border: '2px solid #1450f5', borderRadius: 8, padding: '18px 20px' }}>
+      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: '#1450f5', textTransform: 'uppercase', fontFamily: KONE_FONT }}>
+        {label}
       </div>
-      <div style={{ fontSize: 34, fontWeight: 800, color: '#141414', lineHeight: 1, marginTop: 8, letterSpacing: '-0.02em' }}>
-        {pct != null ? `${pct}%` : '—'}
-      </div>
-      <div style={{ fontSize: 11, color: tone.fg, marginTop: 6 }}>
-        {five ? `(${five.count} ${scaleMax}★ / ${five.rated} feedbacks)` : 'No data for this parameter'}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
+        <span style={{ fontSize: 34, fontWeight: 700, color: '#141414', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
+          {avg != null ? avg : '—'}
+        </span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: '#6e6e6e', fontFamily: KONE_FONT }}>/ {scaleMax}</span>
       </div>
     </div>
   )
 }
 
 // ── Promoter / Passive / Detractor section ─────────────────────────────────────
+// All three buckets share the same white + KONE-blue-outline treatment; each
+// Top 3 list is rendered as a direct extension of its bucket's box (one card,
+// not two), separated only by a hairline.
 function NpsSection({ nps, scaleMax }) {
   if (!nps) return null
   const buckets = [
-    { key: 'promoters',  label: 'Promoters',  count: nps.promoters,  pct: nps.promoter_pct,  tone: { fg: '#0f5132', bg: '#aae1c8' } },
-    { key: 'passives',   label: 'Passives',   count: nps.passives,   pct: nps.passive_pct,   tone: { fg: '#7a5400', bg: '#ffe141' } },
-    { key: 'detractors', label: 'Detractors', count: nps.detractors, pct: nps.detractor_pct, tone: { fg: '#8c1a2e', bg: '#ffcdd7' } },
-  ]
-  const topLists = [
-    { key: 'top_promoters',  title: 'Top 3 Promoters',  items: nps.top_promoters,  tone: buckets[0].tone },
-    { key: 'top_passives',   title: 'Top 3 Passives',   items: nps.top_passives,   tone: buckets[1].tone },
-    { key: 'top_detractors', title: 'Top 3 Detractors', items: nps.top_detractors, tone: buckets[2].tone },
+    { key: 'promoters',  label: 'Promoters',  count: nps.promoters,  items: nps.top_promoters },
+    { key: 'passives',   label: 'Passives',   count: nps.passives,   items: nps.top_passives },
+    { key: 'detractors', label: 'Detractors', count: nps.detractors, items: nps.top_detractors },
   ]
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -379,45 +373,42 @@ function NpsSection({ nps, scaleMax }) {
           </p>
         </div>
         {nps.score != null && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px' }}>
-            NPS Score {nps.score > 0 ? '+' : ''}{nps.score}
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px', fontFamily: KONE_FONT }}>
+            NPS SCORE {nps.score > 0 ? '+' : ''}{nps.score}
           </span>
         )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {buckets.map(b => (
-          <div key={b.key} style={{ background: b.tone.bg, borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: b.tone.fg, textTransform: 'uppercase' }}>{b.label}</div>
-            <div style={{ fontSize: 30, fontWeight: 800, color: '#141414', lineHeight: 1, marginTop: 8 }}>{b.count}</div>
-            <div style={{ fontSize: 11, color: b.tone.fg, marginTop: 6 }}>{b.pct != null ? `${b.pct}% of rated feedback` : '—'}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {topLists.map(t => (
-          <div key={t.key} style={{ background: '#fff', border: '1px solid #e8e2d6', borderLeft: `3px solid ${t.tone.fg}`, borderRadius: 12, padding: '14px 16px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#404040', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>{t.title}</div>
-            {!t.items?.length ? (
-              <div style={{ fontSize: 12, color: '#9c9c9c' }}>No data</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {t.items.map((it, i) => (
-                  <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{
-                      width: 20, height: 20, borderRadius: '50%', background: t.tone.bg, color: t.tone.fg,
-                      fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>{i + 1}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#141414', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
-                      {it.fl && <div style={{ fontSize: 10.5, color: '#9c9c9c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.fl}</div>}
+          <div key={b.key} style={{ background: '#fff', border: '2px solid #1450f5', borderRadius: 8 }}>
+            <div style={{ padding: '16px 18px' }}>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: '#1450f5', textTransform: 'uppercase', fontFamily: KONE_FONT }}>{b.label}</div>
+              <div style={{ fontSize: 30, fontWeight: 700, color: '#141414', lineHeight: 1, marginTop: 8, fontFamily: KONE_FONT }}>{b.count}</div>
+            </div>
+            <div style={{ borderTop: '1px solid #e8e2d6', padding: '14px 18px' }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, fontFamily: KONE_FONT }}>Top 3</div>
+              {!b.items?.length ? (
+                <div style={{ fontSize: 12, color: '#9c9c9c' }}>No data</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {b.items.map((it, i) => (
+                    <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{
+                        width: 20, height: 20, borderRadius: '50%', background: '#eef3fe', color: '#1450f5',
+                        fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        fontFamily: KONE_FONT,
+                      }}>{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#141414', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
+                        {it.fl && <div style={{ fontSize: 10.5, color: '#9c9c9c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.fl}</div>}
+                      </div>
+                      <span style={{ fontSize: 12, color: '#6e6e6e', flexShrink: 0, fontFamily: KONE_FONT }}>{it.count}</span>
                     </div>
-                    <span style={{ fontSize: 12, color: '#6e6e6e', flexShrink: 0 }}>{it.count}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -720,8 +711,47 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
 }
 
 const thStyle = {
-  padding: '6px', fontSize: 10, fontWeight: 700, color: '#6e6e6e',
+  padding: '6px', fontSize: 10, fontWeight: 600, color: '#6e6e6e',
   textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left',
+  fontFamily: KONE_FONT,
+}
+
+// ── Score Distribution table (rows = star level, columns = rating parameter) ──
+function ScoreDistributionTable({ distributions = {}, paramKeys = [], scaleMax = 5 }) {
+  if (!paramKeys.length) return <Empty text="No rating parameters detected in the sheet" />
+  const levels = Array.from({ length: scaleMax }, (_, i) => scaleMax - i) // e.g. 5,4,3,2,1
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
+            <th style={thStyle}>Rating</th>
+            {paramKeys.map(k => (
+              <th key={k} style={{ ...thStyle, textAlign: 'center' }}>{PARAM_LABELS[k] ?? k}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {levels.map(lvl => (
+            <tr key={lvl} style={{ borderBottom: '1px solid #f1ede3' }}>
+              <td style={{ padding: '9px 6px', fontWeight: 600, color: '#141414', whiteSpace: 'nowrap' }}>
+                {lvl} Star Feedbacks
+              </td>
+              {paramKeys.map(k => {
+                const row = (distributions?.[k] ?? []).find(d => d.score === lvl)
+                return (
+                  <td key={k} style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 700, color: '#1450f5', fontFamily: KONE_FONT }}>
+                    {row?.count ?? 0}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 // ── Feedback entries list ──────────────────────────────────────────────────────
