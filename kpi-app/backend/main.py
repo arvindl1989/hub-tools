@@ -2531,13 +2531,17 @@ def feedback_summary(
             "ratio": int(total_tickets / rated_ct + 0.5) if rated_ct else None,
         }
 
-    # ── NPS-style classification on the Overall score: 5=promoter,4=passive,1-3=detractor ──
+    # ── NPS-style classification on the Overall score, scaled to the sheet's rating
+    #    scale — on a 5-point scale: 4.0-5.0 promoter, 2.6-4.0 passive, below 2.6 detractor.
+    promoter_cut = round(scale_max * 0.8, 2)   # 4.0 on a 5-pt scale
+    passive_cut = round(scale_max * 0.52, 2)   # 2.6 on a 5-pt scale
+
     def _nps_bucket(v):
         if pd.isna(v):
             return None
-        if v >= scale_max:
+        if v >= promoter_cut:
             return "promoter"
-        if v >= scale_max - 1:
+        if v >= passive_cut:
             return "passive"
         return "detractor"
 
@@ -2568,6 +2572,8 @@ def feedback_summary(
         "passive_pct":   round(nps_counts["passive"]   / nps_total * 100, 1) if nps_total else None,
         "detractor_pct": round(nps_counts["detractor"] / nps_total * 100, 1) if nps_total else None,
         "score": round((nps_counts["promoter"] - nps_counts["detractor"]) / nps_total * 100, 1) if nps_total else None,
+        "promoter_cut": promoter_cut,
+        "passive_cut": passive_cut,
         "top_promoters":  _top_fls("promoter"),
         "top_passives":   _top_fls("passive"),
         "top_detractors": _top_fls("detractor"),

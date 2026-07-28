@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { getFeedback } from '../api'
 import DateRangePicker from '../components/DateRangePicker'
-import { SUB_CAT_COLORS, PALETTE } from '../utils/colors'
+import { PALETTE } from '../utils/colors'
 
 // ── Score → KONE sentiment colors ─────────────────────────────────────────────
 function scoreTone(score, max = 5) {
@@ -13,7 +13,23 @@ function scoreTone(score, max = 5) {
   return { fg: '#8c1a2e', bg: '#ffcdd7', bar: '#c0305a' }
 }
 
-const svcColor = (name, i) => SUB_CAT_COLORS[name] ?? PALETTE[i % PALETTE.length]
+// Same 3-way split the backend uses for NPS (promoter/passive/detractor),
+// reused wherever a rating box should read as an NPS-style verdict rather
+// than a plain figure — currently just "Feedback by FL".
+const NPS_BUCKET_STYLES = {
+  promoter:  { fg: '#0f5132', bg: '#aae1c8' },
+  passive:   { fg: '#7a5400', bg: '#ffe141' },
+  detractor: { fg: '#8c1a2e', bg: '#ffcdd7' },
+}
+function npsBucketTone(score, max = 5) {
+  if (score == null) return { fg: '#6e6e6e', bg: '#f1ede3' }
+  if (score >= max * 0.8)  return NPS_BUCKET_STYLES.promoter
+  if (score >= max * 0.52) return NPS_BUCKET_STYLES.passive
+  return NPS_BUCKET_STYLES.detractor
+}
+
+// Plain KONE-blue rating box — Area / Specialist / Service ratings.
+const BLUE_BADGE = { fg: '#1450f5', bg: '#eef3fe' }
 
 // KONE Information — the brand's secondary typeface, self-hosted (see index.css).
 // Used for KONE-style figures (big numbers) and ALL-CAPS labels; body/sentence
@@ -189,14 +205,14 @@ export default function FeedbackPage({ sessionId }) {
 
         {/* Feedback by FL + Feedback by Area */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card title="Feedback by FL" subtitle="Volume and average score per FL segment" accent="#0077a8">
+          <Card title="Feedback by FL" subtitle="Volume and average score per FL segment · rating colored by NPS bucket" accent="#0077a8">
             {data.has_fl_segment
-              ? <RankedList rows={data.by_fl} labelKey="fl_segment" scaleMax={scaleMax} />
+              ? <RankedList rows={data.by_fl} labelKey="fl_segment" scaleMax={scaleMax} ratingVariant="nps" />
               : <Empty text={'No "FL" column detected in the sheet'} />}
           </Card>
           <Card title="Feedback by Area" subtitle="Volume and average score per area" accent="#c0305a">
             {data.has_area
-              ? <RankedList rows={data.by_area} labelKey="area" scaleMax={scaleMax} />
+              ? <RankedList rows={data.by_area} labelKey="area" scaleMax={scaleMax} ratingVariant="blue" />
               : <ConnectTicketsNote />}
           </Card>
         </div>
@@ -318,18 +334,20 @@ function Card({ title, subtitle, accent = '#1450f5', controls, children }) {
 }
 
 // ── Feedback Rate card (feedbacks ÷ tickets, needs ticket-session join) ───────
-// White box, KONE-blue square outline — matches the rating cards. Only the
-// figures use KONE Information; the surrounding words stay Inter.
+// White box, KONE-blue square outline — matches the rating cards. The rate
+// sentence itself is exempt from the KONE Information rule (it reads better
+// as plain Inter with the raw feedback/ticket percentage in brackets).
 function FeedbackRateCard({ rate }) {
+  const pctSuffix = rate?.pct != null ? ` (${rate.pct}%)` : ''
   return (
     <div style={{ background: '#fff', border: '2px solid #1450f5', borderRadius: 8, padding: '18px 20px' }}>
       <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: '#1450f5', textTransform: 'uppercase', fontFamily: KONE_FONT }}>Feedback Rate</div>
       <div style={{ fontSize: 20, fontWeight: 500, color: '#141414', lineHeight: 1.35, marginTop: 10 }}>
         {rate ? (
           rate.ratio <= 1
-            ? 'Every ticket got feedback'
-            : <>1 in <span style={{ fontFamily: KONE_FONT, fontSize: 26, fontWeight: 700 }}>{rate.ratio}</span> tickets got feedback</>
-        ) : <span style={{ fontFamily: KONE_FONT, fontSize: 34, fontWeight: 700 }}>—</span>}
+            ? <>Every ticket got feedback<span style={{ color: '#6e6e6e', fontSize: 14 }}>{pctSuffix}</span></>
+            : <>1 in <span style={{ fontSize: 26, fontWeight: 700 }}>{rate.ratio}</span> tickets got feedback<span style={{ color: '#6e6e6e', fontSize: 14 }}>{pctSuffix}</span></>
+        ) : <span style={{ fontSize: 34, fontWeight: 700 }}>—</span>}
       </div>
     </div>
   )
@@ -353,27 +371,31 @@ function FiveStarCard({ label, avg, scaleMax }) {
 }
 
 // ── Promoter / Passive / Detractor section ─────────────────────────────────────
-// All three buckets share the same white + KONE-blue-outline treatment; each
-// Top 3 list is rendered as a direct extension of its bucket's box (one card,
-// not two), separated only by a hairline.
+// Each bucket keeps its own sentiment color (mint/yellow/pink) across the
+// whole box; the Top 3 list is a direct extension of that same box (one
+// card, not two), separated only by a hairline.
 function NpsSection({ nps, scaleMax }) {
   if (!nps) return null
+  const promoterCut = nps.promoter_cut ?? +(scaleMax * 0.8).toFixed(2)
+  const passiveCut  = nps.passive_cut  ?? +(scaleMax * 0.52).toFixed(2)
   const buckets = [
-    { key: 'promoters',  label: 'Promoters',  count: nps.promoters,  items: nps.top_promoters },
-    { key: 'passives',   label: 'Passives',   count: nps.passives,   items: nps.top_passives },
-    { key: 'detractors', label: 'Detractors', count: nps.detractors, items: nps.top_detractors },
+    { key: 'promoters',  label: 'Promoters',  count: nps.promoters,  items: nps.top_promoters,  ...NPS_BUCKET_STYLES.promoter },
+    { key: 'passives',   label: 'Passives',   count: nps.passives,   items: nps.top_passives,   ...NPS_BUCKET_STYLES.passive },
+    { key: 'detractors', label: 'Detractors', count: nps.detractors, items: nps.top_detractors, ...NPS_BUCKET_STYLES.detractor },
   ]
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <h3 style={{ fontSize: 15, fontWeight: 700, color: '#141414', margin: 0 }}>Promoter / Passive / Detractor</h3>
-          <p style={{ fontSize: 11, color: '#9c9c9c', margin: '3px 0 0' }}>
-            Based on Overall score · {scaleMax}★ promoter · {scaleMax - 1}★ passive · below {scaleMax - 1}★ detractor
+          <p style={{ fontSize: 11, color: '#9c9c9c', margin: '3px 0 0', maxWidth: 620, lineHeight: 1.55 }}>
+            Based on the Overall score out of {scaleMax}: <b>{promoterCut}–{scaleMax}</b> is a Promoter,{' '}
+            <b>{passiveCut}–{promoterCut}</b> is a Passive, below <b>{passiveCut}</b> is a Detractor.
+            NPS score = % Promoters − % Detractors, on a −100 to +100 scale.
           </p>
         </div>
         {nps.score != null && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px', fontFamily: KONE_FONT }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px', fontFamily: KONE_FONT, flexShrink: 0 }}>
             NPS SCORE {nps.score > 0 ? '+' : ''}{nps.score}
           </span>
         )}
@@ -381,29 +403,29 @@ function NpsSection({ nps, scaleMax }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {buckets.map(b => (
-          <div key={b.key} style={{ background: '#fff', border: '2px solid #1450f5', borderRadius: 8 }}>
+          <div key={b.key} style={{ background: b.bg, borderRadius: 8 }}>
             <div style={{ padding: '16px 18px' }}>
-              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: '#1450f5', textTransform: 'uppercase', fontFamily: KONE_FONT }}>{b.label}</div>
-              <div style={{ fontSize: 30, fontWeight: 700, color: '#141414', lineHeight: 1, marginTop: 8, fontFamily: KONE_FONT }}>{b.count}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: b.fg, textTransform: 'uppercase', fontFamily: KONE_FONT }}>{b.label}</div>
+              <div style={{ fontSize: 30, fontWeight: 700, color: b.fg, lineHeight: 1, marginTop: 8, fontFamily: KONE_FONT }}>{b.count}</div>
             </div>
-            <div style={{ borderTop: '1px solid #e8e2d6', padding: '14px 18px' }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, fontFamily: KONE_FONT }}>Top 3</div>
+            <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', padding: '14px 18px' }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: b.fg, opacity: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, fontFamily: KONE_FONT }}>Top 3</div>
               {!b.items?.length ? (
-                <div style={{ fontSize: 12, color: '#9c9c9c' }}>No data</div>
+                <div style={{ fontSize: 12, color: b.fg, opacity: 0.6 }}>No data</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {b.items.map((it, i) => (
                     <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{
-                        width: 20, height: 20, borderRadius: '50%', background: '#eef3fe', color: '#1450f5',
+                        width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.55)', color: b.fg,
                         fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                         fontFamily: KONE_FONT,
                       }}>{i + 1}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#141414', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
-                        {it.fl && <div style={{ fontSize: 10.5, color: '#9c9c9c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.fl}</div>}
+                        <div style={{ fontSize: 13, fontWeight: 600, color: b.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
+                        {it.fl && <div style={{ fontSize: 10.5, color: b.fg, opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.fl}</div>}
                       </div>
-                      <span style={{ fontSize: 12, color: '#6e6e6e', flexShrink: 0, fontFamily: KONE_FONT }}>{it.count}</span>
+                      <span style={{ fontSize: 12, color: b.fg, opacity: 0.85, flexShrink: 0, fontFamily: KONE_FONT }}>{it.count}</span>
                     </div>
                   ))}
                 </div>
@@ -417,25 +439,31 @@ function NpsSection({ nps, scaleMax }) {
 }
 
 // ── Generic ranked bar list (Feedback by FL / Feedback by Area) ───────────────
-function RankedList({ rows = [], labelKey, scaleMax }) {
+// Meters are always KONE blue. The rating box is blue too, EXCEPT for "Feedback
+// by FL" (ratingVariant="nps"), which is color-coded to match the NPS bucket
+// (promoter/passive/detractor) the FL's average score falls into.
+function RankedList({ rows = [], labelKey, scaleMax, ratingVariant = 'blue' }) {
   if (!rows.length) return <Empty />
   const maxCount = Math.max(...rows.map(r => r.count), 1)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {rows.map((r, i) => {
-        const c = PALETTE[i % PALETTE.length]
-        const t = scoreTone(r.avg_score, scaleMax)
+      {rows.map((r) => {
+        const t = ratingVariant === 'nps' ? npsBucketTone(r.avg_score, scaleMax) : BLUE_BADGE
         return (
           <div key={r[labelKey]} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: c, flexShrink: 0 }} />
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</div>
               <div style={{ height: 8, background: '#f1ede3', borderRadius: 4, marginTop: 5, overflow: 'hidden' }}>
-                <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: c, borderRadius: 4 }} />
+                <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 4 }} />
               </div>
             </div>
             <span style={{ fontSize: 12, color: '#6e6e6e', width: 60, textAlign: 'right' }}>{r.count} fb</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 6, padding: '3px 8px', width: 52, textAlign: 'center', flexShrink: 0 }}>
+            <span style={{
+              fontSize: 12, fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 6, padding: '3px 8px',
+              width: 52, textAlign: 'center', flexShrink: 0,
+              fontFamily: ratingVariant === 'blue' ? KONE_FONT : undefined,
+            }}>
               {r.avg_score ?? '—'}
             </span>
           </div>
@@ -594,14 +622,11 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
   const maxCount = Math.max(...rows.map(r => r.count), 1)
   const hasParams = paramKeys.length > 0
 
-  const scoreBadge = (v) => {
-    const t = scoreTone(v, scaleMax)
-    return (
-      <span style={{ fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12 }}>
-        {v ?? '—'}
-      </span>
-    )
-  }
+  const scoreBadge = (v) => (
+    <span style={{ fontWeight: 700, color: BLUE_BADGE.fg, background: BLUE_BADGE.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
+      {v ?? '—'}
+    </span>
+  )
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -618,19 +643,18 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => {
-            const c = svcColor(r.service, i)
+          {rows.map((r) => {
             const isActive = active === r.service
             return (
               <tr key={r.service} onClick={() => onPick(r.service)}
                 style={{ borderBottom: '1px solid #f1ede3', cursor: 'pointer', background: isActive ? '#eef3fe' : 'transparent' }}>
                 <td style={{ padding: '9px 6px', minWidth: 170 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 3, background: c, flexShrink: 0 }} />
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
                     <span style={{ fontWeight: 600, color: isActive ? '#1450f5' : '#141414' }}>{r.service}</span>
                   </div>
                   <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
-                    <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: c, borderRadius: 3 }} />
+                    <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 3 }} />
                   </div>
                 </td>
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
@@ -654,14 +678,11 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   const maxCount = Math.max(...rows.map(r => r.count), 1)
   const hasParams = paramKeys.length > 0
 
-  const scoreBadge = (v) => {
-    const t = scoreTone(v, scaleMax)
-    return (
-      <span style={{ fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12 }}>
-        {v ?? '—'}
-      </span>
-    )
-  }
+  const scoreBadge = (v) => (
+    <span style={{ fontWeight: 700, color: BLUE_BADGE.fg, background: BLUE_BADGE.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
+      {v ?? '—'}
+    </span>
+  )
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -679,19 +700,18 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => {
-            const c = PALETTE[i % PALETTE.length]
+          {rows.map((r) => {
             const isActive = active === r.user
             return (
               <tr key={r.user} onClick={() => onPick(r.user)}
                 style={{ borderBottom: '1px solid #f1ede3', cursor: 'pointer', background: isActive ? '#eef3fe' : 'transparent' }}>
                 <td style={{ padding: '9px 6px', minWidth: 150 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 3, background: c, flexShrink: 0 }} />
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
                     <span style={{ fontWeight: 600, color: isActive ? '#1450f5' : '#141414', whiteSpace: 'nowrap' }}>{r.user}</span>
                   </div>
                   <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
-                    <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: c, borderRadius: 3 }} />
+                    <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 3 }} />
                   </div>
                 </td>
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
