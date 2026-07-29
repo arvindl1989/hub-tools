@@ -83,15 +83,44 @@ ROSTER = [
     {"key": "nitish",     "full_name": "Nitish JK",                  "short_name": "Nitish",     "in_leaderboard": True,  "has_quote_slot": True},
 ]
 
-# "Feedbacks by team member" leaderboard — slide index 7 (0-based, "Feedback
-# highlights"), 6 physical row slots, each a name + count text plus a track
-# (background) and fill (value) bar shape. Rank is assigned at generation time
-# by sorting counts descending, so the bar for the highest count is always
-# slot 1's full-width fill and every other bar is scaled relative to it —
-# never a stale, mismatched width left over from the template's sample data.
-# Shape IDs are only unique WITHIN a slide, so this must stay paired with its
-# slide index wherever it's used (see fill_pptx_template's bar_widths param).
-LEADERBOARD_SLIDE_INDEX = 7
+# Slide indices (0-based) that carry a proportional-bar section. All bar
+# geometry below (shape IDs, track widths) is only valid WITHIN its slide —
+# shape IDs are not unique across the whole presentation — so every fill-id
+# map here must stay paired with its slide index wherever it's used (see
+# fill_pptx_template's bar_widths param).
+KPI_SLIDE_INDEX = 2        # "Hub KPIs"
+REQUESTS_SLIDE_INDEX = 3   # "Requests overview"
+LEADERBOARD_SLIDE_INDEX = 7  # "Feedback highlights"
+
+# Feedback Rating bars (slide 3) — one track/fill pair per rating parameter.
+# Scale is absolute (score ÷ scale_max), not relative to each other — a
+# perfect score is always a full bar regardless of what the other parameters
+# scored.
+RATING_BAR_FILL_IDS = {"overall": 16, "quality": 20, "timeliness": 24, "interaction": 28}
+RATING_BAR_TRACK_WIDTH_EMU = 4533900
+
+# Ticket Inflow by Area bars (slide 4) — one bar per area, scaled relative to
+# the largest area count shown that period.
+AREA_BAR_FILL_IDS = {"eu": 12, "apm": 16, "global": 20, "ame": 24, "gcn": 28}
+AREA_BAR_TRACK_WIDTH_EMU = 2190750
+
+# By Work Type bars (slide 4) — inflow+outflow pair per sub-category. All 10
+# bars (5 categories × inflow/outflow) share ONE max so their lengths stay
+# comparable to each other, matching the "Inflow vs Outflow" framing.
+WORK_TYPE_BAR_FILL_IDS = {
+    "wt_wcm_inflow": 37,   "wt_wcm_outflow": 40,
+    "wt_cpgd_inflow": 44,  "wt_cpgd_outflow": 47,
+    "wt_email_inflow": 51, "wt_email_outflow": 54,
+    "wt_dcg_inflow": 58,   "wt_dcg_outflow": 61,
+    "wt_ra_inflow": 65,    "wt_ra_outflow": 68,
+}
+WORK_TYPE_BAR_TRACK_WIDTH_EMU = 4048125
+
+# "Feedbacks by team member" leaderboard (slide 8) — 6 physical row slots,
+# each a name + count text plus a track (background) and fill (value) bar
+# shape. Rank is assigned at generation time by sorting counts descending,
+# so the bar for the highest count is always slot 1's full-width fill and
+# every other bar is scaled relative to it.
 LEADERBOARD_FILL_SHAPE_IDS = [25, 29, 33, 37, 41, 45]
 LEADERBOARD_TRACK_WIDTH_EMU = 2628900
 
@@ -109,6 +138,15 @@ WORK_TYPE_KEYWORDS = [
     ("wt_dcg",  "demand creation"),
     ("wt_ra",   "retention"),
 ]
+
+
+def _bar_widths_by_max(values: dict, track_width_emu: int) -> dict:
+    """{key: raw_count} -> {key: width_emu}, each bar scaled relative to the
+    largest value in the group (that value's bar is full width)."""
+    max_v = max(values.values(), default=0)
+    if not max_v:
+        return {k: 0 for k in values}
+    return {k: round(track_width_emu * (v / max_v)) for k, v in values.items()}
 
 
 def _ordinal(n: int) -> str:
@@ -193,24 +231,25 @@ def compute_marketing_deck_tokens(
     tokens["kpi_in_pipeline"] = _fmt_num(hub_health.get("in_pipeline", 0))
 
     # By-area inflow (slide 4)
-    for col in ("eu", "apm", "ame", "global", "gcn"):
-        tokens[f"inflow_area_{col}"] = "0"
+    area_values = {col: 0 for col in ("eu", "apm", "ame", "global", "gcn")}
     if "area" in inflow_df.columns:
         area_counts = inflow_df.dropna(subset=["area"]).groupby("area").size()
         for area_val, count in area_counts.items():
             norm = str(area_val).strip().upper()
             if norm in {"EU", "APM", "AME", "GLOBAL", "GCN"}:
-                tokens[f"inflow_area_{norm.lower()}"] = _fmt_num(count)
+                area_values[norm.lower()] = int(count)
+    for col, count in area_values.items():
+        tokens[f"inflow_area_{col}"] = _fmt_num(count)
 
     # By work-type inflow/outflow (slide 4)
-    for prefix, _ in WORK_TYPE_KEYWORDS:
-        tokens[f"{prefix}_inflow"] = "0"
-        tokens[f"{prefix}_outflow"] = "0"
+    work_type_values = {f"{prefix}_{d}": 0 for prefix, _ in WORK_TYPE_KEYWORDS for d in ("inflow", "outflow")}
     if "sub_category" in df.columns:
         for prefix, kw in WORK_TYPE_KEYWORDS:
             match = df["sub_category"].fillna("").str.lower().str.contains(kw, regex=False)
-            tokens[f"{prefix}_inflow"] = _fmt_num(int((inflow_mask & match).sum()))
-            tokens[f"{prefix}_outflow"] = _fmt_num(int((outflow_mask & match).sum()))
+            work_type_values[f"{prefix}_inflow"] = int((inflow_mask & match).sum())
+            work_type_values[f"{prefix}_outflow"] = int((outflow_mask & match).sum())
+    for key, count in work_type_values.items():
+        tokens[key] = _fmt_num(count)
 
     # Key requests (slide 7) — completed tickets in range, grouped by area,
     # most-recently-closed first, capped to each column's slot count.
@@ -234,12 +273,19 @@ def compute_marketing_deck_tokens(
 
     # Feedback (slide 3 + 8)
     param_avgs = feedback_data.get("param_avgs") or {}
+    scale_max = feedback_data.get("scale_max") or 5
+    rating_scores = {
+        "overall": param_avgs.get("overall", feedback_data.get("avg_score")),
+        "quality": param_avgs.get("quality"),
+        "timeliness": param_avgs.get("timeliness"),
+        "interaction": param_avgs.get("interaction"),
+    }
     tokens["kpi_feedbacks"] = _fmt_num(feedback_data.get("total") or 0)
     tokens["kpi_feedback_rating"] = _fmt_score(feedback_data.get("avg_score"), 2)
-    tokens["kpi_overall"] = _fmt_score(param_avgs.get("overall", feedback_data.get("avg_score")))
-    tokens["kpi_quality"] = _fmt_score(param_avgs.get("quality"))
-    tokens["kpi_timeliness"] = _fmt_score(param_avgs.get("timeliness"))
-    tokens["kpi_interaction"] = _fmt_score(param_avgs.get("interaction"))
+    tokens["kpi_overall"] = _fmt_score(rating_scores["overall"])
+    tokens["kpi_quality"] = _fmt_score(rating_scores["quality"])
+    tokens["kpi_timeliness"] = _fmt_score(rating_scores["timeliness"])
+    tokens["kpi_interaction"] = _fmt_score(rating_scores["interaction"])
 
     by_user_count = {row["user"]: row["count"] for row in feedback_data.get("by_user", [])}
     entries = feedback_data.get("entries", [])  # already newest-first
@@ -267,6 +313,31 @@ def compute_marketing_deck_tokens(
         leaderboard_bar_widths[fill_shape_id] = (
             round(LEADERBOARD_TRACK_WIDTH_EMU * (count / max_count)) if max_count else 0
         )
-    bar_widths = {LEADERBOARD_SLIDE_INDEX: leaderboard_bar_widths}
+
+    # Feedback Rating bars — absolute (score ÷ scale_max), not relative to
+    # each other, so a perfect score is always a full bar.
+    rating_bar_widths = {}
+    for key, shape_id in RATING_BAR_FILL_IDS.items():
+        score = rating_scores.get(key)
+        frac = min(score / scale_max, 1) if score else 0
+        rating_bar_widths[shape_id] = round(RATING_BAR_TRACK_WIDTH_EMU * frac)
+
+    # Ticket Inflow by Area bars — relative to the largest area count.
+    area_bar_widths = _bar_widths_by_max(
+        {col: area_values[col] for col in AREA_BAR_FILL_IDS}, AREA_BAR_TRACK_WIDTH_EMU
+    )
+    area_bar_widths = {AREA_BAR_FILL_IDS[col]: w for col, w in area_bar_widths.items()}
+
+    # By Work Type bars — all 10 inflow/outflow bars share one max.
+    work_type_bar_widths = _bar_widths_by_max(
+        {key: work_type_values[key] for key in WORK_TYPE_BAR_FILL_IDS}, WORK_TYPE_BAR_TRACK_WIDTH_EMU
+    )
+    work_type_bar_widths = {WORK_TYPE_BAR_FILL_IDS[key]: w for key, w in work_type_bar_widths.items()}
+
+    bar_widths = {
+        KPI_SLIDE_INDEX: rating_bar_widths,
+        REQUESTS_SLIDE_INDEX: {**area_bar_widths, **work_type_bar_widths},
+        LEADERBOARD_SLIDE_INDEX: leaderboard_bar_widths,
+    }
 
     return tokens, bar_widths
