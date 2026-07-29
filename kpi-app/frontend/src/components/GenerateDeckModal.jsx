@@ -3,10 +3,15 @@ import { getMarketingDeckCandidates, downloadMarketingDeck } from '../api'
 
 const KEY_REQUEST_COLUMNS = [
   { key: 'europe', label: 'Europe', slots: 6 },
-  { key: 'apm',    label: 'APM',    slots: 5 },
-  { key: 'ame',    label: 'AME',    slots: 5 },
-  { key: 'global', label: 'Global', slots: 2 },
+  { key: 'apm',    label: 'APM',    slots: 6 },
+  { key: 'ame',    label: 'AME',    slots: 6 },
+  { key: 'global', label: 'Global', slots: 6 },
 ]
+
+// Matches deck_builder.KEY_REQUEST_MAX_CHARS — each row is a fixed-height
+// slide box, so text is capped in the UI too rather than only server-side,
+// so what you see while rewriting matches what actually fits.
+const KEY_REQUEST_MAX_CHARS = 120
 
 // Rows start as {ticket, text, checked} — checked defaults to the first
 // `slots` candidates (most-recently-closed first, same as the old
@@ -147,6 +152,7 @@ export default function GenerateDeckModal({ sessionId, dateFrom, dateTo, periodL
                             type="text"
                             value={row.text}
                             disabled={!row.checked}
+                            maxLength={KEY_REQUEST_MAX_CHARS}
                             onChange={(e) => editRowText(key, i, e.target.value)}
                             style={{
                               flex: 1, fontSize: 12.5, padding: '6px 8px', border: '1px solid #e8e2d6', borderRadius: 6,

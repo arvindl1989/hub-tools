@@ -40,18 +40,32 @@ def _replace_tokens_in_text_frame(tf, tokens: dict) -> None:
                 run.text = _TOKEN_RE.sub(lambda m: str(tokens.get(m.group(1), "")), run.text)
 
 
-def fill_pptx_template(template_path: Path, tokens: dict, bar_widths: dict | None = None) -> bytes:
+def fill_pptx_template(
+    template_path: Path,
+    tokens: dict,
+    bar_widths: dict | None = None,
+    hide_if_empty: dict | None = None,
+) -> bytes:
     """`bar_widths` is an optional {slide_index: {shape_id: new_width_emu}} map
     for shapes that represent a proportional bar (left edge stays put, width is
     set directly) — used for e.g. a leaderboard whose bar lengths must reflect
     real values rather than whatever the template's sample data happened to
-    draw. MUST be keyed by slide index — shape IDs are only unique within a
-    single slide, not across the presentation, so an unscoped {shape_id: width}
-    map will silently clobber unrelated shapes on other slides that happen to
-    reuse the same ID."""
+    draw.
+
+    `hide_if_empty` is an optional {slide_index: {shape_id: token_name}} map —
+    a shape (typically a bullet/marker next to an optional list row) is
+    removed outright when `tokens[token_name]` is empty/missing, so an unused
+    row's decoration doesn't sit there with nothing next to it.
+
+    Both MUST be keyed by slide index — shape IDs are only unique within a
+    single slide, not across the presentation, so an unscoped {shape_id: ...}
+    map will silently clobber or hide unrelated shapes on other slides that
+    happen to reuse the same ID."""
     prs = Presentation(str(template_path))
     for slide_index, slide in enumerate(prs.slides):
         slide_bar_widths = (bar_widths or {}).get(slide_index, {})
+        slide_hide_if_empty = (hide_if_empty or {}).get(slide_index, {})
+        to_remove = []
         for shape in _iter_all_shapes(slide.shapes):
             if shape.has_text_frame:
                 _replace_tokens_in_text_frame(shape.text_frame, tokens)
@@ -61,6 +75,11 @@ def fill_pptx_template(template_path: Path, tokens: dict, bar_widths: dict | Non
                         _replace_tokens_in_text_frame(cell.text_frame, tokens)
             if shape.shape_id in slide_bar_widths:
                 shape.width = slide_bar_widths[shape.shape_id]
+            token_name = slide_hide_if_empty.get(shape.shape_id)
+            if token_name is not None and not tokens.get(token_name):
+                to_remove.append(shape)
+        for shape in to_remove:
+            shape._element.getparent().remove(shape._element)
     buf = BytesIO()
     prs.save(buf)
     return buf.getvalue()
@@ -90,7 +109,9 @@ ROSTER = [
 # fill_pptx_template's bar_widths param).
 KPI_SLIDE_INDEX = 2        # "Hub KPIs"
 REQUESTS_SLIDE_INDEX = 3   # "Requests overview"
+KEY_REQUESTS_SLIDE_INDEX = 6  # "Key requests"
 LEADERBOARD_SLIDE_INDEX = 7  # "Feedback highlights"
+UPDATES_SLIDE_INDEX = 8    # "Updates & way forward"
 
 # Feedback Rating bars (slide 3) — one track/fill pair per rating parameter.
 # Scale is absolute (score ÷ scale_max), not relative to each other — a
@@ -128,7 +149,29 @@ LEADERBOARD_TRACK_WIDTH_EMU = 2628900
 AREA_TO_KEY_REQUEST_COL = {
     "EU": "europe", "APM": "apm", "AME": "ame", "GLOBAL": "global", "GCN": "global",
 }
-KEY_REQUEST_SLOTS = {"europe": 6, "apm": 5, "ame": 5, "global": 2}
+# Every column hosts up to 6 requests now, laid out on one uniform grid (see
+# KEY_REQUEST_BULLET_IDS below) — the template used to have an uneven
+# Europe:6/APM:5/AME:5/Global:2 split inherited from the source deck's
+# sample data, which is exactly what nobody wants going forward.
+KEY_REQUEST_SLOTS = {"europe": 6, "apm": 6, "ame": 6, "global": 6}
+
+# Key Requests bullet marker -> the token that decides whether it's shown.
+# An unused row's bullet is removed outright (see fill_pptx_template's
+# hide_if_empty) rather than left dangling with no text next to it.
+KEY_REQUEST_BULLET_IDS = {
+    "europe": {6: "key_request_europe_1", 8: "key_request_europe_2", 10: "key_request_europe_3",
+               12: "key_request_europe_4", 14: "key_request_europe_5", 16: "key_request_europe_6"},
+    "apm":    {20: "key_request_apm_1", 22: "key_request_apm_2", 24: "key_request_apm_3",
+               26: "key_request_apm_4", 28: "key_request_apm_5", 51: "key_request_apm_6"},
+    "ame":    {32: "key_request_ame_1", 34: "key_request_ame_2", 36: "key_request_ame_3",
+               38: "key_request_ame_4", 40: "key_request_ame_5", 53: "key_request_ame_6"},
+    "global": {44: "key_request_global_1", 46: "key_request_global_2", 55: "key_request_global_3",
+               57: "key_request_global_4", 59: "key_request_global_5", 61: "key_request_global_6"},
+}
+
+# Updates & Way forward bullet marker -> its token (slide 9).
+UPDATES_BULLET_IDS = {7: "update_1", 9: "update_2", 11: "update_3", 13: "update_4", 15: "update_5", 17: "update_6"}
+WAY_FORWARD_BULLET_IDS = {21: "way_forward_1", 23: "way_forward_2", 25: "way_forward_3", 27: "way_forward_4", 29: "way_forward_5"}
 
 # sub_category (matched by keyword, case-insensitive) -> work-type token prefix
 WORK_TYPE_KEYWORDS = [
@@ -164,11 +207,31 @@ def _delivered_by_area(df: pd.DataFrame, date_from: str, date_to: str) -> "pd.Da
     return delivered.sort_values("closed_date", ascending=False)
 
 
+# Each Key Requests row is a fixed-height box (2-3 lines at this font size).
+# Ticket short_descriptions are sometimes a full paragraph, not a title, so
+# text is always capped before it reaches the slide — otherwise a single
+# long entry overflows into the row below it, wrecking the "evenly spaced,
+# one after another" grid for every row underneath it. Truncating (rather
+# than trusting PowerPoint's autofit-shrink alone) keeps the layout correct
+# regardless of source text length.
+KEY_REQUEST_MAX_CHARS = 120
+
+
+def _truncate_request_text(text: str, max_len: int = KEY_REQUEST_MAX_CHARS) -> str:
+    text = " ".join(text.split())  # collapse embedded newlines/whitespace
+    if len(text) <= max_len:
+        return text
+    cut = text[:max_len].rsplit(" ", 1)[0]
+    return f"{cut}…"
+
+
 def compute_key_request_candidates(df: pd.DataFrame, date_from: str, date_to: str, limit: int = 25) -> dict:
     """All completed tickets in range, grouped by Key-Requests column
     (europe/apm/ame/global), most-recently-closed first — for the
     pre-generation review popup. NOT capped to the slide's slot count; the
-    caller picks which ones actually go in."""
+    caller picks which ones actually go in. Text is pre-truncated to what
+    will actually fit on the slide, so what's shown for rewriting matches
+    what the generated deck will show."""
     result: dict = {col: [] for col in KEY_REQUEST_SLOTS}
     for _, row in _delivered_by_area(df, date_from, date_to).iterrows():
         col = AREA_TO_KEY_REQUEST_COL.get(str(row["area"]).strip().upper())
@@ -179,7 +242,7 @@ def compute_key_request_candidates(df: pd.DataFrame, date_from: str, date_to: st
             continue
         result[col].append({
             "ticket": str(row.get("ticket_number", "")).strip(),
-            "text": desc,
+            "text": _truncate_request_text(desc),
             "closed_date": row["closed_date"].date().isoformat() if pd.notna(row.get("closed_date")) else None,
         })
     return result
@@ -236,7 +299,7 @@ def compute_marketing_deck_tokens(
     date_to: str,
     generated_date: str,
     overrides: dict | None = None,
-) -> tuple[dict, dict]:
+) -> tuple[dict, dict, dict]:
     """`df` is the raw ticket dataframe for the session (unfiltered by date —
     filtering happens here for the inflow/outflow/key-request breakdowns).
     `hub_health` is the dict returned by calling the /hub-health endpoint logic
@@ -257,9 +320,8 @@ def compute_marketing_deck_tokens(
     Any key omitted/empty falls back to auto-filling from ticket data (key
     requests only) or blank (stories/updates/way_forward have no data source).
 
-    Returns (tokens, bar_widths) — bar_widths is the
-    {slide_index: {shape_id: width_emu}} map fill_pptx_template needs for the
-    leaderboard bars."""
+    Returns (tokens, bar_widths, hide_if_empty) — see fill_pptx_template for
+    what each of those two maps does."""
     overrides = overrides or {}
     tokens: dict = {"deck_generated_date": generated_date}
     tokens.update(_period_labels(date_from, date_to))
@@ -314,7 +376,8 @@ def compute_marketing_deck_tokens(
         for col, items in manual_key_requests.items():
             if col not in KEY_REQUEST_SLOTS:
                 continue
-            for i, text in enumerate([str(t).strip() for t in items if str(t).strip()][:KEY_REQUEST_SLOTS[col]], start=1):
+            cleaned = [_truncate_request_text(str(t).strip()) for t in items if str(t).strip()]
+            for i, text in enumerate(cleaned[:KEY_REQUEST_SLOTS[col]], start=1):
                 tokens[f"key_request_{col}_{i}"] = text
     else:
         buckets: dict[str, list] = {col: [] for col in KEY_REQUEST_SLOTS}
@@ -324,7 +387,7 @@ def compute_marketing_deck_tokens(
                 continue
             desc = str(row.get("short_description", "")).strip()
             if desc and len(buckets[col]) < KEY_REQUEST_SLOTS[col]:
-                buckets[col].append(desc)
+                buckets[col].append(_truncate_request_text(desc))
         for col, items in buckets.items():
             for i, desc in enumerate(items, start=1):
                 tokens[f"key_request_{col}_{i}"] = desc
@@ -414,4 +477,16 @@ def compute_marketing_deck_tokens(
         LEADERBOARD_SLIDE_INDEX: leaderboard_bar_widths,
     }
 
-    return tokens, bar_widths
+    # Bullets for unused list rows (Key Requests, Updates, Way forward) are
+    # removed rather than left sitting next to nothing.
+    key_request_hide = {
+        bullet_id: token_name
+        for col_ids in KEY_REQUEST_BULLET_IDS.values()
+        for bullet_id, token_name in col_ids.items()
+    }
+    hide_if_empty = {
+        KEY_REQUESTS_SLIDE_INDEX: key_request_hide,
+        UPDATES_SLIDE_INDEX: {**UPDATES_BULLET_IDS, **WAY_FORWARD_BULLET_IDS},
+    }
+
+    return tokens, bar_widths, hide_if_empty
