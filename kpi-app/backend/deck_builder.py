@@ -41,12 +41,17 @@ def _replace_tokens_in_text_frame(tf, tokens: dict) -> None:
 
 
 def fill_pptx_template(template_path: Path, tokens: dict, bar_widths: dict | None = None) -> bytes:
-    """`bar_widths` is an optional {shape_id: new_width_emu} map for shapes that
-    represent a proportional bar (left edge stays put, width is set directly) —
-    used for e.g. a leaderboard whose bar lengths must reflect real values
-    rather than whatever the template's sample data happened to draw."""
+    """`bar_widths` is an optional {slide_index: {shape_id: new_width_emu}} map
+    for shapes that represent a proportional bar (left edge stays put, width is
+    set directly) — used for e.g. a leaderboard whose bar lengths must reflect
+    real values rather than whatever the template's sample data happened to
+    draw. MUST be keyed by slide index — shape IDs are only unique within a
+    single slide, not across the presentation, so an unscoped {shape_id: width}
+    map will silently clobber unrelated shapes on other slides that happen to
+    reuse the same ID."""
     prs = Presentation(str(template_path))
-    for slide in prs.slides:
+    for slide_index, slide in enumerate(prs.slides):
+        slide_bar_widths = (bar_widths or {}).get(slide_index, {})
         for shape in _iter_all_shapes(slide.shapes):
             if shape.has_text_frame:
                 _replace_tokens_in_text_frame(shape.text_frame, tokens)
@@ -54,8 +59,8 @@ def fill_pptx_template(template_path: Path, tokens: dict, bar_widths: dict | Non
                 for row in shape.table.rows:
                     for cell in row.cells:
                         _replace_tokens_in_text_frame(cell.text_frame, tokens)
-            if bar_widths and shape.shape_id in bar_widths:
-                shape.width = bar_widths[shape.shape_id]
+            if shape.shape_id in slide_bar_widths:
+                shape.width = slide_bar_widths[shape.shape_id]
     buf = BytesIO()
     prs.save(buf)
     return buf.getvalue()
@@ -78,15 +83,16 @@ ROSTER = [
     {"key": "nitish",     "full_name": "Nitish JK",                  "short_name": "Nitish",     "in_leaderboard": True,  "has_quote_slot": True},
 ]
 
-# "Feedbacks by team member" leaderboard (slide 8) — 6 physical row slots,
-# each a name + count text plus a track (background) and fill (value) bar
-# shape. Rank is assigned at generation time by sorting counts descending,
-# so the bar for the highest count is always slot 1's full-width fill and
-# every other bar is scaled relative to it — never a stale, mismatched width
-# left over from whatever the template's sample data happened to draw.
-LEADERBOARD_SLOTS = [
-    {"fill": 25}, {"fill": 29}, {"fill": 33}, {"fill": 37}, {"fill": 41}, {"fill": 45},
-]
+# "Feedbacks by team member" leaderboard — slide index 7 (0-based, "Feedback
+# highlights"), 6 physical row slots, each a name + count text plus a track
+# (background) and fill (value) bar shape. Rank is assigned at generation time
+# by sorting counts descending, so the bar for the highest count is always
+# slot 1's full-width fill and every other bar is scaled relative to it —
+# never a stale, mismatched width left over from the template's sample data.
+# Shape IDs are only unique WITHIN a slide, so this must stay paired with its
+# slide index wherever it's used (see fill_pptx_template's bar_widths param).
+LEADERBOARD_SLIDE_INDEX = 7
+LEADERBOARD_FILL_SHAPE_IDS = [25, 29, 33, 37, 41, 45]
 LEADERBOARD_TRACK_WIDTH_EMU = 2628900
 
 # area value (normalized upper) -> key-requests slide column key
@@ -164,7 +170,8 @@ def compute_marketing_deck_tokens(
     the dict returned by feedback_summary() for the same range. `generated_date`
     is a pre-formatted "D MONTH YYYY" string (deck build time, not the
     reporting period). Returns (tokens, bar_widths) — bar_widths is the
-    {shape_id: width_emu} map fill_pptx_template needs for the leaderboard bars."""
+    {slide_index: {shape_id: width_emu}} map fill_pptx_template needs for the
+    leaderboard bars."""
     tokens: dict = {"deck_generated_date": generated_date}
     tokens.update(_period_labels(date_from, date_to))
 
@@ -252,11 +259,14 @@ def compute_marketing_deck_tokens(
         reverse=True,
     )
     max_count = ranked[0][1] if ranked else 0
-    bar_widths: dict[int, int] = {}
+    leaderboard_bar_widths: dict[int, int] = {}
     for i, (person, count) in enumerate(ranked, start=1):
         tokens[f"lb_name_{i}"] = person["short_name"]
         tokens[f"lb_count_{i}"] = _fmt_num(count)
-        fill_shape_id = LEADERBOARD_SLOTS[i - 1]["fill"]
-        bar_widths[fill_shape_id] = round(LEADERBOARD_TRACK_WIDTH_EMU * (count / max_count)) if max_count else 0
+        fill_shape_id = LEADERBOARD_FILL_SHAPE_IDS[i - 1]
+        leaderboard_bar_widths[fill_shape_id] = (
+            round(LEADERBOARD_TRACK_WIDTH_EMU * (count / max_count)) if max_count else 0
+        )
+    bar_widths = {LEADERBOARD_SLIDE_INDEX: leaderboard_bar_widths}
 
     return tokens, bar_widths
