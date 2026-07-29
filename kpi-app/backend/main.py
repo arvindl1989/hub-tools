@@ -19,6 +19,8 @@ import traceback
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from deck_builder import fill_pptx_template, compute_marketing_deck_tokens, TEMPLATE_PATH
+
 app = FastAPI(title="Ticket Analytics API", version="1.0.0")
 
 
@@ -1978,6 +1980,36 @@ def hub_health(
         "done_pct":         round(resolved / total * 100) if total > 0 else 0,
         "by_state":         by_state,
     }
+
+
+# ── Marketing Hub monthly-sharing deck ────────────────────────────────────────
+# Fills templates/marketing_hub_deck.pptx from the same figures the Dashboard
+# already shows for the selected date range. Editorial slides (Stories, the
+# stakeholder quote, Updates & Way forward) are left as marked placeholders —
+# those are written by hand in PowerPoint, not pulled from ticket data.
+@app.get("/api/sessions/{sid}/marketing-deck")
+def marketing_deck(sid: str, date_from: str = Query(...), date_to: str = Query(...)):
+    if not date_from or not date_to:
+        raise HTTPException(400, "Select a date range before generating the deck.")
+
+    df = _get_session(sid)
+    hh = hub_health(sid, date_from=date_from, date_to=date_to)
+    fb = feedback_summary(date_from=date_from, date_to=date_to, sid=sid)
+
+    today = date.today()
+    generated_date = f"{today.day} {today.strftime('%B').upper()} {today.year}"
+
+    tokens = compute_marketing_deck_tokens(df, hh, fb, date_from, date_to, generated_date)
+    pptx_bytes = fill_pptx_template(TEMPLATE_PATH, tokens)
+
+    safe_month = tokens["deck_month_year"].replace(" ", "_").replace("–", "-")
+    filename = f"Marketing_Hub_Monthly_Sharing_{safe_month}.pptx"
+
+    return StreamingResponse(
+        io.BytesIO(pptx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Generic stacked pivot helper ───────────────────────────────────────────────

@@ -4,6 +4,7 @@ import {
   getByArea, getByAssignee,
   getStackedByTeam, getStackedByCreator,
   getMonthlyStacked, getInflowOutflow,
+  downloadMarketingDeck,
 } from '../api'
 import HubHealthBar     from '../components/HubHealthBar'
 import DashboardFilters from '../components/DashboardFilters'
@@ -31,7 +32,7 @@ const rowTotal = (row, subCats) => subCats.reduce((s, sc) => s + (row[sc] || 0),
 const INIT_FILTERS = { assigned_to: '', team: '', area: '', sub_category: '' }
 const EMPTY_STACK = { rows: [], sub_categories: [] }
 
-export default function DashboardPage({ sessionId, onSessionExpired, onOpenExperimental }) {
+export default function DashboardPage({ sessionId, onSessionExpired, onOpenExperimental, runGatedAction }) {
   const [overview,    setOverview]    = useState(null)
   const [hubHealth,   setHubHealth]   = useState(null)
   const [byArea,      setByArea]      = useState([])
@@ -57,6 +58,32 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
   const [inflowOutflowB, setInflowOutflowB] = useState([])
 
   const onErr = useCallback((err) => { if (err.sessionExpired) onSessionExpired() }, [onSessionExpired])
+
+  // ── Monthly sharing deck — pulls the currently-selected date range ─────────
+  const [deckBusy,  setDeckBusy]  = useState(false)
+  const [deckError, setDeckError] = useState('')
+
+  const generateDeck = useCallback(async () => {
+    if (!range.from || !range.to) {
+      setDeckError('Pick a date range above first — the deck reports on a specific period.')
+      return
+    }
+    setDeckBusy(true)
+    setDeckError('')
+    try {
+      await downloadMarketingDeck(sessionId, range.from, range.to)
+    } catch (err) {
+      if (err.sessionExpired) { onSessionExpired(); return }
+      setDeckError(err.message || 'Could not generate the deck.')
+    } finally {
+      setDeckBusy(false)
+    }
+  }, [sessionId, range.from, range.to, onSessionExpired])
+
+  const handleGenerateDeckClick = useCallback(() => {
+    setDeckError('')
+    runGatedAction ? runGatedAction(generateDeck) : generateDeck()
+  }, [runGatedAction, generateDeck])
 
   const onFilter = useCallback((key, val) => {
     if (key === '__reset__') { setFilters(INIT_FILTERS); return }
@@ -309,6 +336,38 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
           </svg>
+        </button>
+      </div>
+
+      {/* Monthly sharing deck */}
+      <div style={{
+        background: '#f3eee6', borderRadius: 12, padding: '18px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+      }}>
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#141414', margin: 0 }}>Generate Monthly Deck</h3>
+          <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0' }}>
+            Fills the KPIs, requests and feedback highlights for the selected period ({labelForRange(range.from, range.to) || 'pick a range above'}) into the Marketing Hub sharing template.
+          </p>
+          {deckError && <p style={{ fontSize: 12, color: '#c0305a', margin: '6px 0 0', fontWeight: 600 }}>{deckError}</p>}
+        </div>
+        <button
+          onClick={handleGenerateDeckClick}
+          disabled={deckBusy}
+          style={{
+            background: '#1450f5', color: '#fff', border: 'none', borderRadius: 8,
+            padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: deckBusy ? 'default' : 'pointer',
+            opacity: deckBusy ? 0.6 : 1,
+            fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          {deckBusy ? 'Generating…' : 'Generate Monthly Deck'}
+          {!deckBusy && (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v13"/><polyline points="7 11 12 16 17 11"/><path d="M5 21h14"/>
+            </svg>
+          )}
         </button>
       </div>
 

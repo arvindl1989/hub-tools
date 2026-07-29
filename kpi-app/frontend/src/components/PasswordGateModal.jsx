@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function PasswordGateModal({ onSubmit, onCancel }) {
+export default function PasswordGateModal({ onSubmit, onCancel, title = 'Password required' }) {
   const [value, setValue] = useState('')
   const [error, setError] = useState(false)
 
@@ -26,7 +26,7 @@ export default function PasswordGateModal({ onSubmit, onCancel }) {
         }}>
           <LockIcon />
         </div>
-        <h2 style={{ fontSize: 16, fontWeight: 800, color: '#141414', margin: 0 }}>Experimental Reports</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 800, color: '#141414', margin: 0 }}>{title}</h2>
         <p style={{ fontSize: 12.5, color: '#6e6e6e', margin: '6px 0 16px' }}>
           This section is password-protected. Enter the password to continue.
         </p>

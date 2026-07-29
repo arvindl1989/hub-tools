@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect } from 'react'
+﻿import { useState, useCallback, useEffect, useRef } from 'react'
 import UploadZone        from './components/UploadZone'
 import { uploadFromSheetUrl } from './api'
 
@@ -29,23 +29,34 @@ export default function App() {
   const [autoConnecting, setAutoConnecting] = useState(false)
   const [autoError,      setAutoError]     = useState(null)
 
-  // Experimental Reports stays behind a password for the session (cleared on tab close)
+  // Experimental Reports (and any other "advanced" action) stays behind a
+  // password for the session (cleared on tab close). `runGated` is generic —
+  // it either runs the action immediately (already unlocked) or shows the
+  // password prompt and holds onto the action until it succeeds.
   const [experimentalUnlocked, setExperimentalUnlocked] = useState(
     () => sessionStorage.getItem('experimentalUnlocked') === 'true'
   )
   const [showPasswordGate, setShowPasswordGate] = useState(false)
+  const pendingGatedAction = useRef(null)
 
-  const openExperimental = useCallback(() => {
-    if (experimentalUnlocked) { setActiveTab('experimental'); return }
+  const runGated = useCallback((action) => {
+    if (experimentalUnlocked) { action(); return }
+    pendingGatedAction.current = action
     setShowPasswordGate(true)
   }, [experimentalUnlocked])
+
+  const openExperimental = useCallback(() => {
+    runGated(() => setActiveTab('experimental'))
+  }, [runGated])
 
   const handleUnlockAttempt = useCallback((password) => {
     if (password !== EXPERIMENTAL_PASSWORD) return false
     sessionStorage.setItem('experimentalUnlocked', 'true')
     setExperimentalUnlocked(true)
     setShowPasswordGate(false)
-    setActiveTab('experimental')
+    const action = pendingGatedAction.current
+    pendingGatedAction.current = null
+    action?.()
     return true
   }, [])
 
@@ -179,7 +190,7 @@ export default function App() {
 
       <main style={{ flex: 1, padding: '24px', paddingBottom: 48 }}>
         <div style={{ maxWidth: 1600, margin: '0 auto' }}>
-          {activeTab === 'dashboard'     && <DashboardPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} onOpenExperimental={openExperimental} />}
+          {activeTab === 'dashboard'     && <DashboardPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} onOpenExperimental={openExperimental} runGatedAction={runGated} />}
           {activeTab === 'user-activity' && <UserActivityPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'feedback'      && <FeedbackPage sessionId={sessionId} />}
           {activeTab === 'experimental'  && experimentalUnlocked && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}

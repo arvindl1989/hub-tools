@@ -133,6 +133,39 @@ export async function getPriority(sid, filters = {}) {
   return data
 }
 
+// Triggers a browser download of the filled-in Marketing Hub monthly-sharing
+// deck for the given date range. Uses a blob fetch (not a plain <a href>)
+// so a validation error (e.g. no date range picked) surfaces as a real
+// message instead of a broken download.
+export async function downloadMarketingDeck(sid, dateFrom, dateTo) {
+  let res
+  try {
+    res = await client.get(`/sessions/${sid}/marketing-deck`, {
+      params: { date_from: dateFrom, date_to: dateTo },
+      responseType: 'blob',
+    })
+  } catch (err) {
+    if (err.response?.data instanceof Blob) {
+      const text = await err.response.data.text()
+      let detail = 'Could not generate the deck.'
+      try { detail = JSON.parse(text).detail || detail } catch { /* not JSON */ }
+      throw new Error(detail)
+    }
+    throw err
+  }
+  const cd = res.headers['content-disposition'] || ''
+  const match = cd.match(/filename="?([^"]+)"?/)
+  const filename = match ? match[1] : 'Marketing_Hub_Monthly_Sharing.pptx'
+  const url = URL.createObjectURL(res.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function getExportUrl(sid, format = 'csv', filters = {}) {
   const clean = Object.fromEntries(Object.entries(filters).filter(([, v]) => v))
   const params = new URLSearchParams({ format, ...clean })
