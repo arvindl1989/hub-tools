@@ -1999,8 +1999,8 @@ def marketing_deck(sid: str, date_from: str = Query(...), date_to: str = Query(.
     today = date.today()
     generated_date = f"{today.day} {today.strftime('%B').upper()} {today.year}"
 
-    tokens = compute_marketing_deck_tokens(df, hh, fb, date_from, date_to, generated_date)
-    pptx_bytes = fill_pptx_template(TEMPLATE_PATH, tokens)
+    tokens, bar_widths = compute_marketing_deck_tokens(df, hh, fb, date_from, date_to, generated_date)
+    pptx_bytes = fill_pptx_template(TEMPLATE_PATH, tokens, bar_widths)
 
     safe_month = tokens["deck_month_year"].replace(" ", "_").replace("–", "-")
     filename = f"Marketing_Hub_Monthly_Sharing_{safe_month}.pptx"

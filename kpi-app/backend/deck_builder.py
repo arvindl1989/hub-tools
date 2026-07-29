@@ -40,7 +40,11 @@ def _replace_tokens_in_text_frame(tf, tokens: dict) -> None:
                 run.text = _TOKEN_RE.sub(lambda m: str(tokens.get(m.group(1), "")), run.text)
 
 
-def fill_pptx_template(template_path: Path, tokens: dict) -> bytes:
+def fill_pptx_template(template_path: Path, tokens: dict, bar_widths: dict | None = None) -> bytes:
+    """`bar_widths` is an optional {shape_id: new_width_emu} map for shapes that
+    represent a proportional bar (left edge stays put, width is set directly) —
+    used for e.g. a leaderboard whose bar lengths must reflect real values
+    rather than whatever the template's sample data happened to draw."""
     prs = Presentation(str(template_path))
     for slide in prs.slides:
         for shape in _iter_all_shapes(slide.shapes):
@@ -50,6 +54,8 @@ def fill_pptx_template(template_path: Path, tokens: dict) -> bytes:
                 for row in shape.table.rows:
                     for cell in row.cells:
                         _replace_tokens_in_text_frame(cell.text_frame, tokens)
+            if bar_widths and shape.shape_id in bar_widths:
+                shape.width = bar_widths[shape.shape_id]
     buf = BytesIO()
     prs.save(buf)
     return buf.getvalue()
@@ -59,18 +65,29 @@ def fill_pptx_template(template_path: Path, tokens: dict) -> bytes:
 
 COMPLETED_STATES = {"Closed Completed", "Confirmation Completed"}
 
-# Fixed roster for the "Feedback highlights" slide, in the exact order the
-# template lays them out. Pooja has a leaderboard box but no quote-bubble slot
-# in this template (only 6 bubble slots exist), matching the source deck.
+# Fixed roster for the "Feedback highlights" slide. Pooja is excluded from
+# the leaderboard entirely (never appears, at any rank) but stays in the
+# quote-bubble identity list — those are unrelated, six fixed name slots.
 ROSTER = [
-    {"key": "pooja",      "full_name": "Pooja V",                    "has_quote_slot": False},
-    {"key": "akshayaar",  "full_name": "Akshayaa Rajeswari AS",      "has_quote_slot": True},
-    {"key": "arvind",     "full_name": "Arvind Lakshminarayanan",    "has_quote_slot": True},
-    {"key": "ajith",      "full_name": "Ajith A",                    "has_quote_slot": True},
-    {"key": "akshayap",   "full_name": "Akshaya Praveen",            "has_quote_slot": True},
-    {"key": "ranjith",    "full_name": "Ranjithkumar Ashokkumar",    "has_quote_slot": True},
-    {"key": "nitish",     "full_name": "Nitish JK",                  "has_quote_slot": True},
+    {"key": "pooja",      "full_name": "Pooja V",                    "short_name": "Pooja",      "in_leaderboard": False, "has_quote_slot": False},
+    {"key": "akshayaar",  "full_name": "Akshayaa Rajeswari AS",      "short_name": "Akshayaa R", "in_leaderboard": True,  "has_quote_slot": True},
+    {"key": "arvind",     "full_name": "Arvind Lakshminarayanan",    "short_name": "Arvind",     "in_leaderboard": True,  "has_quote_slot": True},
+    {"key": "ajith",      "full_name": "Ajith A",                    "short_name": "Ajith",      "in_leaderboard": True,  "has_quote_slot": True},
+    {"key": "akshayap",   "full_name": "Akshaya Praveen",            "short_name": "Akshaya P",  "in_leaderboard": True,  "has_quote_slot": True},
+    {"key": "ranjith",    "full_name": "Ranjithkumar Ashokkumar",    "short_name": "Ranjith",    "in_leaderboard": True,  "has_quote_slot": True},
+    {"key": "nitish",     "full_name": "Nitish JK",                  "short_name": "Nitish",     "in_leaderboard": True,  "has_quote_slot": True},
 ]
+
+# "Feedbacks by team member" leaderboard (slide 8) — 6 physical row slots,
+# each a name + count text plus a track (background) and fill (value) bar
+# shape. Rank is assigned at generation time by sorting counts descending,
+# so the bar for the highest count is always slot 1's full-width fill and
+# every other bar is scaled relative to it — never a stale, mismatched width
+# left over from whatever the template's sample data happened to draw.
+LEADERBOARD_SLOTS = [
+    {"fill": 25}, {"fill": 29}, {"fill": 33}, {"fill": 37}, {"fill": 41}, {"fill": 45},
+]
+LEADERBOARD_TRACK_WIDTH_EMU = 2628900
 
 # area value (normalized upper) -> key-requests slide column key
 AREA_TO_KEY_REQUEST_COL = {
@@ -138,7 +155,7 @@ def compute_marketing_deck_tokens(
     date_from: str,
     date_to: str,
     generated_date: str,
-) -> dict:
+) -> tuple[dict, dict]:
     """`df` is the raw ticket dataframe for the session (unfiltered by date —
     filtering happens here for the inflow/outflow/key-request breakdowns).
     `hub_health` is the dict returned by calling the /hub-health endpoint logic
@@ -146,7 +163,8 @@ def compute_marketing_deck_tokens(
     numbers always match what the Dashboard itself shows. `feedback_data` is
     the dict returned by feedback_summary() for the same range. `generated_date`
     is a pre-formatted "D MONTH YYYY" string (deck build time, not the
-    reporting period)."""
+    reporting period). Returns (tokens, bar_widths) — bar_widths is the
+    {shape_id: width_emu} map fill_pptx_template needs for the leaderboard bars."""
     tokens: dict = {"deck_generated_date": generated_date}
     tokens.update(_period_labels(date_from, date_to))
 
@@ -219,8 +237,6 @@ def compute_marketing_deck_tokens(
     by_user_count = {row["user"]: row["count"] for row in feedback_data.get("by_user", [])}
     entries = feedback_data.get("entries", [])  # already newest-first
     for person in ROSTER:
-        count = by_user_count.get(person["full_name"], 0)
-        tokens[f"count_{person['key']}"] = _fmt_num(count)
         if person["has_quote_slot"]:
             latest = next(
                 (e for e in entries if e.get("user") == person["full_name"] and e.get("comment")),
@@ -228,4 +244,19 @@ def compute_marketing_deck_tokens(
             )
             tokens[f"quote_{person['key']}"] = f"“{latest['comment']}”" if latest else ""
 
-    return tokens
+    # Leaderboard: rank by count descending, highest-count person's bar is
+    # always full width and every other bar is scaled relative to it.
+    ranked = sorted(
+        ((p, by_user_count.get(p["full_name"], 0)) for p in ROSTER if p["in_leaderboard"]),
+        key=lambda pc: pc[1],
+        reverse=True,
+    )
+    max_count = ranked[0][1] if ranked else 0
+    bar_widths: dict[int, int] = {}
+    for i, (person, count) in enumerate(ranked, start=1):
+        tokens[f"lb_name_{i}"] = person["short_name"]
+        tokens[f"lb_count_{i}"] = _fmt_num(count)
+        fill_shape_id = LEADERBOARD_SLOTS[i - 1]["fill"]
+        bar_widths[fill_shape_id] = round(LEADERBOARD_TRACK_WIDTH_EMU * (count / max_count)) if max_count else 0
+
+    return tokens, bar_widths
