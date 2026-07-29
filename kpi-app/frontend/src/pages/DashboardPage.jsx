@@ -4,7 +4,6 @@ import {
   getByArea, getByAssignee,
   getStackedByTeam, getStackedByCreator,
   getMonthlyStacked, getInflowOutflow,
-  downloadMarketingDeck,
 } from '../api'
 import HubHealthBar     from '../components/HubHealthBar'
 import DashboardFilters from '../components/DashboardFilters'
@@ -16,6 +15,7 @@ import InflowOutflowTable from '../components/charts/InflowOutflowTable'
 import MiniPieChart      from '../components/charts/MiniPieChart'
 import ComparisonBarChart from '../components/charts/ComparisonBarChart'
 import PeriodOverlayChart from '../components/charts/PeriodOverlayChart'
+import GenerateDeckModal from '../components/GenerateDeckModal'
 
 function useRefetch(fn, set, onErr, deps) {
   const ref = useRef(0)
@@ -59,31 +59,25 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
 
   const onErr = useCallback((err) => { if (err.sessionExpired) onSessionExpired() }, [onSessionExpired])
 
-  // ── Monthly sharing deck — pulls the currently-selected date range ─────────
-  const [deckBusy,  setDeckBusy]  = useState(false)
-  const [deckError, setDeckError] = useState('')
+  // ── Monthly sharing deck — pulls the currently-selected date range, opens a
+  // review popup for the editorial content (key requests, stories, updates,
+  // way forward) that ticket data can't answer on its own.
+  const [deckError,     setDeckError]     = useState('')
+  const [deckModalOpen, setDeckModalOpen] = useState(false)
 
-  const generateDeck = useCallback(async () => {
+  const openDeckModal = useCallback(() => {
     if (!range.from || !range.to) {
       setDeckError('Pick a date range above first — the deck reports on a specific period.')
       return
     }
-    setDeckBusy(true)
     setDeckError('')
-    try {
-      await downloadMarketingDeck(sessionId, range.from, range.to)
-    } catch (err) {
-      if (err.sessionExpired) { onSessionExpired(); return }
-      setDeckError(err.message || 'Could not generate the deck.')
-    } finally {
-      setDeckBusy(false)
-    }
-  }, [sessionId, range.from, range.to, onSessionExpired])
+    setDeckModalOpen(true)
+  }, [range.from, range.to])
 
   const handleGenerateDeckClick = useCallback(() => {
     setDeckError('')
-    runGatedAction ? runGatedAction(generateDeck) : generateDeck()
-  }, [runGatedAction, generateDeck])
+    runGatedAction ? runGatedAction(openDeckModal) : openDeckModal()
+  }, [runGatedAction, openDeckModal])
 
   const onFilter = useCallback((key, val) => {
     if (key === '__reset__') { setFilters(INIT_FILTERS); return }
@@ -353,23 +347,30 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
         </div>
         <button
           onClick={handleGenerateDeckClick}
-          disabled={deckBusy}
           style={{
             background: '#1450f5', color: '#fff', border: 'none', borderRadius: 8,
-            padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: deckBusy ? 'default' : 'pointer',
-            opacity: deckBusy ? 0.6 : 1,
+            padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
             fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
         >
-          {deckBusy ? 'Generating…' : 'Generate Monthly Deck'}
-          {!deckBusy && (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3v13"/><polyline points="7 11 12 16 17 11"/><path d="M5 21h14"/>
-            </svg>
-          )}
+          Generate Monthly Deck
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3v13"/><polyline points="7 11 12 16 17 11"/><path d="M5 21h14"/>
+          </svg>
         </button>
       </div>
+
+      {deckModalOpen && (
+        <GenerateDeckModal
+          sessionId={sessionId}
+          dateFrom={range.from}
+          dateTo={range.to}
+          periodLabel={labelForRange(range.from, range.to) || `${range.from} – ${range.to}`}
+          onClose={() => setDeckModalOpen(false)}
+          onSessionExpired={onSessionExpired}
+        />
+      )}
 
     </div>
   )

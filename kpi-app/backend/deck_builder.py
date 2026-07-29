@@ -149,6 +149,42 @@ def _bar_widths_by_max(values: dict, track_width_emu: int) -> dict:
     return {k: round(track_width_emu * (v / max_v)) for k, v in values.items()}
 
 
+def _delivered_by_area(df: pd.DataFrame, date_from: str, date_to: str) -> "pd.DataFrame":
+    """Tickets closed in range with a completed state, grouped by Key-Requests
+    column via AREA_TO_KEY_REQUEST_COL, most-recently-closed first. Shared by
+    the candidates endpoint (uncapped, for the review popup) and the
+    no-overrides auto-fill fallback."""
+    if not {"area", "state", "short_description", "closed_date"}.issubset(df.columns):
+        return df.iloc[0:0]
+    closed = df["closed_date"]
+    frm_ts, to_ts = pd.Timestamp(date_from), pd.Timestamp(date_to) + pd.Timedelta(days=1)
+    outflow_mask = closed.notna() & (closed >= frm_ts) & (closed < to_ts)
+    delivered = df[outflow_mask]
+    delivered = delivered[delivered["state"].isin(COMPLETED_STATES)].dropna(subset=["area"])
+    return delivered.sort_values("closed_date", ascending=False)
+
+
+def compute_key_request_candidates(df: pd.DataFrame, date_from: str, date_to: str, limit: int = 25) -> dict:
+    """All completed tickets in range, grouped by Key-Requests column
+    (europe/apm/ame/global), most-recently-closed first — for the
+    pre-generation review popup. NOT capped to the slide's slot count; the
+    caller picks which ones actually go in."""
+    result: dict = {col: [] for col in KEY_REQUEST_SLOTS}
+    for _, row in _delivered_by_area(df, date_from, date_to).iterrows():
+        col = AREA_TO_KEY_REQUEST_COL.get(str(row["area"]).strip().upper())
+        if not col or len(result[col]) >= limit:
+            continue
+        desc = str(row.get("short_description", "")).strip()
+        if not desc:
+            continue
+        result[col].append({
+            "ticket": str(row.get("ticket_number", "")).strip(),
+            "text": desc,
+            "closed_date": row["closed_date"].date().isoformat() if pd.notna(row.get("closed_date")) else None,
+        })
+    return result
+
+
 def _ordinal(n: int) -> str:
     if 10 <= n % 100 <= 20:
         suf = "th"
@@ -199,6 +235,7 @@ def compute_marketing_deck_tokens(
     date_from: str,
     date_to: str,
     generated_date: str,
+    overrides: dict | None = None,
 ) -> tuple[dict, dict]:
     """`df` is the raw ticket dataframe for the session (unfiltered by date —
     filtering happens here for the inflow/outflow/key-request breakdowns).
@@ -207,9 +244,23 @@ def compute_marketing_deck_tokens(
     numbers always match what the Dashboard itself shows. `feedback_data` is
     the dict returned by feedback_summary() for the same range. `generated_date`
     is a pre-formatted "D MONTH YYYY" string (deck build time, not the
-    reporting period). Returns (tokens, bar_widths) — bar_widths is the
+    reporting period).
+
+    `overrides` is the editorial content picked in the pre-generation review
+    popup — everything ticket data can't answer on its own:
+      {
+        "key_requests": {"europe": [str, ...], "apm": [...], "ame": [...], "global": [...]},
+        "stories": [{"title": str, "body": str}, ...]   (up to 3),
+        "updates": [str, ...]                            (up to 6),
+        "way_forward": [str, ...]                        (up to 5),
+      }
+    Any key omitted/empty falls back to auto-filling from ticket data (key
+    requests only) or blank (stories/updates/way_forward have no data source).
+
+    Returns (tokens, bar_widths) — bar_widths is the
     {slide_index: {shape_id: width_emu}} map fill_pptx_template needs for the
     leaderboard bars."""
+    overrides = overrides or {}
     tokens: dict = {"deck_generated_date": generated_date}
     tokens.update(_period_labels(date_from, date_to))
 
@@ -251,16 +302,23 @@ def compute_marketing_deck_tokens(
     for key, count in work_type_values.items():
         tokens[key] = _fmt_num(count)
 
-    # Key requests (slide 7) — completed tickets in range, grouped by area,
-    # most-recently-closed first, capped to each column's slot count.
+    # Key requests (slide 7) — the picks made in the review popup, capped to
+    # each column's slot count. Falls back to auto-picking the most-recently-
+    # closed completed tickets per area when no override was supplied at all
+    # (e.g. a direct API call that skips the popup).
     for col, n in KEY_REQUEST_SLOTS.items():
         for i in range(1, n + 1):
             tokens[f"key_request_{col}_{i}"] = ""
-    if {"area", "state", "short_description"}.issubset(df.columns):
-        delivered = outflow_df[outflow_df["state"].isin(COMPLETED_STATES)].dropna(subset=["area"])
-        delivered = delivered.sort_values("closed_date", ascending=False)
-        buckets: dict[str, list] = {"europe": [], "apm": [], "ame": [], "global": []}
-        for _, row in delivered.iterrows():
+    manual_key_requests = overrides.get("key_requests")
+    if manual_key_requests:
+        for col, items in manual_key_requests.items():
+            if col not in KEY_REQUEST_SLOTS:
+                continue
+            for i, text in enumerate([str(t).strip() for t in items if str(t).strip()][:KEY_REQUEST_SLOTS[col]], start=1):
+                tokens[f"key_request_{col}_{i}"] = text
+    else:
+        buckets: dict[str, list] = {col: [] for col in KEY_REQUEST_SLOTS}
+        for _, row in _delivered_by_area(df, date_from, date_to).iterrows():
             col = AREA_TO_KEY_REQUEST_COL.get(str(row["area"]).strip().upper())
             if not col:
                 continue
@@ -270,6 +328,22 @@ def compute_marketing_deck_tokens(
         for col, items in buckets.items():
             for i, desc in enumerate(items, start=1):
                 tokens[f"key_request_{col}_{i}"] = desc
+
+    # Stories (slide 5), Updates & Way forward (slide 9) — pure editorial
+    # content from the popup, no ticket-data source to fall back to.
+    stories = overrides.get("stories") or []
+    for i in range(1, 4):
+        story = stories[i - 1] if i - 1 < len(stories) else {}
+        tokens[f"story_{i}_title"] = str((story or {}).get("title", "")).strip()
+        tokens[f"story_{i}_body"] = str((story or {}).get("body", "")).strip()
+
+    updates = overrides.get("updates") or []
+    for i in range(1, 7):
+        tokens[f"update_{i}"] = str(updates[i - 1]).strip() if i - 1 < len(updates) else ""
+
+    way_forward = overrides.get("way_forward") or []
+    for i in range(1, 6):
+        tokens[f"way_forward_{i}"] = str(way_forward[i - 1]).strip() if i - 1 < len(way_forward) else ""
 
     # Feedback (slide 3 + 8)
     param_avgs = feedback_data.get("param_avgs") or {}

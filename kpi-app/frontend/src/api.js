@@ -136,12 +136,22 @@ export async function getPriority(sid, filters = {}) {
 // Triggers a browser download of the filled-in Marketing Hub monthly-sharing
 // deck for the given date range. Uses a blob fetch (not a plain <a href>)
 // so a validation error (e.g. no date range picked) surfaces as a real
-// message instead of a broken download.
-export async function downloadMarketingDeck(sid, dateFrom, dateTo) {
+// message instead of a broken download. `overrides` carries the editorial
+// content picked in the review popup — key requests, stories, updates,
+// way forward — see MarketingDeckBody on the backend.
+export async function getMarketingDeckCandidates(sid, dateFrom, dateTo) {
+  const { data } = await client.get(`/sessions/${sid}/marketing-deck/candidates`, {
+    params: { date_from: dateFrom, date_to: dateTo },
+  })
+  return data
+}
+
+export async function downloadMarketingDeck(sid, dateFrom, dateTo, overrides = {}) {
   let res
   try {
-    res = await client.get(`/sessions/${sid}/marketing-deck`, {
-      params: { date_from: dateFrom, date_to: dateTo },
+    res = await client.post(`/sessions/${sid}/marketing-deck`, {
+      date_from: dateFrom, date_to: dateTo, ...overrides,
+    }, {
       responseType: 'blob',
     })
   } catch (err) {

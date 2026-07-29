@@ -19,7 +19,9 @@ import traceback
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from deck_builder import fill_pptx_template, compute_marketing_deck_tokens, TEMPLATE_PATH
+from deck_builder import (
+    fill_pptx_template, compute_marketing_deck_tokens, compute_key_request_candidates, TEMPLATE_PATH,
+)
 
 app = FastAPI(title="Ticket Analytics API", version="1.0.0")
 
@@ -1984,11 +1986,33 @@ def hub_health(
 
 # ── Marketing Hub monthly-sharing deck ────────────────────────────────────────
 # Fills templates/marketing_hub_deck.pptx from the same figures the Dashboard
-# already shows for the selected date range. Editorial slides (Stories, the
-# stakeholder quote, Updates & Way forward) are left as marked placeholders —
-# those are written by hand in PowerPoint, not pulled from ticket data.
-@app.get("/api/sessions/{sid}/marketing-deck")
-def marketing_deck(sid: str, date_from: str = Query(...), date_to: str = Query(...)):
+# already shows for the selected date range, plus editorial content (key
+# requests picked from real tickets, stories, updates, way forward) chosen in
+# the frontend's pre-generation review popup — those have no ticket-data
+# source, so the popup is where the user writes/edits them before download.
+
+@app.get("/api/sessions/{sid}/marketing-deck/candidates")
+def marketing_deck_candidates(sid: str, date_from: str = Query(...), date_to: str = Query(...)):
+    """Completed tickets in range, grouped by Key-Requests column, for the
+    review popup to list as selectable/rewritable candidates."""
+    if not date_from or not date_to:
+        raise HTTPException(400, "Select a date range before generating the deck.")
+    df = _get_session(sid)
+    return compute_key_request_candidates(df, date_from, date_to)
+
+
+class MarketingDeckBody(BaseModel):
+    date_from: str
+    date_to: str
+    key_requests: Optional[dict] = None
+    stories: Optional[List[dict]] = None
+    updates: Optional[List[str]] = None
+    way_forward: Optional[List[str]] = None
+
+
+@app.post("/api/sessions/{sid}/marketing-deck")
+def marketing_deck(sid: str, body: MarketingDeckBody):
+    date_from, date_to = body.date_from, body.date_to
     if not date_from or not date_to:
         raise HTTPException(400, "Select a date range before generating the deck.")
 
@@ -1999,7 +2023,13 @@ def marketing_deck(sid: str, date_from: str = Query(...), date_to: str = Query(.
     today = date.today()
     generated_date = f"{today.day} {today.strftime('%B').upper()} {today.year}"
 
-    tokens, bar_widths = compute_marketing_deck_tokens(df, hh, fb, date_from, date_to, generated_date)
+    overrides = {
+        "key_requests": body.key_requests,
+        "stories": body.stories,
+        "updates": body.updates,
+        "way_forward": body.way_forward,
+    }
+    tokens, bar_widths = compute_marketing_deck_tokens(df, hh, fb, date_from, date_to, generated_date, overrides)
     pptx_bytes = fill_pptx_template(TEMPLATE_PATH, tokens, bar_widths)
 
     safe_month = tokens["deck_month_year"].replace(" ", "_").replace("–", "-")
