@@ -13,27 +13,23 @@ function scoreTone(score, max = 5) {
   return { fg: '#8c1a2e', bg: '#ffcdd7', bar: '#c0305a' }
 }
 
-// Same 3-way split the backend uses for the Hub Feedback Score
-// (promoter/passive/detractor), reused wherever a rating box should read as
-// a verdict rather than a plain figure — currently just "Feedback by FL".
+// Sentiment colors for the Promoters/Passives/Detractors boxes.
 // Scale: 1-2 detractor, 3 passive, 4-5 promoter (see main.py's _nps_bucket).
 const NPS_BUCKET_STYLES = {
   promoter:  { fg: '#0f5132', bg: '#aae1c8' },
   passive:   { fg: '#7a5400', bg: '#ffe141' },
   detractor: { fg: '#8c1a2e', bg: '#ffcdd7' },
 }
-function npsBucketTone(score, max = 5) {
-  if (score == null) return { fg: '#6e6e6e', bg: '#f1ede3' }
-  const r = Math.round(score)
-  const detractorMax = Math.round(max * 0.4)
-  const promoterMin = Math.round(max * 0.6) + 1
-  if (r >= promoterMin) return NPS_BUCKET_STYLES.promoter
-  if (r <= detractorMax) return NPS_BUCKET_STYLES.detractor
-  return NPS_BUCKET_STYLES.passive
-}
 
-// Plain KONE-blue rating box — Area / Specialist / Service ratings.
+// Plain KONE-blue rating box — used everywhere a score badge appears
+// (By Frontlines, By Area, Feedback by Service, Feedback by Specialist),
+// so every rating reads the same way; only Score Distribution differs.
 const BLUE_BADGE = { fg: '#1450f5', bg: '#eef3fe' }
+
+// Average scores are rounded to one decimal everywhere they're displayed —
+// done on the frontend (not just backend rounding) so a value that lands on
+// a whole number still reads "4.0" instead of silently dropping to "4".
+const fmt1 = (v) => (v == null ? null : v.toFixed(1))
 
 // KONE Information — the brand's secondary typeface, self-hosted (see index.css).
 // Used for KONE-style figures (big numbers); body/sentence text stays on
@@ -247,14 +243,14 @@ export default function FeedbackPage({ sessionId }) {
 
         {/* By Frontlines + By Area */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card title="By Frontlines" subtitle="Volume and average score per FL segment · rating colored by Hub Feedback Score bucket" accent="#0077a8">
+          <Card title="By Frontlines" subtitle="Volume and average score per FL segment — every segment shown, even at 0" accent="#0077a8">
             {data.has_fl_segment
-              ? <RankedList rows={data.by_fl} labelKey="fl_segment" scaleMax={scaleMax} ratingVariant="nps" />
+              ? <RankedList rows={data.by_fl} labelKey="fl_segment" />
               : <Empty text={'No "FL" column detected in the sheet'} />}
           </Card>
           <Card title="By Area" subtitle="Volume and average score per area" accent="#c0305a">
             {data.has_area
-              ? <RankedList rows={data.by_area} labelKey="area" scaleMax={scaleMax} ratingVariant="blue" />
+              ? <RankedList rows={data.by_area} labelKey="area" />
               : <ConnectTicketsNote />}
           </Card>
         </div>
@@ -389,7 +385,7 @@ function FeedbackRateCard({ rate }) {
         </span>
         {rate && rate.ratio > 1 && (
           <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)', fontFamily: KONE_FONT }}>
-            1 in {rate.ratio}
+            1 in {rate.ratio} tickets
           </span>
         )}
       </div>
@@ -407,7 +403,7 @@ function FiveStarCard({ label, avg, scaleMax }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
         <span style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
-          {avg != null ? avg : '—'}
+          {fmt1(avg) ?? '—'}
         </span>
         <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)', fontFamily: KONE_FONT }}>/ {scaleMax}</span>
       </div>
@@ -421,7 +417,7 @@ function FeedbackScoreBadge({ nps }) {
   return (
     <div>
       <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px', fontFamily: KONE_FONT }}>
-        FEEDBACK SCORE {nps.score > 0 ? '+' : ''}{nps.score}
+        FEEDBACK SCORE {nps.score > 0 ? '+' : ''}{fmt1(nps.score)}
       </span>
     </div>
   )
@@ -475,37 +471,32 @@ function NpsBuckets({ nps }) {
   )
 }
 
-// ── Generic ranked bar list (Feedback by FL / Feedback by Area) ───────────────
-// Meters are always KONE blue. The rating box is blue too, EXCEPT for "Feedback
-// by FL" (ratingVariant="nps"), which is color-coded to match the NPS bucket
-// (promoter/passive/detractor) the FL's average score falls into.
-function RankedList({ rows = [], labelKey, scaleMax, ratingVariant = 'blue' }) {
+// ── Generic ranked bar list (By Frontlines / By Area) ──────────────────────────
+// Meters and the rating box are always KONE blue, matching Feedback by
+// Service / Feedback by Specialist.
+function RankedList({ rows = [], labelKey }) {
   if (!rows.length) return <Empty />
   const maxCount = Math.max(...rows.map(r => r.count), 1)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {rows.map((r) => {
-        const t = ratingVariant === 'nps' ? npsBucketTone(r.avg_score, scaleMax) : BLUE_BADGE
-        return (
-          <div key={r[labelKey]} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</div>
-              <div style={{ height: 8, background: '#f1ede3', borderRadius: 4, marginTop: 5, overflow: 'hidden' }}>
-                <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 4 }} />
-              </div>
+      {rows.map((r) => (
+        <div key={r[labelKey]} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</div>
+            <div style={{ height: 8, background: '#f1ede3', borderRadius: 4, marginTop: 5, overflow: 'hidden' }}>
+              <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 4 }} />
             </div>
-            <span style={{ fontSize: 12, color: '#6e6e6e', width: 60, textAlign: 'right' }}>{r.count} fb</span>
-            <span style={{
-              fontSize: 12, fontWeight: 700, color: t.fg, background: t.bg, borderRadius: 6, padding: '3px 8px',
-              width: 52, textAlign: 'center', flexShrink: 0,
-              fontFamily: ratingVariant === 'blue' ? KONE_FONT : undefined,
-            }}>
-              {r.avg_score ?? '—'}
-            </span>
           </div>
-        )
-      })}
+          <span style={{ fontSize: 12, color: '#6e6e6e', width: 60, textAlign: 'right' }}>{r.count} fb</span>
+          <span style={{
+            fontSize: 12, fontWeight: 700, color: BLUE_BADGE.fg, background: BLUE_BADGE.bg, borderRadius: 6, padding: '3px 8px',
+            width: 52, textAlign: 'center', flexShrink: 0, fontFamily: KONE_FONT,
+          }}>
+            {fmt1(r.avg_score) ?? '—'}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -661,7 +652,7 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
 
   const scoreBadge = (v) => (
     <span style={{ fontWeight: 700, color: BLUE_BADGE.fg, background: BLUE_BADGE.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
-      {v ?? '—'}
+      {fmt1(v) ?? '—'}
     </span>
   )
 
@@ -717,7 +708,7 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
 
   const scoreBadge = (v) => (
     <span style={{ fontWeight: 700, color: BLUE_BADGE.fg, background: BLUE_BADGE.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
-      {v ?? '—'}
+      {fmt1(v) ?? '—'}
     </span>
   )
 

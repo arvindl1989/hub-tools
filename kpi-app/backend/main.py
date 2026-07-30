@@ -2595,7 +2595,7 @@ def feedback_summary(
         feedback_rate = {
             "feedbacks": rated_ct,
             "tickets": total_tickets,
-            "pct": round(rated_ct / total_tickets * 100, 1) if total_tickets else None,
+            "pct": round(rated_ct / total_tickets * 100) if total_tickets else None,
             # Conventional round-half-up (not Python's banker's rounding) so
             # e.g. 2.5 reads as "1 in 3", matching everyday rounding intuition.
             "ratio": int(total_tickets / rated_ct + 0.5) if rated_ct else None,
@@ -2672,8 +2672,14 @@ def feedback_summary(
                 "by_user": {u: int(c) for u, c in grp[grp["user"] != ""].groupby("user").size().items()},
             })
 
-    def _group(col, with_params=False, top_n=None):
-        out = []
+    def _group(col, with_params=False, top_n=None, universe=None):
+        """`universe`, if given, is the FULL set of category values that can
+        exist regardless of the current filters (e.g. every FL segment in the
+        sheet) — any value in it with zero matches under the active filters
+        still appears in the result at count 0, rather than silently
+        disappearing. That's what lets "which FL segments got no feedback
+        from this specialist" actually show up instead of just vanishing."""
+        by_val = {}
         for val, grp in scored.groupby(col):
             if not val:
                 continue
@@ -2687,8 +2693,14 @@ def feedback_summary(
                     k: _avg(grp[f"param_{k}"].dropna().astype(float))
                     for k in param_keys
                 }
-            out.append(row)
-        out = sorted(out, key=lambda x: x["count"], reverse=True)
+            by_val[val] = row
+        for val in (universe or []):
+            if val and val not in by_val:
+                row = {col: val, "count": 0, "avg_score": None}
+                if with_params:
+                    row["params"] = {k: None for k in param_keys}
+                by_val[val] = row
+        out = sorted(by_val.values(), key=lambda x: x["count"], reverse=True)
         return out[:top_n] if top_n else out
 
     # Entries: independent Specialist/Service filters, page-level date range still applies
@@ -2725,7 +2737,7 @@ def feedback_summary(
         "by_service": _group("service", with_params=True),
         "by_user": _group("user", with_params=True),
         "by_requester": _group("requester", top_n=12),
-        "by_fl": _group("fl_segment", top_n=12),
+        "by_fl": _group("fl_segment", top_n=12, universe=fl_segments),
         "has_fl_segment": bool(mapping.get("fl_segment")),
         "by_area": _group("area", top_n=12) if has_area else [],
         "has_area": has_area,
