@@ -40,8 +40,8 @@ function bucketTone(score, max = 5) {
 // tables), which a bare padded <span> would size inconsistently between the two.
 const ratingBadgeStyle = (t) => ({
   display: 'inline-block', width: 40, textAlign: 'center',
-  fontSize: 12, fontWeight: 700, color: t.fg, background: t.bg ?? '#f1ede3',
-  borderRadius: 2, padding: '3px 8px', fontFamily: KONE_FONT,
+  fontSize: 12, fontWeight: 600, color: t.fg, background: t.bg ?? '#f1ede3',
+  borderRadius: 2, padding: '3px 8px', fontFamily: "'Inter', sans-serif",
 })
 
 // Average scores are rounded to one decimal everywhere they're displayed —
@@ -505,15 +505,15 @@ function RankedList({ rows = [], labelKey, headerLabel, scaleMax }) {
                 <td style={{ padding: '9px 6px', minWidth: 150 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</span>
+                    <span style={{ fontWeight: 600, color: '#141414', fontFamily: "'Inter', sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</span>
                   </div>
                   <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
                     <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 3 }} />
                   </div>
                 </td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.tickets ?? '—'}</td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.feedback_rate_pct != null ? `${r.feedback_rate_pct}%` : '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{r.count}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{r.tickets ?? '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{r.feedback_rate_pct != null ? `${r.feedback_rate_pct}%` : '—'}</td>
                 <td style={{ padding: '9px 6px', textAlign: 'center' }}>
                   <span style={ratingBadgeStyle(t)}>{fmt1(r.avg_score) ?? '—'}</span>
                 </td>
@@ -709,15 +709,15 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
                 <td style={{ padding: '9px 6px', minWidth: 170 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, color: isActive ? '#1450f5' : '#141414' }}>{r.service}</span>
+                    <span style={{ fontWeight: 600, color: isActive ? '#1450f5' : '#141414', fontFamily: "'Inter', sans-serif" }}>{r.service}</span>
                   </div>
                   <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
                     <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 3 }} />
                   </div>
                 </td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.tickets ?? '—'}</td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.feedback_rate_pct != null ? `${r.feedback_rate_pct}%` : '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{r.count}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{r.tickets ?? '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{r.feedback_rate_pct != null ? `${r.feedback_rate_pct}%` : '—'}</td>
                 {hasParams
                   ? paramKeys.map(k => (
                       <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.params?.[k])}</td>
@@ -772,15 +772,15 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
                 <td style={{ padding: '9px 6px', minWidth: 150 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, color: isActive ? '#1450f5' : '#141414', whiteSpace: 'nowrap' }}>{r.user}</span>
+                    <span style={{ fontWeight: 600, color: isActive ? '#1450f5' : '#141414', fontFamily: "'Inter', sans-serif", whiteSpace: 'nowrap' }}>{r.user}</span>
                   </div>
                   <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
                     <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 3 }} />
                   </div>
                 </td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.tickets ?? '—'}</td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.feedback_rate_pct != null ? `${r.feedback_rate_pct}%` : '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{r.count}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{r.tickets ?? '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{r.feedback_rate_pct != null ? `${r.feedback_rate_pct}%` : '—'}</td>
                 {hasParams
                   ? paramKeys.map(k => (
                       <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.params?.[k])}</td>
@@ -798,7 +798,7 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
 const thStyle = {
   padding: '6px', fontSize: 10, fontWeight: 600, color: '#6e6e6e',
   textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left',
-  fontFamily: KONE_FONT,
+  fontFamily: "'Inter', sans-serif",
 }
 
 // ── Score Distribution table (rows = star level, columns = rating parameter) ──
@@ -827,8 +827,9 @@ function ScoreDistributionTable({ distributions = {}, paramKeys = [], scaleMax =
               </td>
               {paramKeys.map(k => {
                 const row = (distributions?.[k] ?? []).find(d => d.score === lvl)
+                const t = bucketTone(lvl, scaleMax)
                 return (
-                  <td key={k} style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 700, color: '#1450f5', fontFamily: KONE_FONT }}>
+                  <td key={k} style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 600, color: t.fg, fontFamily: "'Inter', sans-serif" }}>
                     {row?.count ?? 0}
                   </td>
                 )
