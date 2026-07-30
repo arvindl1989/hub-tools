@@ -2514,6 +2514,7 @@ def feedback_summary(
     # ── Area: prefer the feedback sheet's own Area column; fall back to a
     # ticket-sheet join by ticket number only if the sheet doesn't have one. ──
     ticket_df = sessions.get(sid) if sid else None
+    tdf = None  # date-filtered ticket_df — also used by _group() for per-row ticket/rate counts
     area_by_ticket: dict[str, str] = {}
     total_tickets = None
     if ticket_df is not None and "ticket_number" in ticket_df.columns:
@@ -2672,13 +2673,18 @@ def feedback_summary(
                 "by_user": {u: int(c) for u, c in grp[grp["user"] != ""].groupby("user").size().items()},
             })
 
-    def _group(col, with_params=False, top_n=None, universe=None):
+    def _group(col, with_params=False, top_n=None, universe=None, ticket_col=None):
         """`universe`, if given, is the FULL set of category values that can
         exist regardless of the current filters (e.g. every FL segment in the
         sheet) — any value in it with zero matches under the active filters
         still appears in the result at count 0, rather than silently
         disappearing. That's what lets "which FL segments got no feedback
-        from this specialist" actually show up instead of just vanishing."""
+        from this specialist" actually show up instead of just vanishing.
+
+        `ticket_col`, if given (and a ticket session is connected), is the
+        matching column on the TICKET sheet (e.g. "assigned_to" for a
+        per-specialist group) — adds "tickets" (tickets raised/handled) and
+        "feedback_rate_pct" (feedbacks ÷ tickets) to each row."""
         by_val = {}
         for val, grp in scored.groupby(col):
             if not val:
@@ -2700,6 +2706,12 @@ def feedback_summary(
                 if with_params:
                     row["params"] = {k: None for k in param_keys}
                 by_val[val] = row
+        if ticket_col and tdf is not None and ticket_col in tdf.columns:
+            ticket_counts = tdf[ticket_col].astype(str).str.strip().value_counts()
+            for val, row in by_val.items():
+                t_ct = int(ticket_counts.get(str(val).strip(), 0))
+                row["tickets"] = t_ct
+                row["feedback_rate_pct"] = round(row["count"] / t_ct * 100) if t_ct else None
         out = sorted(by_val.values(), key=lambda x: x["count"], reverse=True)
         return out[:top_n] if top_n else out
 
@@ -2734,8 +2746,8 @@ def feedback_summary(
         "distributions": distributions,
         "param_avgs": param_avgs,
         "by_period": by_period,
-        "by_service": _group("service", with_params=True),
-        "by_user": _group("user", with_params=True),
+        "by_service": _group("service", with_params=True, ticket_col="sub_category"),
+        "by_user": _group("user", with_params=True, ticket_col="assigned_to"),
         "by_requester": _group("requester", top_n=12),
         "by_fl": _group("fl_segment", top_n=12, universe=fl_segments),
         "has_fl_segment": bool(mapping.get("fl_segment")),

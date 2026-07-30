@@ -21,11 +21,6 @@ const NPS_BUCKET_STYLES = {
   detractor: { fg: '#8c1a2e', bg: '#ffcdd7' },
 }
 
-// Plain KONE-blue rating box — used everywhere a score badge appears
-// (By Frontlines, By Area, Feedback by Service, Feedback by Specialist),
-// so every rating reads the same way; only Score Distribution differs.
-const BLUE_BADGE = { fg: '#1450f5', bg: '#eef3fe' }
-
 // Average scores are rounded to one decimal everywhere they're displayed —
 // done on the frontend (not just backend rounding) so a value that lands on
 // a whole number still reads "4.0" instead of silently dropping to "4".
@@ -65,17 +60,6 @@ const PARAM_LABELS = {
 // Fixed card order for the four rating-parameter metrics, regardless of which
 // columns the sheet actually has — missing ones render as a dashed placeholder.
 const ORDERED_PARAMS = ['overall', 'quality', 'timeliness', 'interaction']
-
-function Stars({ score, max = 5, size = 18, color = '#b87d00' }) {
-  if (score == null) return null
-  const full = Math.round(score)
-  return (
-    <span style={{ fontSize: size, letterSpacing: 2, color, lineHeight: 1 }}>
-      {'★'.repeat(Math.min(full, max))}
-      <span style={{ opacity: 0.25 }}>{'★'.repeat(Math.max(0, max - full))}</span>
-    </span>
-  )
-}
 
 // ── Hover tooltip helpers ─────────────────────────────────────────────────────
 function useTooltip() {
@@ -245,12 +229,12 @@ export default function FeedbackPage({ sessionId }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Card title="By Frontlines" subtitle="Volume and average score per FL segment — every segment shown, even at 0" accent="#0077a8">
             {data.has_fl_segment
-              ? <RankedList rows={data.by_fl} labelKey="fl_segment" />
+              ? <RankedList rows={data.by_fl} labelKey="fl_segment" scaleMax={scaleMax} />
               : <Empty text={'No "FL" column detected in the sheet'} />}
           </Card>
           <Card title="By Area" subtitle="Volume and average score per area" accent="#c0305a">
             {data.has_area
-              ? <RankedList rows={data.by_area} labelKey="area" />
+              ? <RankedList rows={data.by_area} labelKey="area" scaleMax={scaleMax} />
               : <ConnectTicketsNote />}
           </Card>
         </div>
@@ -258,12 +242,12 @@ export default function FeedbackPage({ sessionId }) {
         {/* Feedback by Service + Feedback by Specialist */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 16 }}>
           <Card title="Feedback by Service"
-            subtitle={data.param_keys?.length ? 'Volume and average per rating parameter' : 'Volume and average score per service'}
+            subtitle="Feedbacks, tickets, feedback rate and rating per service"
             accent="#b87d00">
             <ServiceBreakdown rows={data.by_service} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={s => setService(s === service ? '' : s)} active={service} />
           </Card>
           <Card title="Feedback by Specialist"
-            subtitle={data.param_keys?.length ? 'Average per rating parameter · click a row to focus on that person' : 'Click a row to focus the whole page on that person'}
+            subtitle="Feedbacks, tickets, feedback rate and rating per specialist · click a row to focus on that person"
             accent="#1e8a5e">
             <UserTable rows={data.by_user} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={u => setUser(u === user ? '' : u)} active={user} />
           </Card>
@@ -372,22 +356,20 @@ function Card({ title, subtitle, accent = '#1450f5', controls, children }) {
 }
 
 // ── Feedback Rate card (feedbacks ÷ tickets, needs ticket-session join) ───────
-// Blue box, white text — matches Total Feedback. Same big-number + small-
-// suffix layout as the rating cards, all in KONE Information for consistency:
-// the percentage is the headline figure, "1 in N" is the secondary context.
+// Blue box, white text — matches Total Feedback. One line, one consistent
+// size throughout (no big-number/small-suffix split): "18% (or) 1 in 5
+// tickets", all KONE Information.
 function FeedbackRateCard({ rate }) {
+  const text = rate?.pct != null
+    ? `${rate.pct}%${rate.ratio > 1 ? ` (or) 1 in ${rate.ratio} tickets` : ''}`
+    : '—'
   return (
     <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
       <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>Feedback Rate</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
-        <span style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
-          {rate?.pct != null ? `${rate.pct}%` : '—'}
+      <div style={{ marginTop: 8 }}>
+        <span style={{ fontSize: 20, fontWeight: 700, color: '#fff', lineHeight: 1.35, fontFamily: KONE_FONT }}>
+          {text}
         </span>
-        {rate && rate.ratio > 1 && (
-          <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)', fontFamily: KONE_FONT }}>
-            1 in {rate.ratio} tickets
-          </span>
-        )}
       </div>
     </div>
   )
@@ -472,31 +454,39 @@ function NpsBuckets({ nps }) {
 }
 
 // ── Generic ranked bar list (By Frontlines / By Area) ──────────────────────────
-// Meters and the rating box are always KONE blue, matching Feedback by
-// Service / Feedback by Specialist.
-function RankedList({ rows = [], labelKey }) {
+// The color square sits inline with the label (not centered against the
+// whole row) and the bar starts directly below it, indented to line up
+// under the label — same alignment convention as Feedback by Service /
+// Feedback by Specialist. Rating box is white with green/yellow/red text
+// by score, matching those two tables too.
+function RankedList({ rows = [], labelKey, scaleMax }) {
   if (!rows.length) return <Empty />
   const maxCount = Math.max(...rows.map(r => r.count), 1)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {rows.map((r) => (
-        <div key={r[labelKey]} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</div>
-            <div style={{ height: 8, background: '#f1ede3', borderRadius: 4, marginTop: 5, overflow: 'hidden' }}>
-              <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 4 }} />
+      {rows.map((r) => {
+        const t = scoreTone(r.avg_score, scaleMax)
+        return (
+          <div key={r[labelKey]} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</span>
+              </div>
+              <div style={{ height: 8, background: '#f1ede3', borderRadius: 4, marginTop: 5, marginLeft: 18, overflow: 'hidden' }}>
+                <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 4 }} />
+              </div>
             </div>
+            <span style={{ fontSize: 12, color: '#6e6e6e', width: 30, textAlign: 'right' }}>{r.count}</span>
+            <span style={{
+              fontSize: 12, fontWeight: 700, color: t.fg, background: '#fff', borderRadius: 2, padding: '3px 8px',
+              width: 52, textAlign: 'center', flexShrink: 0, fontFamily: KONE_FONT,
+            }}>
+              {fmt1(r.avg_score) ?? '—'}
+            </span>
           </div>
-          <span style={{ fontSize: 12, color: '#6e6e6e', width: 60, textAlign: 'right' }}>{r.count} fb</span>
-          <span style={{
-            fontSize: 12, fontWeight: 700, color: BLUE_BADGE.fg, background: BLUE_BADGE.bg, borderRadius: 6, padding: '3px 8px',
-            width: 52, textAlign: 'center', flexShrink: 0, fontFamily: KONE_FONT,
-          }}>
-            {fmt1(r.avg_score) ?? '—'}
-          </span>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -650,11 +640,14 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
   const maxCount = Math.max(...rows.map(r => r.count), 1)
   const hasParams = paramKeys.length > 0
 
-  const scoreBadge = (v) => (
-    <span style={{ fontWeight: 700, color: BLUE_BADGE.fg, background: BLUE_BADGE.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
-      {fmt1(v) ?? '—'}
-    </span>
-  )
+  const scoreBadge = (v) => {
+    const t = scoreTone(v, scaleMax)
+    return (
+      <span style={{ fontWeight: 700, color: t.fg, background: '#fff', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
+        {fmt1(v) ?? '—'}
+      </span>
+    )
+  }
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -663,6 +656,8 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
             <th style={thStyle}>Service</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Tickets</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Feedback Rate</th>
             {hasParams
               ? paramKeys.map(k => (
                   <th key={k} style={{ ...thStyle, textAlign: 'center' }}>{PARAM_LABELS[k] ?? k}</th>
@@ -686,6 +681,8 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
                   </div>
                 </td>
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.tickets ?? '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.feedback_rate_pct != null ? `${r.feedback_rate_pct}%` : '—'}</td>
                 {hasParams
                   ? paramKeys.map(k => (
                       <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.params?.[k])}</td>
@@ -706,11 +703,14 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   const maxCount = Math.max(...rows.map(r => r.count), 1)
   const hasParams = paramKeys.length > 0
 
-  const scoreBadge = (v) => (
-    <span style={{ fontWeight: 700, color: BLUE_BADGE.fg, background: BLUE_BADGE.bg, borderRadius: 6, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
-      {fmt1(v) ?? '—'}
-    </span>
-  )
+  const scoreBadge = (v) => {
+    const t = scoreTone(v, scaleMax)
+    return (
+      <span style={{ fontWeight: 700, color: t.fg, background: '#fff', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
+        {fmt1(v) ?? '—'}
+      </span>
+    )
+  }
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -719,12 +719,13 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
             <th style={thStyle}>Specialist</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Tickets</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Feedback Rate</th>
             {hasParams
               ? paramKeys.map(k => (
                   <th key={k} style={{ ...thStyle, textAlign: 'center' }}>{PARAM_LABELS[k] ?? k}</th>
                 ))
               : <th style={{ ...thStyle, textAlign: 'center' }}>Avg Score</th>}
-            <th style={{ ...thStyle, textAlign: 'left', paddingLeft: 14 }}>Rating</th>
           </tr>
         </thead>
         <tbody>
@@ -743,12 +744,13 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
                   </div>
                 </td>
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.tickets ?? '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.feedback_rate_pct != null ? `${r.feedback_rate_pct}%` : '—'}</td>
                 {hasParams
                   ? paramKeys.map(k => (
                       <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.params?.[k])}</td>
                     ))
                   : <td style={{ padding: '9px 6px', textAlign: 'center' }}>{scoreBadge(r.avg_score)}</td>}
-                <td style={{ padding: '9px 6px 9px 14px' }}><Stars score={r.avg_score} max={scaleMax} size={13} /></td>
               </tr>
             )
           })}
