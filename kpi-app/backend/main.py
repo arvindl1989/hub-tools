@@ -2655,13 +2655,20 @@ def feedback_summary(
     nps_counts = {b: int((nps_src["_bucket"] == b).sum()) for b in ("promoter", "passive", "detractor")}
     nps_total = sum(nps_counts.values())
 
-    # Respondents who submitted without a name (sheet stores this as "Anonymous")
-    # can't be ranked as an individual — exclude them from the Top-3 FL lists.
+    # Respondents who submitted without a name (sheet stores this as "Anonymous",
+    # "anon", "N/A", etc). Promoters keep excluding them, since a happy
+    # anonymous respondent isn't someone to call out by name — but Passives
+    # and Detractors surface them (merged into a single "Anonymous" entry) so
+    # unhappy anonymous feedback doesn't just vanish from the Top-3 list.
     _ANONYMOUS = {"anonymous", "anon", "n/a", "na"}
 
-    def _top_fls(bucket, n=3):
-        named = nps_src["requester"].str.strip().str.lower()
-        grp = nps_src[(nps_src["_bucket"] == bucket) & (nps_src["requester"] != "") & (~named.isin(_ANONYMOUS))]
+    def _top_fls(bucket, n=3, exclude_anon=True):
+        grp = nps_src[(nps_src["_bucket"] == bucket) & (nps_src["requester"] != "")].copy()
+        is_anon = grp["requester"].str.strip().str.lower().isin(_ANONYMOUS)
+        if exclude_anon:
+            grp = grp[~is_anon]
+        else:
+            grp.loc[is_anon, "requester"] = "Anonymous"
         counts = grp.groupby("requester").size().sort_values(ascending=False).head(n)
         result = []
         for name, c in counts.items():
@@ -2681,8 +2688,8 @@ def feedback_summary(
         "passive_range":   _range_label(passive_min, promoter_min - 1),
         "promoter_range":  _range_label(promoter_min, scale_max),
         "top_promoters":  _top_fls("promoter"),
-        "top_passives":   _top_fls("passive"),
-        "top_detractors": _top_fls("detractor"),
+        "top_passives":   _top_fls("passive", exclude_anon=False),
+        "top_detractors": _top_fls("detractor", exclude_anon=False),
     }
 
     # Inflow per period + avg score + per-specialist split (for stacked bars)
