@@ -33,6 +33,17 @@ function bucketTone(score, max = 5) {
   return NPS_BUCKET_STYLES.passive
 }
 
+// One fixed-size pill for every rating badge on the page (By Frontlines, By
+// Area, Feedback by Service, Feedback by Specialist) — `display: inline-block`
+// + an explicit width so it renders identically whether it's a flex child
+// (the two ranked lists) or sitting inside a plain table cell (the two
+// tables), which a bare padded <span> would size inconsistently between the two.
+const ratingBadgeStyle = (t) => ({
+  display: 'inline-block', width: 40, textAlign: 'center',
+  fontSize: 12, fontWeight: 700, color: t.fg, background: t.bg ?? '#f1ede3',
+  borderRadius: 2, padding: '3px 8px', fontFamily: KONE_FONT,
+})
+
 // Average scores are rounded to one decimal everywhere they're displayed —
 // done on the frontend (not just backend rounding) so a value that lands on
 // a whole number still reads "4.0" instead of silently dropping to "4".
@@ -157,13 +168,13 @@ export default function FeedbackPage({ sessionId }) {
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: '#141414', margin: 0, letterSpacing: '-0.02em' }}>Feedback</h2>
-          <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0' }}>
-            Ratings from the connected Google Sheet (Sheet 2)
-            {service && <> · <b style={{ color: '#1450f5' }}>{service}</b></>}
-            {area && <> · <b style={{ color: '#1450f5' }}>{area}</b></>}
-            {fl && <> · <b style={{ color: '#1450f5' }}>{fl}</b></>}
-            {user && <> · showing <b style={{ color: '#1450f5' }}>{user}</b></>}
-          </p>
+          {(service || area || fl || user) && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              {[service, area, fl, user].filter(Boolean).map((v) => (
+                <span key={v} style={activeFilterPillStyle}>{v}</span>
+              ))}
+            </div>
+          )}
         </div>
         <button className="btn-secondary" onClick={() => load(true)} title="Re-fetch the sheet">
           ⟳ Refresh sheet
@@ -239,12 +250,12 @@ export default function FeedbackPage({ sessionId }) {
 
         {/* By Frontlines + By Area */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card title="By Frontlines" subtitle="Volume and average score per FL segment — every segment shown, even at 0" accent="#0077a8">
+          <Card title="By Frontlines" subtitle="Volume and average score per FL segment — every segment shown, even at 0">
             {data.has_fl_segment
               ? <RankedList rows={data.by_fl} labelKey="fl_segment" scaleMax={scaleMax} />
               : <Empty text={'No "FL" column detected in the sheet'} />}
           </Card>
-          <Card title="By Area" subtitle="Volume and average score per area" accent="#c0305a">
+          <Card title="By Area" subtitle="Volume and average score per area">
             {data.has_area
               ? <RankedList rows={data.by_area} labelKey="area" scaleMax={scaleMax} />
               : <ConnectTicketsNote />}
@@ -254,26 +265,23 @@ export default function FeedbackPage({ sessionId }) {
         {/* Feedback by Service + Feedback by Specialist */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 16 }}>
           <Card title="Feedback by Service"
-            subtitle="Feedbacks, tickets, feedback rate and rating per service"
-            accent="#b87d00">
+            subtitle="Feedbacks, tickets, feedback rate and rating per service">
             <ServiceBreakdown rows={data.by_service} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={s => setService(s === service ? '' : s)} active={service} />
           </Card>
           <Card title="Feedback by Specialist"
-            subtitle="Feedbacks, tickets, feedback rate and rating per specialist · click a row to focus on that person"
-            accent="#1e8a5e">
+            subtitle="Feedbacks, tickets, feedback rate and rating per specialist · click a row to focus on that person">
             <UserTable rows={data.by_user} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={u => setUser(u === user ? '' : u)} active={user} />
           </Card>
         </div>
 
         {/* Score Distribution — rows = star level, columns = rating parameter */}
-        <Card title="Score Distribution" subtitle="How many feedbacks gave each star rating, per parameter" accent="#1450f5">
+        <Card title="Score Distribution" subtitle="How many feedbacks gave each star rating, per parameter">
           <ScoreDistributionTable distributions={data.distributions} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} />
         </Card>
 
         {/* Feedback Entries — full width, own Specialist/Service filters */}
         <Card title="Feedback Entries"
           subtitle={`${data.entries.length} entries · newest to oldest${range.from || range.to ? ' · within the selected date range' : ''}`}
-          accent="#1450f5"
           controls={
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <select value={entriesUser} onChange={e => setEntriesUser(e.target.value)} style={selStyle}>
@@ -299,7 +307,7 @@ export default function FeedbackPage({ sessionId }) {
 
         {/* Feedback Inflow + Average Score Trend */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 }}>
-          <Card title="Feedback Inflow" subtitle={`Feedbacks received per ${groupBy}`} accent="#1450f5"
+          <Card title="Feedback Inflow" subtitle={`Feedbacks received per ${groupBy}`}
             controls={
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
@@ -330,7 +338,7 @@ export default function FeedbackPage({ sessionId }) {
             }>
             <InflowBars data={data.by_period} users={data.users} stacked={splitByUser} />
           </Card>
-          <Card title="Average Score Trend" subtitle={`Mean rating per ${groupBy} — hover for values`} accent="#1e8a5e">
+          <Card title="Average Score Trend" subtitle={`Mean rating per ${groupBy} — hover for values`}>
             <ScoreTrend data={data.by_period} max={scaleMax} />
           </Card>
         </div>
@@ -346,12 +354,18 @@ const selStyle = {
   background: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif', maxWidth: 220,
 }
 
+// Matches the filter bar's active "All time" pill exactly, so an active
+// filter shown up in the header reads the same way as one shown down there.
+const activeFilterPillStyle = {
+  padding: '5px 10px', fontSize: 12, fontWeight: 500, fontFamily: 'Inter, sans-serif',
+  border: '1px solid #1450f5', borderRadius: 7, background: '#1450f5', color: '#fff',
+}
+
 // ── Card shell (matches the rest of the app) ──────────────────────────────────
-function Card({ title, subtitle, accent = '#1450f5', controls, children }) {
+function Card({ title, subtitle, controls, children }) {
   return (
     <div style={{
       background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6',
-      borderLeft: `3px solid ${accent}`,
       boxShadow: '0 1px 3px rgba(20,20,20,0.04), 0 4px 12px rgba(20,20,20,0.03)',
       minWidth: 0,
     }}>
@@ -379,7 +393,7 @@ function FeedbackRateCard({ rate }) {
     <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
       <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>Feedback Rate</div>
       <div style={{ marginTop: 8 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: '#fff', lineHeight: 1.35, fontFamily: KONE_FONT }}>
+        <span style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
           {text}
         </span>
       </div>
@@ -409,7 +423,7 @@ function FiveStarCard({ label, avg, scaleMax }) {
 function FeedbackScoreBadge({ nps }) {
   if (!nps || nps.score == null) return null
   return (
-    <div>
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px', fontFamily: KONE_FONT }}>
         FEEDBACK SCORE {nps.score > 0 ? '+' : ''}{fmt1(nps.score)}
       </span>
@@ -490,10 +504,7 @@ function RankedList({ rows = [], labelKey, scaleMax }) {
               </div>
             </div>
             <span style={{ fontSize: 12, color: '#6e6e6e', width: 30, textAlign: 'right' }}>{r.count}</span>
-            <span style={{
-              fontSize: 12, fontWeight: 700, color: t.fg, background: t.bg ?? '#f1ede3', borderRadius: 2, padding: '3px 8px',
-              width: 52, textAlign: 'center', flexShrink: 0, fontFamily: KONE_FONT,
-            }}>
+            <span style={{ ...ratingBadgeStyle(t), flexShrink: 0 }}>
               {fmt1(r.avg_score) ?? '—'}
             </span>
           </div>
@@ -655,7 +666,7 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
   const scoreBadge = (v) => {
     const t = bucketTone(v, scaleMax)
     return (
-      <span style={{ fontWeight: 700, color: t.fg, background: t.bg ?? '#f1ede3', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
+      <span style={ratingBadgeStyle(t)}>
         {fmt1(v) ?? '—'}
       </span>
     )
@@ -718,7 +729,7 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   const scoreBadge = (v) => {
     const t = bucketTone(v, scaleMax)
     return (
-      <span style={{ fontWeight: 700, color: t.fg, background: t.bg ?? '#f1ede3', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
+      <span style={ratingBadgeStyle(t)}>
         {fmt1(v) ?? '—'}
       </span>
     )
