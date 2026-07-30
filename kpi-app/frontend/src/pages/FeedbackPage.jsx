@@ -46,6 +46,22 @@ const cardHeadingStyle = (color) => ({
   textTransform: 'uppercase', fontFamily: "'Inter', sans-serif",
 })
 
+// Filter-dropdown allowlist only — never applied to the underlying data, so
+// charts/tables/Feedback Entries keep showing every specialist regardless.
+// Keeps the Specialist filter lean without losing anyone's numbers.
+const ALLOWED_SPECIALISTS = [
+  'Ajith A',
+  'Akshaya Praveen',
+  'Akshayaa Rajeswari AS',
+  'Arvind Lakshminarayanan',
+  'Nitish JK',
+  'Ranjithkumar Ashokkumar',
+]
+
+// Feedback tab wants a leaner date filter than the Dashboard's — just
+// "All time", the By Period dropdown, and the raw calendar inputs.
+const ALL_TIME_PRESET = [{ label: 'All time', from: '', to: '' }]
+
 const PARAM_LABELS = {
   overall: 'Overall', quality: 'Quality',
   timeliness: 'Timeliness', interaction: 'Interaction',
@@ -109,8 +125,10 @@ export default function FeedbackPage({ sessionId }) {
   const [error,   setError]   = useState(null)
 
   const [range,   setRange]   = useState({ from: '', to: '' })
-  const [user,    setUser]    = useState('')
   const [service, setService] = useState('')
+  const [area,    setArea]    = useState('')
+  const [fl,      setFl]      = useState('')
+  const [user,    setUser]    = useState('')
   const [groupBy, setGroupBy] = useState('week')
   const [splitByUser, setSplitByUser] = useState(false)
 
@@ -124,7 +142,7 @@ export default function FeedbackPage({ sessionId }) {
     setLoading(true)
     setError(null)
     getFeedback({
-      dateFrom: range.from, dateTo: range.to, user, service, groupBy, refresh,
+      dateFrom: range.from, dateTo: range.to, user, service, area, fl, groupBy, refresh,
       sid: sessionId, entriesUser, entriesService,
     })
       .then(d => { if (id === reqRef.current) { setData(d); setLoading(false) } })
@@ -133,11 +151,12 @@ export default function FeedbackPage({ sessionId }) {
         setError(e?.response?.data?.detail || e?.message || 'Could not load feedback')
         setLoading(false)
       })
-  }, [range.from, range.to, user, service, groupBy, sessionId, entriesUser, entriesService])
+  }, [range.from, range.to, user, service, area, fl, groupBy, sessionId, entriesUser, entriesService])
 
   useEffect(() => { load() }, [load])
 
   const scaleMax = data?.scale_max ?? 5
+  const specialists = ALLOWED_SPECIALISTS.filter(a => (data?.users ?? []).includes(a))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -148,8 +167,10 @@ export default function FeedbackPage({ sessionId }) {
           <h2 style={{ fontSize: 22, fontWeight: 800, color: '#141414', margin: 0, letterSpacing: '-0.02em' }}>Feedback</h2>
           <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0' }}>
             Ratings from the connected Google Sheet (Sheet 2)
-            {user && <> · showing <b style={{ color: '#1450f5' }}>{user}</b></>}
             {service && <> · <b style={{ color: '#1450f5' }}>{service}</b></>}
+            {area && <> · <b style={{ color: '#1450f5' }}>{area}</b></>}
+            {fl && <> · <b style={{ color: '#1450f5' }}>{fl}</b></>}
+            {user && <> · showing <b style={{ color: '#1450f5' }}>{user}</b></>}
           </p>
         </div>
         <button className="btn-secondary" onClick={() => load(true)} title="Re-fetch the sheet">
@@ -160,18 +181,26 @@ export default function FeedbackPage({ sessionId }) {
       {/* Filters */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filters</span>
-        <select value={user} onChange={e => setUser(e.target.value)} style={selStyle}>
-          <option value="">All Specialists</option>
-          {(data?.users ?? []).map(u => <option key={u} value={u}>{u}</option>)}
-        </select>
         <select value={service} onChange={e => setService(e.target.value)} style={selStyle}>
           <option value="">All Services</option>
           {(data?.services ?? []).map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => setRange({ from, to })} />
-        {(user || service || range.from || range.to) && (
+        <select value={area} onChange={e => setArea(e.target.value)} style={selStyle}>
+          <option value="">All Areas</option>
+          {(data?.areas ?? []).map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <select value={fl} onChange={e => setFl(e.target.value)} style={selStyle}>
+          <option value="">All Frontlines</option>
+          {(data?.fl_segments ?? []).map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+        <select value={user} onChange={e => setUser(e.target.value)} style={selStyle}>
+          <option value="">All Specialists</option>
+          {specialists.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
+        <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => setRange({ from, to })} presets={ALL_TIME_PRESET} />
+        {(user || service || area || fl || range.from || range.to) && (
           <button
-            onClick={() => { setUser(''); setService(''); setRange({ from: '', to: '' }) }}
+            onClick={() => { setUser(''); setService(''); setArea(''); setFl(''); setRange({ from: '', to: '' }) }}
             style={{ border: 'none', background: 'none', color: '#c0305a', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
           >
             Reset all
@@ -191,10 +220,13 @@ export default function FeedbackPage({ sessionId }) {
 
       {data && (<>
 
+        {/* Feedback Score — sits above the 6 metric cards */}
+        <FeedbackScoreBadge nps={data.nps} />
+
         {/* 6 metric cards: Total, Rate, Overall/Quality/Timeliness/Interaction */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-            <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>Total Feedbacks</div>
+            <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>Total Feedback</div>
             <div style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, marginTop: 8, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>{data.total}</div>
           </div>
 
@@ -210,17 +242,17 @@ export default function FeedbackPage({ sessionId }) {
           ))}
         </div>
 
-        {/* Hub Feedback Score */}
-        <NpsSection nps={data.nps} scaleMax={scaleMax} />
+        {/* Promoters / Passives / Detractors */}
+        <NpsBuckets nps={data.nps} />
 
-        {/* Feedback by FL + Feedback by Area */}
+        {/* By Frontlines + By Area */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card title="Feedback by FL" subtitle="Volume and average score per FL segment · rating colored by Hub Feedback Score bucket" accent="#0077a8">
+          <Card title="By Frontlines" subtitle="Volume and average score per FL segment · rating colored by Hub Feedback Score bucket" accent="#0077a8">
             {data.has_fl_segment
               ? <RankedList rows={data.by_fl} labelKey="fl_segment" scaleMax={scaleMax} ratingVariant="nps" />
               : <Empty text={'No "FL" column detected in the sheet'} />}
           </Card>
-          <Card title="Feedback by Area" subtitle="Volume and average score per area" accent="#c0305a">
+          <Card title="By Area" subtitle="Volume and average score per area" accent="#c0305a">
             {data.has_area
               ? <RankedList rows={data.by_area} labelKey="area" scaleMax={scaleMax} ratingVariant="blue" />
               : <ConnectTicketsNote />}
@@ -344,20 +376,22 @@ function Card({ title, subtitle, accent = '#1450f5', controls, children }) {
 }
 
 // ── Feedback Rate card (feedbacks ÷ tickets, needs ticket-session join) ───────
-// Blue box, white text — matches Total Feedbacks. The rate sentence itself
-// is exempt from the KONE Information rule (it reads better as plain Inter
-// with the raw feedback/ticket percentage in brackets).
+// Blue box, white text — matches Total Feedback. Same big-number + small-
+// suffix layout as the rating cards, all in KONE Information for consistency:
+// the percentage is the headline figure, "1 in N" is the secondary context.
 function FeedbackRateCard({ rate }) {
-  const pctSuffix = rate?.pct != null ? ` (${rate.pct}%)` : ''
   return (
     <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
       <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>Feedback Rate</div>
-      <div style={{ fontSize: 20, fontWeight: 500, color: '#fff', lineHeight: 1.35, marginTop: 10 }}>
-        {rate ? (
-          rate.ratio <= 1
-            ? <>Every ticket got feedback<span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }}>{pctSuffix}</span></>
-            : <>1 in <span style={{ fontSize: 26, fontWeight: 700 }}>{rate.ratio}</span> tickets got feedback<span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }}>{pctSuffix}</span></>
-        ) : <span style={{ fontSize: 34, fontWeight: 700 }}>—</span>}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
+        <span style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
+          {rate?.pct != null ? `${rate.pct}%` : '—'}
+        </span>
+        {rate && rate.ratio > 1 && (
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)', fontFamily: KONE_FONT }}>
+            1 in {rate.ratio}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -381,48 +415,40 @@ function FiveStarCard({ label, avg, scaleMax }) {
   )
 }
 
-// ── Hub Feedback Score section ─────────────────────────────────────────────────
+// ── Feedback Score badge — standalone, sits above the 6 metric cards ──────────
+function FeedbackScoreBadge({ nps }) {
+  if (!nps || nps.score == null) return null
+  return (
+    <div>
+      <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px', fontFamily: KONE_FONT }}>
+        FEEDBACK SCORE {nps.score > 0 ? '+' : ''}{nps.score}
+      </span>
+    </div>
+  )
+}
+
+// ── Promoters / Passives / Detractors ──────────────────────────────────────────
 // Each bucket keeps its own sentiment color (mint/yellow/pink) across the
 // whole box; the Top 3 list is a direct extension of that same box (one
 // card, not two), separated only by a hairline.
-function NpsSection({ nps, scaleMax }) {
+function NpsBuckets({ nps }) {
   if (!nps) return null
-  const detractorRange = nps.detractor_range ?? '1–2'
-  const passiveRange   = nps.passive_range   ?? '3'
-  const promoterRange  = nps.promoter_range  ?? '4–5'
   const buckets = [
     { key: 'promoters',  label: 'Promoters',  count: nps.promoters,  items: nps.top_promoters,  ...NPS_BUCKET_STYLES.promoter },
     { key: 'passives',   label: 'Passives',   count: nps.passives,   items: nps.top_passives,   ...NPS_BUCKET_STYLES.passive },
     { key: 'detractors', label: 'Detractors', count: nps.detractors, items: nps.top_detractors, ...NPS_BUCKET_STYLES.detractor },
   ]
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <div>
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#141414', margin: 0 }}>Hub Feedback Score</h3>
-          <p style={{ fontSize: 11, color: '#9c9c9c', margin: '3px 0 0', maxWidth: 640, lineHeight: 1.55 }}>
-            Every rated feedback's Overall score (out of {scaleMax}) sorts into one of three buckets:{' '}
-            🔴 <b>Detractors: {detractorRange}</b> · 🟡 <b>Passives: {passiveRange}</b> · 🟢 <b>Promoters: {promoterRange}</b>.{' '}
-            The Hub Feedback Score is the share of Promoters minus the share of Detractors, on a −100 to +100 scale — higher means more people are having a great experience than a poor one.
-          </p>
-        </div>
-        {nps.score != null && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px', fontFamily: KONE_FONT, flexShrink: 0 }}>
-            FEEDBACK SCORE {nps.score > 0 ? '+' : ''}{nps.score}
-          </span>
-        )}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {buckets.map(b => (
-          <div key={b.key} style={{ background: b.bg, borderRadius: 8 }}>
-            <div style={{ padding: '16px 18px' }}>
-              <div style={cardHeadingStyle(b.fg)}>{b.label}</div>
-              <div style={{ fontSize: 30, fontWeight: 700, color: b.fg, lineHeight: 1, marginTop: 8, fontFamily: KONE_FONT }}>{b.count}</div>
-            </div>
-            <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', padding: '14px 18px' }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: b.fg, opacity: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, fontFamily: KONE_FONT }}>Top 3</div>
-              {!b.items?.length ? (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      {buckets.map(b => (
+        <div key={b.key} style={{ background: b.bg, borderRadius: 8 }}>
+          <div style={{ padding: '16px 18px' }}>
+            <div style={cardHeadingStyle(b.fg)}>{b.label}</div>
+            <div style={{ fontSize: 30, fontWeight: 700, color: b.fg, lineHeight: 1, marginTop: 8, fontFamily: KONE_FONT }}>{b.count}</div>
+          </div>
+          <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', padding: '14px 18px' }}>
+            <div style={{ ...cardHeadingStyle(b.fg), opacity: 0.75, marginBottom: 10 }}>Top 3</div>
+            {!b.items?.length ? (
                 <div style={{ fontSize: 12, color: b.fg, opacity: 0.6 }}>No data</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -446,7 +472,6 @@ function NpsSection({ nps, scaleMax }) {
           </div>
         ))}
       </div>
-    </div>
   )
 }
 

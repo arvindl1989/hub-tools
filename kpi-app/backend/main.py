@@ -2497,6 +2497,8 @@ def feedback_summary(
     date_to:   Optional[str] = None,
     user:      Optional[str] = None,
     service:   Optional[str] = None,
+    area:      Optional[str] = None,
+    fl:        Optional[str] = None,
     group_by:  str = Query("week", pattern="^(week|month)$"),
     refresh:   bool = False,
     sid:       Optional[str] = None,   # ticket session — enables Area join + feedback rate
@@ -2507,6 +2509,7 @@ def feedback_summary(
 
     users    = sorted(u for u in df["user"].unique() if u)
     services = sorted(s for s in df["service"].unique() if s)
+    fl_segments = sorted(f for f in df["fl_segment"].unique() if f) if "fl_segment" in df.columns else []
 
     # ── Area: prefer the feedback sheet's own Area column; fall back to a
     # ticket-sheet join by ticket number only if the sheet doesn't have one. ──
@@ -2534,8 +2537,9 @@ def feedback_summary(
     else:
         df["area"] = ""
     has_area = bool(sheet_has_area or area_by_ticket)
+    areas = sorted(a for a in df["area"].unique() if a) if has_area else []
 
-    def _apply_filters(base, u, s):
+    def _apply_filters(base, u, s, a=None, f=None):
         out = base
         if date_from:
             out = out[out["date"].isna() | (out["date"] >= pd.Timestamp(date_from))]
@@ -2545,9 +2549,13 @@ def feedback_summary(
             out = out[out["user"] == u]
         if s:
             out = out[out["service"] == s]
+        if a:
+            out = out[out["area"] == a]
+        if f:
+            out = out[out["fl_segment"] == f]
         return out
 
-    tmp = _apply_filters(df, user, service)
+    tmp = _apply_filters(df, user, service, area, fl)
 
     scored = tmp[tmp["score"].notna()]
     scores = scored["score"].astype(float)
@@ -2723,6 +2731,8 @@ def feedback_summary(
         "has_area": has_area,
         "users": users,
         "services": services,
+        "areas": areas,
+        "fl_segments": fl_segments,
         "entries": entries_rows,
     }
 

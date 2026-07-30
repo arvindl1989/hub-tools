@@ -202,15 +202,18 @@ export function PeriodPickerButton({ dateFrom, dateTo, onChange, placeholder = '
   )
 }
 
-export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange }) {
-  const active = PRESETS.find((p) => p.from === dateFrom && p.to === dateTo)
+// `presets` lets a caller show a trimmed-down pill row (e.g. just "All time")
+// while keeping the By Period dropdown and calendar inputs — used by the
+// Feedback tab, which wants a leaner filter bar than the Dashboard's.
+export default function DateRangePicker({ dateFrom = '', dateTo = '', onChange, presets = PRESETS }) {
+  const active = presets.find((p) => p.from === dateFrom && p.to === dateTo)
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
 
       {/* Preset pills — wraps to multiple rows, no clipping */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-        {PRESETS.map((p) => (
+        {presets.map((p) => (
           <PresetButton key={p.label} label={p.label} isActive={active?.label === p.label} onClick={() => onChange(p.from, p.to)} />
         ))}
       </div>
