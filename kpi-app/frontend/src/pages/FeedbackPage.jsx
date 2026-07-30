@@ -13,12 +13,24 @@ function scoreTone(score, max = 5) {
   return { fg: '#8c1a2e', bg: '#ffcdd7', bar: '#c0305a' }
 }
 
-// Sentiment colors for the Promoters/Passives/Detractors boxes.
+// Sentiment colors for the Promoters/Passives/Detractors boxes, reused as
+// text color for every rating badge on the page (By Frontlines, By Area,
+// Feedback by Service, Feedback by Specialist) — the badge itself stays
+// white, only the number's color signals promoter/passive/detractor.
 // Scale: 1-2 detractor, 3 passive, 4-5 promoter (see main.py's _nps_bucket).
 const NPS_BUCKET_STYLES = {
   promoter:  { fg: '#0f5132', bg: '#aae1c8' },
   passive:   { fg: '#7a5400', bg: '#ffe141' },
   detractor: { fg: '#8c1a2e', bg: '#ffcdd7' },
+}
+function bucketTone(score, max = 5) {
+  if (score == null) return { fg: '#6e6e6e' }
+  const r = Math.round(score)
+  const detractorMax = Math.round(max * 0.4)
+  const promoterMin = Math.round(max * 0.6) + 1
+  if (r >= promoterMin) return NPS_BUCKET_STYLES.promoter
+  if (r <= detractorMax) return NPS_BUCKET_STYLES.detractor
+  return NPS_BUCKET_STYLES.passive
 }
 
 // Average scores are rounded to one decimal everywhere they're displayed —
@@ -465,7 +477,7 @@ function RankedList({ rows = [], labelKey, scaleMax }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {rows.map((r) => {
-        const t = scoreTone(r.avg_score, scaleMax)
+        const t = bucketTone(r.avg_score, scaleMax)
         return (
           <div key={r[labelKey]} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -641,7 +653,7 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
   const hasParams = paramKeys.length > 0
 
   const scoreBadge = (v) => {
-    const t = scoreTone(v, scaleMax)
+    const t = bucketTone(v, scaleMax)
     return (
       <span style={{ fontWeight: 700, color: t.fg, background: '#fff', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
         {fmt1(v) ?? '—'}
@@ -704,7 +716,7 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   const hasParams = paramKeys.length > 0
 
   const scoreBadge = (v) => {
-    const t = scoreTone(v, scaleMax)
+    const t = bucketTone(v, scaleMax)
     return (
       <span style={{ fontWeight: 700, color: t.fg, background: '#fff', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
         {fmt1(v) ?? '—'}
