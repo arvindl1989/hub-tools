@@ -491,7 +491,7 @@ function RankedList({ rows = [], labelKey, scaleMax }) {
             </div>
             <span style={{ fontSize: 12, color: '#6e6e6e', width: 30, textAlign: 'right' }}>{r.count}</span>
             <span style={{
-              fontSize: 12, fontWeight: 700, color: t.fg, background: '#fff', borderRadius: 2, padding: '3px 8px',
+              fontSize: 12, fontWeight: 700, color: t.fg, background: t.bg ?? '#f1ede3', borderRadius: 2, padding: '3px 8px',
               width: 52, textAlign: 'center', flexShrink: 0, fontFamily: KONE_FONT,
             }}>
               {fmt1(r.avg_score) ?? '—'}
@@ -655,7 +655,7 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
   const scoreBadge = (v) => {
     const t = bucketTone(v, scaleMax)
     return (
-      <span style={{ fontWeight: 700, color: t.fg, background: '#fff', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
+      <span style={{ fontWeight: 700, color: t.fg, background: t.bg ?? '#f1ede3', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
         {fmt1(v) ?? '—'}
       </span>
     )
@@ -718,7 +718,7 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   const scoreBadge = (v) => {
     const t = bucketTone(v, scaleMax)
     return (
-      <span style={{ fontWeight: 700, color: t.fg, background: '#fff', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
+      <span style={{ fontWeight: 700, color: t.fg, background: t.bg ?? '#f1ede3', borderRadius: 2, padding: '3px 8px', fontSize: 12, fontFamily: KONE_FONT }}>
         {fmt1(v) ?? '—'}
       </span>
     )
