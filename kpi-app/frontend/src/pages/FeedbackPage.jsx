@@ -33,27 +33,13 @@ function bucketTone(score, max = 5) {
   return NPS_BUCKET_STYLES.passive
 }
 
-// Vivid, standalone-on-white variant of the same 3-way bucket — the
-// NPS_BUCKET_STYLES fg colors are tuned for contrast sitting on their own
-// tinted background, so on plain white (Score Distribution's table) they
-// read too dark/muted to look colored at a glance. These match scoreTone's
-// brighter "bar" hues instead.
-const DISTRIBUTION_TONE = { promoter: '#1e8a5e', passive: '#b87d00', detractor: '#c0305a' }
-function distributionTone(lvl, max = 5) {
-  const detractorMax = Math.round(max * 0.4)
-  const promoterMin = Math.round(max * 0.6) + 1
-  if (lvl >= promoterMin) return DISTRIBUTION_TONE.promoter
-  if (lvl <= detractorMax) return DISTRIBUTION_TONE.detractor
-  return DISTRIBUTION_TONE.passive
-}
-
 // One fixed-size pill for every rating badge on the page (By Frontlines, By
 // Area, Feedback by Service, Feedback by Specialist) — `display: inline-block`
 // + an explicit width so it renders identically whether it's a flex child
 // (the two ranked lists) or sitting inside a plain table cell (the two
 // tables), which a bare padded <span> would size inconsistently between the two.
 const ratingBadgeStyle = (t) => ({
-  display: 'inline-block', width: 40, textAlign: 'center',
+  display: 'inline-block', minWidth: 40, textAlign: 'center',
   fontSize: 12, fontWeight: 600, color: t.fg, background: t.bg ?? '#f1ede3',
   borderRadius: 2, padding: '3px 8px', fontFamily: "'Inter', sans-serif",
 })
@@ -841,10 +827,10 @@ function ScoreDistributionTable({ distributions = {}, paramKeys = [], scaleMax =
               </td>
               {paramKeys.map(k => {
                 const row = (distributions?.[k] ?? []).find(d => d.score === lvl)
-                const color = distributionTone(lvl, scaleMax)
+                const t = bucketTone(lvl, scaleMax)
                 return (
-                  <td key={k} style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 600, color, fontFamily: "'Inter', sans-serif" }}>
-                    {row?.count ?? 0}
+                  <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>
+                    <span style={ratingBadgeStyle(t)}>{row?.count ?? 0}</span>
                   </td>
                 )
               })}
