@@ -44,14 +44,6 @@ const ratingBadgeStyle = (t) => ({
   borderRadius: 2, padding: '3px 8px', fontFamily: KONE_FONT,
 })
 
-// Shared cap for By Frontlines / By Area / Feedback by Service / Feedback by
-// Specialist — whichever of the four has more rows would otherwise stretch
-// its card taller than the others (CSS Grid then stretches every card in
-// that row to match, leaving the shorter ones full of empty space). Capping
-// all four at the same height with an internal scroll keeps every one the
-// same size regardless of how many rows it actually has.
-const PANEL_MAX_HEIGHT = 320
-
 // Average scores are rounded to one decimal everywhere they're displayed —
 // done on the frontend (not just backend rounding) so a value that lands on
 // a whole number still reads "4.0" instead of silently dropping to "4".
@@ -271,7 +263,7 @@ export default function FeedbackPage({ sessionId }) {
         </div>
 
         {/* Feedback by Service + Feedback by Specialist */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Card title="Feedback by Service"
             subtitle="Feedbacks, tickets, feedback rate and rating per service">
             <ServiceBreakdown rows={data.by_service} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={s => setService(s === service ? '' : s)} active={service} />
@@ -497,7 +489,7 @@ function RankedList({ rows = [], labelKey, scaleMax }) {
   if (!rows.length) return <Empty />
   const maxCount = Math.max(...rows.map(r => r.count), 1)
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: PANEL_MAX_HEIGHT, overflowY: 'auto', paddingRight: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {rows.map((r) => {
         const t = bucketTone(r.avg_score, scaleMax)
         return (
@@ -681,7 +673,7 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
   }
 
   return (
-    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: PANEL_MAX_HEIGHT }}>
+    <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
@@ -744,7 +736,7 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   }
 
   return (
-    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: PANEL_MAX_HEIGHT }}>
+    <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
