@@ -2593,19 +2593,25 @@ def feedback_summary(
             "ratio": int(total_tickets / rated_ct + 0.5) if rated_ct else None,
         }
 
-    # ── NPS-style classification on the Overall score, scaled to the sheet's rating
-    #    scale — on a 5-point scale: 4.0-5.0 promoter, 2.6-4.0 passive, below 2.6 detractor.
-    promoter_cut = round(scale_max * 0.8, 2)   # 4.0 on a 5-pt scale
-    passive_cut = round(scale_max * 0.52, 2)   # 2.6 on a 5-pt scale
+    # ── Hub Feedback Score classification on the (rounded) Overall score —
+    #    on a 5-point scale: 1-2 detractor, 3 passive, 4-5 promoter. Generalized
+    #    to other scales by the same 40%/60% split (still 1-2/3/4-5 at scale 5).
+    detractor_max = round(scale_max * 0.4)   # 2 on a 5-pt scale
+    passive_min = detractor_max + 1          # 3 on a 5-pt scale
+    promoter_min = round(scale_max * 0.6) + 1  # 4 on a 5-pt scale
 
     def _nps_bucket(v):
         if pd.isna(v):
             return None
-        if v >= promoter_cut:
+        r = round(v)
+        if r >= promoter_min:
             return "promoter"
-        if v >= passive_cut:
-            return "passive"
-        return "detractor"
+        if r <= detractor_max:
+            return "detractor"
+        return "passive"
+
+    def _range_label(lo, hi):
+        return f"{lo}–{hi}" if hi > lo else str(lo)
 
     nps_src = scored.copy()
     nps_src["_bucket"] = nps_src["score"].apply(_nps_bucket)
@@ -2634,8 +2640,9 @@ def feedback_summary(
         "passive_pct":   round(nps_counts["passive"]   / nps_total * 100, 1) if nps_total else None,
         "detractor_pct": round(nps_counts["detractor"] / nps_total * 100, 1) if nps_total else None,
         "score": round((nps_counts["promoter"] - nps_counts["detractor"]) / nps_total * 100, 1) if nps_total else None,
-        "promoter_cut": promoter_cut,
-        "passive_cut": passive_cut,
+        "detractor_range": _range_label(1, detractor_max),
+        "passive_range":   _range_label(passive_min, promoter_min - 1),
+        "promoter_range":  _range_label(promoter_min, scale_max),
         "top_promoters":  _top_fls("promoter"),
         "top_passives":   _top_fls("passive"),
         "top_detractors": _top_fls("detractor"),

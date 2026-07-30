@@ -13,9 +13,10 @@ function scoreTone(score, max = 5) {
   return { fg: '#8c1a2e', bg: '#ffcdd7', bar: '#c0305a' }
 }
 
-// Same 3-way split the backend uses for NPS (promoter/passive/detractor),
-// reused wherever a rating box should read as an NPS-style verdict rather
-// than a plain figure — currently just "Feedback by FL".
+// Same 3-way split the backend uses for the Hub Feedback Score
+// (promoter/passive/detractor), reused wherever a rating box should read as
+// a verdict rather than a plain figure — currently just "Feedback by FL".
+// Scale: 1-2 detractor, 3 passive, 4-5 promoter (see main.py's _nps_bucket).
 const NPS_BUCKET_STYLES = {
   promoter:  { fg: '#0f5132', bg: '#aae1c8' },
   passive:   { fg: '#7a5400', bg: '#ffe141' },
@@ -23,18 +24,27 @@ const NPS_BUCKET_STYLES = {
 }
 function npsBucketTone(score, max = 5) {
   if (score == null) return { fg: '#6e6e6e', bg: '#f1ede3' }
-  if (score >= max * 0.8)  return NPS_BUCKET_STYLES.promoter
-  if (score >= max * 0.52) return NPS_BUCKET_STYLES.passive
-  return NPS_BUCKET_STYLES.detractor
+  const r = Math.round(score)
+  const detractorMax = Math.round(max * 0.4)
+  const promoterMin = Math.round(max * 0.6) + 1
+  if (r >= promoterMin) return NPS_BUCKET_STYLES.promoter
+  if (r <= detractorMax) return NPS_BUCKET_STYLES.detractor
+  return NPS_BUCKET_STYLES.passive
 }
 
 // Plain KONE-blue rating box — Area / Specialist / Service ratings.
 const BLUE_BADGE = { fg: '#1450f5', bg: '#eef3fe' }
 
 // KONE Information — the brand's secondary typeface, self-hosted (see index.css).
-// Used for KONE-style figures (big numbers) and ALL-CAPS labels; body/sentence
-// text stays on Inter per brand rule.
+// Used for KONE-style figures (big numbers); body/sentence text stays on
+// Inter per brand rule. Card titles (the 6 metric cards + the Hub Feedback
+// Score boxes) use Inter Semibold instead, per explicit request — bigger and
+// bolder than the default eyebrow-label size used elsewhere on this page.
 const KONE_FONT = "'KONE Information', 'Inter', sans-serif"
+const cardHeadingStyle = (color) => ({
+  fontSize: 13, fontWeight: 600, letterSpacing: '0.02em', color,
+  textTransform: 'uppercase', fontFamily: "'Inter', sans-serif",
+})
 
 const PARAM_LABELS = {
   overall: 'Overall', quality: 'Quality',
@@ -184,7 +194,7 @@ export default function FeedbackPage({ sessionId }) {
         {/* 6 metric cards: Total, Rate, Overall/Quality/Timeliness/Interaction */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase', fontFamily: KONE_FONT }}>Total Feedbacks</div>
+            <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>Total Feedbacks</div>
             <div style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, marginTop: 8, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>{data.total}</div>
           </div>
 
@@ -200,12 +210,12 @@ export default function FeedbackPage({ sessionId }) {
           ))}
         </div>
 
-        {/* Promoter / Passive / Detractor */}
+        {/* Hub Feedback Score */}
         <NpsSection nps={data.nps} scaleMax={scaleMax} />
 
         {/* Feedback by FL + Feedback by Area */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card title="Feedback by FL" subtitle="Volume and average score per FL segment · rating colored by NPS bucket" accent="#0077a8">
+          <Card title="Feedback by FL" subtitle="Volume and average score per FL segment · rating colored by Hub Feedback Score bucket" accent="#0077a8">
             {data.has_fl_segment
               ? <RankedList rows={data.by_fl} labelKey="fl_segment" scaleMax={scaleMax} ratingVariant="nps" />
               : <Empty text={'No "FL" column detected in the sheet'} />}
@@ -334,19 +344,19 @@ function Card({ title, subtitle, accent = '#1450f5', controls, children }) {
 }
 
 // ── Feedback Rate card (feedbacks ÷ tickets, needs ticket-session join) ───────
-// White box, KONE-blue square outline — matches the rating cards. The rate
-// sentence itself is exempt from the KONE Information rule (it reads better
-// as plain Inter with the raw feedback/ticket percentage in brackets).
+// Blue box, white text — matches Total Feedbacks. The rate sentence itself
+// is exempt from the KONE Information rule (it reads better as plain Inter
+// with the raw feedback/ticket percentage in brackets).
 function FeedbackRateCard({ rate }) {
   const pctSuffix = rate?.pct != null ? ` (${rate.pct}%)` : ''
   return (
-    <div style={{ background: '#fff', border: '2px solid #1450f5', borderRadius: 8, padding: '18px 20px' }}>
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: '#1450f5', textTransform: 'uppercase', fontFamily: KONE_FONT }}>Feedback Rate</div>
-      <div style={{ fontSize: 20, fontWeight: 500, color: '#141414', lineHeight: 1.35, marginTop: 10 }}>
+    <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
+      <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>Feedback Rate</div>
+      <div style={{ fontSize: 20, fontWeight: 500, color: '#fff', lineHeight: 1.35, marginTop: 10 }}>
         {rate ? (
           rate.ratio <= 1
-            ? <>Every ticket got feedback<span style={{ color: '#6e6e6e', fontSize: 14 }}>{pctSuffix}</span></>
-            : <>1 in <span style={{ fontSize: 26, fontWeight: 700 }}>{rate.ratio}</span> tickets got feedback<span style={{ color: '#6e6e6e', fontSize: 14 }}>{pctSuffix}</span></>
+            ? <>Every ticket got feedback<span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }}>{pctSuffix}</span></>
+            : <>1 in <span style={{ fontSize: 26, fontWeight: 700 }}>{rate.ratio}</span> tickets got feedback<span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }}>{pctSuffix}</span></>
         ) : <span style={{ fontSize: 34, fontWeight: 700 }}>—</span>}
       </div>
     </div>
@@ -354,30 +364,32 @@ function FeedbackRateCard({ rate }) {
 }
 
 // ── One of the four rating-parameter cards — average score out of scaleMax ────
+// Blue box, white text — matches Total Feedbacks.
 function FiveStarCard({ label, avg, scaleMax }) {
   return (
-    <div style={{ background: '#fff', border: '2px solid #1450f5', borderRadius: 8, padding: '18px 20px' }}>
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: '#1450f5', textTransform: 'uppercase', fontFamily: KONE_FONT }}>
+    <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
+      <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>
         {label}
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
-        <span style={{ fontSize: 34, fontWeight: 700, color: '#141414', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
+        <span style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
           {avg != null ? avg : '—'}
         </span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#6e6e6e', fontFamily: KONE_FONT }}>/ {scaleMax}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)', fontFamily: KONE_FONT }}>/ {scaleMax}</span>
       </div>
     </div>
   )
 }
 
-// ── Promoter / Passive / Detractor section ─────────────────────────────────────
+// ── Hub Feedback Score section ─────────────────────────────────────────────────
 // Each bucket keeps its own sentiment color (mint/yellow/pink) across the
 // whole box; the Top 3 list is a direct extension of that same box (one
 // card, not two), separated only by a hairline.
 function NpsSection({ nps, scaleMax }) {
   if (!nps) return null
-  const promoterCut = nps.promoter_cut ?? +(scaleMax * 0.8).toFixed(2)
-  const passiveCut  = nps.passive_cut  ?? +(scaleMax * 0.52).toFixed(2)
+  const detractorRange = nps.detractor_range ?? '1–2'
+  const passiveRange   = nps.passive_range   ?? '3'
+  const promoterRange  = nps.promoter_range  ?? '4–5'
   const buckets = [
     { key: 'promoters',  label: 'Promoters',  count: nps.promoters,  items: nps.top_promoters,  ...NPS_BUCKET_STYLES.promoter },
     { key: 'passives',   label: 'Passives',   count: nps.passives,   items: nps.top_passives,   ...NPS_BUCKET_STYLES.passive },
@@ -387,16 +399,16 @@ function NpsSection({ nps, scaleMax }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#141414', margin: 0 }}>Promoter / Passive / Detractor</h3>
-          <p style={{ fontSize: 11, color: '#9c9c9c', margin: '3px 0 0', maxWidth: 620, lineHeight: 1.55 }}>
-            Based on the Overall score out of {scaleMax}: <b>{promoterCut}–{scaleMax}</b> is a Promoter,{' '}
-            <b>{passiveCut}–{promoterCut}</b> is a Passive, below <b>{passiveCut}</b> is a Detractor.
-            NPS score = % Promoters − % Detractors, on a −100 to +100 scale.
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#141414', margin: 0 }}>Hub Feedback Score</h3>
+          <p style={{ fontSize: 11, color: '#9c9c9c', margin: '3px 0 0', maxWidth: 640, lineHeight: 1.55 }}>
+            Every rated feedback's Overall score (out of {scaleMax}) sorts into one of three buckets:{' '}
+            🔴 <b>Detractors: {detractorRange}</b> · 🟡 <b>Passives: {passiveRange}</b> · 🟢 <b>Promoters: {promoterRange}</b>.{' '}
+            The Hub Feedback Score is the share of Promoters minus the share of Detractors, on a −100 to +100 scale — higher means more people are having a great experience than a poor one.
           </p>
         </div>
         {nps.score != null && (
           <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe', borderRadius: 8, padding: '5px 12px', fontFamily: KONE_FONT, flexShrink: 0 }}>
-            NPS SCORE {nps.score > 0 ? '+' : ''}{nps.score}
+            FEEDBACK SCORE {nps.score > 0 ? '+' : ''}{nps.score}
           </span>
         )}
       </div>
@@ -405,7 +417,7 @@ function NpsSection({ nps, scaleMax }) {
         {buckets.map(b => (
           <div key={b.key} style={{ background: b.bg, borderRadius: 8 }}>
             <div style={{ padding: '16px 18px' }}>
-              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: b.fg, textTransform: 'uppercase', fontFamily: KONE_FONT }}>{b.label}</div>
+              <div style={cardHeadingStyle(b.fg)}>{b.label}</div>
               <div style={{ fontSize: 30, fontWeight: 700, color: b.fg, lineHeight: 1, marginTop: 8, fontFamily: KONE_FONT }}>{b.count}</div>
             </div>
             <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', padding: '14px 18px' }}>
