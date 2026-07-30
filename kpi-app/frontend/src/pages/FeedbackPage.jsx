@@ -491,9 +491,9 @@ function RankedList({ rows = [], labelKey, headerLabel, scaleMax }) {
         <thead>
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
             <th style={thStyle}>{headerLabel}</th>
-            <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Feedback</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Requests</th>
-            <th style={{ ...thStyle, textAlign: 'right' }}>Feedback Rate</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>F.Rate</th>
             <th style={{ ...thStyle, textAlign: 'center' }}>Avg Score</th>
           </tr>
         </thead>
@@ -690,9 +690,9 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
         <thead>
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
             <th style={thStyle}>Service</th>
-            <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Feedback</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Requests</th>
-            <th style={{ ...thStyle, textAlign: 'right' }}>Feedback Rate</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>F.Rate</th>
             {hasParams
               ? paramKeys.map(k => (
                   <th key={k} style={{ ...thStyle, textAlign: 'center' }}>{PARAM_LABELS[k] ?? k}</th>
@@ -753,9 +753,9 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
         <thead>
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
             <th style={thStyle}>Specialist</th>
-            <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Feedback</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Requests</th>
-            <th style={{ ...thStyle, textAlign: 'right' }}>Feedback Rate</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>F.Rate</th>
             {hasParams
               ? paramKeys.map(k => (
                   <th key={k} style={{ ...thStyle, textAlign: 'center' }}>{PARAM_LABELS[k] ?? k}</th>
