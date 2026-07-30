@@ -1581,6 +1581,10 @@ BAU_SERVICES_DISPLAY = [
     "Content Production – Graphic Design",
 ]
 
+# Display-name rename applied to Area values on the Feedback tab (sheet/ticket
+# data says "EU", the org calls it "EUR")
+AREA_RENAME = {"EU": "EUR"}
+
 
 @app.get("/api/sessions/{sid}/utility-rate")
 def utility_rate(
@@ -2511,6 +2515,11 @@ def feedback_summary(
     services = sorted(s for s in df["service"].unique() if s)
     fl_segments = sorted(f for f in df["fl_segment"].unique() if f) if "fl_segment" in df.columns else []
 
+    # "Demand Engagement Activations" is a virtual Service filter option —
+    # not a real sheet value — that filters to the union of its 3 sub-services.
+    if any(sc in services for sc in DEMAND_ENGAGEMENT_SUBS) and "Demand Engagement Activations" not in services:
+        services = sorted(services + ["Demand Engagement Activations"])
+
     # ── Area: prefer the feedback sheet's own Area column; fall back to a
     # ticket-sheet join by ticket number only if the sheet doesn't have one. ──
     ticket_df = sessions.get(sid) if sid else None
@@ -2527,7 +2536,10 @@ def feedback_summary(
         if "area" in ticket_df.columns:
             norm = ticket_df.dropna(subset=["ticket_number"]).copy()
             norm["_k"] = norm["ticket_number"].astype(str).str.strip().str.upper()
-            area_by_ticket = dict(zip(norm["_k"], norm["area"].fillna("")))
+            area_by_ticket = dict(zip(norm["_k"], norm["area"].fillna("").map(lambda a: AREA_RENAME.get(a, a))))
+        if tdf is not None and "area" in tdf.columns:
+            tdf = tdf.copy()
+            tdf["area"] = tdf["area"].map(lambda a: AREA_RENAME.get(a, a))
 
     # Frontline/team segments that exist on the TICKET sheet (raw, unfiltered)
     # but have never appeared in the feedback sheet — e.g. Brand, Global Comms,
@@ -2544,10 +2556,11 @@ def feedback_summary(
         df["area"] = df["ticket"].astype(str).str.strip().str.upper().map(area_by_ticket).fillna("")
     else:
         df["area"] = ""
+    df["area"] = df["area"].map(lambda a: AREA_RENAME.get(a, a))
     has_area = bool(sheet_has_area or area_by_ticket)
     areas = sorted(a for a in df["area"].unique() if a) if has_area else []
     if ticket_df is not None and "area" in ticket_df.columns:
-        ticket_areas = sorted(a for a in ticket_df["area"].dropna().unique() if a)
+        ticket_areas = sorted({AREA_RENAME.get(a, a) for a in ticket_df["area"].dropna().unique() if a})
         if ticket_areas:
             areas = sorted(set(areas) | set(ticket_areas))
             has_area = True
@@ -2561,7 +2574,10 @@ def feedback_summary(
         if u:
             out = out[out["user"] == u]
         if s:
-            out = out[out["service"] == s]
+            if s == "Demand Engagement Activations":
+                out = out[out["service"].isin(DEMAND_ENGAGEMENT_SUBS)]
+            else:
+                out = out[out["service"] == s]
         if a:
             out = out[out["area"] == a]
         if f:

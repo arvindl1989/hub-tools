@@ -274,35 +274,35 @@ export default function FeedbackPage({ sessionId }) {
           </Card>
         </div>
 
-        {/* Score Distribution — rows = star level, columns = rating parameter */}
-        <Card title="Score Distribution">
-          <ScoreDistributionTable distributions={data.distributions} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} />
-        </Card>
-
-        {/* Feedback Entries — full width, own Specialist/Service filters */}
-        <Card title="Feedback Entries"
-          controls={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <select value={entriesUser} onChange={e => setEntriesUser(e.target.value)} style={selStyle}>
-                <option value="">All Specialists</option>
-                {(data.users ?? []).map(u => <option key={u} value={u}>{u}</option>)}
-              </select>
-              <select value={entriesService} onChange={e => setEntriesService(e.target.value)} style={selStyle}>
-                <option value="">All Services</option>
-                {(data.services ?? []).map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              {(entriesUser || entriesService) && (
-                <button
-                  onClick={() => { setEntriesUser(''); setEntriesService('') }}
-                  style={{ border: 'none', background: 'none', color: '#c0305a', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          }>
-          <RecentList rows={data.entries} scaleMax={scaleMax} />
-        </Card>
+        {/* Score Distribution + Feedback Entries — same row, same width as the two rows above */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <Card title="Score Distribution">
+            <ScoreDistributionTable distributions={data.distributions} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} />
+          </Card>
+          <Card title="Feedback Entries"
+            controls={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <select value={entriesUser} onChange={e => setEntriesUser(e.target.value)} style={selStyle}>
+                  <option value="">All Specialists</option>
+                  {(data.users ?? []).map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <select value={entriesService} onChange={e => setEntriesService(e.target.value)} style={selStyle}>
+                  <option value="">All Services</option>
+                  {(data.services ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {(entriesUser || entriesService) && (
+                  <button
+                    onClick={() => { setEntriesUser(''); setEntriesService('') }}
+                    style={{ border: 'none', background: 'none', color: '#c0305a', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            }>
+            <RecentList rows={data.entries} scaleMax={scaleMax} />
+          </Card>
+        </div>
 
         {/* Feedback Inflow + Average Score Trend */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 }}>
@@ -386,7 +386,7 @@ function Card({ title, subtitle, controls, children }) {
 // tickets", all KONE Information.
 function FeedbackRateCard({ rate }) {
   const text = rate?.pct != null
-    ? `${rate.pct}%${rate.ratio > 1 ? ` (or) 1 in ${rate.ratio} tickets` : ''}`
+    ? `${rate.pct}%${rate.ratio > 1 ? ` (or) 1 in ${rate.ratio} requests` : ''}`
     : '—'
   return (
     <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
@@ -480,7 +480,7 @@ function NpsBuckets({ nps }) {
 
 // ── Generic ranked table (By Frontlines / By Area) ─────────────────────────────
 // Same column set and layout convention as By Service / By Specialist —
-// Feedbacks, Tickets, Feedback Rate, then the rating badge — so all four
+// Feedbacks, Requests, Feedback Rate, then the rating badge — so all four
 // bottom charts read consistently.
 function RankedList({ rows = [], labelKey, headerLabel, scaleMax }) {
   if (!rows.length) return <Empty />
@@ -492,7 +492,7 @@ function RankedList({ rows = [], labelKey, headerLabel, scaleMax }) {
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
             <th style={thStyle}>{headerLabel}</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
-            <th style={{ ...thStyle, textAlign: 'right' }}>Tickets</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Requests</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Feedback Rate</th>
             <th style={{ ...thStyle, textAlign: 'center' }}>Avg Score</th>
           </tr>
@@ -691,7 +691,7 @@ function ServiceBreakdown({ rows = [], paramKeys = [], scaleMax, onPick, active 
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
             <th style={thStyle}>Service</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
-            <th style={{ ...thStyle, textAlign: 'right' }}>Tickets</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Requests</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Feedback Rate</th>
             {hasParams
               ? paramKeys.map(k => (
@@ -754,7 +754,7 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
           <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
             <th style={thStyle}>Specialist</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
-            <th style={{ ...thStyle, textAlign: 'right' }}>Tickets</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Requests</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Feedback Rate</th>
             {hasParams
               ? paramKeys.map(k => (
