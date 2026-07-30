@@ -2529,6 +2529,13 @@ def feedback_summary(
             norm["_k"] = norm["ticket_number"].astype(str).str.strip().str.upper()
             area_by_ticket = dict(zip(norm["_k"], norm["area"].fillna("")))
 
+    # Frontline/team segments that exist on the TICKET sheet (raw, unfiltered)
+    # but have never appeared in the feedback sheet — e.g. Brand, Global Comms,
+    # Other PWR — should still show up in the filter + By Frontlines chart at 0.
+    if ticket_df is not None and "team" in ticket_df.columns:
+        ticket_teams = sorted(t for t in ticket_df["team"].dropna().unique() if t)
+        fl_segments = sorted(set(fl_segments) | set(ticket_teams))
+
     df = df.copy()
     sheet_has_area = "sheet_area" in df.columns and (df["sheet_area"] != "").any()
     if sheet_has_area:
@@ -2539,6 +2546,11 @@ def feedback_summary(
         df["area"] = ""
     has_area = bool(sheet_has_area or area_by_ticket)
     areas = sorted(a for a in df["area"].unique() if a) if has_area else []
+    if ticket_df is not None and "area" in ticket_df.columns:
+        ticket_areas = sorted(a for a in ticket_df["area"].dropna().unique() if a)
+        if ticket_areas:
+            areas = sorted(set(areas) | set(ticket_areas))
+            has_area = True
 
     def _apply_filters(base, u, s, a=None, f=None):
         out = base
@@ -2749,9 +2761,9 @@ def feedback_summary(
         "by_service": _group("service", with_params=True, ticket_col="sub_category"),
         "by_user": _group("user", with_params=True, ticket_col="assigned_to"),
         "by_requester": _group("requester", top_n=12),
-        "by_fl": _group("fl_segment", top_n=12, universe=fl_segments),
+        "by_fl": _group("fl_segment", top_n=12, universe=fl_segments, ticket_col="team"),
         "has_fl_segment": bool(mapping.get("fl_segment")),
-        "by_area": _group("area", top_n=12) if has_area else [],
+        "by_area": _group("area", top_n=12, universe=areas, ticket_col="area") if has_area else [],
         "has_area": has_area,
         "users": users,
         "services": services,

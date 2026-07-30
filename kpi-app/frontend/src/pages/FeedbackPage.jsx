@@ -248,40 +248,39 @@ export default function FeedbackPage({ sessionId }) {
         {/* Promoters / Passives / Detractors */}
         <NpsBuckets nps={data.nps} />
 
-        {/* By Frontlines + By Area */}
+        {/* By Area + By Frontlines */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card title="By Frontlines" subtitle="Volume and average score per FL segment — every segment shown, even at 0">
-            {data.has_fl_segment
-              ? <RankedList rows={data.by_fl} labelKey="fl_segment" scaleMax={scaleMax} />
-              : <Empty text={'No "FL" column detected in the sheet'} />}
-          </Card>
-          <Card title="By Area" subtitle="Volume and average score per area">
+          <Card title="By Area"
+            subtitle="Volume and average score per area. Anonymous: Feedback collected via Monday.com (Apr 2024–Apr 2026).">
             {data.has_area
-              ? <RankedList rows={data.by_area} labelKey="area" scaleMax={scaleMax} />
+              ? <RankedList rows={data.by_area} labelKey="area" headerLabel="Area" scaleMax={scaleMax} />
               : <ConnectTicketsNote />}
+          </Card>
+          <Card title="By Frontlines"
+            subtitle="Volume and average score per frontlines. Anonymous: Feedback collected via Monday.com (Apr 2024–Apr 2026).">
+            {data.has_fl_segment
+              ? <RankedList rows={data.by_fl} labelKey="fl_segment" headerLabel="Frontline" scaleMax={scaleMax} />
+              : <Empty text={'No "FL" column detected in the sheet'} />}
           </Card>
         </div>
 
-        {/* Feedback by Service + Feedback by Specialist */}
+        {/* By Service + By Specialist */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card title="Feedback by Service"
-            subtitle="Feedbacks, tickets, feedback rate and rating per service">
+          <Card title="By Service">
             <ServiceBreakdown rows={data.by_service} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={s => setService(s === service ? '' : s)} active={service} />
           </Card>
-          <Card title="Feedback by Specialist"
-            subtitle="Feedbacks, tickets, feedback rate and rating per specialist · click a row to focus on that person">
+          <Card title="By Specialist">
             <UserTable rows={data.by_user} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} onPick={u => setUser(u === user ? '' : u)} active={user} />
           </Card>
         </div>
 
         {/* Score Distribution — rows = star level, columns = rating parameter */}
-        <Card title="Score Distribution" subtitle="How many feedbacks gave each star rating, per parameter">
+        <Card title="Score Distribution">
           <ScoreDistributionTable distributions={data.distributions} paramKeys={data.param_keys ?? []} scaleMax={scaleMax} />
         </Card>
 
         {/* Feedback Entries — full width, own Specialist/Service filters */}
         <Card title="Feedback Entries"
-          subtitle={`${data.entries.length} entries · newest to oldest${range.from || range.to ? ' · within the selected date range' : ''}`}
           controls={
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <select value={entriesUser} onChange={e => setEntriesUser(e.target.value)} style={selStyle}>
@@ -307,7 +306,7 @@ export default function FeedbackPage({ sessionId }) {
 
         {/* Feedback Inflow + Average Score Trend */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 }}>
-          <Card title="Feedback Inflow" subtitle={`Feedbacks received per ${groupBy}`}
+          <Card title="Feedback Inflow"
             controls={
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
@@ -338,7 +337,7 @@ export default function FeedbackPage({ sessionId }) {
             }>
             <InflowBars data={data.by_period} users={data.users} stacked={splitByUser} />
           </Card>
-          <Card title="Average Score Trend" subtitle={`Mean rating per ${groupBy} — hover for values`}>
+          <Card title="Average Score Trend">
             <ScoreTrend data={data.by_period} max={scaleMax} />
           </Card>
         </div>
@@ -371,8 +370,8 @@ function Card({ title, subtitle, controls, children }) {
     }}>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid #f1ede3', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h3 style={{ fontSize: 13, fontWeight: 600, color: '#141414', margin: 0 }}>{title}</h3>
-          {subtitle && <p style={{ fontSize: 11, color: '#9c9c9c', margin: '2px 0 0' }}>{subtitle}</p>}
+          <h3 style={{ ...cardHeadingStyle('#141414'), margin: 0 }}>{title}</h3>
+          {subtitle && <p style={{ fontSize: 11, color: '#9c9c9c', margin: '4px 0 0', textTransform: 'none' }}>{subtitle}</p>}
         </div>
         {controls}
       </div>
@@ -479,37 +478,50 @@ function NpsBuckets({ nps }) {
   )
 }
 
-// ── Generic ranked bar list (By Frontlines / By Area) ──────────────────────────
-// The color square sits inline with the label (not centered against the
-// whole row) and the bar starts directly below it, indented to line up
-// under the label — same alignment convention as Feedback by Service /
-// Feedback by Specialist. Rating box is white with green/yellow/red text
-// by score, matching those two tables too.
-function RankedList({ rows = [], labelKey, scaleMax }) {
+// ── Generic ranked table (By Frontlines / By Area) ─────────────────────────────
+// Same column set and layout convention as By Service / By Specialist —
+// Feedbacks, Tickets, Feedback Rate, then the rating badge — so all four
+// bottom charts read consistently.
+function RankedList({ rows = [], labelKey, headerLabel, scaleMax }) {
   if (!rows.length) return <Empty />
   const maxCount = Math.max(...rows.map(r => r.count), 1)
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {rows.map((r) => {
-        const t = bucketTone(r.avg_score, scaleMax)
-        return (
-          <div key={r[labelKey]} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</span>
-              </div>
-              <div style={{ height: 8, background: '#f1ede3', borderRadius: 4, marginTop: 5, marginLeft: 18, overflow: 'hidden' }}>
-                <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 4 }} />
-              </div>
-            </div>
-            <span style={{ fontSize: 12, color: '#6e6e6e', width: 30, textAlign: 'right' }}>{r.count}</span>
-            <span style={{ ...ratingBadgeStyle(t), flexShrink: 0 }}>
-              {fmt1(r.avg_score) ?? '—'}
-            </span>
-          </div>
-        )
-      })}
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
+            <th style={thStyle}>{headerLabel}</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Feedbacks</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Tickets</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>Feedback Rate</th>
+            <th style={{ ...thStyle, textAlign: 'center' }}>Avg Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const t = bucketTone(r.avg_score, scaleMax)
+            return (
+              <tr key={r[labelKey]} style={{ borderBottom: '1px solid #f1ede3' }}>
+                <td style={{ padding: '9px 6px', minWidth: 150 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: '#1450f5', flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, color: '#141414', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[labelKey]}</span>
+                  </div>
+                  <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
+                    <div style={{ width: `${(r.count / maxCount) * 100}%`, height: '100%', background: '#1450f5', borderRadius: 3 }} />
+                  </div>
+                </td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.count}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.tickets ?? '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e' }}>{r.feedback_rate_pct != null ? `${r.feedback_rate_pct}%` : '—'}</td>
+                <td style={{ padding: '9px 6px', textAlign: 'center' }}>
+                  <span style={ratingBadgeStyle(t)}>{fmt1(r.avg_score) ?? '—'}</span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -808,8 +820,10 @@ function ScoreDistributionTable({ distributions = {}, paramKeys = [], scaleMax =
         <tbody>
           {levels.map(lvl => (
             <tr key={lvl} style={{ borderBottom: '1px solid #f1ede3' }}>
-              <td style={{ padding: '9px 6px', fontWeight: 600, color: '#141414', whiteSpace: 'nowrap' }}>
-                {lvl} Star Feedbacks
+              <td style={{ padding: '9px 6px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: '#ffe141', fontSize: 15, letterSpacing: 1, WebkitTextStroke: '0.6px #b8960a' }}>
+                  {'★'.repeat(lvl)}
+                </span>
               </td>
               {paramKeys.map(k => {
                 const row = (distributions?.[k] ?? []).find(d => d.score === lvl)
