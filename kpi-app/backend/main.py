@@ -1837,15 +1837,36 @@ def utility_rate(
 # ── User ticket activity ───────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/user-activity")
-def user_activity(sid: str):
+def user_activity(
+    sid: str,
+    date_from:    Optional[str] = None,
+    date_to:      Optional[str] = None,
+    assigned_to:  Optional[str] = None,
+    team:         Optional[str] = None,
+    area:         Optional[str] = None,
+    sub_category: Optional[str] = None,
+):
     df = _get_session(sid)
     if "ticket_creator" not in df.columns or "created_date" not in df.columns:
         return []
 
-    today = date.today()
     tmp = df.dropna(subset=["ticket_creator", "created_date"]).copy()
-    if tmp.empty:
+    if "area" in tmp.columns:
+        tmp["area"] = tmp["area"].map(lambda a: AREA_RENAME.get(a, a) if pd.notna(a) else a)
+
+    # "Days since" is measured from the END of the active date range, not from
+    # today — same anchor as /user-metrics, so the two never disagree on screen.
+    period_end = (
+        pd.Timestamp(date_to).normalize() if date_to
+        else pd.Timestamp(tmp["created_date"].max()).normalize() if not tmp.empty
+        else pd.NaT
+    )
+
+    tmp = _apply_dim_filters(tmp, assigned_to, team, area, sub_category)
+    tmp = _filter_by_range(tmp, "created_date", date_from, date_to)
+    if tmp.empty or pd.isna(period_end):
         return []
+    today = period_end.date()
 
     result = []
     for creator, grp in tmp.groupby("ticket_creator"):
@@ -1891,6 +1912,246 @@ def user_activity(sid: str):
         })
 
     return sorted(result, key=lambda x: x["days_since_last"], reverse=True)
+
+
+# ── User Activity metrics: Reach / Volume / Lifecycle / Growth / Rates ────────
+
+# Services actually offered — the real sub-categories, excluding the
+# "Demand Engagement Activations" roll-up, which is an aggregate view of three
+# of them rather than a service in its own right. Denominator for Service Adoption.
+CANONICAL_SERVICES = [s for s in BANDWIDTH_RATES if s != "Demand Engagement Activations"]
+
+# Lifecycle thresholds, in days since the user's most recent request measured
+# from periodEnd. Mutually exclusive and collectively exhaustive over [0, ∞).
+LIFECYCLE_ACTIVE_MAX  = 30   # Active:  0–30
+LIFECYCLE_REGULAR_MAX = 90   # Regular: 31–90, Dormant: 91+
+
+NEW_USER_WINDOW_DAYS = 90    # first-ever request within this many days of periodEnd
+AT_RISK_MIN_DAYS     = 60    # At-Risk: last request 60–90 days ago…
+AT_RISK_MAX_DAYS     = 90
+AT_RISK_MIN_LIFETIME = 3     # …and ≥3 lifetime requests, i.e. previously regular
+
+UNASSIGNED = "Unassigned"
+
+
+def _safe_div(num, den, pct: bool = False, nd: int = 1):
+    """None (the UI renders "—") rather than NaN/Infinity when the denominator is 0."""
+    if not den:
+        return None
+    return round(float(num) / float(den) * (100 if pct else 1), nd)
+
+
+@app.get("/api/sessions/{sid}/user-metrics")
+def user_metrics(
+    sid: str,
+    date_from:    Optional[str] = None,
+    date_to:      Optional[str] = None,
+    assigned_to:  Optional[str] = None,
+    team:         Optional[str] = None,
+    area:         Optional[str] = None,
+    sub_category: Optional[str] = None,
+    top_n:        int = 10,
+):
+    """Every box on the User Activity page, computed in one pass over the data.
+
+    All recency buckets are measured from `period_end` — the END of the active
+    date range, NOT today. Filtering to Jan–Mar makes "last 30 days" mean the
+    final 30 days of March. period_end is deliberately derived from the date
+    filter (falling back to the newest request in the whole session), so
+    changing a dimension filter never shifts the recency windows underneath it.
+    """
+    df = _get_session(sid)
+
+    def _dim_lists(src: pd.DataFrame):
+        """Filter-bar options — always from the unfiltered session, so choosing
+        one value never empties the other dropdowns."""
+        def _u(col):
+            if col not in src.columns:
+                return []
+            return sorted({str(v).strip() for v in src[col].dropna() if str(v).strip()})
+        areas = sorted({AREA_RENAME.get(a, a) for a in _u("area")})
+        services = _u("sub_category")
+        if any(s in services for s in DEMAND_ENGAGEMENT_SUBS) and "Demand Engagement Activations" not in services:
+            services = sorted(services + ["Demand Engagement Activations"])
+        return {
+            "areas": areas,
+            "fl_segments": _u("team"),
+            "services": services,
+            "users": _u("assigned_to"),
+        }
+
+    lists = _dim_lists(df)
+    empty = {
+        **lists,
+        "period_end": None,
+        "reach": {"global_teams": 0, "areas": 0, "frontlines": 0},
+        "volume": {"total_requests": 0, "avg_per_user": None, "median_per_user": None},
+        "lifecycle": {"active": [], "regular": [], "dormant": []},
+        "growth": {"new_users": [], "top_requestors": [], "at_risk": [], "top_share_pct": None},
+        "rates": {"utility_rate": None, "engagement_pct": None, "repeat_pct": None,
+                  "service_adoption_pct": None, "services_used": 0,
+                  "services_offered": len(CANONICAL_SERVICES)},
+        "total_users": 0,
+        "top_n": top_n,
+    }
+
+    if "ticket_creator" not in df.columns or "created_date" not in df.columns:
+        return empty
+
+    base = df.dropna(subset=["ticket_creator", "created_date"]).copy()
+    if base.empty:
+        return empty
+    base["ticket_creator"] = base["ticket_creator"].astype(str).str.strip()
+    base = base[base["ticket_creator"] != ""]
+    if "area" in base.columns:
+        base["area"] = base["area"].map(lambda a: AREA_RENAME.get(a, a) if pd.notna(a) else a)
+
+    # period_end anchors every recency window. End of the date filter if one is
+    # set; otherwise the newest request in the session (i.e. the implicit range end).
+    if date_to:
+        period_end = pd.Timestamp(date_to).normalize()
+    else:
+        period_end = pd.Timestamp(base["created_date"].max()).normalize()
+    if pd.isna(period_end):
+        return empty
+
+    # Dimension filters apply to both scopes; the date range applies only to
+    # `scoped`. `lifetime` is what makes "first-ever request" and "≥3 lifetime
+    # requests" mean lifetime rather than in-range.
+    lifetime = _apply_dim_filters(base, assigned_to, team, area, sub_category)
+    scoped = _filter_by_range(lifetime, "created_date", date_from, date_to)
+    if scoped.empty:
+        return {**empty, "period_end": period_end.date().isoformat()}
+
+    # ── Single pass: everything below is derived from these three groupbys ────
+    g = scoped.groupby("ticket_creator", sort=False)
+    counts = g.size()
+    last_seen = g["created_date"].max()
+
+    def _mode_by_user(src: pd.DataFrame, col: str) -> dict:
+        if col not in src.columns:
+            return {}
+        sub = src.dropna(subset=[col])
+        if sub.empty:
+            return {}
+        return sub.groupby("ticket_creator")[col].agg(
+            lambda s: s.value_counts().index[0]
+        ).to_dict()
+
+    team_by_user = _mode_by_user(scoped, "team")
+    area_by_user = _mode_by_user(scoped, "area")
+
+    lg = lifetime.groupby("ticket_creator", sort=False)
+    first_seen_all = lg["created_date"].min()
+    lifetime_counts = lg.size()
+
+    users = []
+    for name, cnt in counts.items():
+        last_ts = last_seen[name]
+        days_since = int((period_end - pd.Timestamp(last_ts).normalize()).days)
+        first_ts = first_seen_all.get(name)
+        users.append({
+            "user": name,
+            "frontline": str(team_by_user.get(name) or UNASSIGNED),
+            "area": str(area_by_user.get(name) or UNASSIGNED),
+            "count": int(cnt),
+            "days_since_last": days_since,
+            "first_request_date": pd.Timestamp(first_ts).date().isoformat() if pd.notna(first_ts) else None,
+            "lifetime_count": int(lifetime_counts.get(name, cnt)),
+        })
+    users.sort(key=lambda u: u["count"], reverse=True)
+
+    total_users = len(users)
+    total_requests = int(len(scoped))
+
+    # ── Row 3: lifecycle segments — mutually exclusive, exhaustive ────────────
+    active, regular, dormant = [], [], []
+    for u in users:
+        d = u["days_since_last"]
+        (active if d <= LIFECYCLE_ACTIVE_MAX
+         else regular if d <= LIFECYCLE_REGULAR_MAX
+         else dormant).append(u)
+    assert len(active) + len(regular) + len(dormant) == total_users, (
+        f"lifecycle segments {len(active)}+{len(regular)}+{len(dormant)} "
+        f"!= total_users {total_users}"
+    )
+
+    # ── Row 1: reach ─────────────────────────────────────────────────────────
+    def _distinct(col):
+        if col not in scoped.columns:
+            return set()
+        return {str(v).strip() for v in scoped[col].dropna() if str(v).strip()}
+
+    areas_reached = _distinct("area")
+    frontlines_reached = _distinct("team")
+    if {"team", "area"} <= set(scoped.columns):
+        global_teams = {
+            str(v).strip()
+            for v in scoped.loc[scoped["area"] == "Global", "team"].dropna()
+            if str(v).strip()
+        }
+    else:
+        global_teams = set()
+
+    # ── Row 5: growth ────────────────────────────────────────────────────────
+    new_cutoff = period_end - pd.Timedelta(days=NEW_USER_WINDOW_DAYS)
+    new_users = sorted(
+        (u for u in users
+         if u["first_request_date"] and pd.Timestamp(u["first_request_date"]) >= new_cutoff),
+        key=lambda u: (u["first_request_date"], u["count"]), reverse=True,
+    )
+    top_requestors = users[:top_n]
+    at_risk = sorted(
+        (u for u in users
+         if AT_RISK_MIN_DAYS <= u["days_since_last"] <= AT_RISK_MAX_DAYS
+         and u["lifetime_count"] >= AT_RISK_MIN_LIFETIME),
+        key=lambda u: u["days_since_last"], reverse=True,
+    )
+
+    # ── Row 6: rates ─────────────────────────────────────────────────────────
+    services_used = len(_distinct("sub_category") & set(CANONICAL_SERVICES))
+    repeat_users = sum(1 for u in users if u["count"] >= 2)
+
+    return {
+        **lists,
+        "period_end": period_end.date().isoformat(),
+        "total_users": total_users,
+        "top_n": top_n,
+        "reach": {
+            "global_teams": len(global_teams),
+            "areas": len(areas_reached),
+            "frontlines": len(frontlines_reached),
+        },
+        "volume": {
+            "total_requests": total_requests,
+            # Averaged over ALL users, not just active ones, so it's directly
+            # comparable to the median beside it — that pairing is the whole
+            # point of the box (it exposes heavy-requestor skew).
+            "avg_per_user": _safe_div(total_requests, total_users),
+            "median_per_user": (
+                round(float(counts.median()), 1) if total_users else None
+            ),
+        },
+        "lifecycle": {"active": active, "regular": regular, "dormant": dormant},
+        "growth": {
+            "new_users": new_users,
+            "top_requestors": top_requestors,
+            "at_risk": at_risk,
+            # Share of all requests the top-N users account for — a far more
+            # useful headline than "10", which is what a count would always read.
+            "top_share_pct": _safe_div(
+                sum(u["count"] for u in top_requestors), total_requests, pct=True, nd=0
+            ),
+        },
+        "rates": {
+            "utility_rate":         _safe_div(total_requests, len(active)),
+            "engagement_pct":       _safe_div(len(active), total_users, pct=True, nd=0),
+            "repeat_pct":           _safe_div(repeat_users, total_users, pct=True, nd=0),
+            "service_adoption_pct": _safe_div(services_used, len(CANONICAL_SERVICES), pct=True, nd=0),
+            "services_used":        services_used,
+            "services_offered":     len(CANONICAL_SERVICES),
+        },
+    }
 
 
 # ── SLA config ─────────────────────────────────────────────────────────────────

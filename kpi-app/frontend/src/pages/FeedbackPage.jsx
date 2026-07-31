@@ -2,6 +2,10 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { getFeedback } from '../api'
 import DateRangePicker from '../components/DateRangePicker'
 import { PALETTE } from '../utils/colors'
+import {
+  KONE_FONT, cardHeadingStyle, thStyle, selStyle, activeFilterPillStyle,
+  fmt1, NPS_BUCKET_STYLES, Card, MetricCard, SegmentCard, Empty as BaseEmpty,
+} from '../components/KoneUI'
 
 // ── Score → KONE sentiment colors ─────────────────────────────────────────────
 function scoreTone(score, max = 5) {
@@ -13,16 +17,10 @@ function scoreTone(score, max = 5) {
   return { fg: '#8c1a2e', bg: '#ffcdd7', bar: '#c0305a' }
 }
 
-// Sentiment colors for the Promoters/Passives/Detractors boxes, reused as
-// text color for every rating badge on the page (By Frontlines, By Area,
-// Feedback by Service, Feedback by Specialist) — the badge itself stays
-// white, only the number's color signals promoter/passive/detractor.
+// NPS_BUCKET_STYLES (imported) are the sentiment colors for the
+// Promoters/Passives/Detractors boxes, reused as the tone for every rating
+// badge on the page (By Frontlines, By Area, By Service, By Specialist).
 // Scale: 1-2 detractor, 3 passive, 4-5 promoter (see main.py's _nps_bucket).
-const NPS_BUCKET_STYLES = {
-  promoter:  { fg: '#0f5132', bg: '#aae1c8' },
-  passive:   { fg: '#7a5400', bg: '#ffe141' },
-  detractor: { fg: '#8c1a2e', bg: '#ffcdd7' },
-}
 function bucketTone(score, max = 5) {
   if (score == null) return { fg: '#6e6e6e' }
   const r = Math.round(score)
@@ -44,21 +42,8 @@ const ratingBadgeStyle = (t) => ({
   borderRadius: 2, padding: '3px 8px', fontFamily: "'Inter', sans-serif",
 })
 
-// Average scores are rounded to one decimal everywhere they're displayed —
-// done on the frontend (not just backend rounding) so a value that lands on
-// a whole number still reads "4.0" instead of silently dropping to "4".
-const fmt1 = (v) => (v == null ? null : v.toFixed(1))
-
-// KONE Information — the brand's secondary typeface, self-hosted (see index.css).
-// Used for KONE-style figures (big numbers); body/sentence text stays on
-// Inter per brand rule. Card titles (the 6 metric cards + the Hub Feedback
-// Score boxes) use Inter Semibold instead, per explicit request — bigger and
-// bolder than the default eyebrow-label size used elsewhere on this page.
-const KONE_FONT = "'KONE Information', 'Inter', sans-serif"
-const cardHeadingStyle = (color) => ({
-  fontSize: 13, fontWeight: 600, letterSpacing: '0.02em', color,
-  textTransform: 'uppercase', fontFamily: "'Inter', sans-serif",
-})
+// Empty-state wording specific to this page; everything else comes from KoneUI.
+const Empty = (props) => <BaseEmpty text="No feedback for this filter" {...props} />
 
 // Filter-dropdown allowlist only — never applied to the underlying data, so
 // charts/tables/Feedback Entries keep showing every specialist regardless.
@@ -228,10 +213,7 @@ export default function FeedbackPage({ sessionId }) {
 
         {/* 6 metric cards: Total, Rate, Overall/Quality/Timeliness/Interaction */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-            <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>Total Feedback</div>
-            <div style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, marginTop: 8, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>{data.total}</div>
-          </div>
+          <MetricCard label="Total Feedback" value={data.total} />
 
           <FeedbackRateCard rate={data.feedback_rate} />
 
@@ -347,75 +329,19 @@ export default function FeedbackPage({ sessionId }) {
   )
 }
 
-const selStyle = {
-  height: 30, padding: '0 8px', fontSize: 12, color: '#404040',
-  border: '1px solid #e8e2d6', borderRadius: 7, outline: 'none',
-  background: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif', maxWidth: 220,
-}
-
-// Matches the filter bar's active "All time" pill exactly, so an active
-// filter shown up in the header reads the same way as one shown down there.
-const activeFilterPillStyle = {
-  padding: '5px 10px', fontSize: 12, fontWeight: 500, fontFamily: 'Inter, sans-serif',
-  border: '1px solid #1450f5', borderRadius: 7, background: '#1450f5', color: '#fff',
-}
-
-// ── Card shell (matches the rest of the app) ──────────────────────────────────
-function Card({ title, subtitle, controls, children }) {
-  return (
-    <div style={{
-      background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6',
-      boxShadow: '0 1px 3px rgba(20,20,20,0.04), 0 4px 12px rgba(20,20,20,0.03)',
-      minWidth: 0,
-    }}>
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid #f1ede3', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h3 style={{ ...cardHeadingStyle('#141414'), margin: 0 }}>{title}</h3>
-          {subtitle && <p style={{ fontSize: 11, color: '#9c9c9c', margin: '4px 0 0', textTransform: 'none' }}>{subtitle}</p>}
-        </div>
-        {controls}
-      </div>
-      <div style={{ padding: 20 }}>{children}</div>
-    </div>
-  )
-}
-
 // ── Feedback Rate card (feedbacks ÷ tickets, needs ticket-session join) ───────
-// Blue box, white text — matches Total Feedback. One line, one consistent
-// size throughout (no big-number/small-suffix split): "18% (or) 1 in 5
-// tickets", all KONE Information.
+// One line, one consistent size throughout (no big-number/small-suffix split):
+// "18% (or) 1 in 5 requests", all KONE Information.
 function FeedbackRateCard({ rate }) {
   const text = rate?.pct != null
     ? `${rate.pct}%${rate.ratio > 1 ? ` (or) 1 in ${rate.ratio} requests` : ''}`
-    : '—'
-  return (
-    <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-      <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>Feedback Rate</div>
-      <div style={{ marginTop: 8 }}>
-        <span style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
-          {text}
-        </span>
-      </div>
-    </div>
-  )
+    : null
+  return <MetricCard label="Feedback Rate" value={text} />
 }
 
 // ── One of the four rating-parameter cards — average score out of scaleMax ────
-// Blue box, white text — matches Total Feedbacks.
 function FiveStarCard({ label, avg, scaleMax }) {
-  return (
-    <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
-      <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>
-        {label}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
-        <span style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
-          {fmt1(avg) ?? '—'}
-        </span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)', fontFamily: KONE_FONT }}>/ {scaleMax}</span>
-      </div>
-    </div>
-  )
+  return <MetricCard label={label} value={fmt1(avg)} suffix={`/ ${scaleMax}`} />
 }
 
 // ── Feedback Score badge — standalone, sits above the 6 metric cards ──────────
@@ -444,37 +370,31 @@ function NpsBuckets({ nps }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
       {buckets.map(b => (
-        <div key={b.key} style={{ background: b.bg, borderRadius: 8 }}>
-          <div style={{ padding: '16px 18px' }}>
-            <div style={cardHeadingStyle(b.fg)}>{b.label}</div>
-            <div style={{ fontSize: 30, fontWeight: 700, color: b.fg, lineHeight: 1, marginTop: 8, fontFamily: KONE_FONT }}>{b.count}</div>
-          </div>
-          <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', padding: '14px 18px' }}>
-            <div style={{ ...cardHeadingStyle(b.fg), opacity: 0.75, marginBottom: 10 }}>Top 3</div>
-            {!b.items?.length ? (
-                <div style={{ fontSize: 12, color: b.fg, opacity: 0.6 }}>No data</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {b.items.map((it, i) => (
-                    <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{
-                        width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.55)', color: b.fg,
-                        fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                        fontFamily: KONE_FONT,
-                      }}>{i + 1}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: b.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
-                        {it.fl && <div style={{ fontSize: 10.5, color: b.fg, opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.fl}</div>}
-                      </div>
-                      <span style={{ fontSize: 12, color: b.fg, opacity: 0.85, flexShrink: 0, fontFamily: KONE_FONT }}>{it.count}</span>
-                    </div>
-                  ))}
+        <SegmentCard key={b.key} label={b.label} value={b.count} tone={{ fg: b.fg, bg: b.bg }}>
+          <div style={{ ...cardHeadingStyle(b.fg), opacity: 0.75, marginBottom: 10 }}>Top 3</div>
+          {!b.items?.length ? (
+            <div style={{ fontSize: 12, color: b.fg, opacity: 0.6 }}>No data</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {b.items.map((it, i) => (
+                <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{
+                    width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.55)', color: b.fg,
+                    fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    fontFamily: KONE_FONT,
+                  }}>{i + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: b.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
+                    {it.fl && <div style={{ fontSize: 10.5, color: b.fg, opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.fl}</div>}
+                  </div>
+                  <span style={{ fontSize: 12, color: b.fg, opacity: 0.85, flexShrink: 0, fontFamily: KONE_FONT }}>{it.count}</span>
                 </div>
-              )}
+              ))}
             </div>
-          </div>
-        ))}
-      </div>
+          )}
+        </SegmentCard>
+      ))}
+    </div>
   )
 }
 
@@ -795,12 +715,6 @@ function UserTable({ rows = [], paramKeys = [], scaleMax, onPick, active }) {
   )
 }
 
-const thStyle = {
-  padding: '6px', fontSize: 10, fontWeight: 600, color: '#6e6e6e',
-  textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left',
-  fontFamily: "'Inter', sans-serif",
-}
-
 // ── Score Distribution table (rows = star level, columns = rating parameter) ──
 function ScoreDistributionTable({ distributions = {}, paramKeys = [], scaleMax = 5 }) {
   if (!paramKeys.length) return <Empty text="No rating parameters detected in the sheet" />
@@ -873,8 +787,4 @@ function RecentList({ rows = [], scaleMax }) {
       })}
     </div>
   )
-}
-
-function Empty({ text = 'No feedback for this filter' }) {
-  return <div style={{ padding: 30, textAlign: 'center', color: '#9c9c9c', fontSize: 12 }}>{text}</div>
 }

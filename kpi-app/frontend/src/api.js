@@ -243,8 +243,27 @@ export async function getWeeklyStacked(sid, dateCol = 'created_date', dateFrom, 
   return data
 }
 
-export async function getUserActivity(sid) {
-  const { data } = await client.get(`/sessions/${sid}/user-activity`)
+export async function getUserActivity(sid, {
+  dateFrom, dateTo, assignedTo, team, area, subCategory,
+} = {}) {
+  const { data } = await client.get(`/sessions/${sid}/user-activity`, {
+    params: _clean({
+      date_from: dateFrom, date_to: dateTo, assigned_to: assignedTo,
+      team, area, sub_category: subCategory,
+    }),
+  })
+  return data
+}
+
+export async function getUserMetrics(sid, {
+  dateFrom, dateTo, assignedTo, team, area, subCategory, topN,
+} = {}) {
+  const { data } = await client.get(`/sessions/${sid}/user-metrics`, {
+    params: _clean({
+      date_from: dateFrom, date_to: dateTo, assigned_to: assignedTo,
+      team, area, sub_category: subCategory, top_n: topN,
+    }),
+  })
   return data
 }
 
