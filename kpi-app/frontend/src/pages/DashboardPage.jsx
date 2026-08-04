@@ -130,6 +130,20 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
   const uniqueTicketsB = hubHealthB?.unique      ?? totalAllB
   const dependencyB    = hubHealthB?.dependency  ?? 0
 
+  // Turnaround time — working hours only (9am–6pm, Mon–Fri, holidays excluded).
+  // The workday equivalent is spelled out because "31h" reads as ~1.3 calendar
+  // days at a glance when it actually means ~3.4 working days.
+  const tat       = hubHealth?.turnaround_avg_hours ?? null
+  const tatB      = hubHealthB?.turnaround_avg_hours ?? null
+  const tatMedian = hubHealth?.turnaround_median_hours ?? null
+  const tatN      = hubHealth?.turnaround_sample ?? 0
+  const workdayHrs = hubHealth?.turnaround_workday_hours ?? 9
+  const tatSub = tat == null
+    ? 'No delivered tickets in this selection'
+    : `≈ ${(tat / workdayHrs).toFixed(1)} working days · median ${tatMedian}h · `
+      + `across ${tatN.toLocaleString()} delivered ticket${tatN === 1 ? '' : 's'} · `
+      + 'business hours only (9am–6pm, Mon–Fri, public holidays excluded)'
+
   const labelA = compareEnabled ? labelForRange(range.from, range.to) : null
   const labelB = compareEnabled ? labelForRange(compareRange.from, compareRange.to) : null
   const comparing = compareEnabled && (compareRange.from || compareRange.to)
@@ -214,6 +228,16 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
         <KpiTile label="In Pipeline"    value={inPipeline}     compareValue={comparing ? inPipelineB : null}     icon={<PipeIcon />}     surface="#d2f5ff" ink="#141414" labelColor="#005f86" iconBg="rgba(255,255,255,0.6)" iconColor="#005f86" />
         <KpiTile label="Unique Tickets" value={uniqueTickets}  compareValue={comparing ? uniqueTicketsB : null}  icon={<StarIcon />}     surface="#ffcdd7" ink="#141414" labelColor="#8c1a2e" iconBg="rgba(255,255,255,0.6)" iconColor="#8c1a2e" />
         <KpiTile label="Dependency"     value={dependency}     compareValue={comparing ? dependencyB : null}     icon={<LinkIcon />}     surface="#ffe141" ink="#141414" labelColor="#7a5400" iconBg="rgba(255,255,255,0.55)" iconColor="#7a5400" />
+        <KpiTile
+          label="Avg Turnaround Time"
+          value={tat != null ? `${tat}h` : '—'}
+          sub={tatSub}
+          compareValue={comparing && tatB != null ? `${tatB}h` : null}
+          icon={<ClockIcon />}
+          surface="#aae1c8" ink="#141414" labelColor="#0f5132"
+          iconBg="rgba(255,255,255,0.6)" iconColor="#0f5132"
+          span={3}
+        />
       </div>
 
       {/* Inflow vs Outflow */}
@@ -445,7 +469,7 @@ function CompareStat({ label, valueA, valueB, unit = '', labelA, labelB }) {
 
 // ── KPI Tile ──────────────────────────────────────────────────────────
 
-function KpiTile({ label, value, compareValue, icon, surface = '#ffffff', ink = '#141414', labelColor = '#6e6e6e', iconBg = '#f1ede3', iconColor = '#141414', span = 1 }) {
+function KpiTile({ label, value, sub, compareValue, icon, surface = '#ffffff', ink = '#141414', labelColor = '#6e6e6e', iconBg = '#f1ede3', iconColor = '#141414', span = 1 }) {
   return (
     <div style={{
       background: surface,
@@ -466,6 +490,9 @@ function KpiTile({ label, value, compareValue, icon, surface = '#ffffff', ink = 
       <p style={{ fontSize: 34, fontWeight: 800, color: ink, lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
         {value ?? '—'}
       </p>
+      {sub && (
+        <p style={{ fontSize: 11, color: labelColor, margin: '-4px 0 0', lineHeight: 1.5 }}>{sub}</p>
+      )}
       {compareValue != null && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11, color: labelColor }}>vs {compareValue}</span>
@@ -536,6 +563,7 @@ const PipeIcon    = I(<><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></>)
 const StarIcon    = I(<><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></>)
 const LinkIcon    = I(<><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></>)
 const PulseIcon   = I(<><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></>)
+const ClockIcon   = I(<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>)
 const MapIcon     = I(<><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></>)
 const TeamIcon    = I(<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>)
 const UserIcon    = I(<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>)

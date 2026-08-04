@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Optional, List
 from pydantic import BaseModel
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, time, timedelta
 from openai import AsyncOpenAI
 
 import traceback
@@ -277,6 +277,116 @@ COLUMN_ALIASES: dict[str, list[str]] = {
 }
 
 # ── Working-day helpers ───────────────────────────────────────────────────────
+
+# Public holidays observed by the hub (Tamil Nadu). Holidays landing on a
+# weekend are harmless duplicates — the weekend mask already excludes them.
+# 2025 and 2026 are as supplied; 2024 is best-effort for the same festival set
+# and should be confirmed.
+HOLIDAYS_BY_YEAR: dict[int, list[str]] = {
+    2024: [
+        "2024-01-01",  # New Year's Day
+        "2024-01-15",  # Pongal
+        "2024-01-26",  # Republic Day
+        "2024-04-14",  # Tamil New Year (Sun)
+        "2024-05-01",  # May Day
+        "2024-08-15",  # Independence Day
+        "2024-09-07",  # Ganesh Chaturthi (Sat)
+        "2024-10-02",  # Gandhi Jayanti
+        "2024-10-11",  # Ayudha Pooja
+        "2024-10-31",  # Diwali
+        "2024-12-25",  # Christmas
+    ],
+    2025: [
+        "2025-01-01",  # New Year's Day
+        "2025-01-14",  # Pongal
+        "2025-01-26",  # Republic Day (Sun)
+        "2025-04-14",  # Tamil New Year
+        "2025-05-01",  # May Day
+        "2025-08-15",  # Independence Day
+        "2025-08-27",  # Ganesh Chaturthi
+        "2025-10-01",  # Ayudha Pooja
+        "2025-10-02",  # Gandhi Jayanti
+        "2025-10-20",  # Diwali
+        "2025-12-25",  # Christmas
+    ],
+    2026: [
+        "2026-01-01",  # New Year's Day
+        "2026-01-15",  # Pongal
+        "2026-01-26",  # Republic Day
+        "2026-04-14",  # Tamil New Year
+        "2026-04-23",  # Tamil Nadu Elections
+        "2026-05-01",  # May Day
+        "2026-08-15",  # Independence Day (Sat)
+        "2026-09-14",  # Ganesh Chaturthi
+        "2026-10-02",  # Gandhi Jayanti
+        "2026-10-19",  # Ayudha Pooja
+        "2026-11-09",  # Diwali
+        "2026-12-25",  # Christmas
+    ],
+}
+_HOLIDAY_DATES = np.array(
+    sorted({d for yr in HOLIDAYS_BY_YEAR.values() for d in yr}), dtype="datetime64[D]"
+)
+_HOLIDAY_SET = {np.datetime64(d, "D") for d in _HOLIDAY_DATES}
+
+WORK_DAY_START = 9    # 09:00
+WORK_DAY_END   = 18   # 18:00
+WORK_DAY_HOURS = WORK_DAY_END - WORK_DAY_START   # 9 productive hours per day
+
+# Ticket timestamps are normalised to tz-naive UTC on ingest (see
+# _parse_dates_robust), but the 09:00–18:00 window and the holiday list are
+# local to the hub. Shift into local time before slicing the working day.
+# India observes no DST, so a fixed offset is exact.
+BUSINESS_TZ_OFFSET = timedelta(hours=5, minutes=30)   # UTC → IST
+
+
+def _is_working_day(d: date) -> bool:
+    return d.weekday() < 5 and np.datetime64(d, "D") not in _HOLIDAY_SET
+
+
+def business_hours_between(start, end) -> Optional[float]:
+    """Working hours between two instants: 09:00–18:00, Mon–Fri, holidays excluded.
+
+    Time outside the working window contributes nothing, so a ticket raised at
+    17:00 Friday and closed at 10:00 Monday counts 2 hours, not 65. Returns None
+    when either endpoint is missing.
+    """
+    if start is None or end is None or pd.isna(start) or pd.isna(end):
+        return None
+    start = pd.Timestamp(start) + BUSINESS_TZ_OFFSET
+    end   = pd.Timestamp(end)   + BUSINESS_TZ_OFFSET
+    if end <= start:
+        return 0.0
+
+    sd, ed = start.date(), end.date()
+
+    def _clamp(ts, day):
+        lo = pd.Timestamp(datetime.combine(day, time(WORK_DAY_START, 0)))
+        hi = pd.Timestamp(datetime.combine(day, time(WORK_DAY_END, 0)))
+        return min(max(ts, lo), hi), lo, hi
+
+    if sd == ed:
+        if not _is_working_day(sd):
+            return 0.0
+        s, _, _ = _clamp(start, sd)
+        e, _, _ = _clamp(end, sd)
+        return max((e - s).total_seconds() / 3600.0, 0.0)
+
+    total = 0.0
+    if _is_working_day(sd):                      # tail of the first day
+        s, _, hi = _clamp(start, sd)
+        total += (hi - s).total_seconds() / 3600.0
+    if _is_working_day(ed):                      # head of the last day
+        e, lo, _ = _clamp(end, ed)
+        total += (e - lo).total_seconds() / 3600.0
+    # Whole working days strictly between the two dates. busday_count is
+    # [begin, end), so begin=sd+1, end=ed covers sd+1 … ed-1.
+    full_days = int(np.busday_count(
+        np.datetime64(sd, "D") + 1, np.datetime64(ed, "D"), holidays=_HOLIDAY_DATES
+    ))
+    total += max(full_days, 0) * WORK_DAY_HOURS
+    return round(total, 2)
+
 
 def add_working_days(start, num_days: int):
     """Return SLA due date: num_days working days from start, where start = Day 1."""
@@ -2236,6 +2346,26 @@ def hub_health(
         by_state = [{"state": r["state"], "count": int(r["count"])}
                     for _, r in counts.sort_values("count", ascending=False).iterrows()]
 
+    # ── Turnaround time, in working hours ────────────────────────────────────
+    # Scoped like every other tile in this row: tickets CREATED in the range
+    # that have since been delivered. Rejected tickets are excluded — they were
+    # never turned around — matching /resolution-time's definition.
+    tat_avg = tat_median = None
+    tat_n = 0
+    if {"state", "created_date", "closed_date"} <= set(tmp.columns):
+        done = tmp[tmp["state"].isin({"Closed Completed", "Confirmation Completed"})]
+        done = done.dropna(subset=["created_date", "closed_date"])
+        if len(done):
+            hrs = pd.Series(
+                [business_hours_between(c, x) for c, x in
+                 zip(done["created_date"], done["closed_date"])],
+                dtype="float64",
+            ).dropna()
+            if len(hrs):
+                tat_n = int(len(hrs))
+                tat_avg = round(float(hrs.mean()), 1)
+                tat_median = round(float(hrs.median()), 1)
+
     return {
         "total":            total,
         "resolved":         resolved,
@@ -2246,6 +2376,10 @@ def hub_health(
         "dependency":       dependency,
         "done_pct":         round(resolved / total * 100) if total > 0 else 0,
         "by_state":         by_state,
+        "turnaround_avg_hours":    tat_avg,
+        "turnaround_median_hours": tat_median,
+        "turnaround_sample":       tat_n,
+        "turnaround_workday_hours": WORK_DAY_HOURS,
     }
 
 
