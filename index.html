@@ -222,6 +222,15 @@
     }
 
     .icon-email   { background: linear-gradient(135deg, #1450f5, #3b70f7); color: white; box-shadow: 0 4px 16px rgba(20,80,245,0.35); }
+    .card-beta::before { background: linear-gradient(135deg, rgba(255,225,65,0.10), transparent 60%); }
+    .card-beta:hover  { border-color: rgba(255,225,65,0.35); }
+    .icon-beta   { background: linear-gradient(135deg, #1450f5, #0d3ac2); color: white; box-shadow: 0 4px 16px rgba(20,80,245,0.35); }
+    .tool-card:hover .launch-icon-beta { background: rgba(20,80,245,0.15); border-color: rgba(20,80,245,0.35); color: #93b4fd; }
+    .beta-badge {
+      display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 20px;
+      background: #ffe141; color: #141414; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; vertical-align: middle;
+    }
     .icon-attend  { background: linear-gradient(135deg, #0ea5e9, #1450f5); color: white; box-shadow: 0 4px 16px rgba(14,165,233,0.35); }
     .icon-kpi     { background: linear-gradient(135deg, #10b981, #059669); color: white; box-shadow: 0 4px 16px rgba(16,185,129,0.35); }
     .icon-chat    { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; box-shadow: 0 4px 16px rgba(139,92,246,0.35); }
@@ -384,6 +393,27 @@
         <div class="card-launch">
           <span class="launch-text launch-text-attend">Launch tool</span>
           <div class="launch-icon launch-icon-attend"><i class="fa-solid fa-arrow-right"></i></div>
+        </div>
+      </a>
+
+      <!-- Attendance Tracker (Beta) -->
+      <a href="attendance-beta/index.html" class="tool-card card-beta">
+        <div class="card-top">
+          <div class="card-icon icon-beta"><i class="fa-solid fa-calendar-days"></i></div>
+          <i class="fa-solid fa-arrow-up-right card-arrow"></i>
+        </div>
+        <div class="card-name">Attendance Tracker<span class="beta-badge">Beta</span></div>
+        <div class="card-desc">Rebuilt on the KONE design system with a live database instead of Firebase. Date-range filters, in-app roster management, and responsive summary tables. Password protected.</div>
+        <div class="card-features">
+          <span class="feature-tag">Range Filters</span>
+          <span class="feature-tag">Live Database</span>
+          <span class="feature-tag">Roster Admin</span>
+          <span class="feature-tag">Responsive</span>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-launch">
+          <span class="launch-text launch-text-attend">Launch tool</span>
+          <div class="launch-icon launch-icon-beta"><i class="fa-solid fa-arrow-right"></i></div>
         </div>
       </a>
 

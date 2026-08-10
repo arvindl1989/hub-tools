@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attendance — Beta | Digital Marketing Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   KONE design system — Dedicated to People Flow.
+   Blue + white with sand/mint/yellow/pink/light-blue as supporting accents.
+   Inter for all sentence text; KONE Information for ALL-CAPS labels and
+   figures, per brand rule. No emoji anywhere.
+   ══════════════════════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: 'KONE Information';
+  src: url('../assets/fonts/KONE-Information.ttf') format('truetype');
+  font-display: swap;
+}
+
+:root {
+  --blue:        #1450f5;
+  --blue-dark:   #0d3ac2;
+  --blue-tint:   #eef3fe;
+  --black:       #141414;
+  --white:       #ffffff;
+  --sand:        #f3eee6;
+  --sand-deep:   #e8e2d6;
+  --yellow:      #ffe141;
+  --lightblue:   #d2f5ff;
+  --pink:        #ffcdd7;
+  --mint:        #aae1c8;
+
+  --ink-2:       #404040;
+  --ink-3:       #6e6e6e;
+  --ink-4:       #9c9c9c;
+  --hair:        #f1ede3;
+
+  --radius:      12px;
+  --radius-sm:   8px;
+  --shadow:      0 1px 3px rgba(20,20,20,.04), 0 4px 12px rgba(20,20,20,.03);
+
+  --inter:       'Inter', system-ui, -apple-system, sans-serif;
+  --kone:        'KONE Information', 'Inter', sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--sand);
+  color: var(--black);
+  font-family: var(--inter);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font-family: inherit; font-size: inherit; }
+button { cursor: pointer; }
+
+/* Shared type helpers ---------------------------------------------------- */
+.eyebrow {
+  font-family: var(--kone);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.figure { font-family: var(--kone); font-weight: 700; letter-spacing: -.01em; }
+
+/* ── Login gate ─────────────────────────────────────────────────────────── */
+#gate {
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--blue);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+#gate::after {                     /* subtle KONE "people flow" motion cue */
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(1200px 600px at 80% -10%, rgba(255,255,255,.14), transparent 60%);
+  pointer-events: none;
+}
+.gate-card {
+  position: relative; z-index: 1;
+  background: var(--white); border-radius: 16px;
+  padding: 40px; width: 100%; max-width: 400px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.28);
+}
+.gate-card h1 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 6px; }
+.gate-card p  { color: var(--ink-3); font-size: 13px; margin: 0 0 24px; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.field label { font-family: var(--kone); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.input {
+  height: 42px; padding: 0 12px; border: 1px solid var(--sand-deep);
+  border-radius: var(--radius-sm); outline: none; color: var(--black);
+  background: var(--white); width: 100%; transition: border-color .15s, box-shadow .15s;
+}
+.input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(20,80,245,.14); }
+.btn {
+  height: 42px; padding: 0 18px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: var(--blue); color: var(--white); font-weight: 600;
+  transition: background .15s, transform .05s;
+}
+.btn:hover  { background: var(--blue-dark); }
+.btn:active { transform: translateY(1px); }
+.btn.full   { width: 100%; }
+.btn.ghost  { background: var(--white); color: var(--ink-2); border-color: var(--sand-deep); }
+.btn.ghost:hover { background: var(--blue-tint); border-color: var(--blue); color: var(--blue); }
+.btn.sm     { height: 32px; padding: 0 12px; font-size: 12.5px; }
+.gate-error {
+  display: none; background: var(--pink); color: #8c1a2e;
+  border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12.5px; margin-bottom: 14px;
+}
+
+/* ── App shell ──────────────────────────────────────────────────────────── */
+#app { display: none; }
+
+.topbar {
+  background: var(--white); border-bottom: 1px solid var(--sand-deep);
+  padding: 0 24px; height: 60px;
+  display: flex; align-items: center; gap: 16px;
+  position: sticky; top: 0; z-index: 30;
+}
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--black); }
+.brand-mark {
+  width: 28px; height: 28px; border-radius: 7px; background: var(--blue);
+  display: grid; place-items: center; color: var(--white);
+  font-family: var(--kone); font-size: 12px; font-weight: 700;
+}
+.brand-name { font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
+.beta-chip {
+  font-family: var(--kone); font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  background: var(--yellow); color: var(--black);
+  padding: 3px 8px; border-radius: 20px; text-transform: uppercase;
+}
+.topbar-spacer { flex: 1; }
+.topbar-link {
+  color: var(--ink-3); text-decoration: none; font-size: 13px; font-weight: 500;
+  padding: 7px 12px; border-radius: var(--radius-sm);
+}
+.topbar-link:hover { background: var(--blue-tint); color: var(--blue); }
+
+.wrap { max-width: 1520px; margin: 0 auto; padding: 20px 24px 64px; }
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--white); border: 1px solid var(--sand-deep);
+  border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0;
+}
+.card-head {
+  padding: 14px 18px; border-bottom: 1px solid var(--hair);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.card-title {
+  font-family: var(--inter); font-size: 13px; font-weight: 600;
+  letter-spacing: .02em; text-transform: uppercase; color: var(--black); margin: 0;
+}
+.card-sub { font-size: 11px; color: var(--ink-4); margin: 3px 0 0; }
+.card-body { padding: 18px; }
+
+/* ── Filter bar ─────────────────────────────────────────────────────────── */
+.filters {
+  background: var(--white); border: 1px solid var(--sand-deep); border-radius: var(--radius);
+  padding: 12px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.sel {
+  height: 34px; padding: 0 10px; border: 1px solid var(--sand-deep); border-radius: var(--radius-sm);
+  background: var(--white); color: var(--ink-2); outline: none; max-width: 210px;
+}
+.sel:focus { border-color: var(--blue); }
+.chip {
+  height: 30px; padding: 0 12px; border: 1px solid var(--sand-deep); border-radius: 20px;
+  background: var(--white); color: var(--ink-3); font-size: 12.5px; font-weight: 500;
+  display: inline-flex; align-items: center;
+}
+.chip:hover  { background: var(--blue-tint); }
+.chip.active { background: var(--blue); border-color: var(--blue); color: var(--white); }
+.filter-sep { width: 1px; height: 26px; background: var(--sand-deep); }
+.link-btn { background: none; border: none; color: #c0305a; font-weight: 600; font-size: 12.5px; padding: 0 4px; }
+
+/* ── Stat tiles ─────────────────────────────────────────────────────────── */
+.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+.tile { border-radius: var(--radius-sm); padding: 16px 18px; box-shadow: 0 1px 3px rgba(20,20,20,.06); }
+.tile-label { font-family: var(--kone); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.tile-value { font-family: var(--kone); font-size: 30px; font-weight: 700; line-height: 1.1; margin-top: 6px; letter-spacing: -.01em; }
+.tile-sub   { font-size: 11px; opacity: .75; margin-top: 3px; }
+.tile.blue  { background: var(--blue); color: var(--white); }
+.tile.mint  { background: var(--mint);      color: var(--black); }
+.tile.lblue { background: var(--lightblue);  color: var(--black); }
+.tile.pink  { background: var(--pink);       color: var(--black); }
+.tile.sandy { background: var(--white); color: var(--black); border: 1px solid var(--sand-deep); }
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+.rail   { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 76px; }
+.main   { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* ── Calendar ───────────────────────────────────────────────────────────── */
+.cal-nav { display: flex; align-items: center; gap: 10px; }
+.cal-month { font-size: 15px; font-weight: 700; letter-spacing: -.01em; min-width: 150px; text-align: center; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-dow {
+  font-family: var(--kone); font-size: 9.5px; font-weight: 600; letter-spacing: .08em;
+  color: var(--ink-4); text-transform: uppercase; text-align: center; padding: 4px 0 6px;
+}
+.cal-cell {
+  min-height: 104px; border: 1px solid var(--hair); border-radius: var(--radius-sm);
+  padding: 6px 7px; background: var(--white); position: relative;
+  transition: border-color .12s, box-shadow .12s;
+}
+.cal-cell.pad     { background: transparent; border-color: transparent; }
+.cal-cell.clickable { cursor: pointer; }
+.cal-cell.clickable:hover { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(20,80,245,.10); }
+.cal-cell.off     { background: var(--sand); border-color: transparent; }
+.cal-cell.holiday { background: var(--blue); border-color: var(--blue); color: var(--white); }
+.cal-cell.today   { border-color: var(--blue); border-width: 2px; }
+.cal-cell.picked  { border-color: var(--blue); border-width: 2px; box-shadow: 0 0 0 3px rgba(20,80,245,.16); }
+.cal-daynum { font-family: var(--kone); font-size: 12px; font-weight: 700; }
+.cal-holiday-name { font-size: 10.5px; margin-top: 4px; line-height: 1.35; }
+.cal-people { margin-top: 5px; display: flex; flex-direction: column; gap: 2px; }
+.cal-person { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--ink-2); }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.cal-note {
+  margin-top: 5px; font-size: 10px; border-radius: 4px; padding: 3px 5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cal-more { font-size: 10px; color: var(--ink-4); }
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+thead th {
+  font-family: var(--kone); font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3); text-align: left;
+  padding: 8px 10px; border-bottom: 2px solid var(--sand-deep); white-space: nowrap;
+  position: sticky; top: 0; background: var(--white); z-index: 1;
+}
+tbody td { padding: 10px; border-bottom: 1px solid var(--hair); white-space: nowrap; }
+tbody tr:hover { background: var(--blue-tint); }
+.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.person-cell { display: flex; align-items: center; gap: 9px; font-weight: 600; }
+.avatar {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--blue-tint); color: var(--blue);
+  display: grid; place-items: center; font-family: var(--kone); font-size: 10px; font-weight: 700; flex-shrink: 0;
+}
+.bar-track { width: 88px; height: 6px; background: var(--hair); border-radius: 3px; overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 3px; background: var(--blue); }
+.pill {
+  display: inline-block; padding: 2px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+
+/* ── Rail widgets ───────────────────────────────────────────────────────── */
+.status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.status-opt {
+  display: flex; align-items: center; gap: 7px; padding: 8px 9px;
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-sm);
+  background: var(--white); font-size: 12px; font-weight: 500; text-align: left;
+}
+.status-opt:hover  { border-color: var(--blue); }
+.status-opt.active { border-color: var(--blue); background: var(--blue-tint); font-weight: 600; }
+.swatch { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; border: 1px solid rgba(0,0,0,.10); }
+.picked-list {
+  background: var(--sand); border-radius: var(--radius-sm); padding: 8px 10px;
+  font-size: 11.5px; color: var(--ink-2); max-height: 78px; overflow-y: auto;
+}
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); }
+.mini-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 6px 0; border-bottom: 1px solid var(--hair); font-size: 12px;
+}
+.mini-row:last-child { border-bottom: none; }
+.mini-date { font-family: var(--kone); font-size: 11px; font-weight: 700; color: var(--blue); white-space: nowrap; }
+.mini-name { color: var(--ink-2); text-align: right; }
+.scroll-160 { max-height: 200px; overflow-y: auto; }
+
+/* ── Modal ──────────────────────────────────────────────────────────────── */
+.modal-bg {
+  display: none; position: fixed; inset: 0; z-index: 60;
+  background: rgba(20,20,20,.45); align-items: center; justify-content: center; padding: 20px;
+}
+.modal-bg.open { display: flex; }
+.modal {
+  background: var(--white); border-radius: var(--radius); width: 100%; max-width: 620px;
+  max-height: 84vh; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,.3);
+}
+.modal-body { padding: 18px; overflow-y: auto; }
+
+.toast {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: var(--black); color: var(--white); padding: 11px 18px; border-radius: var(--radius-sm);
+  font-size: 13px; z-index: 90; opacity: 0; transition: transform .25s, opacity .25s; pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+.toast.err  { background: #8c1a2e; }
+
+.empty { padding: 28px; text-align: center; color: var(--ink-4); font-size: 12.5px; }
+.banner {
+  background: var(--yellow); color: var(--black); border-radius: var(--radius-sm);
+  padding: 10px 14px; font-size: 12.5px; margin-bottom: 14px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .tiles  { grid-template-columns: repeat(3, 1fr); }
+  .layout { grid-template-columns: 1fr; }
+  .rail   { position: static; }
+}
+@media (max-width: 720px) {
+  .wrap    { padding: 14px 12px 48px; }
+  .tiles   { grid-template-columns: repeat(2, 1fr); }
+  .topbar  { padding: 0 10px; gap: 4px; height: 54px; }
+  .brand-name  { font-size: 14px; }
+  .topbar-link { padding: 6px 8px; font-size: 12px; white-space: nowrap; }
+  .cal-grid { gap: 3px; }
+  .cal-cell { min-height: 78px; padding: 4px; }
+  .cal-people, .cal-note { display: none; }   /* keep small-screen cells legible */
+  /* Headcount stand-in for the hidden name list. Holidays already print their
+     own name, so they must not get it too — that duplicated the label. */
+  .cal-cell:not(.holiday)::after {
+    content: attr(data-summary); font-size: 9.5px; color: var(--ink-4);
+    display: block; margin-top: 3px;
+  }
+}
+@media (max-width: 420px) {
+  .topbar-link[href$="attendance/index.html"] { display: none; }  /* keep Hub + Sign out */
+}
+</style>
+</head>
+<body>
+
+<!-- ── Password gate ───────────────────────────────────────────────────── -->
+<div id="gate">
+  <form class="gate-card" id="gateForm">
+    <h1>Attendance <span class="beta-chip">Beta</span></h1>
+    <p>This is a preview build. Enter the beta access password to continue.</p>
+    <div class="gate-error" id="gateError"></div>
+    <div class="field">
+      <label for="pw">Beta password</label>
+      <input class="input" type="password" id="pw" autocomplete="current-password" placeholder="Enter password">
+    </div>
+    <button class="btn full" type="submit" id="gateBtn">Unlock</button>
+    <p style="margin:18px 0 0;font-size:11.5px;color:var(--ink-4)">
+      The live tracker is unaffected and remains available from the hub.
+    </p>
+  </form>
+</div>
+
+<!-- ── App ─────────────────────────────────────────────────────────────── -->
+<div id="app">
+  <div class="topbar">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">DH</span>
+      <span class="brand-name">Attendance</span>
+    </a>
+    <span class="beta-chip">Beta</span>
+    <span class="topbar-spacer"></span>
+    <a class="topbar-link" href="../attendance/index.html">Live tracker</a>
+    <a class="topbar-link" href="../index.html">Hub</a>
+    <button class="topbar-link" style="border:none;background:none" id="signOut">Sign out</button>
+  </div>
+
+  <div class="wrap">
+    <div id="dbBanner" class="banner" style="display:none"></div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <span class="eyebrow">Range</span>
+      <input class="sel" type="date" id="fFrom">
+      <span style="color:var(--ink-4)">to</span>
+      <input class="sel" type="date" id="fTo">
+      <button class="chip" data-preset="month">This month</button>
+      <button class="chip" data-preset="last">Last month</button>
+      <button class="chip" data-preset="quarter">This quarter</button>
+      <button class="chip" data-preset="ytd">Year to date</button>
+      <span class="filter-sep"></span>
+      <select class="sel" id="fPerson"><option value="">All people</option></select>
+      <select class="sel" id="fStatus"><option value="">All statuses</option></select>
+      <button class="link-btn" id="fReset" style="display:none">Reset</button>
+      <span class="topbar-spacer"></span>
+      <span class="eyebrow" id="syncNote">Synced</span>
+    </div>
+
+    <!-- Stat tiles -->
+    <div class="tiles" id="tiles"></div>
+
+    <div class="layout">
+      <!-- Rail -->
+      <div class="rail">
+        <div class="card">
+          <div class="card-head"><h3 class="card-title">Mark attendance</h3></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:12px">
+            <div class="field" style="margin:0">
+              <label for="mPerson">Person</label>
+              <select class="sel" id="mPerson" style="max-width:none"></select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Status</label>
+              <div class="status-grid" id="statusGrid"></div>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Selected dates <span id="pickCount" style="color:var(--blue)"></span></label>
+              <div class="picked-list" id="pickedList">Click days in the calendar to select them.</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn sm" style="flex:1" id="applyBtn">Apply</button>
+              <button class="btn sm ghost" style="flex:1" id="clearMarkBtn">Reset days</button>
+            </div>
+            <button class="btn sm ghost" id="deselectBtn">Clear selection</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3 class="card-title">Note on selected days</h3></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+            <textarea class="input" id="noteBody" rows="3" style="height:auto;padding:9px 12px;resize:vertical" placeholder="e.g. Team offsite"></textarea>
+            <div style="display:flex;gap:6px" id="noteColors"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn sm" style="flex:1" id="saveNoteBtn">Save note</button>
+              <button class="btn sm ghost" style="flex:1" id="clearNoteBtn">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3 class="card-title">Roster</h3>
+            <button class="btn sm ghost" id="addPersonBtn">Add</button>
+          </div>
+          <div class="card-body scroll-160" id="rosterList"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3 class="card-title">Holidays in range</h3></div>
+          <div class="card-body scroll-160" id="holidayList"></div>
+        </div>
+      </div>
+
+      <!-- Main -->
+      <div class="main">
+        <div class="card">
+          <div class="card-head">
+            <div class="cal-nav">
+              <button class="btn sm ghost" id="prevM">Prev</button>
+              <span class="cal-month" id="calMonth"></span>
+              <button class="btn sm ghost" id="nextM">Next</button>
+            </div>
+            <div class="legend" id="legend"></div>
+          </div>
+          <div class="card-body">
+            <div class="cal-grid" id="calGrid"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3 class="card-title">Summary</h3>
+              <p class="card-sub" id="summarySub"></p>
+            </div>
+            <button class="btn sm ghost" id="logBtn">Activity log</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div class="table-scroll" id="summaryWrap"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="modal-bg" id="logModal">
+  <div class="modal">
+    <div class="card-head">
+      <h3 class="card-title">Activity log</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn sm ghost" id="wipeLog">Clear</button>
+        <button class="btn sm ghost" data-close>Close</button>
+      </div>
+    </div>
+    <div class="modal-body" id="logBody"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="personModal">
+  <div class="modal" style="max-width:440px">
+    <div class="card-head">
+      <h3 class="card-title" id="personModalTitle">Add person</h3>
+      <button class="btn sm ghost" data-close>Close</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field" style="margin:0">
+        <label for="pName">Name</label>
+        <input class="input" id="pName" placeholder="e.g. Jerlin">
+      </div>
+      <div class="field" style="margin:0">
+        <label for="pStart">Start date <span style="text-transform:none;letter-spacing:0;color:var(--ink-4)">— hidden before this day</span></label>
+        <input class="input" type="date" id="pStart">
+      </div>
+      <div class="field" style="margin:0">
+        <label for="pEnd">End date <span style="text-transform:none;letter-spacing:0;color:var(--ink-4)">— optional, for leavers</span></label>
+        <input class="input" type="date" id="pEnd">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn" style="flex:1" id="savePerson">Save</button>
+        <button class="btn ghost" id="deletePerson" style="display:none">Remove</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Beta attendance tracker.
+   Storage is Postgres behind /api/attendance/* — no Firebase anywhere. The
+   legacy tracker at ../attendance/ is untouched and keeps its own data.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const API   = '/api/attendance';
+const TKEY  = 'att_beta_token';
+const POLL_MS = 10000;
+
+const STATUS_META = {
+  present:      { label: 'Present',   color: '#aae1c8', ink: '#0f5132' },
+  wfh:          { label: 'WFH',       color: '#1450f5', ink: '#ffffff' },
+  leave:        { label: 'Leave',     color: '#ffcdd7', ink: '#8c1a2e' },
+  halfDayLeave: { label: 'Half day',  color: '#ffe141', ink: '#7a5400' },
+  onDuty:       { label: 'On duty',   color: '#d2f5ff', ink: '#005f86' },
+  travel:       { label: 'Travel',    color: '#f3eee6', ink: '#404040' },
+};
+const NOTE_COLORS = { sand:'#f3eee6', yellow:'#ffe141', blue:'#d2f5ff', pink:'#ffcdd7', mint:'#aae1c8' };
+
+let token   = sessionStorage.getItem(TKEY) || '';
+let people  = [], holidays = {}, records = {}, notes = {}, summary = null;
+let version = -1, pollTimer = null;
+let calY, calM;                         // month on screen
+let picked = new Set();                 // selected date keys
+let markStatus = 'wfh', noteColor = 'yellow';
+let editingPerson = null;
+
+const $  = (s) => document.querySelector(s);
+const pad = (n) => String(n).padStart(2, '0');
+const key = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+const iso = (dt) => key(dt.getFullYear(), dt.getMonth(), dt.getDate());
+const isWeekend = (k) => { const d = new Date(k + 'T00:00:00').getDay(); return d === 0 || d === 6; };
+const isWorkDay = (k) => !isWeekend(k) && !holidays[k];
+const initials  = (n) => n.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+const fmtDay    = (k) => new Date(k + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+
+function toast(msg, isErr) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' err' : '');
+  clearTimeout(t._t); t._t = setTimeout(() => t.className = 'toast', 2600);
+}
+
+/* ── API ─────────────────────────────────────────────────────────────────── */
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers || {}) },
+  });
+  if (res.status === 401) { logout(); throw new Error('Session expired'); }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch {}
+    throw new Error(detail);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+/* ── Auth ────────────────────────────────────────────────────────────────── */
+$('#gateForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('#gateBtn'), err = $('#gateError');
+  btn.disabled = true; btn.textContent = 'Checking…'; err.style.display = 'none';
+  try {
+    const res = await fetch(API + '/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: $('#pw').value }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Incorrect password');
+    token = (await res.json()).token;
+    sessionStorage.setItem(TKEY, token);
+    await start();
+  } catch (ex) {
+    err.textContent = ex.message; err.style.display = 'block';
+    $('#pw').value = ''; $('#pw').focus();
+  } finally { btn.disabled = false; btn.textContent = 'Unlock'; }
+});
+
+function logout() {
+  sessionStorage.removeItem(TKEY); token = '';
+  clearInterval(pollTimer);
+  $('#app').style.display = 'none';
+  $('#gate').style.display = 'flex';
+}
+$('#signOut').onclick = logout;
+
+/* ── Boot ────────────────────────────────────────────────────────────────── */
+async function start() {
+  try {
+    const bs = await api('/bootstrap');
+    people = bs.people; holidays = bs.holidays; version = bs.version;
+  } catch (ex) {
+    if (String(ex.message).includes('database')) {
+      $('#dbBanner').style.display = 'block';
+      $('#dbBanner').textContent =
+        'No database is attached to this service, so nothing can be saved yet. '
+        + 'Attach a Postgres addon in Railway and set DATABASE_URL, then reload.';
+      people = []; holidays = {};
+    } else { toast(ex.message, true); return; }
+  }
+  $('#gate').style.display = 'none';
+  $('#app').style.display = 'block';
+
+  const now = new Date();
+  calY = now.getFullYear(); calM = now.getMonth();
+  if (!$('#fFrom').value) applyPreset('month');
+
+  buildStatusGrid(); buildNoteColors(); buildLegend();
+  await refresh();
+  clearInterval(pollTimer);
+  pollTimer = setInterval(poll, POLL_MS);
+}
+
+/* Cheap poll: only re-fetch the payload when the server revision moved. */
+async function poll() {
+  if (!token || document.hidden) return;
+  try {
+    const { version: v } = await api('/version');
+    if (v !== version) { version = v; await refresh(true); $('#syncNote').textContent = 'Updated just now'; }
+  } catch {/* transient — next tick retries */}
+}
+
+async function refresh(quiet) {
+  if (!token) return;
+  const from = $('#fFrom').value, to = $('#fTo').value;
+  // Fetch the union of the filter range and the visible month, so the
+  // calendar is never missing data just because it sits outside the filter.
+  const mStart = key(calY, calM, 1);
+  const mEnd   = key(calY, calM, new Date(calY, calM + 1, 0).getDate());
+  const lo = [from, mStart].filter(Boolean).sort()[0];
+  const hi = [to, mEnd].filter(Boolean).sort().pop();
+  try {
+    const [data, sum] = await Promise.all([
+      api(`/data?start=${lo}&end=${hi}`),
+      from && to ? api(`/summary?start=${from}&end=${to}`) : Promise.resolve(null),
+    ]);
+    records = data.records; notes = data.notes; version = data.version; summary = sum;
+    if (!quiet) $('#syncNote').textContent = 'Synced';
+    renderAll();
+  } catch (ex) { if (!quiet) toast(ex.message, true); }
+}
+
+/* ── Rendering ───────────────────────────────────────────────────────────── */
+function renderAll() { renderTiles(); renderCalendar(); renderSummary(); renderRoster(); renderHolidays(); renderPersonSelects(); }
+
+function activeOn(k) {
+  return people.filter(p => (!p.start || k >= p.start) && (!p.end || k <= p.end));
+}
+function statusOf(k, name) { return (records[k] || {})[name] || 'present'; }
+
+function renderTiles() {
+  const s = summary;
+  const t = (cls, label, val, sub) =>
+    `<div class="tile ${cls}"><div class="tile-label">${label}</div><div class="tile-value">${val}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}</div>`;
+  if (!s || !s.rows.length) {
+    $('#tiles').innerHTML =
+      t('blue', 'Working days', s ? s.working_days : '—', 'in selected range')
+      + t('mint', 'Present', '—') + t('lblue', 'WFH', '—')
+      + t('pink', 'Leave', '—') + t('sandy', 'Avg capacity', '—');
+    return;
+  }
+  const sum = (f) => s.rows.reduce((a, r) => a + (r[f] || 0), 0);
+  const cap = s.rows.reduce((a, r) => a + (r.capacity_pct || 0), 0) / s.rows.length;
+  $('#tiles').innerHTML =
+      t('blue',  'Working days', s.working_days, `${s.rows.length} ${s.rows.length === 1 ? 'person' : 'people'}`)
+    + t('mint',  'Present',      sum('present'),  'default when unmarked')
+    + t('lblue', 'WFH',          sum('wfh'))
+    + t('pink',  'Leave',        (sum('leave') + 0.5 * sum('halfDayLeave')).toFixed(1), 'half days count 0.5')
+    + t('sandy', 'Avg capacity', cap.toFixed(1) + '%', 'excluding leave');
+}
+
+function renderCalendar() {
+  $('#calMonth').textContent = new Date(calY, calM, 1)
+    .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const grid = $('#calGrid');
+  grid.innerHTML = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+    .map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+  const first = new Date(calY, calM, 1).getDay();
+  const dim   = new Date(calY, calM + 1, 0).getDate();
+  const today = iso(new Date());
+  const pFilter = $('#fPerson').value, sFilter = $('#fStatus').value;
+
+  for (let i = 0; i < first; i++) grid.insertAdjacentHTML('beforeend', '<div class="cal-cell pad"></div>');
+
+  for (let d = 1; d <= dim; d++) {
+    const k = key(calY, calM, d);
+    const hol = holidays[k], weekend = isWeekend(k);
+    const cls = ['cal-cell'];
+    if (hol) cls.push('holiday'); else if (weekend) cls.push('off'); else cls.push('clickable');
+    if (k === today) cls.push('today');
+    if (picked.has(k)) cls.push('picked');
+
+    let inner = `<div class="cal-daynum">${d}</div>`;
+    if (hol) {
+      inner += `<div class="cal-holiday-name">${hol}</div>`;
+    } else if (!weekend) {
+      let list = activeOn(k);
+      if (pFilter) list = list.filter(p => p.name === pFilter);
+      if (sFilter) list = list.filter(p => statusOf(k, p.name) === sFilter);
+      const shown = list.slice(0, 4);
+      inner += '<div class="cal-people">' + shown.map(p => {
+        const m = STATUS_META[statusOf(k, p.name)];
+        return `<div class="cal-person"><span class="dot" style="background:${m.color};${m.color === '#ffffff' ? 'border:1px solid #ddd' : ''}"></span>${p.name}</div>`;
+      }).join('') + (list.length > 4 ? `<div class="cal-more">+${list.length - 4} more</div>` : '') + '</div>';
+      const n = notes[k];
+      if (n) inner += `<div class="cal-note" style="background:${NOTE_COLORS[n.color] || '#ffe141'}">${n.body}</div>`;
+    }
+    const summaryAttr = hol ? hol : weekend ? '' : `${activeOn(k).length} in`;
+    grid.insertAdjacentHTML('beforeend',
+      `<div class="${cls.join(' ')}" data-k="${k}" data-summary="${summaryAttr}">${inner}</div>`);
+  }
+
+  grid.querySelectorAll('.cal-cell.clickable').forEach(el => {
+    el.onclick = () => {
+      const k = el.dataset.k;
+      picked.has(k) ? picked.delete(k) : picked.add(k);
+      renderCalendar(); renderPicked();
+    };
+  });
+}
+
+function renderPicked() {
+  const arr = [...picked].sort();
+  $('#pickCount').textContent = arr.length ? `(${arr.length})` : '';
+  $('#pickedList').textContent = arr.length
+    ? arr.map(fmtDay).join(', ')
+    : 'Click days in the calendar to select them.';
+  const n = arr.length === 1 ? notes[arr[0]] : null;
+  $('#noteBody').value = n ? n.body : '';
+}
+
+function renderSummary() {
+  const wrap = $('#summaryWrap');
+  const from = $('#fFrom').value, to = $('#fTo').value;
+  $('#summarySub').textContent = from && to
+    ? `${fmtDay(from)} – ${fmtDay(to)} · unmarked working days count as present`
+    : 'Pick a date range';
+
+  if (!summary || !summary.rows.length) { wrap.innerHTML = '<div class="empty">No people active in this range.</div>'; return; }
+  const pFilter = $('#fPerson').value, sFilter = $('#fStatus').value;
+  let rows = summary.rows;
+  if (pFilter) rows = rows.filter(r => r.person === pFilter);
+  if (sFilter) rows = rows.filter(r => (r[sFilter] || 0) > 0);
+  if (!rows.length) { wrap.innerHTML = '<div class="empty">No one matches these filters.</div>'; return; }
+
+  const cols = ['present', 'wfh', 'leave', 'halfDayLeave', 'onDuty', 'travel'];
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Person</th><th class="num">Working days</th>
+        ${cols.map(c => `<th class="num">${STATUS_META[c].label}</th>`).join('')}
+        <th class="num">Capacity</th><th>&nbsp;</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td><div class="person-cell"><span class="avatar">${initials(r.person)}</span>${r.person}</div></td>
+            <td class="num">${r.working_days}</td>
+            ${cols.map(c => `<td class="num" style="color:${r[c] ? 'var(--black)' : 'var(--ink-4)'}">${r[c] || '—'}</td>`).join('')}
+            <td class="num">${r.capacity_pct == null ? '—' : r.capacity_pct + '%'}</td>
+            <td><div class="bar-track"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, r.capacity_pct || 0))}%"></div></div></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderRoster() {
+  const el = $('#rosterList');
+  if (!people.length) { el.innerHTML = '<div class="empty" style="padding:12px">No one yet. Use Add.</div>'; return; }
+  el.innerHTML = people.map(p => `
+    <div class="mini-row" style="cursor:pointer" data-person="${encodeURIComponent(p.name)}">
+      <span style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:22px;height:22px;font-size:9px">${initials(p.name)}</span>${p.name}</span>
+      <span class="mini-name" style="font-size:11px">${p.start ? 'from ' + fmtDay(p.start) : ''}${p.end ? ' · to ' + fmtDay(p.end) : ''}</span>
+    </div>`).join('');
+  el.querySelectorAll('[data-person]').forEach(r => {
+    r.onclick = () => openPerson(people.find(p => p.name === decodeURIComponent(r.dataset.person)));
+  });
+}
+
+function renderHolidays() {
+  const from = $('#fFrom').value || '0000', to = $('#fTo').value || '9999';
+  const list = Object.entries(holidays).filter(([d]) => d >= from && d <= to).sort();
+  $('#holidayList').innerHTML = list.length
+    ? list.map(([d, n]) => `<div class="mini-row"><span class="mini-date">${fmtDay(d)}</span><span class="mini-name">${n}</span></div>`).join('')
+    : '<div class="empty" style="padding:12px">None in this range.</div>';
+}
+
+function renderPersonSelects() {
+  const sel = $('#mPerson'), filt = $('#fPerson');
+  const keep = sel.value, keepF = filt.value;
+  sel.innerHTML  = people.map(p => `<option>${p.name}</option>`).join('');
+  filt.innerHTML = '<option value="">All people</option>' + people.map(p => `<option>${p.name}</option>`).join('');
+  if (people.some(p => p.name === keep))  sel.value  = keep;
+  if (people.some(p => p.name === keepF)) filt.value = keepF;
+}
+
+function buildStatusGrid() {
+  $('#statusGrid').innerHTML = Object.entries(STATUS_META).map(([k, m]) =>
+    `<button class="status-opt ${k === markStatus ? 'active' : ''}" data-s="${k}">
+       <span class="swatch" style="background:${m.color}"></span>${m.label}</button>`).join('');
+  $('#statusGrid').querySelectorAll('[data-s]').forEach(b => {
+    b.onclick = () => { markStatus = b.dataset.s; buildStatusGrid(); };
+  });
+  $('#fStatus').innerHTML = '<option value="">All statuses</option>'
+    + Object.entries(STATUS_META).map(([k, m]) => `<option value="${k}">${m.label}</option>`).join('');
+}
+
+function buildNoteColors() {
+  $('#noteColors').innerHTML = Object.entries(NOTE_COLORS).map(([k, c]) =>
+    `<button class="swatch" data-c="${k}" title="${k}" style="width:26px;height:26px;border-radius:6px;background:${c};${k === noteColor ? 'outline:2px solid var(--blue);outline-offset:2px' : ''}"></button>`).join('');
+  $('#noteColors').querySelectorAll('[data-c]').forEach(b => {
+    b.onclick = () => { noteColor = b.dataset.c; buildNoteColors(); };
+  });
+}
+
+function buildLegend() {
+  $('#legend').innerHTML = Object.values(STATUS_META).map(m =>
+    `<span class="legend-item"><span class="dot" style="background:${m.color}"></span>${m.label}</span>`).join('');
+}
+
+/* ── Filters ─────────────────────────────────────────────────────────────── */
+function applyPreset(kind) {
+  const n = new Date(); let s, e;
+  if (kind === 'month')        { s = new Date(n.getFullYear(), n.getMonth(), 1);       e = new Date(n.getFullYear(), n.getMonth() + 1, 0); }
+  else if (kind === 'last')    { s = new Date(n.getFullYear(), n.getMonth() - 1, 1);   e = new Date(n.getFullYear(), n.getMonth(), 0); }
+  else if (kind === 'quarter') { const q = Math.floor(n.getMonth() / 3); s = new Date(n.getFullYear(), q * 3, 1); e = new Date(n.getFullYear(), q * 3 + 3, 0); }
+  else                         { s = new Date(n.getFullYear(), 0, 1);                  e = new Date(n.getFullYear(), 11, 31); }
+  $('#fFrom').value = iso(s); $('#fTo').value = iso(e);
+  document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === kind));
+}
+document.querySelectorAll('[data-preset]').forEach(b => {
+  b.onclick = () => { applyPreset(b.dataset.preset); onFilterChange(); };
+});
+function onFilterChange() {
+  $('#fReset').style.display = ($('#fPerson').value || $('#fStatus').value) ? '' : 'none';
+  refresh();
+}
+['#fFrom', '#fTo'].forEach(s => $(s).onchange = () => {
+  document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+  onFilterChange();
+});
+['#fPerson', '#fStatus'].forEach(s => $(s).onchange = () => { $('#fReset').style.display = ''; renderAll(); });
+$('#fReset').onclick = () => { $('#fPerson').value = ''; $('#fStatus').value = ''; $('#fReset').style.display = 'none'; renderAll(); };
+
+$('#prevM').onclick = () => { if (--calM < 0) { calM = 11; calY--; } refresh(); };
+$('#nextM').onclick = () => { if (++calM > 11) { calM = 0; calY++; } refresh(); };
+
+/* ── Mutations ───────────────────────────────────────────────────────────── */
+function pickedWorkDays() {
+  const arr = [...picked].filter(isWorkDay);
+  if (!arr.length) toast('Select at least one working day', true);
+  return arr;
+}
+
+$('#applyBtn').onclick = async () => {
+  const dates = pickedWorkDays(); if (!dates.length) return;
+  const person = $('#mPerson').value; if (!person) return toast('Pick a person', true);
+  const valid = dates.filter(k => activeOn(k).some(p => p.name === person));
+  if (!valid.length) return toast(`${person} is not active on those days`, true);
+  try {
+    await api('/mark', { method: 'POST', body: JSON.stringify({ person, dates: valid, status: markStatus }) });
+    picked.clear(); renderPicked(); await refresh();
+    toast(`${person} — ${STATUS_META[markStatus].label} on ${valid.length} day${valid.length > 1 ? 's' : ''}`);
+  } catch (ex) { toast(ex.message, true); }
+};
+
+$('#clearMarkBtn').onclick = async () => {
+  const dates = pickedWorkDays(); if (!dates.length) return;
+  const person = $('#mPerson').value;
+  try {
+    await api('/clear', { method: 'POST', body: JSON.stringify({ person, dates }) });
+    picked.clear(); renderPicked(); await refresh();
+    toast(`Reset ${dates.length} day${dates.length > 1 ? 's' : ''} to default`);
+  } catch (ex) { toast(ex.message, true); }
+};
+
+$('#deselectBtn').onclick = () => { picked.clear(); renderCalendar(); renderPicked(); };
+
+$('#saveNoteBtn').onclick = async () => {
+  const dates = [...picked].sort(); if (!dates.length) return toast('Select a day first', true);
+  try {
+    await api('/note', { method: 'POST', body: JSON.stringify({ dates, body: $('#noteBody').value, color: noteColor }) });
+    await refresh(); toast('Note saved');
+  } catch (ex) { toast(ex.message, true); }
+};
+$('#clearNoteBtn').onclick = async () => {
+  const dates = [...picked].sort(); if (!dates.length) return toast('Select a day first', true);
+  try {
+    await api('/note', { method: 'POST', body: JSON.stringify({ dates, body: '' }) });
+    $('#noteBody').value = ''; await refresh(); toast('Note removed');
+  } catch (ex) { toast(ex.message, true); }
+};
+
+/* ── Roster management ───────────────────────────────────────────────────── */
+function openPerson(p) {
+  editingPerson = p || null;
+  $('#personModalTitle').textContent = p ? 'Edit person' : 'Add person';
+  $('#pName').value  = p ? p.name : '';
+  $('#pName').disabled = !!p;                 // name is the primary key
+  $('#pStart').value = p && p.start ? p.start : '';
+  $('#pEnd').value   = p && p.end   ? p.end   : '';
+  $('#deletePerson').style.display = p ? '' : 'none';
+  $('#personModal').classList.add('open');
+}
+$('#addPersonBtn').onclick = () => openPerson(null);
+$('#savePerson').onclick = async () => {
+  const name = $('#pName').value.trim(); if (!name) return toast('Name is required', true);
+  try {
+    await api('/people', { method: 'POST', body: JSON.stringify({ name, start: $('#pStart').value || null, end: $('#pEnd').value || null }) });
+    $('#personModal').classList.remove('open');
+    people = (await api('/bootstrap')).people;
+    await refresh(); toast(`${name} saved`);
+  } catch (ex) { toast(ex.message, true); }
+};
+$('#deletePerson').onclick = async () => {
+  if (!editingPerson || !confirm(`Remove ${editingPerson.name} from the roster? Their recorded days stay in the database.`)) return;
+  try {
+    await api('/people/' + encodeURIComponent(editingPerson.name), { method: 'DELETE' });
+    $('#personModal').classList.remove('open');
+    people = (await api('/bootstrap')).people;
+    await refresh(); toast('Removed from roster');
+  } catch (ex) { toast(ex.message, true); }
+};
+
+/* ── Activity log ────────────────────────────────────────────────────────── */
+$('#logBtn').onclick = async () => {
+  $('#logModal').classList.add('open');
+  $('#logBody').innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const { entries } = await api('/log');
+    $('#logBody').innerHTML = entries.length
+      ? entries.map(e => `<div class="mini-row"><span class="mini-date">${new Date(e.ts).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span><span class="mini-name">${e.detail}</span></div>`).join('')
+      : '<div class="empty">Nothing recorded yet.</div>';
+  } catch (ex) { $('#logBody').innerHTML = `<div class="empty">${ex.message}</div>`; }
+};
+$('#wipeLog').onclick = async () => {
+  if (!confirm('Clear the activity log?')) return;
+  try { await api('/log', { method: 'DELETE' }); $('#logBody').innerHTML = '<div class="empty">Nothing recorded yet.</div>'; }
+  catch (ex) { toast(ex.message, true); }
+};
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.modal-bg').classList.remove('open'));
+document.querySelectorAll('.modal-bg').forEach(m => m.onclick = (e) => { if (e.target === m) m.classList.remove('open'); });
+
+/* ── Go ──────────────────────────────────────────────────────────────────── */
+if (token) start().catch(() => logout()); else $('#pw').focus();
+</script>
+</body>
+</html>

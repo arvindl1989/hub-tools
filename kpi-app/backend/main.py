@@ -3410,6 +3410,16 @@ Rules:
     }
 
 
+# ── Beta attendance tracker ───────────────────────────────────────────────────
+# Registered BEFORE the catch-all "/" static mount below, which would otherwise
+# swallow these routes. Shares the Postgres connection and holiday calendar but
+# is otherwise independent of the legacy Firebase tracker.
+import attendance_api
+
+attendance_api.configure(get_conn=_get_conn, holidays_by_year=HOLIDAYS_BY_YEAR)
+app.include_router(attendance_api.router)
+
+
 # ── Serve KPI React app at /kpi/ and hub static tools at / ───────────────────
 from fastapi.responses import FileResponse
 
