@@ -2727,6 +2727,51 @@ _APPS_SCRIPT_URL = os.environ.get(
 _TICKETS_CACHE_TTL = 300  # seconds
 _tickets_cache: dict = {"ts": 0.0, "rows": None, "fetched_at": None}
 
+# Preferred source when set: a direct CSV export of the ticket sheet, the same
+# mechanism the Feedback tab already uses successfully. It is a single request
+# with no redirect, so it avoids the /exec -> script.googleusercontent.com hop
+# that Apps Script depends on and which fails independently of whether the
+# script itself runs. Falls back to Apps Script when unset or failing.
+#   https://docs.google.com/spreadsheets/d/<SHEET_ID>/export?format=csv&gid=<GID>
+_TICKETS_CSV_URL = os.environ.get("TICKETS_CSV_URL", "").strip()
+
+
+async def _fetch_ticket_rows() -> tuple[list, str]:
+    """Return (rows, source). Tries CSV export first, then the Apps Script."""
+    import httpx
+    attempts: list[str] = []
+
+    if _TICKETS_CSV_URL:
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+                resp = await client.get(_TICKETS_CSV_URL)
+                resp.raise_for_status()
+            if resp.text.lstrip().startswith("<"):
+                raise ValueError("got HTML, not CSV — the sheet is probably not shared publicly")
+            frame = pd.read_csv(io.StringIO(resp.text))
+            # NaN is not valid JSON; None round-trips cleanly to the frontend.
+            rows = frame.astype(object).where(pd.notna(frame), None).to_dict(orient="records")
+            if not rows:
+                raise ValueError("CSV export returned no rows")
+            return rows, "csv"
+        except Exception as exc:
+            attempts.append(f"CSV export: {exc}")
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+            resp = await client.get(_APPS_SCRIPT_URL)
+            resp.raise_for_status()
+            rows = resp.json()
+        if not isinstance(rows, list):
+            # Apps Script serves an HTML error page rather than JSON when the
+            # deployment is missing or its output cannot be served.
+            raise ValueError("did not return a JSON array — check the deployment URL")
+        return rows, "apps-script"
+    except Exception as exc:
+        attempts.append(f"Apps Script: {exc}")
+
+    raise RuntimeError(" | ".join(attempts))
+
 
 @app.get("/api/tickets")
 async def get_tickets(refresh: bool = False):
@@ -2738,7 +2783,6 @@ async def get_tickets(refresh: bool = False):
     taking it down. `refresh=true` forces a live fetch.
     """
     import time as _time
-    import httpx
 
     now = _time.time()
     age = now - _tickets_cache["ts"]
@@ -2750,20 +2794,15 @@ async def get_tickets(refresh: bool = False):
         )
 
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-            resp = await client.get(_APPS_SCRIPT_URL)
-            resp.raise_for_status()
-            rows = resp.json()
-        if not isinstance(rows, list):
-            # Apps Script returns an HTML error page (not JSON) when the
-            # deployment is missing or over quota — surface that clearly.
-            raise ValueError("Apps Script did not return a JSON array — check the deployment URL")
+        rows, source = await _fetch_ticket_rows()
         _tickets_cache.update({"ts": now, "rows": rows,
                                "fetched_at": datetime.now().isoformat(timespec="seconds")})
+        print(f"[TICKETS] Fetched {len(rows)} rows via {source}", flush=True)
         return JSONResponse(
             rows,
             headers={"X-Sheet-Fetched-At": _tickets_cache["fetched_at"],
-                     "X-Sheet-Cache": "miss", "X-Sheet-Stale": "false"},
+                     "X-Sheet-Cache": "miss", "X-Sheet-Stale": "false",
+                     "X-Sheet-Source": source},
         )
     except Exception as exc:
         if _tickets_cache["rows"] is not None:
