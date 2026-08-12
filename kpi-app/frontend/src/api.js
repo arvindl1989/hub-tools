@@ -14,18 +14,31 @@ client.interceptors.response.use(
   }
 )
 
-export async function uploadFromSheetUrl(sheetUrl, onProgress) {
+export async function uploadFromSheetUrl(sheetUrl, onProgress, { refresh = false } = {}) {
   onProgress?.(10)
   // Route through the backend proxy to avoid CORS/redirect issues
-  const res = await fetch('/api/tickets', { cache: 'no-cache' })
-  if (!res.ok) throw new Error(`Sheet fetch failed: HTTP ${res.status}`)
+  const res = await fetch(`/api/tickets${refresh ? '?refresh=true' : ''}`, { cache: 'no-cache' })
+  if (!res.ok) {
+    // The backend already knows WHY the upstream failed; a bare status code
+    // hides that (a dead Apps Script deployment read as an unexplained 502).
+    let detail = `HTTP ${res.status}`
+    try { detail = (await res.json())?.detail || detail } catch { /* not JSON */ }
+    throw new Error(detail)
+  }
   const rows = await res.json()
   if (!Array.isArray(rows)) throw new Error('Apps Script did not return a JSON array.')
   onProgress?.(50)
   const { data } = await client.post('/upload-json', { rows, source_label: 'Google Sheet' }, {
     onUploadProgress: (e) => onProgress?.(50 + Math.round((e.loaded * 100) / (e.total || 1)) / 2),
   })
-  return data
+  // Sync provenance travels with the payload so the header can show how fresh
+  // the data really is — and flag when Google is down and we're on a cached copy.
+  return {
+    ...data,
+    sheetFetchedAt: res.headers.get('X-Sheet-Fetched-At') || null,
+    sheetStale:     res.headers.get('X-Sheet-Stale') === 'true',
+    sheetError:     res.headers.get('X-Sheet-Error') || null,
+  }
 }
 
 export async function uploadFile(file, onProgress) {

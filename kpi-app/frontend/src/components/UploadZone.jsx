@@ -34,7 +34,8 @@ export default function UploadZone({ onUpload }) {
   const connectSheet = () => {
     if (!sheetUrl.trim()) { setError('Paste your Apps Script URL first.'); return }
     localStorage.setItem(SHEET_URL_KEY, sheetUrl.trim())
-    run((prog) => uploadFromSheetUrl(sheetUrl.trim(), prog))
+    // Explicit user action — bypass the proxy cache and pull live.
+    run((prog) => uploadFromSheetUrl(sheetUrl.trim(), prog, { refresh: true }))
   }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

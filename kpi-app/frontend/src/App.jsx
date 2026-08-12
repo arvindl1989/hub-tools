@@ -153,6 +153,9 @@ export default function App() {
       <AppHeader
         filename={uploadMeta?.filename}
         totalRows={uploadMeta?.total_rows}
+        sheetFetchedAt={uploadMeta?.sheetFetchedAt}
+        sheetStale={uploadMeta?.sheetStale}
+        sheetError={uploadMeta?.sheetError}
         onReupload={() => setShowUpload(true)}
         onSlaConfig={() => setShowSlaConfig(true)}
       />
@@ -207,7 +210,38 @@ export default function App() {
 
 const HUB_URL = '/'
 
-function AppHeader({ filename, totalRows, onReupload, onBack, onSlaConfig }) {
+// How fresh the sheet data actually is. Without this a failed sync is
+// invisible — the dashboard just keeps showing the last good copy, which is
+// how a dead Apps Script deployment went unnoticed until a redeploy exposed it.
+function SyncBadge({ fetchedAt, stale, error }) {
+  if (!fetchedAt) return null
+  const mins = Math.max(0, Math.round((Date.now() - new Date(fetchedAt).getTime()) / 60000))
+  const ago = mins < 1 ? 'just now'
+    : mins < 60 ? `${mins}m ago`
+    : mins < 1440 ? `${Math.floor(mins / 60)}h ago`
+    : `${Math.floor(mins / 1440)}d ago`
+  // Anything past a day is suspect even when the last fetch technically worked.
+  const bad = stale || mins >= 1440
+  return (
+    <span
+      title={stale
+        ? `Google could not be reached, so this is the last good copy.\n${error || ''}`
+        : `Sheet last fetched ${new Date(fetchedAt).toLocaleString()}`}
+      style={{
+        fontSize: 11, fontWeight: 700, flexShrink: 0,
+        color: bad ? '#8c1a2e' : '#141414',
+        background: bad ? '#ffcdd7' : '#aae1c8',
+        borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap',
+        display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'help',
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: bad ? '#c0305a' : '#1e8a5e' }} />
+      {stale ? `Stale · ${ago}` : `Synced ${ago}`}
+    </span>
+  )
+}
+
+function AppHeader({ filename, totalRows, sheetFetchedAt, sheetStale, sheetError, onReupload, onBack, onSlaConfig }) {
   return (
     <header style={{
       background: '#1450f5',
@@ -274,6 +308,7 @@ function AppHeader({ filename, totalRows, onReupload, onBack, onSlaConfig }) {
           }}>
             {totalRows?.toLocaleString()} rows
           </span>
+          <SyncBadge fetchedAt={sheetFetchedAt} stale={sheetStale} error={sheetError} />
         </div>
       )}
 

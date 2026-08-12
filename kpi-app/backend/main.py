@@ -2715,18 +2715,66 @@ def _filter_by_range(
 
 
 # ── Ticket data proxy ─────────────────────────────────────────────────────────
-_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec"
+# URL is env-overridable so a redeployed Apps Script is a variable change rather
+# than a code edit across three files plus a rebuild.
+_APPS_SCRIPT_URL = os.environ.get(
+    "TICKETS_APPS_SCRIPT_URL",
+    "https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SYLVQdh7M7JyouoGwwyR8UZ5G3V8MrRh-YcZv5FFGMpPn37aJ7GncOAA/exec",
+)
+# The dashboard re-fetches on EVERY page load, so without a cache each tab and
+# refresh from every user was a fresh Apps Script execution — enough to exhaust
+# Google's daily script-runtime quota. Same TTL shape as the feedback loader.
+_TICKETS_CACHE_TTL = 300  # seconds
+_tickets_cache: dict = {"ts": 0.0, "rows": None, "fetched_at": None}
+
 
 @app.get("/api/tickets")
-async def get_tickets():
-    """Proxy the Apps Script fetch server-side to avoid browser CORS/redirect issues."""
+async def get_tickets(refresh: bool = False):
+    """Proxy the Apps Script fetch server-side (avoids browser CORS/redirects).
+
+    Cached for _TICKETS_CACHE_TTL. If the upstream call fails but we still hold
+    a previous copy, that copy is served with X-Sheet-Stale set rather than
+    failing the request — a Google hiccup degrades the dashboard instead of
+    taking it down. `refresh=true` forces a live fetch.
+    """
+    import time as _time
     import httpx
+
+    now = _time.time()
+    age = now - _tickets_cache["ts"]
+    if not refresh and _tickets_cache["rows"] is not None and age < _TICKETS_CACHE_TTL:
+        return JSONResponse(
+            _tickets_cache["rows"],
+            headers={"X-Sheet-Fetched-At": _tickets_cache["fetched_at"] or "",
+                     "X-Sheet-Cache": "hit", "X-Sheet-Stale": "false"},
+        )
+
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
             resp = await client.get(_APPS_SCRIPT_URL)
             resp.raise_for_status()
-            return resp.json()
+            rows = resp.json()
+        if not isinstance(rows, list):
+            # Apps Script returns an HTML error page (not JSON) when the
+            # deployment is missing or over quota — surface that clearly.
+            raise ValueError("Apps Script did not return a JSON array — check the deployment URL")
+        _tickets_cache.update({"ts": now, "rows": rows,
+                               "fetched_at": datetime.now().isoformat(timespec="seconds")})
+        return JSONResponse(
+            rows,
+            headers={"X-Sheet-Fetched-At": _tickets_cache["fetched_at"],
+                     "X-Sheet-Cache": "miss", "X-Sheet-Stale": "false"},
+        )
     except Exception as exc:
+        if _tickets_cache["rows"] is not None:
+            print(f"[TICKETS] Upstream failed ({exc}) — serving cached copy from "
+                  f"{_tickets_cache['fetched_at']}", flush=True)
+            return JSONResponse(
+                _tickets_cache["rows"],
+                headers={"X-Sheet-Fetched-At": _tickets_cache["fetched_at"] or "",
+                         "X-Sheet-Cache": "stale", "X-Sheet-Stale": "true",
+                         "X-Sheet-Error": str(exc)[:200]},
+            )
         raise HTTPException(502, f"Could not fetch ticket data: {exc}")
 
 
