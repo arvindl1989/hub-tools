@@ -107,8 +107,11 @@ export default function InflowOutflowTable({ data = [], filters = {} }) {
             <td style={{ ...numCell('#eef3fe'), fontWeight: 700, color: '#1450f5' }}>
               {totalIn.toLocaleString()}
             </td>
+            {/* Quiet weeks show a real 0, not an em dash — "nothing was assigned"
+                is a fact worth seeing, and a dash reads as missing data. Greyed
+                so a run of zeros doesn't drown out the weeks that had activity. */}
             {data.map(r => (
-              <td key={r.period} style={numCell()}>{r.inflow || '—'}</td>
+              <td key={r.period} style={{ ...numCell(), color: r.inflow ? '#404040' : '#c0c0c0' }}>{r.inflow}</td>
             ))}
           </tr>
 
@@ -122,7 +125,7 @@ export default function InflowOutflowTable({ data = [], filters = {} }) {
               {totalOut.toLocaleString()}
             </td>
             {data.map(r => (
-              <td key={r.period} style={numCell('#faf8f3')}>{r.outflow || '—'}</td>
+              <td key={r.period} style={{ ...numCell('#faf8f3'), color: r.outflow ? '#404040' : '#c0c0c0' }}>{r.outflow}</td>
             ))}
           </tr>
 

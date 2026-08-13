@@ -871,6 +871,34 @@ def by_creator(
 
 # ── Inflow vs Outflow ──────────────────────────────────────────────────────────
 
+def _fill_period_gaps(periods: dict, freq: str, group_by: str,
+                      date_from: Optional[str], date_to: Optional[str], blank) -> None:
+    """Insert zero-filled entries for periods that saw no activity.
+
+    groupby only yields periods that actually contain rows, so a week where
+    nothing was assigned and nothing was resolved disappears from the series
+    entirely — the table then jumps straight from one busy week to the next and
+    a quiet stretch reads as though it never happened. That matters most when
+    filtering to one person, where the gaps are the point.
+
+    The span is the date filter when one is set (so an explicitly chosen range
+    shows all of its weeks, including empty ones at either end), otherwise the
+    first to last period that has data.
+    """
+    observed = sorted(periods)
+    lo = date_from or (observed[0] if observed else None)
+    hi = date_to or (observed[-1] if observed else None)
+    if not lo or not hi:
+        return
+    try:
+        rng = pd.period_range(start=pd.Timestamp(lo), end=pd.Timestamp(hi), freq=freq)
+    except Exception:
+        return
+    for p in rng:
+        d = p.start_time.date()
+        periods.setdefault(str(d), blank(str(d), d))
+
+
 @app.get("/api/sessions/{sid}/inflow-outflow")
 def inflow_outflow(
     sid: str,
@@ -911,6 +939,8 @@ def inflow_outflow(
             if has_state:
                 periods[k]["closed_completed"] = int(grp["state"].isin(["Closed Completed", "Confirmation Completed"]).sum())
                 periods[k]["closed_rejected"]  = int(grp["state"].isin(["Closed Rejected"]).sum())
+
+    _fill_period_gaps(periods, freq, group_by, date_from, date_to, _blank)
 
     result = sorted(periods.values(), key=lambda x: x["period"])
     for r in result:
@@ -1007,6 +1037,12 @@ def inflow_outflow_export(
             k = str(p)
             periods.setdefault(k, {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0})
             periods[k]["outflow"] = int(len(grp))
+
+    # Same zero-fill as the on-screen table, so the export matches what was seen.
+    _fill_period_gaps(
+        periods, freq, group_by, date_from, date_to,
+        lambda k, p: {"period": k, "label": _period_label(p, group_by), "inflow": 0, "outflow": 0},
+    )
 
     sorted_periods = sorted(periods.values(), key=lambda x: x["period"])
     period_labels = [r["label"]   for r in sorted_periods]
