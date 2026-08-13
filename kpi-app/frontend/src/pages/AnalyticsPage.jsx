@@ -3,7 +3,7 @@ import {
   getOverview, getMonthlyCreated,
   getWeeklyComparison, getWeeklyByAssignee,
   getByArea, getByTeam, getByCreator,
-  getInflowOutflow, getInflowOutflowProjections, getSlaPerformance, getResolutionTime,
+  getInflowOutflow, getInflowOutflowProjections, getSlaPerformance, getResolutionTime, getSlaTickets,
   getTeamPerformance, getBacklogAge,
   getSessionDebug,
 } from '../api'
@@ -16,6 +16,7 @@ import TeamChart           from '../components/charts/TeamChart'
 import CreatorChart        from '../components/charts/CreatorChart'
 import InflowOutflowProjections from '../components/charts/InflowOutflowProjections'
 import SlaPerformanceChart from '../components/charts/SlaPerformanceChart'
+import SlaTicketTable      from '../components/charts/SlaTicketTable'
 import ResolutionTimeChart from '../components/charts/ResolutionTimeChart'
 import TeamPerformanceTable from '../components/charts/TeamPerformanceTable'
 import BacklogAgeChart     from '../components/charts/BacklogAgeChart'
@@ -79,6 +80,8 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   const [slaData,         setSlaData]         = useState([])
   const [resData,         setResData]         = useState(null)
   const [kpiSlaData,      setKpiSlaData]      = useState([])
+  const [slaTickets,      setSlaTickets]      = useState(null)
+  const [slaTicketStatus, setSlaTicketStatus] = useState('')
   const [kpiResData,      setKpiResData]      = useState(null)
   const [areaData,        setAreaData]        = useState([])
   const [teamData,        setTeamData]        = useState([])
@@ -130,6 +133,9 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
 
   useRefetch(() => getSlaPerformance(sessionId, kpiCards.range.from, kpiCards.range.to, kpiCards.filters),
     setKpiSlaData, onErr, [sessionId, kpiCards.range.from, kpiCards.range.to, JSON.stringify(kpiCards.filters)])
+
+  useRefetch(() => getSlaTickets(sessionId, kpiCards.range.from, kpiCards.range.to, kpiCards.filters, slaTicketStatus),
+    setSlaTickets, onErr, [sessionId, kpiCards.range.from, kpiCards.range.to, JSON.stringify(kpiCards.filters), slaTicketStatus])
 
   useRefetch(() => getResolutionTime(sessionId, kpiCards.range.from, kpiCards.range.to, kpiCards.filters),
     setKpiResData, onErr, [sessionId, kpiCards.range.from, kpiCards.range.to, JSON.stringify(kpiCards.filters)])
@@ -237,6 +243,15 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
           icon={<ClockIcon />}
         />
       </div>
+
+      {/* ── 1b. SLA ticket detail — the tickets behind the cards above ── */}
+      <Section
+        color={COLOR.green}
+        title="SLA Ticket Detail"
+        subtitle="Every ticket behind the SLA compliance card — SLA date, closure and working days taken"
+      >
+        <SlaTicketTable data={slaTickets} status={slaTicketStatus} onStatus={setSlaTicketStatus} />
+      </Section>
 
       {/* Inflow vs Outflow chart + table moved to the Dashboard tab */}
 

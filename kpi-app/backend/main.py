@@ -1410,6 +1410,95 @@ def sla_performance(
         })
     return sorted(result, key=lambda x: x["total_closed"], reverse=True)
 
+@app.get("/api/sessions/{sid}/sla-tickets")
+def sla_tickets(
+    sid: str,
+    date_from:    Optional[str] = None,
+    date_to:      Optional[str] = None,
+    team:         Optional[str] = None,
+    area:         Optional[str] = None,
+    assigned_to:  Optional[str] = None,
+    sub_category: Optional[str] = None,
+    status:       Optional[str] = Query(None, pattern="^(on_time|late|breached|open)$"),
+    limit:        int = 500,
+):
+    """Ticket-level detail behind the SLA compliance figures.
+
+    Same filters as /sla-performance, so the rows here add up to the numbers on
+    the KPI cards. Resolution is reported in WORKING days, since the SLA target
+    is itself a working-day count — comparing the two in calendar days would
+    make every ticket look late.
+    """
+    df = _get_session(sid)
+    tmp = _filter_by_range(df, "created_date", date_from, date_to)
+    tmp = _apply_dim_filters(tmp, assigned_to=assigned_to, team=team, area=area, sub_category=sub_category)
+
+    CLOSED_STATES = {"Closed Completed", "Confirmation Completed"}
+    has = lambda c: c in tmp.columns
+
+    def _working_days(a, b):
+        """Working days from a to b inclusive of the start day, matching
+        add_working_days() where the creation day counts as Day 1."""
+        if pd.isna(a) or pd.isna(b):
+            return None
+        n = int(np.busday_count(np.datetime64(a.date(), "D"),
+                                np.datetime64(b.date(), "D"),
+                                holidays=_HOLIDAY_DATES))
+        return max(n + 1, 0)
+
+    rows = []
+    for _, r in tmp.iterrows():
+        created = r.get("created_date")
+        closed  = r.get("closed_date")
+        due     = r.get("sla_due_date")
+        state   = r.get("state")
+        is_closed = bool(has("state") and pd.notna(state) and str(state) in CLOSED_STATES) and pd.notna(closed)
+
+        if is_closed and pd.notna(due):
+            row_status = "on_time" if closed <= due else "late"
+        elif not is_closed:
+            d2s = r.get("days_to_sla")
+            row_status = "breached" if pd.notna(d2s) and d2s < 0 else "open"
+        else:
+            row_status = "open"           # closed but no SLA rule for its service
+
+        taken = _working_days(created, closed) if is_closed else None
+        target = _working_days(created, due) if pd.notna(due) else None
+
+        rows.append({
+            "ticket":       str(r.get("ticket_number") or "") or None,
+            "description":  str(r.get("short_description") or "") or None,
+            "sub_category": str(r.get("sub_category") or "") or None,
+            "assigned_to":  str(r.get("assigned_to") or "") or None,
+            "created_date": created.date().isoformat() if pd.notna(created) else None,
+            "sla_due_date": due.date().isoformat()     if pd.notna(due)     else None,
+            "closed_date":  closed.date().isoformat()  if is_closed         else None,
+            "sla_target_days":    target,
+            "working_days_taken": taken,
+            # Positive = over the SLA allowance, negative = delivered early.
+            "variance_days": (taken - target) if (taken is not None and target is not None) else None,
+            "state":  str(state) if pd.notna(state) else None,
+            "status": row_status,
+        })
+
+    # Counted before the status filter is applied, so the UI's tab counts stay
+    # a breakdown of the whole set rather than collapsing to the active tab.
+    counts = {k: sum(1 for r in rows if r["status"] == k)
+              for k in ("on_time", "late", "breached", "open")}
+    total = len(rows)
+
+    if status:
+        rows = [r for r in rows if r["status"] == status]
+
+    # Worst breaches first, then the rest by most recently created.
+    rows.sort(key=lambda r: (
+        -(r["variance_days"] if r["variance_days"] is not None else -10**6),
+        r["created_date"] or "",
+    ))
+    return {"total": total, "counts": counts,
+            "truncated": len(rows) > limit, "rows": rows[:limit]}
+
+
 # ── Resolution time ────────────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/resolution-time")

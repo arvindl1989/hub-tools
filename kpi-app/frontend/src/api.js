@@ -130,6 +130,13 @@ export async function getSlaPerformance(sid, dateFrom, dateTo, dimFilters = {}) 
   return data
 }
 
+export async function getSlaTickets(sid, dateFrom, dateTo, dimFilters = {}, status = '') {
+  const { data } = await client.get(`/sessions/${sid}/sla-tickets`, {
+    params: _clean({ date_from: dateFrom, date_to: dateTo, status, ...dimFilters }),
+  })
+  return data
+}
+
 export async function getResolutionTime(sid, dateFrom, dateTo, dimFilters = {}) {
   const { data } = await client.get(`/sessions/${sid}/resolution-time`, {
     params: _clean({ date_from: dateFrom, date_to: dateTo, ...dimFilters }),
