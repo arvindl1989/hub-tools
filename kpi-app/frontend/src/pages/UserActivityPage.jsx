@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { getUserActivity, getUserMetrics } from '../api'
-import DateRangePicker from '../components/DateRangePicker'
+import DateRangePicker, { ALL_TIME_ONLY } from '../components/DateRangePicker'
 import {
   INTER, cardHeadingStyle, selStyle, activeFilterPillStyle, fmt1,
   NPS_BUCKET_STYLES, KONE_BLUE_TONE, Card, MetricCard, SegmentCard, ScrollList,
@@ -23,9 +23,6 @@ const SERVICE_SHORT = [
 ]
 const SERVICE_COLORS = ['#1450f5', '#0077a8', '#1e8a5e', '#b87d00', '#c0305a']
 
-// Same lean date filter as the Feedback tab — "All time", the By Period
-// dropdown, and the raw calendar inputs.
-const ALL_TIME_PRESET = [{ label: 'All time', from: '', to: '' }]
 
 // Lifecycle segments reuse the sentiment triad: Active→mint, Regular→yellow,
 // Dormant→pink. Row 5 uses the KONE Blue accent pair.
@@ -235,7 +232,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           <option value="">All Specialists</option>
           {(metrics?.users ?? []).map(u => <option key={u} value={u}>{u}</option>)}
         </select>
-        <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => setRange({ from, to })} presets={ALL_TIME_PRESET} />
+        <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => setRange({ from, to })} presets={ALL_TIME_ONLY} />
         {(user || service || area || fl || range.from || range.to) && (
           <button
             onClick={() => { setUser(''); setService(''); setArea(''); setFl(''); setRange({ from: '', to: '' }) }}

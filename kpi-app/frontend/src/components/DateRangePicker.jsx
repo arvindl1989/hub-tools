@@ -49,6 +49,11 @@ const PRESETS = [
   { label: 'Last year',    from: yearStart(-1),  to: yearEnd(-1)      },
 ]
 
+// The lean preset row: just "All time", leaving the By Period dropdown and the
+// calendar inputs to cover everything else. Keeps the filter bar to one line.
+// Shared by every tab that wants it rather than redeclared in each page.
+export const ALL_TIME_ONLY = [{ label: 'All time', from: '', to: '' }]
+
 // Explicit year-labeled Half/Quarter options — always unambiguous, unlike the
 // relative ones above. Covers the current year and the two before it, so the
 // set quietly rolls forward (e.g. 2025/2026/2027) without needing a code change.

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { getFeedback } from '../api'
-import DateRangePicker from '../components/DateRangePicker'
+import DateRangePicker, { ALL_TIME_ONLY } from '../components/DateRangePicker'
 import { PALETTE } from '../utils/colors'
 import {
   KONE_FONT, cardHeadingStyle, thStyle, selStyle, activeFilterPillStyle,
@@ -57,9 +57,6 @@ const ALLOWED_SPECIALISTS = [
   'Ranjithkumar Ashokkumar',
 ]
 
-// Feedback tab wants a leaner date filter than the Dashboard's — just
-// "All time", the By Period dropdown, and the raw calendar inputs.
-const ALL_TIME_PRESET = [{ label: 'All time', from: '', to: '' }]
 
 const PARAM_LABELS = {
   overall: 'Overall', quality: 'Quality',
@@ -185,7 +182,7 @@ export default function FeedbackPage({ sessionId }) {
           <option value="">All Specialists</option>
           {specialists.map(u => <option key={u} value={u}>{u}</option>)}
         </select>
-        <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => setRange({ from, to })} presets={ALL_TIME_PRESET} />
+        <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => setRange({ from, to })} presets={ALL_TIME_ONLY} />
         {(user || service || area || fl || range.from || range.to) && (
           <button
             onClick={() => { setUser(''); setService(''); setArea(''); setFl(''); setRange({ from: '', to: '' }) }}

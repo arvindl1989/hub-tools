@@ -1,4 +1,4 @@
-import DateRangePicker from './DateRangePicker'
+import DateRangePicker, { ALL_TIME_ONLY } from './DateRangePicker'
 import MultiSelectFilter from './MultiSelectFilter'
 
 // Only these specialists are offered as an Assignee filter option — everyone
@@ -41,7 +41,7 @@ export default function DashboardFilters({ overview, filters, range, onFilter, o
       <MultiSelectFilter label="Area"         value={filters.area}         onChange={(v) => onFilter('area', v)}         options={areas} />
       <MultiSelectFilter label="Sub-Category" value={filters.sub_category} onChange={(v) => onFilter('sub_category', v)} options={subCats} />
 
-      <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => onRange({ from, to })} />
+      <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => onRange({ from, to })} presets={ALL_TIME_ONLY} />
 
       {hasActive && (
         <button
