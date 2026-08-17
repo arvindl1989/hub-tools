@@ -16,6 +16,7 @@ import MiniPieChart      from '../components/charts/MiniPieChart'
 import ComparisonBarChart from '../components/charts/ComparisonBarChart'
 import PeriodOverlayChart from '../components/charts/PeriodOverlayChart'
 import GenerateDeckModal from '../components/GenerateDeckModal'
+import { Card as KoneCard, MetricCard } from '../components/KoneUI'
 
 function useRefetch(fn, set, onErr, deps) {
   const ref = useRef(0)
@@ -130,20 +131,6 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
   const uniqueTicketsB = hubHealthB?.unique      ?? totalAllB
   const dependencyB    = hubHealthB?.dependency  ?? 0
 
-  // Turnaround time — working hours only (9am–6pm, Mon–Fri, holidays excluded).
-  // The workday equivalent is spelled out because "31h" reads as ~1.3 calendar
-  // days at a glance when it actually means ~3.4 working days.
-  const tat       = hubHealth?.turnaround_avg_hours ?? null
-  const tatB      = hubHealthB?.turnaround_avg_hours ?? null
-  const tatMedian = hubHealth?.turnaround_median_hours ?? null
-  const tatN      = hubHealth?.turnaround_sample ?? 0
-  const workdayHrs = hubHealth?.turnaround_workday_hours ?? 9
-  const tatSub = tat == null
-    ? 'No delivered tickets in this selection'
-    : `≈ ${(tat / workdayHrs).toFixed(1)} working days · median ${tatMedian}h · `
-      + `across ${tatN.toLocaleString()} delivered ticket${tatN === 1 ? '' : 's'} · `
-      + 'business hours only (9am–6pm, Mon–Fri, public holidays excluded)'
-
   const labelA = compareEnabled ? labelForRange(range.from, range.to) : null
   const labelB = compareEnabled ? labelForRange(compareRange.from, compareRange.to) : null
   const comparing = compareEnabled && (compareRange.from || compareRange.to)
@@ -221,23 +208,14 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
         )}
       </Card>
 
-      {/* KPI Row — flat KONE accent surfaces */}
+      {/* KPI Row — same blue metric cards as the Feedback and User Activity tabs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        <KpiTile label="Total Tickets"  value={totalAll}       compareValue={comparing ? totalAllB : null}       icon={<TicketIcon />}   surface="#1450f5" ink="#ffffff" labelColor="rgba(255,255,255,0.75)" iconBg="rgba(255,255,255,0.18)" iconColor="#ffffff" span={2} />
-        <ClosedKpiTile completed={closedCompleted} rejected={closedRejected} compareCompleted={comparing ? closedCompletedB : null} compareRejected={comparing ? closedRejectedB : null} />
-        <KpiTile label="In Pipeline"    value={inPipeline}     compareValue={comparing ? inPipelineB : null}     icon={<PipeIcon />}     surface="#d2f5ff" ink="#141414" labelColor="#005f86" iconBg="rgba(255,255,255,0.6)" iconColor="#005f86" />
-        <KpiTile label="Unique Tickets" value={uniqueTickets}  compareValue={comparing ? uniqueTicketsB : null}  icon={<StarIcon />}     surface="#ffcdd7" ink="#141414" labelColor="#8c1a2e" iconBg="rgba(255,255,255,0.6)" iconColor="#8c1a2e" />
-        <KpiTile label="Dependency"     value={dependency}     compareValue={comparing ? dependencyB : null}     icon={<LinkIcon />}     surface="#ffe141" ink="#141414" labelColor="#7a5400" iconBg="rgba(255,255,255,0.55)" iconColor="#7a5400" />
-        <KpiTile
-          label="Avg Turnaround Time"
-          value={tat != null ? `${tat}h` : '—'}
-          sub={tatSub}
-          compareValue={comparing && tatB != null ? `${tatB}h` : null}
-          icon={<ClockIcon />}
-          surface="#aae1c8" ink="#141414" labelColor="#0f5132"
-          iconBg="rgba(255,255,255,0.6)" iconColor="#0f5132"
-          span={3}
-        />
+        <MetricCard label="Total Tickets"    value={totalAll?.toLocaleString()}        footer={<Cmp current={totalAll}        previous={comparing ? totalAllB : null} />} />
+        <MetricCard label="Closed Completed" value={closedCompleted?.toLocaleString()} footer={<Cmp current={closedCompleted} previous={comparing ? closedCompletedB : null} />} />
+        <MetricCard label="Closed Rejected"  value={closedRejected?.toLocaleString()}  footer={<Cmp current={closedRejected}  previous={comparing ? closedRejectedB : null} />} />
+        <MetricCard label="In Pipeline"      value={inPipeline?.toLocaleString()}      footer={<Cmp current={inPipeline}      previous={comparing ? inPipelineB : null} />} />
+        <MetricCard label="Unique Tickets"   value={uniqueTickets?.toLocaleString()}   footer={<Cmp current={uniqueTickets}   previous={comparing ? uniqueTicketsB : null} />} />
+        <MetricCard label="Dependency"       value={dependency?.toLocaleString()}      footer={<Cmp current={dependency}      previous={comparing ? dependencyB : null} />} />
       </div>
 
       {/* Inflow vs Outflow */}
@@ -402,34 +380,20 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
 
 // ── Card ──────────────────────────────────────────────────────────────
 
-function Card({ title, subtitle, accent = '#1450f5', icon, controls, children }) {
+// Dashboard sections used to carry a coloured left stripe and an icon; the
+// Feedback and User Activity tabs don't, so absorb those props and render the
+// shared card — one card treatment across the whole app.
+function Card({ title, subtitle, accent, icon, controls, children }) {
+  return <KoneCard title={title} subtitle={subtitle} controls={controls}>{children}</KoneCard>
+}
+
+// Period-comparison delta for a metric card, sitting on the blue surface.
+function Cmp({ current, previous }) {
+  if (previous == null || current == null) return null
   return (
-    <div style={{
-      background: '#ffffff',
-      borderRadius: 12,
-      border: '1px solid #e8e2d6',
-      borderLeft: `3px solid ${accent}`,
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.04)',
-    }}>
-      <div style={{
-        padding: '14px 20px',
-        borderBottom: '1px solid #f1ede3',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          {icon && (
-            <div style={{ width: 30, height: 30, borderRadius: 8, background: `${accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: accent }}>
-              {icon}
-            </div>
-          )}
-          <div style={{ minWidth: 0 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: '#141414', margin: 0, lineHeight: 1.3 }}>{title}</h3>
-            {subtitle && <p style={{ fontSize: 11, color: '#9c9c9c', margin: '2px 0 0', lineHeight: 1.3 }}>{subtitle}</p>}
-          </div>
-        </div>
-        {controls && <div style={{ flexShrink: 0 }}>{controls}</div>}
-      </div>
-      <div style={{ padding: 20 }}>{children}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>vs {previous.toLocaleString()}</span>
+      <DeltaBadge current={current} previous={previous} size="sm" />
     </div>
   )
 }
@@ -469,101 +433,16 @@ function CompareStat({ label, valueA, valueB, unit = '', labelA, labelB }) {
 
 // ── KPI Tile ──────────────────────────────────────────────────────────
 
-function KpiTile({ label, value, sub, compareValue, icon, surface = '#ffffff', ink = '#141414', labelColor = '#6e6e6e', iconBg = '#f1ede3', iconColor = '#141414', span = 1 }) {
-  return (
-    <div style={{
-      background: surface,
-      borderRadius: 12,
-      padding: '16px 18px',
-      boxShadow: '0 1px 3px rgba(20,20,20,0.06)',
-      gridColumn: `span ${span}`,
-      display: 'flex', flexDirection: 'column', gap: 12,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: labelColor, textTransform: 'uppercase', margin: 0 }}>
-          {label}
-        </p>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: iconColor, flexShrink: 0 }}>
-          {icon}
-        </div>
-      </div>
-      <p style={{ fontSize: 34, fontWeight: 800, color: ink, lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
-        {value ?? '—'}
-      </p>
-      {sub && (
-        <p style={{ fontSize: 11, color: labelColor, margin: '-4px 0 0', lineHeight: 1.5 }}>{sub}</p>
-      )}
-      {compareValue != null && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: labelColor }}>vs {compareValue}</span>
-          <DeltaBadge current={value} previous={compareValue} size="sm" />
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ── Closed KPI Tile (Completed + Rejected coupled, KONE mint surface) ─
 
-function ClosedKpiTile({ completed, rejected, compareCompleted, compareRejected }) {
-  return (
-    <div style={{
-      background: '#aae1c8',
-      borderRadius: 12,
-      padding: '16px 18px',
-      boxShadow: '0 1px 3px rgba(20,20,20,0.06)',
-      display: 'flex', flexDirection: 'column', gap: 12,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#0f5132', textTransform: 'uppercase', margin: 0 }}>
-          Closed
-        </p>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f5132', flexShrink: 0 }}>
-          <CheckIcon />
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 14 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 28, fontWeight: 800, color: '#141414', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
-            {completed ?? '—'}
-          </p>
-          <p style={{ fontSize: 10, fontWeight: 700, color: '#0f5132', margin: '4px 0 0' }}>Completed</p>
-          {compareCompleted != null && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-              <span style={{ fontSize: 10, color: '#0f5132' }}>vs {compareCompleted}</span>
-              <DeltaBadge current={completed} previous={compareCompleted} size="sm" />
-            </div>
-          )}
-        </div>
-        <div style={{ width: 1, background: 'rgba(20,20,20,0.15)' }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 28, fontWeight: 800, color: '#8c1a2e', lineHeight: 1, letterSpacing: '-0.02em', margin: 0 }}>
-            {rejected ?? '—'}
-          </p>
-          <p style={{ fontSize: 10, fontWeight: 700, color: '#8c1a2e', margin: '4px 0 0' }}>Rejected</p>
-          {compareRejected != null && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-              <span style={{ fontSize: 10, color: '#8c1a2e' }}>vs {compareRejected}</span>
-              <DeltaBadge current={rejected} previous={compareRejected} size="sm" />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Icons (14×14 SVG) ─────────────────────────────────────────────────
 
 const I = (d) => () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 
-const TicketIcon  = I(<><path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></>)
 const CheckIcon   = I(<><path d="M20 6L9 17l-5-5"/></>)
-const PipeIcon    = I(<><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></>)
-const StarIcon    = I(<><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></>)
-const LinkIcon    = I(<><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></>)
 const PulseIcon   = I(<><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></>)
-const ClockIcon   = I(<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>)
 const MapIcon     = I(<><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></>)
 const TeamIcon    = I(<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>)
 const UserIcon    = I(<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>)

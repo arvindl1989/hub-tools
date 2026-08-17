@@ -77,9 +77,11 @@ export function Empty({ text = 'No data for this filter' }) {
 // ── Blue number box ───────────────────────────────────────────────────────────
 // The Total Feedback / Feedback Rate / rating-parameter card, generalised.
 // `suffix` renders the smaller trailing unit ("/ 5", "%") beside the figure.
-export function MetricCard({ label, value, suffix, sub }) {
+// `footer` is a free slot under the figure — the Dashboard puts its
+// period-comparison delta there.
+export function MetricCard({ label, value, suffix, sub, footer }) {
   return (
-    <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)' }}>
+    <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)', minWidth: 0 }}>
       <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
         <span style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
@@ -92,6 +94,7 @@ export function MetricCard({ label, value, suffix, sub }) {
       {sub && (
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 6, fontFamily: INTER }}>{sub}</div>
       )}
+      {footer && <div style={{ marginTop: 10 }}>{footer}</div>}
     </div>
   )
 }

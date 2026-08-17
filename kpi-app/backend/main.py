@@ -347,6 +347,10 @@ def _is_working_day(d: date) -> bool:
 def business_hours_between(start, end) -> Optional[float]:
     """Working hours between two instants: 09:00–18:00, Mon–Fri, holidays excluded.
 
+    Currently unused — it backed the Avg Turnaround Time card, which was
+    removed. Kept because it is tested and shares the holiday calendar that
+    the SLA and attendance features still rely on.
+
     Time outside the working window contributes nothing, so a ticket raised at
     17:00 Friday and closed at 10:00 Monday counts 2 hours, not 65. Returns None
     when either endpoint is missing.
@@ -2471,26 +2475,6 @@ def hub_health(
         by_state = [{"state": r["state"], "count": int(r["count"])}
                     for _, r in counts.sort_values("count", ascending=False).iterrows()]
 
-    # ── Turnaround time, in working hours ────────────────────────────────────
-    # Scoped like every other tile in this row: tickets CREATED in the range
-    # that have since been delivered. Rejected tickets are excluded — they were
-    # never turned around — matching /resolution-time's definition.
-    tat_avg = tat_median = None
-    tat_n = 0
-    if {"state", "created_date", "closed_date"} <= set(tmp.columns):
-        done = tmp[tmp["state"].isin({"Closed Completed", "Confirmation Completed"})]
-        done = done.dropna(subset=["created_date", "closed_date"])
-        if len(done):
-            hrs = pd.Series(
-                [business_hours_between(c, x) for c, x in
-                 zip(done["created_date"], done["closed_date"])],
-                dtype="float64",
-            ).dropna()
-            if len(hrs):
-                tat_n = int(len(hrs))
-                tat_avg = round(float(hrs.mean()), 1)
-                tat_median = round(float(hrs.median()), 1)
-
     return {
         "total":            total,
         "resolved":         resolved,
@@ -2501,10 +2485,6 @@ def hub_health(
         "dependency":       dependency,
         "done_pct":         round(resolved / total * 100) if total > 0 else 0,
         "by_state":         by_state,
-        "turnaround_avg_hours":    tat_avg,
-        "turnaround_median_hours": tat_median,
-        "turnaround_sample":       tat_n,
-        "turnaround_workday_hours": WORK_DAY_HOURS,
     }
 
 
