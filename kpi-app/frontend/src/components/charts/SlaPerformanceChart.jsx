@@ -34,7 +34,7 @@ export default function SlaPerformanceChart({ data = [] }) {
     <div className="space-y-4">
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={display} margin={{ top: 5, right: 10, left: 0, bottom: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#ece7dc" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1ede3" />
           <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6e6e6e' }} />
           <YAxis tick={{ fontSize: 11, fill: '#6e6e6e' }} allowDecimals={false} />
           <Tooltip content={<CustomTooltip />} />

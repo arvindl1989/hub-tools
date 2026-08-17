@@ -11,7 +11,7 @@ export default function TeamChart({ data = [] }) {
   return (
     <ResponsiveContainer width="100%" height={Math.max(180, sorted.length * 36)}>
       <BarChart data={sorted} layout="vertical" margin={{ top: 0, right: 30, left: 110, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#ece7dc" horizontal={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1ede3" horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: '#6e6e6e' }} allowDecimals={false} />
         <YAxis type="category" dataKey="team" tick={{ fontSize: 11, fill: '#6e6e6e' }} width={105} />
         <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e8e2d6', fontSize: 12 }} />

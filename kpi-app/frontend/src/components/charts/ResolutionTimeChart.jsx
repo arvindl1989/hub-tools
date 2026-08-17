@@ -30,7 +30,7 @@ export default function ResolutionTimeChart({ data }) {
       <ViewToggle view={view} setView={setView} />
       <ResponsiveContainer width="100%" height={Math.max(180, rows.length * 40)} className="mt-4">
         <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 60, left: 130, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#ece7dc" horizontal={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1ede3" horizontal={false} />
           <XAxis type="number" tick={{ fontSize: 11, fill: '#6e6e6e' }} allowDecimals={false}
             label={{ value: 'days', position: 'insideRight', offset: 10, fontSize: 11, fill: '#9c9c9c' }} />
           <YAxis type="category" dataKey={cfg.key} tick={{ fontSize: 11, fill: '#404040' }} width={125} />

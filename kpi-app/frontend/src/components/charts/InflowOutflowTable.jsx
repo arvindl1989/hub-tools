@@ -62,10 +62,14 @@ export default function InflowOutflowTable({ data = [], filters = {} }) {
     background: bg, whiteSpace: 'nowrap',
   })
 
+  // Light header with an uppercase eyebrow label, matching the tables on the
+  // Feedback and User Activity tabs — the solid blue band this replaced was
+  // the last piece of the Dashboard's older look.
   const hdrCell = (extra = {}) => ({
-    padding: '8px 12px', fontSize: 11, fontWeight: 700,
-    background: '#1450f5', color: '#fff',
-    borderRight: '1px solid #3b70f7',
+    padding: '8px 12px', fontSize: 10, fontWeight: 600,
+    background: '#faf8f3', color: '#6e6e6e',
+    textTransform: 'uppercase', letterSpacing: '0.05em',
+    borderBottom: '2px solid #e8e2d6', borderRight: '1px solid #f1ede3',
     textAlign: 'center', whiteSpace: 'nowrap',
     ...extra,
   })
@@ -82,10 +86,10 @@ export default function InflowOutflowTable({ data = [], filters = {} }) {
       <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: '100%' }}>
         <thead>
           <tr>
-            <th style={{ ...hdrCell({ textAlign: 'left', minWidth: NAME_W }), ...stickyBase(0, '#1450f5') }}>
+            <th style={{ ...hdrCell({ textAlign: 'left', minWidth: NAME_W }), ...stickyBase(0, '#faf8f3') }}>
               Name
             </th>
-            <th style={{ ...hdrCell({ textAlign: 'left', minWidth: METRIC_W }), ...stickyBase(NAME_W, '#1450f5') }}>
+            <th style={{ ...hdrCell({ textAlign: 'left', minWidth: METRIC_W }), ...stickyBase(NAME_W, '#faf8f3') }}>
               Metric
             </th>
             <th style={hdrCell({ minWidth: 72 })}>Total</th>

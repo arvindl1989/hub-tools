@@ -29,14 +29,16 @@ export default function MultiSelectFilter({ label, value, onChange, options = []
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
         onClick={() => setOpen(o => !o)}
+        // Matches KoneUI's selStyle so these sit at the same height and weight
+        // as the plain <select>s on the Feedback and User Activity tabs.
         style={{
-          fontSize: 13, color: selected.length ? '#141414' : '#6e6e6e',
+          height: 30, fontSize: 12, color: selected.length ? '#141414' : '#404040',
           border: selected.length ? '1px solid #1450f5' : '1px solid #e8e2d6',
           background: selected.length ? '#eef3fe' : '#fff',
-          borderRadius: 8, padding: '6px 10px',
+          borderRadius: 7, padding: '0 8px',
           fontFamily: 'Inter, sans-serif',
           cursor: 'pointer', outline: 'none',
-          fontWeight: selected.length ? 500 : 400,
+          fontWeight: selected.length ? 600 : 400,
           display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
         }}
       >

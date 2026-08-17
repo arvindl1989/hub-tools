@@ -12,7 +12,7 @@ export default function CreatorChart({ data = [], limit = 20 }) {
   return (
     <ResponsiveContainer width="100%" height={Math.max(200, sorted.length * 28)}>
       <BarChart data={sorted} layout="vertical" margin={{ top: 0, right: 30, left: 120, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#ece7dc" horizontal={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1ede3" horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: '#6e6e6e' }} allowDecimals={false} />
         <YAxis type="category" dataKey="creator" tick={{ fontSize: 11, fill: '#6e6e6e' }} width={115} />
         <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e8e2d6', fontSize: 12 }} />

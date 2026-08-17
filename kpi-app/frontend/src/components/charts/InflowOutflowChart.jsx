@@ -26,7 +26,7 @@ export default function InflowOutflowChart({ data = [], noDateCols = false }) {
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ComposedChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 70 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#ece7dc" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1ede3" />
         <XAxis
           dataKey="label"
           tick={{ fontSize: 10, fill: '#6e6e6e' }}
