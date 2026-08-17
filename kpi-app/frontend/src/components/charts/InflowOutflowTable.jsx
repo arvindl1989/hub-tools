@@ -9,21 +9,39 @@ function _rateStyle(rate) {
   return { background: '#aae1c8', color: '#0f5132' }
 }
 
-// Values may be comma-separated (multi-select) — summarize as "N selected"
-// once there's more than one, otherwise show the single value as-is.
+// Values arrive comma-separated from the multi-selects.
+// Two names still fit the 150px Name column; beyond that they'd wrap into a
+// wall of text, so fall back to a count and let the cell's tooltip carry the
+// full list.
+const _MAX_NAMES = 2
+
 function _fmtMulti(val, prefix = '') {
-  const vals = val.split(',').map(v => v.trim()).filter(Boolean)
-  if (vals.length <= 1) return `${prefix}${vals[0] ?? ''}`
+  const vals = String(val ?? '').split(',').map(v => v.trim()).filter(Boolean)
+  if (!vals.length) return ''
+  if (vals.length <= _MAX_NAMES) return `${prefix}${vals.join(', ')}`
   return `${prefix}${vals.length} selected`
 }
 
+// Every active dimension is listed, not just the first one that matched — with
+// an early return, picking an Area while an Assignee was set left the header
+// reading as the assignee alone, which described the table wrongly.
 function _filterName(filters) {
-  if (!filters) return 'All'
-  if (filters.assigned_to) return _fmtMulti(filters.assigned_to)
-  if (filters.team)        return _fmtMulti(filters.team, 'Team: ')
-  if (filters.area)        return _fmtMulti(filters.area, 'Area: ')
-  if (filters.sub_category) return _fmtMulti(filters.sub_category)
-  return 'All'
+  const parts = [
+    _fmtMulti(filters?.assigned_to),
+    _fmtMulti(filters?.team, 'Team: '),
+    _fmtMulti(filters?.area, 'Area: '),
+    _fmtMulti(filters?.sub_category),
+  ].filter(Boolean)
+  return parts.length ? parts.join(' · ') : 'All'
+}
+
+// Full, unabbreviated list for the cell's title attribute, so a "3 selected"
+// is always one hover away from naming its three.
+function _filterTitle(filters) {
+  const parts = [
+    filters?.assigned_to, filters?.team, filters?.area, filters?.sub_category,
+  ].filter(Boolean).join(', ')
+  return parts || 'No filters applied — all tickets'
 }
 
 function _pipelineStyle(val, prev) {
@@ -37,6 +55,7 @@ export default function InflowOutflowTable({ data = [], filters = {} }) {
   if (!data.length) return null
 
   const name     = _filterName(filters)
+  const nameTitle = _filterTitle(filters)
   const totalIn  = data.reduce((s, r) => s + r.inflow,  0)
   const totalOut = data.reduce((s, r) => s + r.outflow, 0)
   const totalRate = (totalIn > 0 || totalOut > 0) ? Math.round(totalOut / Math.max(totalIn, 1) * 1000) / 10 : null
@@ -102,7 +121,12 @@ export default function InflowOutflowTable({ data = [], filters = {} }) {
 
           {/* ── Assigned ── */}
           <tr>
-            <td style={{ ...numCell(), ...stickyBase(0, '#fff'), padding: '8px 12px', fontWeight: 700, color: '#141414', borderRight: '1px solid #e8e2d6' }}>
+            <td
+              title={nameTitle}
+              style={{ ...numCell(), ...stickyBase(0, '#fff'), padding: '8px 12px', fontWeight: 700, color: '#141414', borderRight: '1px solid #e8e2d6',
+                       // Long multi-filter labels wrap inside the column rather
+                       // than stretching it and shoving the periods off-screen.
+                       whiteSpace: 'normal', lineHeight: 1.35, fontSize: name.length > 24 ? 11 : 12 }}>
               {name}
             </td>
             <td style={{ ...numCell(), ...stickyBase(NAME_W, '#fff'), padding: '8px 12px', fontWeight: 600, color: '#404040', borderRight: '2px solid #e8e2d6' }}>

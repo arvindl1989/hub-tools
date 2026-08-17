@@ -16,7 +16,7 @@ import MiniPieChart      from '../components/charts/MiniPieChart'
 import ComparisonBarChart from '../components/charts/ComparisonBarChart'
 import PeriodOverlayChart from '../components/charts/PeriodOverlayChart'
 import GenerateDeckModal from '../components/GenerateDeckModal'
-import { Card as KoneCard, MetricCard } from '../components/KoneUI'
+import { Card as KoneCard, MetricCard, stickyFilterCard } from '../components/KoneUI'
 
 function useRefetch(fn, set, onErr, deps) {
   const ref = useRef(0)
@@ -148,7 +148,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Filters — govern every component on this page */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6', padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <div style={stickyFilterCard}>
         <DashboardFilters overview={overview} filters={filters} range={range} onFilter={onFilter} onRange={setRange} />
       </div>
 

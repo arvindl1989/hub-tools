@@ -50,6 +50,19 @@ export const NPS_BUCKET_STYLES = {
 // which solid #1450f5 is not.
 export const KONE_BLUE_TONE = { fg: '#1450f5', bg: '#eef3fe' }
 
+// The tab bar is sticky at top: 0 and 46px tall, so a filter bar pinned at 46
+// starts exactly where the tabs end — no strip of page showing between them as
+// content scrolls underneath. Sits below the tab bar's z-index (20) so it
+// tucks under rather than over. Shared by the Dashboard, Feedback and User
+// Activity bars so all three pin identically.
+export const TABBAR_H = 46
+export const stickyFilterCard = {
+  background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6',
+  padding: '12px 16px',
+  position: 'sticky', top: TABBAR_H, zIndex: 15,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 8px 16px -14px rgba(20,20,20,0.55)',
+}
+
 // ── Card shell (matches the rest of the app) ──────────────────────────────────
 export function Card({ title, subtitle, controls, children }) {
   return (

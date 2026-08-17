@@ -3,7 +3,7 @@ import { getUserActivity, getUserMetrics } from '../api'
 import DateRangePicker, { ALL_TIME_ONLY } from '../components/DateRangePicker'
 import {
   INTER, cardHeadingStyle, selStyle, activeFilterPillStyle, fmt1,
-  NPS_BUCKET_STYLES, KONE_BLUE_TONE, Card, MetricCard, SegmentCard, ScrollList,
+  NPS_BUCKET_STYLES, KONE_BLUE_TONE, Card, MetricCard, SegmentCard, ScrollList, stickyFilterCard,
 } from '../components/KoneUI'
 
 // ── Service definitions (match BANDWIDTH_RATES keys in backend) ───────────────
@@ -214,7 +214,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
       </div>
 
       {/* Filters — identical to the Feedback tab */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ ...stickyFilterCard, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filters</span>
         <select value={service} onChange={e => setService(e.target.value)} style={selStyle}>
           <option value="">All Services</option>

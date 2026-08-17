@@ -4,7 +4,7 @@ import DateRangePicker, { ALL_TIME_ONLY } from '../components/DateRangePicker'
 import { PALETTE } from '../utils/colors'
 import {
   KONE_FONT, cardHeadingStyle, thStyle, selStyle, activeFilterPillStyle,
-  fmt1, NPS_BUCKET_STYLES, Card, MetricCard, SegmentCard, Empty as BaseEmpty,
+  fmt1, NPS_BUCKET_STYLES, Card, MetricCard, SegmentCard, Empty as BaseEmpty, stickyFilterCard,
 } from '../components/KoneUI'
 
 // ── Score → KONE sentiment colors ─────────────────────────────────────────────
@@ -164,7 +164,7 @@ export default function FeedbackPage({ sessionId }) {
       </div>
 
       {/* Filters */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e2d6', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ ...stickyFilterCard, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filters</span>
         <select value={service} onChange={e => setService(e.target.value)} style={selStyle}>
           <option value="">All Services</option>
