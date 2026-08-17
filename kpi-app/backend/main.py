@@ -67,9 +67,18 @@ async def _no_cache_html(request, call_next):
 
 # ── Persistence (PostgreSQL via DATABASE_URL env var) ─────────────────────────
 
+# Why the last _get_conn() attempt produced nothing. Without this, "DATABASE_URL
+# was never set" and "it's set but the connection is broken" both surface to the
+# user as an identical "no database attached" message, which sends them off
+# re-attaching a database that was already attached.
+_LAST_DB_ERROR: Optional[str] = None
+
+
 def _get_conn():
+    global _LAST_DB_ERROR
     url = os.environ.get("DATABASE_URL")
     if not url:
+        _LAST_DB_ERROR = None
         return None
     try:
         import psycopg2
@@ -80,11 +89,37 @@ def _get_conn():
             sep = "&" if "?" in url else "?"
             url = url + sep + "sslmode=require"
         conn = psycopg2.connect(url, connect_timeout=10)
+        _LAST_DB_ERROR = None
         print(f"[DB] Connected to PostgreSQL", flush=True)
         return conn
     except Exception as e:
+        _LAST_DB_ERROR = f"{type(e).__name__}: {e}"
         print(f"[DB] Connection failed: {e}", flush=True)
         return None
+
+
+def db_diagnosis() -> str:
+    """One-line reason there is no usable connection, safe to show a user.
+
+    Only the hostname is ever included — never the credentials embedded in
+    DATABASE_URL, which would otherwise end up on screen and in the logs.
+    """
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return ("DATABASE_URL is not set on this service. In Railway, adding a "
+                "Postgres database does not hand its URL to the app "
+                "automatically — add a variable named DATABASE_URL on the app "
+                "service with the value ${{Postgres.DATABASE_URL}}, then redeploy.")
+    host = "?"
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).hostname or "?"
+    except Exception:
+        pass
+    if _LAST_DB_ERROR:
+        return (f"DATABASE_URL is set (host {host}) but the connection failed — "
+                f"{_LAST_DB_ERROR}")
+    return f"DATABASE_URL is set (host {host}) but no connection could be opened."
 
 def _init_db():
     conn = _get_conn()
@@ -3608,7 +3643,8 @@ Rules:
 # is otherwise independent of the legacy Firebase tracker.
 import attendance_api
 
-attendance_api.configure(get_conn=_get_conn, holidays_by_year=HOLIDAYS_BY_YEAR)
+attendance_api.configure(get_conn=_get_conn, holidays_by_year=HOLIDAYS_BY_YEAR,
+                         diagnose=db_diagnosis)
 app.include_router(attendance_api.router)
 
 

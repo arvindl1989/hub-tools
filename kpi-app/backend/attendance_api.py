@@ -26,12 +26,15 @@ router = APIRouter(prefix="/api/attendance", tags=["attendance-beta"])
 
 # ── Injected from main.py ─────────────────────────────────────────────────────
 _get_conn: Optional[Callable] = None
+_diagnose: Optional[Callable] = None
 _holidays_by_year: dict[int, list[str]] = {}
 
 
-def configure(get_conn: Callable, holidays_by_year: dict) -> None:
-    global _get_conn, _holidays_by_year
+def configure(get_conn: Callable, holidays_by_year: dict,
+              diagnose: Optional[Callable] = None) -> None:
+    global _get_conn, _diagnose, _holidays_by_year
     _get_conn = get_conn
+    _diagnose = diagnose
     _holidays_by_year = holidays_by_year or {}
     _init_schema()
 
@@ -94,8 +97,19 @@ def login(body: LoginBody):
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 class NoDatabase(HTTPException):
-    def __init__(self):
-        super().__init__(503, "No database configured — set DATABASE_URL on the service.")
+    # The detail is shown to the user verbatim, so it must say which of the two
+    # failure modes actually happened rather than assuming nothing is attached.
+    def __init__(self, detail: Optional[str] = None):
+        super().__init__(503, detail or "No database configured — set DATABASE_URL on the service.")
+
+
+def _reason() -> Optional[str]:
+    if _diagnose is None:
+        return None
+    try:
+        return _diagnose()
+    except Exception:
+        return None
 
 
 def _conn():
@@ -103,7 +117,7 @@ def _conn():
         raise NoDatabase()
     c = _get_conn()
     if c is None:
-        raise NoDatabase()
+        raise NoDatabase(_reason())
     return c
 
 
@@ -144,7 +158,7 @@ def _init_schema() -> None:
     try:
         c = _conn()
     except HTTPException:
-        print("[ATT] No database — beta attendance tables not created", flush=True)
+        print(f"[ATT] No database — beta attendance tables not created ({_reason()})", flush=True)
         return
     try:
         with c, c.cursor() as cur:

@@ -606,11 +606,13 @@ async function start() {
     const bs = await api('/bootstrap');
     people = bs.people; holidays = bs.holidays; version = bs.version;
   } catch (ex) {
-    if (String(ex.message).includes('database')) {
+    if (String(ex.message).includes('DATABASE_URL') || String(ex.message).includes('database')) {
+      // Show the backend's own diagnosis — it distinguishes "never configured"
+      // from "configured but the connection is failing", which the old fixed
+      // wording could not, and which need completely different fixes.
       $('#dbBanner').style.display = 'block';
       $('#dbBanner').textContent =
-        'No database is attached to this service, so nothing can be saved yet. '
-        + 'Attach a Postgres addon in Railway and set DATABASE_URL, then reload.';
+        'Nothing can be saved yet. ' + ex.message;
       people = []; holidays = {};
     } else { toast(ex.message, true); return; }
   }
