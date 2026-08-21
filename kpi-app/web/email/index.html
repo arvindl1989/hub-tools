@@ -730,6 +730,191 @@
       .compose-grid { grid-template-columns: 1fr; }
       .compose-rail { position: static; max-height: none; overflow: visible; }
     }
+    /* ══════════════════════════════════════════════════════════════════════
+       KONE brand layer
+       Applied last so it wins over the tokens above. Follows the KONE design
+       system: blue + white lead, black for structure, sand as the warm
+       neutral; Inter always sentence case and never blue; KONE Information
+       always ALL CAPS for labels; square geometry (the logo is four hard
+       squares) so radii are small; flat surfaces — depth comes from color and
+       whitespace, not shadow.
+       ══════════════════════════════════════════════════════════════════════ */
+
+    @font-face {
+      font-family: 'KONE Information';
+      src: url('/assets/fonts/KONE-Information.ttf') format('truetype');
+      font-weight: 400 600;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    :root {
+      --primary: #1450f5;          /* KONE Blue */
+      --primary-dark: #0d3fd4;     /* press / hover — shift darker, never lighter */
+      --bg: #f3eee6;               /* sand: the workhorse warm neutral */
+      --surface: #ffffff;
+      --border: #e6e6e6;           /* hairline */
+      --border-strong: #d0d0d0;
+      --text: #141414;             /* KONE black */
+      --muted: #727272;            /* black-60 */
+      --nav-bg: #141414;
+      --nav-border: #434343;
+      --radius: 8px;               /* cards, inputs, buttons */
+      --radius-chip: 4px;          /* chips and tags stay square-ish */
+      --shadow: none;              /* the brand is flat */
+      --shadow-md: none;
+      --shadow-sm: none;
+      --focus: 0 0 0 3px rgba(20, 80, 245, 0.28);
+      --font-kone: 'KONE Information', 'Inter', Arial, sans-serif;
+      --k-red: #ff5f28;
+      --k-orange: #ffa023;
+      --k-green: #1ed273;
+    }
+
+    body { background: var(--bg); color: var(--text); }
+
+    /* ── Labels: KONE Information, ALL CAPS, blue or black-60 ─────────────
+       Everywhere the old design set Inter in uppercase — which the brand
+       forbids — the label typeface takes over instead. */
+    .step-head, .rail-fold > summary, .wdg-fold > summary, .preview-head,
+    .rail-fields label, .wdg-track-row label, .filter-bar label,
+    .card-title, .th-field-label, .rail-meta dt, label {
+      font-family: var(--font-kone);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 400;
+    }
+    .step-head, .rail-fold > summary, .wdg-fold > summary, .preview-head, .card-title {
+      color: var(--text); font-size: 0.8rem;
+    }
+    .rail-fields label, .wdg-track-row label, .rail-meta dt, .th-field-label { color: var(--muted); font-size: 0.72rem; }
+
+    /* Inter is never uppercase and never blue */
+    .ticket-desc, .th-desc, .email-nav-desc, .email-content, h1, h2, h3 {
+      font-family: 'Inter', sans-serif; text-transform: none; color: var(--text);
+    }
+
+    /* ── Surfaces: flat, hairline, square-ish ─────────────────────────── */
+    .rail-card, .form-card, .ticket-card, .subject-strip, .wdg-fold,
+    .preview-box, .action-bar, .email-box, .ticket-header-card, .setup-card {
+      border-radius: var(--radius);
+      box-shadow: none;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    /* Step markers echo the logo's hard squares rather than circles */
+    .step-num {
+      border-radius: 2px; width: 18px; height: 18px;
+      font-family: var(--font-kone); font-size: 0.68rem; letter-spacing: 0.04em;
+    }
+
+    /* ── Ticket cards ─────────────────────────────────────────────────── */
+    .ticket-card {
+      transition: border-color .14s ease, background .14s ease;
+    }
+    .ticket-card:hover { border-color: var(--primary); background: #fff; transform: none; }
+    .ticket-card:focus-visible { outline: none; box-shadow: var(--focus); }
+    .ticket-num { font-family: var(--font-kone); letter-spacing: 0.05em; color: var(--primary); }
+    .meta-chip {
+      border-radius: var(--radius-chip); background: var(--bg);
+      border: 1px solid var(--border); color: var(--muted);
+    }
+    .sla-info { font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.68rem; color: var(--muted); }
+
+    /* Badges — KONE UI accents, squared off */
+    .state-badge, .days-badge, .saved-pill, .ph-warn, .qpick, .copy-sm, .gen-btn {
+      border-radius: var(--radius-chip);
+    }
+    .state-badge {
+      font-family: var(--font-kone); letter-spacing: 0.06em; font-weight: 400;
+      background: var(--bg); color: var(--text); border: 1px solid var(--border-strong);
+    }
+    .days-badge { font-family: var(--font-kone); letter-spacing: 0.05em; font-weight: 400; border: 1px solid transparent; }
+    .days-overdue { background: #ffe7de; color: #a8340c; border-color: #ffc3ac; }
+    .days-urgent  { background: #fff1dc; color: #8a5200; border-color: #ffd79a; }
+    .days-warn    { background: #fffae3; color: #7a5400; border-color: #ffe141; }
+    .days-ok      { background: #e4f9ef; color: #0d7a46; border-color: #aae1c8; }
+
+    /* ── Controls ─────────────────────────────────────────────────────── */
+    .field-input, .filter-select, .filter-bar input[type="text"], select, textarea {
+      border-radius: var(--radius); border: 1px solid var(--border-strong);
+      font-family: 'Inter', sans-serif; color: var(--text); background: #fff;
+    }
+    .field-input:focus, .filter-select:focus, .filter-bar input[type="text"]:focus,
+    select:focus, textarea:focus, [contenteditable="true"]:focus {
+      outline: none; border-color: var(--primary); box-shadow: var(--focus);
+    }
+
+    .btn-primary, .ai-btn {
+      background: var(--primary); color: #fff; border: 1px solid var(--primary);
+      border-radius: var(--radius); font-family: 'Inter', sans-serif; font-weight: 600;
+      transition: background .14s ease, border-color .14s ease;
+    }
+    .btn-primary:hover, .ai-btn:hover { background: var(--primary-dark); border-color: var(--primary-dark); transform: none; }
+    .btn-primary:focus-visible, .ai-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+
+    .btn-secondary-a, .btn-back-list, .sn-sync-btn {
+      border-radius: var(--radius); border: 1px solid var(--text); background: #fff;
+      color: var(--text); font-family: 'Inter', sans-serif; font-weight: 600;
+      transition: background .14s ease;
+    }
+    .btn-secondary-a:hover, .btn-back-list:hover, .sn-sync-btn:hover:not(:disabled) {
+      background: var(--bg); color: var(--text); border-color: var(--text);
+    }
+    .copy-sm, .gen-btn {
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .qpick {
+      border-radius: var(--radius-chip); border: 1px solid var(--border-strong);
+      font-family: 'Inter', sans-serif; font-weight: 500; color: var(--text);
+    }
+    .qpick:hover { border-color: var(--primary); color: var(--primary); background: #fff; }
+    .qpick.active { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+
+    /* ── Chrome ───────────────────────────────────────────────────────── */
+    .hub-nav { background: var(--nav-bg); border-bottom: 1px solid var(--nav-border); }
+    .filter-bar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      border-radius: 0; box-shadow: none;
+    }
+    .filter-count { font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .email-nav {
+      background: var(--surface); border-bottom: 1px solid var(--border); box-shadow: none;
+    }
+    .email-nav-ticket { font-family: var(--font-kone); letter-spacing: 0.05em; color: var(--primary); }
+
+    /* Blur is not a KONE motif — the action bar is a solid block */
+    .action-bar { background: var(--surface); backdrop-filter: none; }
+
+    .saved-pill { background: #e4f9ef; border-color: #aae1c8; color: #0d7a46; font-family: var(--font-kone); letter-spacing: 0.05em; }
+    .ph-warn { background: #fff1dc; border-color: #ffd79a; color: #8a5200; font-family: var(--font-kone); letter-spacing: 0.05em; }
+    .editable-tag, .tmpl-hint { font-family: 'Inter', sans-serif; text-transform: none; letter-spacing: 0; color: var(--muted); }
+
+    /* ── Progress widget ──────────────────────────────────────────────── */
+    .wdg-scroll { border: 1px solid var(--border); border-radius: var(--radius); }
+    .wdg-table th, .wdg-table td { border-color: var(--border); }
+    .wdg-table th, .wdg-table .wdg-rowlab {
+      background: var(--bg); font-family: var(--font-kone);
+      text-transform: uppercase; letter-spacing: 0.05em; font-weight: 400; color: var(--text);
+    }
+    .wdg-date { font-family: 'Inter', sans-serif; }
+    .wdg-cal:hover { color: var(--primary); background: rgba(20, 80, 245, 0.08); border-radius: 2px; }
+
+    /* Footer and its separators follow the nav to KONE black */
+    .hub-footer { background: var(--nav-bg); border-top: 1px solid var(--nav-border); }
+    .hub-footer .fsep { color: var(--nav-border); }
+
+    /* The AI button is icon-only in the subject strip; give it a square
+       footprint so it reads as a button rather than a stray blue blob. */
+    .subject-strip .ai-btn {
+      width: 38px; height: 38px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Empty state ──────────────────────────────────────────────────── */
+    .empty-msg h3 { font-family: 'Inter', sans-serif; text-transform: none; font-weight: 400; color: var(--text); }
+    .empty-msg p { color: var(--muted); }
   </style>
 </head>
 <body>
