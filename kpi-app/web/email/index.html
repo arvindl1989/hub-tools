@@ -941,7 +941,7 @@
 
     .trow-head, .trow {
       display: grid;
-      grid-template-columns: 4px 108px minmax(0, 1fr) 92px 150px 132px 74px 92px 168px;
+      grid-template-columns: 4px 104px minmax(0, 1fr) 84px 138px 126px 68px 68px 84px 156px;
       gap: 12px; align-items: center;
     }
     .trow-head {
@@ -960,7 +960,7 @@
     .trow-urg { height: 26px; border-radius: 2px; }
     .trow-id { font-family: var(--font-kone); letter-spacing: 0.04em; color: var(--primary); font-size: 0.74rem; }
     .trow-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .trow-who, .trow-svc, .trow-sla { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; }
+    .trow-who, .trow-svc, .trow-sla, .trow-live { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; }
     .trow-days { font-family: var(--font-kone); letter-spacing: 0.04em; font-size: 0.7rem; }
     .d-critical { color: #a8340c; } .d-breached { color: #8a5200; }
     .d-soon { color: #7a5400; }     .d-ontrack { color: #0d7a46; }
@@ -986,7 +986,8 @@
     .saved-pill.local-only { background: #fff1dc; border-color: #ffd79a; color: #8a5200; }
 
     @media (max-width: 1240px) {
-      .trow-head, .trow { grid-template-columns: 4px 100px minmax(0, 1fr) 84px 120px 74px 88px; }
+      .trow-head, .trow { grid-template-columns: 4px 98px minmax(0, 1fr) 64px 64px 80px 140px; }
+      .trow-who, .trow-head span:nth-child(4) { display: none; }
       .trow-svc, .trow-head span:nth-child(5) { display: none; }
       .trow .state-badge, .trow-head span:nth-child(6) { display: none; }
     }
@@ -1047,6 +1048,38 @@
     .action-bar { border: none; border-top: 1px solid var(--border); border-radius: 0; padding: 12px 2px 4px; }
 
     @media (max-width: 1080px) { .compose-stats { gap: 22px; } }
+
+    /* ── Leaner composer ──────────────────────────────────────────────── */
+    /* Folded template groups: a summary row, not a wall of eighteen. */
+    .tmpl-group { border: none; }
+    .tmpl-group > summary {
+      cursor: pointer; list-style: none; display: flex; align-items: center;
+      justify-content: space-between; gap: 8px; padding: 7px 2px 5px;
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.06em;
+      font-size: 0.62rem; color: var(--muted);
+    }
+    .tmpl-group > summary::-webkit-details-marker { display: none; }
+    .tmpl-group > summary:hover { color: var(--text); }
+    .tmpl-gcount { font-size: 0.58rem; color: var(--muted); opacity: .75; }
+
+    .wdg-sum-state {
+      font-family: 'Inter', sans-serif; text-transform: none; letter-spacing: 0;
+      font-weight: 400; color: var(--muted); font-size: 0.72rem;
+    }
+
+    /* Tighter vertical rhythm — the panes were paying full card spacing for
+       sections that no longer have cards. */
+    .compose-grid { gap: 14px; padding-top: 10px; }
+    .compose-main { gap: 9px; }
+    .compose-rail { gap: 4px; }
+    .rail-sec { padding-bottom: 10px; }
+    .band-head.static { padding: 2px 2px 6px; }
+    .preview-box { padding: 0.95rem 1.1rem; }
+    .compose-stats { padding: 12px 20px 4px; gap: 30px; }
+    .compose-stats .stat-num { font-size: 23px; }
+    .stat-num.stat-word { font-size: 17px; }
+    .tmpl-item { padding: 5px 8px; font-size: 0.78rem; }
+    .tmpl-hint { margin-top: 0.35rem; font-size: 0.72rem; }
 
     /* ── Empty state ──────────────────────────────────────────────────── */
     .empty-msg h3 { font-family: 'Inter', sans-serif; text-transform: none; font-weight: 400; color: var(--text); }
@@ -1293,9 +1326,9 @@
           <button class="ai-btn" id="aiSubjectBtn" title="Suggest a subject"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
         </div>
 
-        <details class="wdg-fold" id="wdgFold" open>
+        <details class="wdg-fold" id="wdgFold">
           <summary>
-            <span><i class="fa-solid fa-diagram-project"></i> Progress widget</span>
+            <span><i class="fa-solid fa-diagram-project"></i> Progress widget<span class="wdg-sum-state" id="wdgSumState"></span></span>
             <span class="wdg-sum-actions">
               <label class="wdg-toggle"><input type="checkbox" id="wdgOn" checked> Include</label>
               <button class="copy-sm" id="wdgResetBtn" type="button">Reset</button>
@@ -1774,6 +1807,7 @@
         <span class="trow-svc">${esc(t.subCategory.split('–')[0].trim())}</span>
         <span class="state-badge ${STATE_CLASS[t.state] || 's-open'}">${esc(t.state)}</span>
         <span class="trow-sla">${t.slaDate ? esc(fmtShort(t.slaDate)) : '—'}</span>
+        <span class="trow-live">${t.prefLive ? esc(fmtShort(t.prefLive)) : '—'}</span>
         <span class="trow-days d-${band}">${dayTxt}</span>
         <span class="trow-next">${next
           ? `<em class="${alreadySent(t, next) ? 'sent' : ''}">${esc(next.label)}</em>${alreadySent(t, next) ? ' <span class="sent-tag">sent</span>' : ''}`
@@ -1836,7 +1870,7 @@
             ? `<div class="ticket-grid">${rows.map(cardHtml).join('')}</div>`
             : `<div class="trow-head">
                  <span></span><span>Ticket</span><span>Request</span><span>Owner</span>
-                 <span>Service</span><span>State</span><span>SLA</span><span>Age</span><span>Next email</span>
+                 <span>Service</span><span>State</span><span>SLA</span><span>Live</span><span>Age</span><span>Next email</span>
                </div>${rows.map(rowHtml).join('')}`);
         }
         out.push('</section>');
@@ -2474,6 +2508,13 @@
     }
 
     function renderWidgetTable() {
+      const sum = document.getElementById('wdgSumState');
+      if (sum && widget) {
+        const stages = TRACKS[widget.track] || [];
+        const cur = stages.find(x => widget.status[x] === 'current');
+        const done = stages.filter(x => widget.status[x] === 'done').length;
+        sum.textContent = cur ? ` — ${cur} (${done}/${stages.length} done)` : ` — ${done}/${stages.length} done`;
+      }
       const table = document.getElementById('wdgTable');
       if (!widget) { table.innerHTML = ''; return; }
       const stages = TRACKS[widget.track] || [];
@@ -2661,16 +2702,22 @@
       document.getElementById('tmplCount').textContent = list.length;
 
       const suggested = currentTicket ? nextActionFor(currentTicket) : null;
+      // Eighteen items at once was a wall of text down the whole rail. Groups
+      // fold, and only the one you are working in stays open.
       const groups = [...new Set(list.map(t => t.group))];
       const picks = document.getElementById('quickPicks');
-      picks.innerHTML = groups.map(g =>
-        `<div class="tmpl-group">${esc(g)}</div>`
-        + list.filter(t => t.group === g).map(t =>
-            `<button type="button" class="tmpl-item" data-id="${t.id}">`
-            + `<span class="tmpl-name">${esc(t.label)}</span>`
-            + (suggested && suggested.id === t.id ? '<span class="tmpl-sug">Suggested</span>' : '')
-            + '</button>').join('')
-      ).join('');
+      picks.innerHTML = groups.map(g => {
+        const items = list.filter(t => t.group === g);
+        const hasSug = suggested && items.some(t => t.id === suggested.id);
+        return `<details class="tmpl-group" data-group="${esc(g)}"${hasSug ? ' open' : ''}>`
+          + `<summary>${esc(g)}<span class="tmpl-gcount">${items.length}</span></summary>`
+          + items.map(t =>
+              `<button type="button" class="tmpl-item" data-id="${t.id}" data-group="${esc(g)}">`
+              + `<span class="tmpl-name">${esc(t.label)}</span>`
+              + (suggested && suggested.id === t.id ? '<span class="tmpl-sug">Suggested</span>' : '')
+              + '</button>').join('')
+          + '</details>';
+      }).join('');
       picks.querySelectorAll('.tmpl-item').forEach(b =>
         b.addEventListener('click', () => selectTemplate(b.dataset.id)));
     }
@@ -2702,6 +2749,7 @@
       activeTemplate = t;
       document.getElementById('tmplSelect').value = t.id;
       document.querySelectorAll('.tmpl-item').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
+      document.querySelectorAll('.tmpl-group').forEach(g => { g.open = g.dataset.group === t.group; });
       document.getElementById('tmplHint').textContent = t.hint || '';
 
       // The chosen email is what tells the widget where the ticket has got to.
