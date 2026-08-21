@@ -639,7 +639,7 @@
     .hidden { display: none !important; }
 
     /* Filters stay reachable while scrolling a long ticket list */
-    .filter-bar { position: sticky; top: 0; z-index: 20; }
+    .filter-bar { position: sticky; top: var(--nav-h); z-index: 20; }
 
     /* ── Two-pane composer ───────────────────────────────────────────────
        The old layout stacked eight cards, so the email itself sat below the
@@ -650,7 +650,7 @@
       gap: 16px; align-items: start;
       max-width: 1500px; margin: 0 auto; padding: 16px 20px 40px;
     }
-    .compose-rail { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 92px); overflow-y: auto; padding-right: 2px; }
+    .compose-rail { position: sticky; top: calc(var(--nav-h) + 62px); display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 92px); overflow-y: auto; padding-right: 2px; }
     .compose-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 
     .rail-card {
@@ -723,7 +723,7 @@
     }
 
     /* Identity strip */
-    .email-nav { flex-wrap: wrap; gap: 8px; position: sticky; top: 0; z-index: 30; }
+    .email-nav { flex-wrap: wrap; gap: 8px; position: sticky; top: var(--nav-h); z-index: 30; }
     .email-nav-desc { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     @media (max-width: 1080px) {
@@ -766,6 +766,7 @@
       --shadow-sm: none;
       --focus: 0 0 0 3px rgba(20, 80, 245, 0.28);
       --font-kone: 'KONE Information', 'Inter', Arial, sans-serif;
+      --nav-h: 52px;   /* the hub bar is sticky; everything below pins under it */
       --k-red: #ff5f28;
       --k-orange: #ffa023;
       --k-green: #1ed273;
@@ -990,6 +991,63 @@
       .trow .state-badge, .trow-head span:nth-child(6) { display: none; }
     }
 
+    /* ── Composer, in the queue's language ────────────────────────────── */
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    .compose-stats {
+      max-width: 1500px; margin: 0 auto; padding: 16px 20px 6px; gap: 34px;
+    }
+    .compose-stats .stat-num { font-size: 26px; }
+    .stat-num.stat-word { color: var(--text); font-size: 20px; }
+    .compose-stats .stat-num:not(:only-child) { white-space: nowrap; }
+
+    /* Rail sections drop their boxes — the email is the only card that needs
+       to look like one. Sections separate with air and a hairline instead. */
+    .rail-sec {
+      background: transparent; border: none; border-radius: 0;
+      padding: 0 0 14px; border-bottom: 1px solid var(--border);
+    }
+    .rail-sec:last-of-type { border-bottom: none; }
+    .band-head.static { cursor: default; padding: 2px 2px 10px; }
+    .u-choose  { background: var(--primary); }
+    .u-details { background: var(--k-green); }
+
+    .rail-fold > summary { padding: 10px 2px 0; }
+    .rail-fold[open] > summary { padding-bottom: 10px; }
+
+    .tmpl-list { display: flex; flex-direction: column; }
+    .tmpl-group {
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.06em;
+      font-size: 0.62rem; color: var(--muted); padding: 10px 2px 4px;
+    }
+    .tmpl-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      width: 100%; text-align: left; cursor: pointer;
+      background: none; border: none; border-left: 2px solid transparent;
+      padding: 6px 8px; font-family: 'Inter', sans-serif; font-size: 0.8rem;
+      color: var(--text); border-radius: 0 var(--radius-chip) var(--radius-chip) 0;
+      transition: background .12s ease, border-color .12s ease;
+    }
+    .tmpl-item:hover { background: #fff; border-left-color: var(--border-strong); }
+    .tmpl-item.active { background: #fff; border-left-color: var(--primary); font-weight: 600; }
+    .tmpl-item:focus-visible { outline: none; box-shadow: var(--focus); }
+    .tmpl-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tmpl-sug {
+      flex: 0 0 auto; font-family: var(--font-kone); text-transform: uppercase;
+      letter-spacing: 0.05em; font-size: 0.56rem; color: var(--primary);
+      border: 1px solid var(--blue-20, #d0dcfd); background: #eef3fe;
+      border-radius: 3px; padding: 1px 5px;
+    }
+
+    /* Right pane: subject and widget sit flat; the email keeps the card */
+    .subject-strip { background: transparent; border: none; padding: 0; }
+    .wdg-fold { background: transparent; border: none; padding: 0 0 4px; border-bottom: 1px solid var(--border); }
+    .wdg-fold > summary { padding: 2px 0 0; }
+    .preview-head { padding: 6px 2px 0; }
+    .action-bar { border: none; border-top: 1px solid var(--border); border-radius: 0; padding: 12px 2px 4px; }
+
+    @media (max-width: 1080px) { .compose-stats { gap: 22px; } }
+
     /* ── Empty state ──────────────────────────────────────────────────── */
     .empty-msg h3 { font-family: 'Inter', sans-serif; text-transform: none; font-weight: 400; color: var(--text); }
     .empty-msg p { color: var(--muted); }
@@ -1142,24 +1200,33 @@
       <button class="copy-sm" id="forgetBtn" type="button" style="margin-left:auto;" title="Discard the links, dates and widget saved for this ticket">Clear saved</button>
     </div>
 
+    <div class="stat-strip compose-stats" id="ticketStats"></div>
+
     <div class="compose-grid">
 
       <!-- ── Left rail: everything you set up ── -->
       <aside class="compose-rail">
 
-        <section class="rail-card">
-          <div class="step-head"><span class="step-num">1</span> Choose the email</div>
-          <div class="quick-picks" id="quickPicks"></div>
-          <select class="field-input" id="tmplSelect" style="margin-top:0.55rem;"></select>
+        <section class="rail-sec">
+          <div class="band-head static">
+            <span class="band-dot u-choose"></span>
+            <span class="band-label">Choose the email</span>
+            <span class="band-count" id="tmplCount"></span>
+          </div>
+          <div class="tmpl-list" id="quickPicks"></div>
+          <select id="tmplSelect" class="visually-hidden" tabindex="-1" aria-hidden="true"></select>
           <p class="tmpl-hint" id="tmplHint"></p>
         </section>
 
-        <section class="rail-card" id="dynFieldsCard" style="display:none;">
-          <div class="step-head"><span class="step-num">2</span> Fill in the details</div>
+        <section class="rail-sec" id="dynFieldsCard" style="display:none;">
+          <div class="band-head static">
+            <span class="band-dot u-details"></span>
+            <span class="band-label">Details for this email</span>
+          </div>
           <div class="rail-fields" id="dynFields"></div>
         </section>
 
-        <details class="rail-card rail-fold">
+        <details class="rail-sec rail-fold">
           <summary>Links</summary>
           <div class="rail-fields">
             <div>
@@ -1191,7 +1258,7 @@
           </div>
         </details>
 
-        <details class="rail-card rail-fold">
+        <details class="rail-sec rail-fold">
           <summary>Recipients</summary>
           <div class="rail-fields">
             <div><label>To</label><input type="text" class="field-input" id="toInput" placeholder="name@kone.com"></div>
@@ -1199,7 +1266,7 @@
           </div>
         </details>
 
-        <details class="rail-card rail-fold">
+        <details class="rail-sec rail-fold">
           <summary>Ticket details</summary>
           <dl class="rail-meta">
             <dt>Assignee</dt><dd id="ethAssignee"></dd>
@@ -1916,6 +1983,7 @@
       }
       document.getElementById('wdgLabel').value = widget.label;
 
+      renderTicketStats(ticket);
       activeTemplates = templatesFor(ticket);
       populateTemplatePicker(activeTemplates);
       const wanted = opts.tmpl && activeTemplates.some(t => t.id === opts.tmpl) ? opts.tmpl : activeTemplates[0].id;
@@ -2583,25 +2651,57 @@
       el.textContent = `${n} placeholder${n === 1 ? '' : 's'} still to fill`;
     }
 
+    // Eighteen templates hidden behind a dropdown meant opening it to find out
+    // what existed. They read as a grouped list instead, in the same shape the
+    // queue uses, with the email the queue suggested marked so the two pages
+    // agree on what comes next.
     function populateTemplatePicker(list) {
       const sel = document.getElementById('tmplSelect');
+      sel.innerHTML = list.map(t => `<option value="${t.id}">${esc(t.label)}</option>`).join('');
+      document.getElementById('tmplCount').textContent = list.length;
+
+      const suggested = currentTicket ? nextActionFor(currentTicket) : null;
       const groups = [...new Set(list.map(t => t.group))];
-      sel.innerHTML = groups.map(g =>
-        `<optgroup label="${esc(g)}">`
-        + list.filter(t => t.group === g).map(t => `<option value="${t.id}">${esc(t.label)}</option>`).join('')
-        + '</optgroup>').join('');
       const picks = document.getElementById('quickPicks');
-      picks.innerHTML = list.filter(t => t.quick)
-        .map(t => `<button type="button" class="qpick" data-id="${t.id}">${esc(t.label)}</button>`).join('');
-      picks.querySelectorAll('.qpick').forEach(b =>
+      picks.innerHTML = groups.map(g =>
+        `<div class="tmpl-group">${esc(g)}</div>`
+        + list.filter(t => t.group === g).map(t =>
+            `<button type="button" class="tmpl-item" data-id="${t.id}">`
+            + `<span class="tmpl-name">${esc(t.label)}</span>`
+            + (suggested && suggested.id === t.id ? '<span class="tmpl-sug">Suggested</span>' : '')
+            + '</button>').join('')
+      ).join('');
+      picks.querySelectorAll('.tmpl-item').forEach(b =>
         b.addEventListener('click', () => selectTemplate(b.dataset.id)));
+    }
+
+    // Big-number context for this ticket, echoing the queue's stat strip.
+    function renderTicketStats(t) {
+      const el = document.getElementById('ticketStats');
+      if (!el) return;
+      const d = t.daysLeft;
+      const age = d === null ? '—' : Math.abs(d);
+      const ageLab = d === null ? 'No SLA' : d < 0 ? 'Days past SLA' : 'Days left';
+      // Blue Inter is reserved for the "KONE numbers" device, so only figures
+      // take the brand colour — word values stay black, as Inter must be.
+      const stat = (v, label, tone = '') => {
+        const isFigure = /^[0-9]/.test(String(v));
+        return `<div class="stat${tone ? ' ' + tone : ''}">`
+          + `<span class="stat-num${isFigure ? '' : ' stat-word'}">${esc(String(v))}</span>`
+          + `<span class="stat-lab">${esc(label)}</span></div>`;
+      };
+      el.innerHTML = stat(age, ageLab, d !== null && d < 0 ? 'warn' : '')
+        + stat(t.slaDate ? fmtShort(t.slaDate) : '—', 'SLA date')
+        + stat(t.prefLive ? fmtShort(t.prefLive) : '—', 'Preferred live')
+        + stat(t.state || '—', 'State')
+        + stat(t.subCategory.split('–')[0].trim() || '—', 'Service');
     }
 
     function selectTemplate(id, { silent = false } = {}) {
       const t = activeTemplates.find(x => x.id === id) || activeTemplates[0];
       activeTemplate = t;
       document.getElementById('tmplSelect').value = t.id;
-      document.querySelectorAll('.qpick').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
+      document.querySelectorAll('.tmpl-item').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
       document.getElementById('tmplHint').textContent = t.hint || '';
 
       // The chosen email is what tells the widget where the ticket has got to.
