@@ -634,6 +634,102 @@
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     #toast.err { background: #b91c1c; }
+    /* The empty state toggles on this class, which was never defined — so
+       "No tickets match your filters" sat under the results permanently. */
+    .hidden { display: none !important; }
+
+    /* Filters stay reachable while scrolling a long ticket list */
+    .filter-bar { position: sticky; top: 0; z-index: 20; }
+
+    /* ── Two-pane composer ───────────────────────────────────────────────
+       The old layout stacked eight cards, so the email itself sat below the
+       fold and every change meant scrolling back down to check it. Setup lives
+       in the left rail; the email stays on screen the whole time. */
+    .compose-grid {
+      display: grid; grid-template-columns: 340px minmax(0, 1fr);
+      gap: 16px; align-items: start;
+      max-width: 1500px; margin: 0 auto; padding: 16px 20px 40px;
+    }
+    .compose-rail { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 92px); overflow-y: auto; padding-right: 2px; }
+    .compose-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+    .rail-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      padding: 0.85rem 0.95rem; box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.05));
+    }
+    .step-head {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.78rem; font-weight: 700; color: var(--text);
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.6rem;
+    }
+    .step-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 19px; height: 19px; border-radius: 50%;
+      background: var(--primary); color: #fff; font-size: 0.7rem; font-weight: 700;
+    }
+    .rail-fields { display: flex; flex-direction: column; gap: 0.6rem; }
+    .rail-fields label {
+      display: block; font-size: 0.7rem; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem;
+    }
+    .rail-fold > summary {
+      cursor: pointer; list-style: none; font-size: 0.78rem; font-weight: 700;
+      color: var(--text); text-transform: uppercase; letter-spacing: 0.04em;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .rail-fold > summary::-webkit-details-marker { display: none; }
+    .rail-fold > summary::after { content: '▸'; color: var(--muted); font-size: 0.8rem; transition: transform .15s; }
+    .rail-fold[open] > summary::after { transform: rotate(90deg); }
+    .rail-fold[open] > summary { margin-bottom: 0.65rem; }
+    .rail-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 0.78rem; }
+    .rail-meta dt { color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .rail-meta dd { margin: 0; color: var(--text); word-break: break-word; }
+
+    /* Subject sits directly above the email it titles */
+    .subject-strip {
+      display: flex; gap: 7px; align-items: center; background: #fff;
+      border: 1px solid var(--border); border-radius: 12px; padding: 0.6rem 0.7rem;
+    }
+    .subject-strip #taskTypeSelect { flex: 0 0 190px; }
+    .subject-strip #subjectInput { flex: 1 1 auto; min-width: 0; }
+    .subject-strip .ai-btn { flex: 0 0 auto; padding: 8px 11px; }
+
+    .wdg-fold {
+      background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 0.7rem 0.85rem;
+    }
+    .wdg-fold > summary {
+      cursor: pointer; list-style: none; display: flex; align-items: center;
+      justify-content: space-between; gap: 10px;
+      font-size: 0.78rem; font-weight: 700; color: var(--text);
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .wdg-fold > summary::-webkit-details-marker { display: none; }
+    .wdg-fold[open] > summary { margin-bottom: 0.7rem; }
+    .wdg-sum-actions { display: flex; align-items: center; gap: 10px; }
+
+    .preview-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      font-size: 0.78rem; font-weight: 700; color: var(--text);
+      text-transform: uppercase; letter-spacing: 0.04em; padding: 0 2px;
+    }
+    .preview-box { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem 1.25rem; }
+
+    /* Actions stay reachable without scrolling to the bottom of a long email */
+    .action-bar {
+      position: sticky; bottom: 0; z-index: 5;
+      background: rgba(255,255,255,0.97); backdrop-filter: blur(6px);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 0.6rem 0.7rem; margin-top: 0;
+    }
+
+    /* Identity strip */
+    .email-nav { flex-wrap: wrap; gap: 8px; position: sticky; top: 0; z-index: 30; }
+    .email-nav-desc { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    @media (max-width: 1080px) {
+      .compose-grid { grid-template-columns: 1fr; }
+      .compose-rail { position: static; max-height: none; overflow: visible; }
+    }
   </style>
 </head>
 <body>
@@ -765,168 +861,136 @@
 
   <!-- ── VIEW: Email Composition ── -->
   <div class="view" id="view-email">
+
+    <!-- Identity strip: who/what/when, one line, always visible -->
     <div class="email-nav">
-      <button class="btn-back-list" id="backToListBtn"><i class="fa-solid fa-arrow-left"></i> Back to tickets</button>
-      <div class="nav-sep" style="background:var(--border); height:20px;"></div>
+      <button class="btn-back-list" id="backToListBtn"><i class="fa-solid fa-arrow-left"></i> Tickets</button>
       <span class="email-nav-ticket" id="enTicketNum"></span>
       <span class="email-nav-desc" id="enTicketDesc"></span>
+      <span class="state-badge" id="ethState"></span>
+      <span id="ethDaysBadgeWrap"></span>
       <span class="saved-pill" id="savedPill"><i class="fa-solid fa-check"></i> Saved</span>
       <button class="copy-sm" id="forgetBtn" type="button" style="margin-left:auto;" title="Discard the links, dates and widget saved for this ticket">Clear saved</button>
     </div>
-    <div class="email-body">
 
-      <!-- Ticket Header -->
-      <div class="ticket-header-card">
-        <div class="th-top">
-          <span class="th-num" id="ethNum"></span>
-          <p class="th-desc" id="ethDesc"></p>
-          <span class="state-badge" id="ethState"></span>
-        </div>
-        <div class="th-meta">
-          <div class="th-field">
-            <span class="th-field-label"><i class="fa-solid fa-user"></i> Assignee</span>
-            <span class="th-field-value" id="ethAssignee"></span>
-          </div>
-          <div class="th-field">
-            <span class="th-field-label"><i class="fa-solid fa-building"></i> Requested By</span>
-            <span class="th-field-value" id="ethClient"></span>
-          </div>
-          <div class="th-field">
-            <span class="th-field-label"><i class="fa-solid fa-eye"></i> Watch List</span>
-            <span class="th-field-value" id="ethWatchList"></span>
-          </div>
-          <div class="th-field">
-            <span class="th-field-label"><i class="fa-solid fa-layer-group"></i> Service</span>
-            <span class="th-field-value" id="ethService"></span>
-          </div>
-          <div class="th-field" id="ethCreatedWrap" style="display:none">
-            <span class="th-field-label"><i class="fa-regular fa-calendar"></i> Created</span>
-            <span class="th-field-value muted" id="ethCreated"></span>
-          </div>
-          <div class="th-field" id="ethPrefLiveWrap" style="display:none">
-            <span class="th-field-label"><i class="fa-solid fa-calendar-day"></i> Preferred Live</span>
-            <span class="th-field-value muted" id="ethPrefLive"></span>
-          </div>
-          <div class="th-field">
-            <span class="th-field-label"><i class="fa-regular fa-calendar-check"></i> SLA Deadline</span>
-            <span class="th-field-value"><strong id="ethSLA"></strong> <span id="ethDaysBadgeWrap"></span></span>
-          </div>
-        </div>
-      </div>
+    <div class="compose-grid">
 
-      <!-- Links -->
-      <div class="form-card">
-        <div class="card-title"><i class="fa-solid fa-link"></i> ServiceNow Links</div>
-        <div class="grid-2">
-          <div>
-            <label>Case URL <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— agent view URL</span></label>
-            <div class="input-with-btn">
-              <input type="text" class="field-input" id="caseUrlInput" placeholder="https://koneprod.service-now.com/now/nav/ui/classic/params/target/…">
-              <button class="gen-btn" id="genCaseBtn">Generate</button>
+      <!-- ── Left rail: everything you set up ── -->
+      <aside class="compose-rail">
+
+        <section class="rail-card">
+          <div class="step-head"><span class="step-num">1</span> Choose the email</div>
+          <div class="quick-picks" id="quickPicks"></div>
+          <select class="field-input" id="tmplSelect" style="margin-top:0.55rem;"></select>
+          <p class="tmpl-hint" id="tmplHint"></p>
+        </section>
+
+        <section class="rail-card" id="dynFieldsCard" style="display:none;">
+          <div class="step-head"><span class="step-num">2</span> Fill in the details</div>
+          <div class="rail-fields" id="dynFields"></div>
+        </section>
+
+        <details class="rail-card rail-fold">
+          <summary>Links</summary>
+          <div class="rail-fields">
+            <div>
+              <label>Case URL</label>
+              <div class="input-with-btn">
+                <input type="text" class="field-input" id="caseUrlInput" placeholder="ServiceNow agent view URL">
+                <button class="gen-btn" id="genCaseBtn">Gen</button>
+              </div>
+              <div class="link-ok" id="caseOk"><i class="fa-solid fa-check-circle"></i><a id="caseLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="caseCopyBtn">Copy</button></div>
+              <div class="field-err" id="caseErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
             </div>
-            <div class="link-ok" id="caseOk"><i class="fa-solid fa-check-circle"></i><a id="caseLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="caseCopyBtn">Copy</button></div>
-            <div class="field-err" id="caseErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
-          </div>
-          <div>
-            <label>Feedback URL <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— survey instance URL</span></label>
-            <div class="input-with-btn">
-              <input type="text" class="field-input" id="feedbackUrlInput" placeholder="https://koneprod.service-now.com/asmt_assessment_instance.do?sys_id=…">
-              <button class="gen-btn" id="genFeedbackBtn">Generate</button>
+            <div>
+              <label>Feedback URL</label>
+              <div class="input-with-btn">
+                <input type="text" class="field-input" id="feedbackUrlInput" placeholder="Survey instance URL">
+                <button class="gen-btn" id="genFeedbackBtn">Gen</button>
+              </div>
+              <div class="link-ok" id="feedbackOk"><i class="fa-solid fa-check-circle"></i><a id="feedbackLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="feedbackCopyBtn">Copy</button></div>
+              <div class="field-err" id="feedbackErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
             </div>
-            <div class="link-ok" id="feedbackOk"><i class="fa-solid fa-check-circle"></i><a id="feedbackLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="feedbackCopyBtn">Copy</button></div>
-            <div class="field-err" id="feedbackErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+            <div>
+              <label>Preview link</label>
+              <input type="url" class="field-input" id="previewInput" placeholder="https://…">
+            </div>
+            <div>
+              <label>Live link</label>
+              <input type="url" class="field-input" id="liveInput" placeholder="https://…">
+            </div>
           </div>
-          <div>
-            <label>Preview Link <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— used by the Preview email</span></label>
-            <input type="url" class="field-input" id="previewInput" placeholder="https://…">
+        </details>
+
+        <details class="rail-card rail-fold">
+          <summary>Recipients</summary>
+          <div class="rail-fields">
+            <div><label>To</label><input type="text" class="field-input" id="toInput" placeholder="name@kone.com"></div>
+            <div><label>Cc</label><input type="text" class="field-input" id="ccInput" placeholder="separate with ;"></div>
           </div>
-          <div>
-            <label>Live Link <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— used by the Live email</span></label>
-            <input type="url" class="field-input" id="liveInput" placeholder="https://… (published page / asset URL)">
-          </div>
-        </div>
-      </div>
+        </details>
 
-      <!-- Recipients -->
-      <div class="form-card">
-        <div class="card-title"><i class="fa-solid fa-paper-plane"></i> Recipients</div>
-        <div class="grid-2">
-          <div>
-            <label>To</label>
-            <input type="text" class="field-input" id="toInput" placeholder="name@kone.com">
-          </div>
-          <div>
-            <label>Cc <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— prefilled from the ticket watch list</span></label>
-            <input type="text" class="field-input" id="ccInput" placeholder="separate multiple with ;">
-          </div>
-        </div>
-      </div>
+        <details class="rail-card rail-fold">
+          <summary>Ticket details</summary>
+          <dl class="rail-meta">
+            <dt>Assignee</dt><dd id="ethAssignee"></dd>
+            <dt>Requested by</dt><dd id="ethClient"></dd>
+            <dt>Watch list</dt><dd id="ethWatchList"></dd>
+            <dt>Service</dt><dd id="ethService"></dd>
+            <dt id="ethCreatedWrap">Created</dt><dd id="ethCreated"></dd>
+            <dt id="ethPrefLiveWrap">Preferred live</dt><dd id="ethPrefLive"></dd>
+            <dt>SLA deadline</dt><dd><strong id="ethSLA"></strong></dd>
+          </dl>
+          <span class="th-num" id="ethNum" style="display:none"></span>
+          <span id="ethDesc" style="display:none"></span>
+        </details>
 
-      <!-- Template picker -->
-      <div class="form-card">
-        <div class="card-title"><i class="fa-solid fa-envelope-open-text"></i> Email Template</div>
-        <div class="quick-picks" id="quickPicks"></div>
-        <select class="field-input" id="tmplSelect" style="margin-top:0.65rem;"></select>
-        <p class="tmpl-hint" id="tmplHint"></p>
-      </div>
+      </aside>
 
-      <!-- Fields the chosen template needs (rendered on demand) -->
-      <div class="form-card" id="dynFieldsCard" style="display:none;">
-        <div class="card-title"><i class="fa-solid fa-sliders"></i> Details for this email</div>
-        <div class="grid-2" id="dynFields"></div>
-      </div>
+      <!-- ── Right: the email itself ── -->
+      <main class="compose-main">
 
-      <!-- Progress / visibility widget -->
-      <div class="form-card">
-        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <span><i class="fa-solid fa-diagram-project"></i> Progress Widget</span>
-          <span style="display:flex;align-items:center;gap:10px;">
-            <label class="wdg-toggle"><input type="checkbox" id="wdgOn" checked> Include in email</label>
-            <button class="copy-sm" id="wdgResetBtn" type="button">Reset dates</button>
-          </span>
-        </div>
-        <div class="wdg-track-row">
-          <label>Track</label>
-          <select class="field-input" id="wdgTrack" style="width:260px;"></select>
-          <label style="margin-left:auto;">Header</label>
-          <input type="text" class="field-input" id="wdgLabel" style="width:170px;" placeholder="DEA - 2A">
-        </div>
-        <div class="wdg-scroll">
-          <table class="wdg-table" id="wdgTable"></table>
-        </div>
-        <p class="tmpl-hint">Click a status cell to cycle it: done → current → pending. Dates are editable and free text, so “Aug 10 – Aug 21, 2026 Sprint” works.</p>
-      </div>
-
-      <!-- Subject -->
-      <div class="form-card">
-        <div class="card-title"><i class="fa-solid fa-heading"></i> Subject Line</div>
-        <div class="subject-row" style="margin-bottom:0.6rem;">
-          <select class="field-input" id="taskTypeSelect" style="flex:0 0 auto;width:220px;"></select>
-        </div>
-        <div class="subject-row">
+        <div class="subject-strip">
+          <select class="field-input" id="taskTypeSelect"></select>
           <input type="text" class="field-input" id="subjectInput" placeholder="Email subject line">
           <button class="copy-sm" id="copySubjBtn" type="button">Copy</button>
-          <button class="ai-btn" id="aiSubjectBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Suggest</button>
+          <button class="ai-btn" id="aiSubjectBtn" title="Suggest a subject"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
         </div>
-      </div>
 
-      <!-- Composed email -->
-      <div class="form-card" style="padding-bottom:0.9rem;">
-        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
-          <span><i class="fa-regular fa-envelope"></i> Email <span class="editable-tag">editable — click to change any wording</span></span>
+        <details class="wdg-fold" id="wdgFold" open>
+          <summary>
+            <span><i class="fa-solid fa-diagram-project"></i> Progress widget</span>
+            <span class="wdg-sum-actions">
+              <label class="wdg-toggle"><input type="checkbox" id="wdgOn" checked> Include</label>
+              <button class="copy-sm" id="wdgResetBtn" type="button">Reset</button>
+            </span>
+          </summary>
+          <div class="wdg-track-row">
+            <label>Track</label>
+            <select class="field-input" id="wdgTrack" style="width:190px;"></select>
+            <label>Header</label>
+            <input type="text" class="field-input" id="wdgLabel" style="width:130px;" placeholder="DEA - 2A">
+          </div>
+          <div class="wdg-scroll"><table class="wdg-table" id="wdgTable"></table></div>
+          <p class="tmpl-hint">Calendar button picks a date; the field also takes free text like “Aug 10 – Aug 21, 2026 Sprint”. Click a status to cycle it.</p>
+        </details>
+
+        <div class="preview-head">
+          <span><i class="fa-regular fa-envelope"></i> Email <span class="editable-tag">click to edit any wording</span></span>
           <span id="phWarn" class="ph-warn" style="display:none;"></span>
         </div>
-        <div class="email-box">
+        <div class="email-box preview-box">
           <div id="body-main" class="email-content" contenteditable="true" spellcheck="true"></div>
         </div>
+
         <div class="action-bar">
           <button class="btn-primary" id="copyRichBtn"><i class="fa-regular fa-copy"></i> Copy for Outlook</button>
           <button class="btn-secondary-a" id="openOutlookBtn"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Outlook</button>
-          <button class="btn-secondary-a" id="copyPlainBtn"><i class="fa-solid fa-align-left"></i> Copy plain text</button>
+          <button class="btn-secondary-a" id="copyPlainBtn"><i class="fa-solid fa-align-left"></i> Plain text</button>
           <button class="btn-secondary-a" id="resetBodyBtn"><i class="fa-solid fa-rotate-left"></i> Reset edits</button>
         </div>
-      </div>
 
+      </main>
     </div>
   </div>
 
@@ -1345,6 +1409,7 @@
 
     function guessTrack(ticket) {
       const s = (ticket.subCategory || '').toLowerCase();
+      if (/graphic design|content production/.test(s)) return 'Graphic Design';
       if (s.includes('email')) return 'Email Journey';
       if (s.includes('website') || s.includes('content')) return 'Website Content';
       return 'Generic';
@@ -1386,19 +1451,17 @@
       document.getElementById('ethService').textContent = ticket.subCategory;
       document.getElementById('ethSLA').textContent = ticket.slaDate ? fmtDate(ticket.slaDate) : 'N/A';
 
-      const createdFull = fmtFull(ticket.created);
-      const createdWrap = document.getElementById('ethCreatedWrap');
-      if (createdFull) {
-        document.getElementById('ethCreated').textContent = createdFull;
-        createdWrap.style.display = '';
-      } else { createdWrap.style.display = 'none'; }
-
-      const prefLiveFull = fmtFull(ticket.prefLive);
-      const prefLiveWrap = document.getElementById('ethPrefLiveWrap');
-      if (prefLiveFull) {
-        document.getElementById('ethPrefLive').textContent = prefLiveFull;
-        prefLiveWrap.style.display = '';
-      } else { prefLiveWrap.style.display = 'none'; }
+      // dt and dd are separate grid children — hiding only the label would
+      // leave its value dangling under the wrong heading.
+      const showPair = (dtId, ddId, text) => {
+        const dt = document.getElementById(dtId), dd = document.getElementById(ddId);
+        const on = !!text;
+        dt.style.display = on ? '' : 'none';
+        dd.style.display = on ? '' : 'none';
+        if (on) dd.textContent = text;
+      };
+      showPair('ethCreatedWrap', 'ethCreated', fmtFull(ticket.created));
+      showPair('ethPrefLiveWrap', 'ethPrefLive', fmtFull(ticket.prefLive));
 
       const stateBadge = document.getElementById('ethState');
       stateBadge.textContent = ticket.state;
@@ -1427,7 +1490,10 @@
       }
       document.getElementById('wdgLabel').value = widget.label;
 
-      selectTemplate(opts.tmpl || 'ack', { silent: !!opts.silent });
+      activeTemplates = templatesFor(ticket);
+      populateTemplatePicker(activeTemplates);
+      const wanted = opts.tmpl && activeTemplates.some(t => t.id === opts.tmpl) ? opts.tmpl : activeTemplates[0].id;
+      selectTemplate(wanted, { silent: !!opts.silent });
       showView('email');
       window.scrollTo(0, 0);
     }
@@ -1455,6 +1521,8 @@
       liveNow:       { label: "What's live now",        type: 'area', ph: 'One per line' },
       liveNext:      { label: "What's next",            type: 'area', ph: 'One per line' },
       partialDate:   { label: 'Partial go-live date',   type: 'date' },
+      sharePoint:    { label: 'Teams / SharePoint link', type: 'text', ph: 'https://kone.sharepoint.com/…' },
+      newDate:       { label: 'Revised completion date', type: 'date' },
     };
 
     const SIG = ctx => `<p>Warm Regards,<br><strong>${esc(ctx.specialist)}</strong><br>`
@@ -1663,10 +1731,210 @@
       },
     ];
 
+    // ── Content Production – Graphic Design ───────────────────────────────
+    // Design tickets run a different lifecycle to the rest of the Hub: three
+    // named review rounds, delivery into SharePoint rather than a live URL, and
+    // a rejection that turns on Tier 1/2 scope instead of the brief template.
+    // Wording is verbatim from CPGD_emails.txt.
+    const CPGD_SIGN = (ctx, word) => `<p>${word}<br><strong>${esc(ctx.specialist)}</strong></p>`;
+
+    const CPGD_TEMPLATES = [
+      {
+        id: 'cp-ack', label: 'Introduction / Acknowledgement', group: 'Intake', quick: true,
+        task: 'Assigned', stage: 'Request raised',
+        hint: 'The SLA paragraph switches automatically on whether the preferred date is achievable.',
+        body: ctx => {
+          const matched = ctx.prefLive && ctx.slaDate && ctx.prefLive >= ctx.slaDate;
+          const sla = matched
+            ? `<p>Thanks for your request! We're aiming to complete it within our 10 working day Service Level Agreement, which also aligns well with your preferred timeline of ${ctx.prefLiveTxt}.</p>`
+            : `<p>We usually have a 10-working-day turnaround, so we're targeting ${ctx.slaTxt} to have everything wrapped up. I saw that you'd prefer a completion date of ${ctx.prefLiveTxt}, which is a bit sooner than our usual timeframe. We'll do our best to meet that earlier date and keep you updated along the way. If anything changes, we'll let you know as soon as possible.</p>`;
+          return GREET(ctx)
+            + `<p>Thank you for submitting your request to the Digital Marketing Hub team. We've received your request to “${esc(ctx.title)}” and your ticket number is <strong>${esc(ctx.id)}</strong>.</p>`
+            + `<p>I'm ${esc(ctx.specialist)} and I will be handling your ticket, and you can contact me anytime via email or MS Teams.</p>`
+            + `<p><strong>Next steps:</strong> I'll review your request to ensure we have all the necessary information to begin. I'll confirm via email within 24 hours. If I need any clarification or additional details, I'll reach out to you promptly.</p>`
+            + sla
+            + `<p>We'll keep you updated on our progress and let you know if anything changes.</p>`
+            + CPGD_SIGN(ctx, 'Thank you!');
+        },
+      },
+      {
+        id: 'cp-commence', label: 'Work Commences / Confirmation', group: 'Intake', quick: true,
+        task: 'In Review', stage: 'Brief validation',
+        body: ctx => GREET(ctx)
+          + `<p>I've reviewed the brief and I have all the necessary information to begin work.</p>`
+          + `<p>Once I have a preview ready, I'll promptly send it to you via email.</p>`
+          + CPGD_SIGN(ctx, 'Thank you!'),
+      },
+      {
+        id: 'cp-clarification', label: 'Clarification Required', group: 'Intake',
+        task: 'On Hold', stage: 'Brief validation', stageStatus: 'current',
+        needs: ['details', 'closureDate'],
+        body: ctx => GREET(ctx)
+          + `<p>We've reviewed your brief, and before we proceed, we require some additional information. Could you please provide the following details:</p>`
+          + listOf(ctx.f.details, '[Details]')
+          + `<p><strong>Your ticket status:</strong> We will need those details to proceed, so your ticket will be on hold until we receive it.</p>`
+          + `<p>Please send them over at your earliest convenience. We understand things can get busy, but every day counts toward meeting your preferred date ${ctx.prefLiveTxt}.</p>`
+          + `<p>We can hold your ticket for up to 14 working days, until ${ctx.dateOr('closureDate', ctx.hold14Txt)}. If we haven't heard back from you by then, we'll have to close the ticket, and no further action will be taken from our end.</p>`
+          + `<p>Thanks for your prompt attention to this!</p>`
+          + CPGD_SIGN(ctx, 'Best Regards,'),
+      },
+      {
+        id: 'cp-received', label: 'Received Clarification', group: 'Intake',
+        task: 'In Progress', stage: 'Brief validation',
+        body: ctx => GREET(ctx)
+          + `<p>Thank you for providing the necessary details, really appreciate it!</p>`
+          + `<p>We'll start working on your ticket now. Once we have a preview ready, we'll promptly send it over to you.</p>`
+          + CPGD_SIGN(ctx, 'Thank you!'),
+      },
+      {
+        id: 'cp-reject', label: 'Rejection — Out of Scope', group: 'Intake',
+        task: 'Closed Incomplete', stage: 'Request raised', stageStatus: 'current',
+        hint: 'For briefs that fall outside Tier 1 / Tier 2 scope.',
+        body: ctx => GREET(ctx)
+          + `<p>Thanks a bunch for submitting your request to our Marketing Hub team, we really appreciate it!</p>`
+          + `<p>I reviewed the brief you sent with your request. It looks like the brief goes beyond the scope of Tier 1 and Tier 2 requests. Because of that, we won't be able to take this ticket forward.</p>`
+          + `<p>Just a quick reminder: our team handles only Tier 1 and Tier 2 briefs that falls within our scope so we can respond quickly and serve you better. Since this request falls outside that scope, I'll need to close your current request (number: <strong>${esc(ctx.id)}</strong>).</p>`
+          + `<p>But hey, no worries! We'll be here and happy to help you out with any in-scope requests in the future.</p>`
+          + `<p>I'm really looking forward to helping you out!</p>`
+          + CPGD_SIGN(ctx, 'Best Regards,'),
+      },
+
+      // ── On hold ───────────────────────────────────────────────────────
+      {
+        id: 'cp-onhold', label: 'Ticket Put On-Hold', group: 'On hold', quick: true,
+        task: 'On Hold', stage: null, stageStatus: 'current',
+        needs: ['reason', 'ohDate', 'closureDate'],
+        body: ctx => GREET(ctx)
+          + `<p>We'd like to let you know that your ticket is currently on hold due to ${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason]')}.</p>`
+          + `<p>We're happy to keep the ticket on hold while we wait for the required information. However, please note that this time will count toward meeting your preferred live date of ${ctx.prefLiveTxt}.</p>`
+          + `<p>We can keep the ticket on hold for up to 14 working days, until ${ctx.dateOr('closureDate', ctx.hold14Txt)}. If we don't receive the necessary information by then, we'll need to close the ticket. Once you have the required details, you're welcome to submit a new ticket, and we'll be happy to support you.</p>`
+          + `<p>Thank you for your understanding and support!</p>`
+          + CPGD_SIGN(ctx, 'Best regards,'),
+      },
+      {
+        id: 'cp-oh-r1', label: 'On-Hold — First Reminder (Day 7)', group: 'On hold',
+        task: 'On Hold', stage: null, needs: ['reason', 'ohDate'],
+        body: ctx => GREET(ctx)
+          + `<p>Just a quick heads-up that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.”</p>`
+          + `<p>We can keep it on hold for up to 14 working days.</p>`
+          + `<p>With only a few days left, we wanted to check if you have any updates or info for us.</p>`
+          + `<p>We're aiming to resolve this ticket as soon as possible, so let us know if there's anything you can share.</p>`
+          + `<p>Thanks!</p>` + CPGD_SIGN(ctx, 'Best Regards,'),
+      },
+      {
+        id: 'cp-oh-r2', label: 'On-Hold — Final Reminder (Day 13)', group: 'On hold',
+        task: 'On Hold', stage: null, needs: ['reason', 'ohDate', 'closureDate'],
+        body: ctx => GREET(ctx)
+          + `<p>Just a final reminder that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.”</p>`
+          + `<p>We're nearing the 14-day mark, with the deadline on ${ctx.dateOr('closureDate', ctx.hold14Txt)}.</p>`
+          + `<p>If we don't hear from you by then, we'll need to close the ticket. However, you can always open a new one when you're ready with the details.</p>`
+          + `<p>Thanks for your quick attention!</p>` + CPGD_SIGN(ctx, 'Best Regards,'),
+      },
+      {
+        id: 'cp-oh-closure', label: 'On-Hold — Closure (Day 15)', group: 'On hold',
+        task: 'Closed Incomplete', stage: 'Delivered',
+        needs: ['reason', 'ohDate', 'closureDate'],
+        body: ctx => GREET(ctx)
+          + `<p>We've had your ticket on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.”</p>`
+          + `<p>Since we haven't received a response, we've gone ahead and closed it as of ${ctx.dateOr('closureDate', ctx.todayTxt)}.</p>`
+          + `<p>If you still need help, just create a new ticket with the details, and we'll get right on it.</p>`
+          + `<p>Thanks for understanding!</p>` + CPGD_SIGN(ctx, 'Best regards,'),
+      },
+
+      // ── Review rounds ─────────────────────────────────────────────────
+      {
+        id: 'cp-review1', label: 'First Draft Review', group: 'Review rounds', quick: true,
+        task: 'Pending Confirmation', stage: 'First review', stageStatus: 'current',
+        needs: ['sharePoint'],
+        hint: 'Sets expectations that this draft is about direction, not polish.',
+        body: ctx => GREET(ctx)
+          + `<p>I've prepared the first draft of your design request <strong>${esc(ctx.id)}</strong> regarding “${esc(ctx.title)}”, and it's ready for your review.</p>`
+          + `<p>You can check out the preview here:<br>${ctx.spLinkHtml}</p>`
+          + `<p><strong>Next step:</strong></p>`
+          + `<ul><li>As this is the first draft, you may notice a few missing elements, placeholder content, or areas where the design still needs refinement. At this stage, the focus is on validating the overall direction, layout, and concept. I'd really appreciate you taking the time to go through it and share any suggestions or feedback you may have. Once we've aligned on the concept, I'll refine the artwork, incorporate your comments, and prepare the final files for delivery.</li>`
+          + `<li>If you have any amends to make, you can share them with me directly by email or on Teams for the first couple of rounds. Beyond that, or if the brief has changed entirely, please share it via email or you can share it as a comment within the request section.</li></ul>`
+          + `<p>Thank you for your patience, and I look forward to hearing your thoughts!</p>`
+          + CPGD_SIGN(ctx, 'Best,'),
+      },
+      {
+        id: 'cp-review2', label: 'Second Review', group: 'Review rounds',
+        task: 'Pending Confirmation', stage: 'Second review', stageStatus: 'current',
+        needs: ['sharePoint'],
+        body: ctx => GREET(ctx)
+          + `<p>Thank you for your feedback on the first draft.</p>`
+          + `<p>I've incorporated the requested changes and prepared an updated version for your review.</p>`
+          + `<p>You can check out the revised preview here:<br>${ctx.spLinkHtml}</p>`
+          + `<p><strong>Next step:</strong></p>`
+          + `<ul><li>Please review this version and let me know if the requested changes have been addressed as expected. To help keep the project moving smoothly and ensure the work is completed as efficiently as possible, I'd appreciate it if you could share any remaining comments or additional refinements in this review round.</li>`
+          + `<li>Once we've aligned on this version, I'll proceed with the final refinements and prepare the deliverables for final review.</li></ul>`
+          + `<p>Thank you again for your feedback, and I look forward to hearing your thoughts.</p>`
+          + CPGD_SIGN(ctx, 'Best,'),
+      },
+      {
+        id: 'cp-review3', label: 'Third / Final Review', group: 'Review rounds',
+        task: 'Pending Confirmation', stage: 'Final review', stageStatus: 'current',
+        needs: ['sharePoint'],
+        body: ctx => GREET(ctx)
+          + `<p>I've now incorporated the latest round of feedback and prepared what should be the final version of your design request for review.</p>`
+          + `<p>You can view it here:<br>${ctx.spLinkHtml}</p>`
+          + `<p><strong>Next step:</strong></p>`
+          + `<ul><li>Please take one final look to ensure everything meets your expectations. If there are any remaining changes, I'd appreciate it if you could share them all together in this review. Consolidating the final feedback helps us complete the work faster and avoid any unnecessary delays.</li>`
+          + `<li>If everything looks good and no further changes are required, simply reply to this email (or send me a message on Teams) with your approval, and I'll prepare the final files for delivery and close the ticket.</li></ul>`
+          + `<p>Thank you for your collaboration throughout the review process. I look forward to your approval!</p>`
+          + CPGD_SIGN(ctx, 'Best,'),
+      },
+      {
+        id: 'cp-preview', label: 'Preview / Approval', group: 'Review rounds', quick: true,
+        task: 'Pending Confirmation', stage: 'Final review', stageStatus: 'current',
+        needs: ['sharePoint'],
+        body: ctx => GREET(ctx)
+          + `<p>Exciting news!</p>`
+          + `<p>I've got a sneak peek of your design request <strong>${esc(ctx.id)}</strong> regarding the “${esc(ctx.title)}”, ready for your review.</p>`
+          + `<p>You can check out the preview here:<br>${ctx.spLinkHtml}</p>`
+          + `<p><strong>Next step:</strong></p>`
+          + `<ul><li>If the design meets your expectations and doesn't require any changes, please reply to this email (or drop me a note on Teams) with your approval. I'll then plan to deliver the final design on your preferred date, ${ctx.prefLiveTxt}.</li>`
+          + `<li>If you have any amends to make, you can share them with me directly by email or on Teams for the first couple of rounds. Beyond that, or if the brief has changed entirely, please share it via email or you can share it as a comment within the request section.</li></ul>`
+          + CPGD_SIGN(ctx, 'Thank you!'),
+      },
+
+      // ── Closing ───────────────────────────────────────────────────────
+      {
+        id: 'cp-missed', label: 'Missed Preferred Live Date', group: 'Closing',
+        task: 'In Progress', stage: 'Design in progress', stageStatus: 'current',
+        needs: ['newDate'],
+        body: ctx => GREET(ctx)
+          + `<p>I've looked into every possibility to meet your preferred deadline for today, but due to other priorities, I've only gotten halfway through your request.</p>`
+          + `<p>I apologize for missing your preferred live date, but we have prioritized your request and are looking to complete it by ${ctx.dateOr('newDate', PH('[Date]'))}.</p>`
+          + `<p>Please let me know if that works for you.</p>`
+          + `<p>I'll keep you posted on my progress. If you have any concerns or aren't happy with this delay, please let us know in the ${ctx.feedbackLinkHtml} for further action.</p>`
+          + CPGD_SIGN(ctx, 'Best Regards,'),
+      },
+      {
+        id: 'cp-closed', label: 'Ticket Closed — Completed', group: 'Closing', quick: true,
+        task: 'Closed Completed', stage: 'Delivered',
+        needs: ['sharePoint'],
+        hint: 'Delivery is the SharePoint folder, not a live URL.',
+        body: ctx => GREET(ctx)
+          + `<p>Great news! Your request number <strong>${esc(ctx.id)}</strong> has been successfully completed and is now available in the common SharePoint folder.</p>`
+          + `<p>File link: ${ctx.spLinkHtml}</p>`
+          + `<p>Please download the file for your records.</p>`
+          + `<p>Consider this ticket closed. If you need any tweaks, just open a new ticket.</p>`
+          + `<p>We'd love to hear your thoughts on how we did, so we can keep getting better. Share your feedback with us using the form linked here:<br>${ctx.feedbackLinkHtml}</p>`
+          + CPGD_SIGN(ctx, 'Best Regards,'),
+      },
+    ];
+
+    // Design tickets get their own set; everything else keeps the standard one.
+    function templatesFor(ticket) {
+      const s = (ticket?.subCategory || '').toLowerCase();
+      return /graphic design|content production/.test(s) ? CPGD_TEMPLATES : TEMPLATES;
+    }
+
     // ── Progress widget ───────────────────────────────────────────────────
     const TRACKS = {
       'Email Journey': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Journey development', 'FL testing & approval', 'Deployment scheduled', 'Request completed'],
       'Website Content': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Page build', 'FL testing & approval', 'Deployment scheduled', 'Request completed'],
+      'Graphic Design': ['Request raised', 'Brief validation', 'Design in progress', 'First review', 'Second review', 'Final review', 'Delivered'],
       'Generic': ['Request raised', 'In review', 'In progress', 'Preview shared', 'Approved', 'Live', 'Request completed'],
     };
     const STATUS_CYCLE = ['done', 'current', 'pending', 'na'];
@@ -1791,6 +2059,7 @@
 
     // ── Composition ───────────────────────────────────────────────────────
     let activeTemplate = null;
+    let activeTemplates = TEMPLATES;
     let fieldValues = {};
     let bodyEdited = false;
 
@@ -1825,6 +2094,9 @@
         previewLinkHtml: linkHtml(val('previewInput'), 'Preview Link', '[Preview Link]'),
         feedbackLinkHtml: linkHtml(val('feedbackUrlInput'), 'feedback form', '[feedback form]'),
         liveLinkHtml: linkHtml(val('liveInput'), val('liveInput') || 'Live Site Link', '[Live Site Link]'),
+        spLinkHtml: (fieldValues.sharePoint || '').trim()
+          ? `<a href="${esc(fieldValues.sharePoint.trim())}">${esc(fieldValues.sharePoint.trim())}</a>`
+          : PH('[Teams/SharePoint Link or Folder]'),
       };
       ctx.dateOr = (key, fallback) => {
         const v = (fieldValues[key] || '').trim();
@@ -1885,8 +2157,22 @@
       el.textContent = `${n} placeholder${n === 1 ? '' : 's'} still to fill`;
     }
 
+    function populateTemplatePicker(list) {
+      const sel = document.getElementById('tmplSelect');
+      const groups = [...new Set(list.map(t => t.group))];
+      sel.innerHTML = groups.map(g =>
+        `<optgroup label="${esc(g)}">`
+        + list.filter(t => t.group === g).map(t => `<option value="${t.id}">${esc(t.label)}</option>`).join('')
+        + '</optgroup>').join('');
+      const picks = document.getElementById('quickPicks');
+      picks.innerHTML = list.filter(t => t.quick)
+        .map(t => `<button type="button" class="qpick" data-id="${t.id}">${esc(t.label)}</button>`).join('');
+      picks.querySelectorAll('.qpick').forEach(b =>
+        b.addEventListener('click', () => selectTemplate(b.dataset.id)));
+    }
+
     function selectTemplate(id, { silent = false } = {}) {
-      const t = TEMPLATES.find(x => x.id === id) || TEMPLATES[0];
+      const t = activeTemplates.find(x => x.id === id) || activeTemplates[0];
       activeTemplate = t;
       document.getElementById('tmplSelect').value = t.id;
       document.querySelectorAll('.qpick').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
@@ -2189,19 +2475,8 @@
         renderGrid(); // re-highlight if needed
       });
 
-      // ── Template picker ────────────────────────────────────────────
-      const tmplSel = document.getElementById('tmplSelect');
-      const groups = [...new Set(TEMPLATES.map(t => t.group))];
-      tmplSel.innerHTML = groups.map(g =>
-        `<optgroup label="${g}">` +
-        TEMPLATES.filter(t => t.group === g).map(t => `<option value="${t.id}">${esc(t.label)}</option>`).join('') +
-        '</optgroup>').join('');
-      tmplSel.addEventListener('change', e => selectTemplate(e.target.value));
-
-      document.getElementById('quickPicks').innerHTML = TEMPLATES.filter(t => t.quick)
-        .map(t => `<button type="button" class="qpick" data-id="${t.id}">${esc(t.label)}</button>`).join('');
-      document.querySelectorAll('.qpick').forEach(b =>
-        b.addEventListener('click', () => selectTemplate(b.dataset.id)));
+      // ── Template picker (contents depend on the ticket's service) ──
+      document.getElementById('tmplSelect').addEventListener('change', e => selectTemplate(e.target.value));
 
       // ── Progress widget controls ───────────────────────────────────
       const trackSel = document.getElementById('wdgTrack');
