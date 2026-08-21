@@ -1084,6 +1084,126 @@
     /* ── Empty state ──────────────────────────────────────────────────── */
     .empty-msg h3 { font-family: 'Inter', sans-serif; text-transform: none; font-weight: 400; color: var(--text); }
     .empty-msg p { color: var(--muted); }
+    /* ══════════════════════════════════════════════════════════════════════
+       Composer, rebuilt around the email
+       The two-pane version gave a third of the screen to a rail that was
+       mostly collapsed and mostly empty. The email is the thing being made, so
+       it gets the page; the controls are a toolbar, and each opens one panel
+       only while it is needed.
+       ══════════════════════════════════════════════════════════════════════ */
+
+    .doc-head {
+      position: sticky; top: var(--nav-h); z-index: 30;
+      display: flex; align-items: center; gap: 14px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 10px 22px;
+    }
+    .doc-title { min-width: 0; flex: 1 1 auto; }
+    .doc-title-row { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+    .doc-num { font-family: var(--font-kone); letter-spacing: 0.05em; color: var(--primary); font-size: 0.78rem; flex: 0 0 auto; }
+    .doc-desc {
+      font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .doc-meta {
+      display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 3px;
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+      font-size: 0.64rem; color: var(--muted);
+    }
+    .doc-meta b { color: var(--text); font-weight: 400; }
+    .doc-meta .late { color: #a8340c; }
+
+    /* Toolbar */
+    .doc-tools {
+      position: sticky; top: calc(var(--nav-h) + 57px); z-index: 25;
+      display: flex; flex-wrap: wrap; gap: 6px;
+      background: var(--bg); padding: 10px 22px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tool {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: var(--surface); border: 1px solid var(--border-strong);
+      border-radius: var(--radius); padding: 7px 12px; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-size: 0.8rem; font-weight: 500; color: var(--text);
+      transition: border-color .12s ease, background .12s ease;
+    }
+    .tool:hover { border-color: var(--primary); color: var(--primary); }
+    .tool.open { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .tool .caret { font-size: 0.6rem; opacity: .55; }
+    .tool-badge {
+      font-family: var(--font-kone); font-size: 0.6rem; letter-spacing: 0.04em;
+      background: #fff1dc; border: 1px solid #ffd79a; color: #8a5200;
+      border-radius: 3px; padding: 0 5px;
+    }
+    .tool.open .tool-badge { background: rgba(255,255,255,0.22); border-color: transparent; color: #fff; }
+    .tool-note { color: var(--muted); font-size: 0.72rem; }
+    .tool.open .tool-note { color: rgba(255,255,255,0.8); }
+
+    /* Panels */
+    .doc-panels { padding: 0 22px; }
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      padding: 16px 18px 18px; max-width: 1180px; margin: 0 auto;
+    }
+    .panel[hidden] { display: none; }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.06em;
+      font-size: 0.72rem; color: var(--text); margin-bottom: 12px;
+    }
+    .panel-head-actions { display: flex; align-items: center; gap: 12px; }
+    .panel-count { font-size: 0.62rem; color: var(--muted); }
+    .panel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .panel-grid > div[style*="grid-column"] { grid-column: 1 / -1; }
+
+    /* Template list inside its panel — three columns, all of it visible */
+    .tmpl-list {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 2px 20px; align-items: start;
+    }
+    .tmpl-group { display: contents; }
+    .tmpl-group > summary { display: none; }
+    .tmpl-glabel {
+      grid-column: 1 / -1; font-family: var(--font-kone); text-transform: uppercase;
+      letter-spacing: 0.06em; font-size: 0.6rem; color: var(--muted);
+      padding: 10px 0 3px; border-top: 1px solid var(--border); margin-top: 6px;
+    }
+    .tmpl-glabel:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+
+    /* The email, on paper */
+    .doc-body { padding: 20px 22px 0; }
+    .subject-strip {
+      display: flex; gap: 7px; align-items: center;
+      max-width: 900px; margin: 0 auto 14px; background: transparent; border: none; padding: 0;
+    }
+    .subject-strip #taskTypeSelect { flex: 0 0 180px; }
+    .subject-strip #subjectInput { flex: 1 1 auto; min-width: 0; }
+    .paper {
+      max-width: 900px; margin: 0 auto;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 30px 38px 34px;
+    }
+    .paper-tag {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.06em;
+      font-size: 0.62rem; color: var(--muted);
+      padding-bottom: 14px; margin-bottom: 20px; border-bottom: 1px solid var(--border);
+    }
+    .paper .email-content { font-size: 0.9rem; line-height: 1.65; }
+
+    .doc-actions {
+      position: sticky; bottom: 0; z-index: 20;
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+      background: var(--bg); border-top: 1px solid var(--border);
+      padding: 12px 22px; margin-top: 22px;
+    }
+
+    @media (max-width: 900px) {
+      .doc-head { flex-wrap: wrap; }
+      .paper { padding: 22px 20px; }
+    }
+
   </style>
 </head>
 <body>
@@ -1222,144 +1342,147 @@
   <!-- ── VIEW: Email Composition ── -->
   <div class="view" id="view-email">
 
-    <!-- Identity strip: who/what/when, one line, always visible -->
-    <div class="email-nav">
+    <!-- Ticket identity: one line, everything you need to know about the ticket -->
+    <header class="doc-head">
       <button class="btn-back-list" id="backToListBtn"><i class="fa-solid fa-arrow-left"></i> Tickets</button>
-      <span class="email-nav-ticket" id="enTicketNum"></span>
-      <span class="email-nav-desc" id="enTicketDesc"></span>
-      <span class="state-badge" id="ethState"></span>
-      <span id="ethDaysBadgeWrap"></span>
+      <div class="doc-title">
+        <div class="doc-title-row">
+          <span class="doc-num" id="enTicketNum"></span>
+          <span class="doc-desc" id="enTicketDesc"></span>
+        </div>
+        <div class="doc-meta" id="ticketStats"></div>
+      </div>
       <span class="saved-pill" id="savedPill"><i class="fa-solid fa-check"></i> Saved</span>
-      <button class="copy-sm" id="forgetBtn" type="button" style="margin-left:auto;" title="Discard the links, dates and widget saved for this ticket">Clear saved</button>
+      <button class="copy-sm" id="forgetBtn" type="button" title="Discard the links, dates and widget saved for this ticket">Clear saved</button>
+    </header>
+
+    <!-- Controls collapse into a toolbar; each opens one panel below it -->
+    <nav class="doc-tools" id="docTools">
+      <button type="button" class="tool" data-panel="panel-tmpl">
+        <i class="fa-regular fa-envelope"></i><span id="toolTmplName">Choose email</span><i class="fa-solid fa-chevron-down caret"></i>
+      </button>
+      <button type="button" class="tool" data-panel="panel-fields" id="toolFields">
+        <i class="fa-solid fa-sliders"></i>Details<span class="tool-badge" id="toolFieldsBadge"></span><i class="fa-solid fa-chevron-down caret"></i>
+      </button>
+      <button type="button" class="tool" data-panel="panel-widget">
+        <i class="fa-solid fa-diagram-project"></i>Progress<span class="tool-note" id="toolWidgetNote"></span><i class="fa-solid fa-chevron-down caret"></i>
+      </button>
+      <button type="button" class="tool" data-panel="panel-links">
+        <i class="fa-solid fa-link"></i>Links<i class="fa-solid fa-chevron-down caret"></i>
+      </button>
+      <button type="button" class="tool" data-panel="panel-people">
+        <i class="fa-solid fa-paper-plane"></i>To / Cc<i class="fa-solid fa-chevron-down caret"></i>
+      </button>
+      <button type="button" class="tool" data-panel="panel-ticket">
+        <i class="fa-solid fa-circle-info"></i>Ticket<i class="fa-solid fa-chevron-down caret"></i>
+      </button>
+    </nav>
+
+    <div class="doc-panels">
+      <section class="panel" id="panel-tmpl" hidden>
+        <div class="panel-head">Choose the email <span class="panel-count" id="tmplCount"></span></div>
+        <div class="tmpl-list" id="quickPicks"></div>
+        <select id="tmplSelect" class="visually-hidden" tabindex="-1" aria-hidden="true"></select>
+        <p class="tmpl-hint" id="tmplHint"></p>
+      </section>
+
+      <section class="panel" id="panel-fields" hidden>
+        <div class="panel-head">Details for this email</div>
+        <div class="panel-grid" id="dynFields"></div>
+        <div id="dynFieldsCard" hidden></div>
+      </section>
+
+      <section class="panel" id="panel-widget" hidden>
+        <div class="panel-head">
+          Progress widget
+          <span class="panel-head-actions">
+            <label class="wdg-toggle"><input type="checkbox" id="wdgOn" checked> Include in email</label>
+            <button class="copy-sm" id="wdgResetBtn" type="button">Reset</button>
+          </span>
+        </div>
+        <div class="wdg-track-row">
+          <label>Track</label>
+          <select class="field-input" id="wdgTrack" style="width:200px;"></select>
+          <label>Header</label>
+          <input type="text" class="field-input" id="wdgLabel" style="width:140px;" placeholder="e.g. DEA - 2A">
+        </div>
+        <div class="wdg-scroll"><table class="wdg-table" id="wdgTable"></table></div>
+        <p class="tmpl-hint">Calendar picks a date; the field also takes free text like “Aug 10 – Aug 21, 2026 Sprint”. Click a status to cycle it.</p>
+      </section>
+
+      <section class="panel" id="panel-links" hidden>
+        <div class="panel-head">Links</div>
+        <div class="panel-grid">
+          <div>
+            <label>Case URL</label>
+            <div class="input-with-btn">
+              <input type="text" class="field-input" id="caseUrlInput" placeholder="ServiceNow agent view URL">
+              <button class="gen-btn" id="genCaseBtn">Gen</button>
+            </div>
+            <div class="link-ok" id="caseOk"><i class="fa-solid fa-check-circle"></i><a id="caseLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="caseCopyBtn">Copy</button></div>
+            <div class="field-err" id="caseErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+          </div>
+          <div>
+            <label>Feedback URL</label>
+            <div class="input-with-btn">
+              <input type="text" class="field-input" id="feedbackUrlInput" placeholder="Survey instance URL">
+              <button class="gen-btn" id="genFeedbackBtn">Gen</button>
+            </div>
+            <div class="link-ok" id="feedbackOk"><i class="fa-solid fa-check-circle"></i><a id="feedbackLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="feedbackCopyBtn">Copy</button></div>
+            <div class="field-err" id="feedbackErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+          </div>
+          <div><label>Preview link</label><input type="url" class="field-input" id="previewInput" placeholder="https://…"></div>
+          <div><label>Live link</label><input type="url" class="field-input" id="liveInput" placeholder="https://…"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-people" hidden>
+        <div class="panel-head">Recipients</div>
+        <div class="panel-grid">
+          <div><label>To</label><input type="text" class="field-input" id="toInput" placeholder="name@kone.com"></div>
+          <div><label>Cc</label><input type="text" class="field-input" id="ccInput" placeholder="separate with ;"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-ticket" hidden>
+        <div class="panel-head">Ticket details</div>
+        <dl class="rail-meta">
+          <dt>Assignee</dt><dd id="ethAssignee"></dd>
+          <dt>Requested by</dt><dd id="ethClient"></dd>
+          <dt>Watch list</dt><dd id="ethWatchList"></dd>
+          <dt>Service</dt><dd id="ethService"></dd>
+          <dt id="ethCreatedWrap">Created</dt><dd id="ethCreated"></dd>
+          <dt id="ethPrefLiveWrap">Preferred live</dt><dd id="ethPrefLive"></dd>
+          <dt>SLA deadline</dt><dd><strong id="ethSLA"></strong></dd>
+        </dl>
+        <span id="ethState" hidden></span><span id="ethDaysBadgeWrap" hidden></span>
+        <span id="ethNum" hidden></span><span id="ethDesc" hidden></span>
+      </section>
     </div>
 
-    <div class="stat-strip compose-stats" id="ticketStats"></div>
+    <!-- The email is the page -->
+    <div class="doc-body">
+      <div class="subject-strip">
+        <select class="field-input" id="taskTypeSelect"></select>
+        <input type="text" class="field-input" id="subjectInput" placeholder="Email subject line">
+        <button class="copy-sm" id="copySubjBtn" type="button">Copy</button>
+        <button class="ai-btn" id="aiSubjectBtn" title="Suggest a subject"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+      </div>
 
-    <div class="compose-grid">
-
-      <!-- ── Left rail: everything you set up ── -->
-      <aside class="compose-rail">
-
-        <section class="rail-sec">
-          <div class="band-head static">
-            <span class="band-dot u-choose"></span>
-            <span class="band-label">Choose the email</span>
-            <span class="band-count" id="tmplCount"></span>
-          </div>
-          <div class="tmpl-list" id="quickPicks"></div>
-          <select id="tmplSelect" class="visually-hidden" tabindex="-1" aria-hidden="true"></select>
-          <p class="tmpl-hint" id="tmplHint"></p>
-        </section>
-
-        <section class="rail-sec" id="dynFieldsCard" style="display:none;">
-          <div class="band-head static">
-            <span class="band-dot u-details"></span>
-            <span class="band-label">Details for this email</span>
-          </div>
-          <div class="rail-fields" id="dynFields"></div>
-        </section>
-
-        <details class="rail-sec rail-fold">
-          <summary>Links</summary>
-          <div class="rail-fields">
-            <div>
-              <label>Case URL</label>
-              <div class="input-with-btn">
-                <input type="text" class="field-input" id="caseUrlInput" placeholder="ServiceNow agent view URL">
-                <button class="gen-btn" id="genCaseBtn">Gen</button>
-              </div>
-              <div class="link-ok" id="caseOk"><i class="fa-solid fa-check-circle"></i><a id="caseLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="caseCopyBtn">Copy</button></div>
-              <div class="field-err" id="caseErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
-            </div>
-            <div>
-              <label>Feedback URL</label>
-              <div class="input-with-btn">
-                <input type="text" class="field-input" id="feedbackUrlInput" placeholder="Survey instance URL">
-                <button class="gen-btn" id="genFeedbackBtn">Gen</button>
-              </div>
-              <div class="link-ok" id="feedbackOk"><i class="fa-solid fa-check-circle"></i><a id="feedbackLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="feedbackCopyBtn">Copy</button></div>
-              <div class="field-err" id="feedbackErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
-            </div>
-            <div>
-              <label>Preview link</label>
-              <input type="url" class="field-input" id="previewInput" placeholder="https://…">
-            </div>
-            <div>
-              <label>Live link</label>
-              <input type="url" class="field-input" id="liveInput" placeholder="https://…">
-            </div>
-          </div>
-        </details>
-
-        <details class="rail-sec rail-fold">
-          <summary>Recipients</summary>
-          <div class="rail-fields">
-            <div><label>To</label><input type="text" class="field-input" id="toInput" placeholder="name@kone.com"></div>
-            <div><label>Cc</label><input type="text" class="field-input" id="ccInput" placeholder="separate with ;"></div>
-          </div>
-        </details>
-
-        <details class="rail-sec rail-fold">
-          <summary>Ticket details</summary>
-          <dl class="rail-meta">
-            <dt>Assignee</dt><dd id="ethAssignee"></dd>
-            <dt>Requested by</dt><dd id="ethClient"></dd>
-            <dt>Watch list</dt><dd id="ethWatchList"></dd>
-            <dt>Service</dt><dd id="ethService"></dd>
-            <dt id="ethCreatedWrap">Created</dt><dd id="ethCreated"></dd>
-            <dt id="ethPrefLiveWrap">Preferred live</dt><dd id="ethPrefLive"></dd>
-            <dt>SLA deadline</dt><dd><strong id="ethSLA"></strong></dd>
-          </dl>
-          <span class="th-num" id="ethNum" style="display:none"></span>
-          <span id="ethDesc" style="display:none"></span>
-        </details>
-
-      </aside>
-
-      <!-- ── Right: the email itself ── -->
-      <main class="compose-main">
-
-        <div class="subject-strip">
-          <select class="field-input" id="taskTypeSelect"></select>
-          <input type="text" class="field-input" id="subjectInput" placeholder="Email subject line">
-          <button class="copy-sm" id="copySubjBtn" type="button">Copy</button>
-          <button class="ai-btn" id="aiSubjectBtn" title="Suggest a subject"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
-        </div>
-
-        <details class="wdg-fold" id="wdgFold">
-          <summary>
-            <span><i class="fa-solid fa-diagram-project"></i> Progress widget<span class="wdg-sum-state" id="wdgSumState"></span></span>
-            <span class="wdg-sum-actions">
-              <label class="wdg-toggle"><input type="checkbox" id="wdgOn" checked> Include</label>
-              <button class="copy-sm" id="wdgResetBtn" type="button">Reset</button>
-            </span>
-          </summary>
-          <div class="wdg-track-row">
-            <label>Track</label>
-            <select class="field-input" id="wdgTrack" style="width:190px;"></select>
-            <label>Header</label>
-            <input type="text" class="field-input" id="wdgLabel" style="width:130px;" placeholder="DEA - 2A">
-          </div>
-          <div class="wdg-scroll"><table class="wdg-table" id="wdgTable"></table></div>
-          <p class="tmpl-hint">Calendar button picks a date; the field also takes free text like “Aug 10 – Aug 21, 2026 Sprint”. Click a status to cycle it.</p>
-        </details>
-
-        <div class="preview-head">
-          <span><i class="fa-regular fa-envelope"></i> Email <span class="editable-tag">click to edit any wording</span></span>
+      <div class="paper">
+        <div class="paper-tag">
+          <span>Email preview — click any wording to edit</span>
           <span id="phWarn" class="ph-warn" style="display:none;"></span>
         </div>
-        <div class="email-box preview-box">
-          <div id="body-main" class="email-content" contenteditable="true" spellcheck="true"></div>
-        </div>
+        <div id="body-main" class="email-content" contenteditable="true" spellcheck="true"></div>
+      </div>
+    </div>
 
-        <div class="action-bar">
-          <button class="btn-primary" id="copyRichBtn"><i class="fa-regular fa-copy"></i> Copy for Outlook</button>
-          <button class="btn-secondary-a" id="openOutlookBtn"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Outlook</button>
-          <button class="btn-secondary-a" id="copyPlainBtn"><i class="fa-solid fa-align-left"></i> Plain text</button>
-          <button class="btn-secondary-a" id="resetBodyBtn"><i class="fa-solid fa-rotate-left"></i> Reset edits</button>
-        </div>
-
-      </main>
+    <div class="doc-actions">
+      <button class="btn-primary" id="copyRichBtn"><i class="fa-regular fa-copy"></i> Copy for Outlook</button>
+      <button class="btn-secondary-a" id="openOutlookBtn"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Outlook</button>
+      <button class="btn-secondary-a" id="copyPlainBtn"><i class="fa-solid fa-align-left"></i> Plain text</button>
+      <button class="btn-secondary-a" id="resetBodyBtn"><i class="fa-solid fa-rotate-left"></i> Reset edits</button>
     </div>
   </div>
 
@@ -2010,10 +2133,10 @@
       document.getElementById('wdgTrack').value = track;
       widget = defaultWidget(ticket, track);
       if (saved?.widget) {
-        Object.assign(widget.dates, saved.widget.dates || {});
+        Object.assign(widget.dates, migrateStageKeys(track, saved.widget.dates));
         if (saved.widget.label != null) widget.label = saved.widget.label;
         widget.statusTouched = !!saved.widget.statusTouched;
-        if (widget.statusTouched) Object.assign(widget.status, saved.widget.status || {});
+        if (widget.statusTouched) Object.assign(widget.status, migrateStageKeys(track, saved.widget.status));
       }
       document.getElementById('wdgLabel').value = widget.label;
 
@@ -2461,10 +2584,41 @@
     // ── Progress widget ───────────────────────────────────────────────────
     const TRACKS = {
       'Email Journey': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Journey development', 'FL testing & approval', 'Deployment scheduled', 'Request completed'],
-      'Website Content': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Page build', 'FL testing & approval', 'Deployment scheduled', 'Request completed'],
+      'Website Content': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Page build', 'FL review', 'Published live', 'Request completed'],
       'Graphic Design': ['Request raised', 'Brief validation', 'Design in progress', 'First review', 'Second review', 'Final review', 'Delivered'],
       'Generic': ['Request raised', 'In review', 'In progress', 'Preview shared', 'Approved', 'Live', 'Request completed'],
     };
+    // Tracks may word a stage differently. Templates keep naming the canonical
+    // stage and each track declares its own wording here — otherwise renaming a
+    // stage would quietly stop those templates advancing the widget, and any
+    // dates already saved under the old name would vanish from the table.
+    const STAGE_ALIASES = {
+      'Website Content': {
+        'FL testing & approval': 'FL review',
+        'Deployment scheduled': 'Published live',
+      },
+    };
+
+    function resolveStage(track, name) {
+      if (!name) return name;
+      const map = STAGE_ALIASES[track];
+      if (map && map[name]) return map[name];
+      const stages = TRACKS[track] || [];
+      return stages.includes(name) ? name : name;
+    }
+
+    // Old saved keys are carried onto their new names so nothing is lost.
+    function migrateStageKeys(track, obj) {
+      const map = STAGE_ALIASES[track];
+      if (!map || !obj) return obj || {};
+      const out = { ...obj };
+      Object.entries(map).forEach(([oldName, newName]) => {
+        if (out[oldName] !== undefined && out[newName] === undefined) out[newName] = out[oldName];
+        delete out[oldName];
+      });
+      return out;
+    }
+
     const STATUS_CYCLE = ['done', 'current', 'pending', 'na'];
     const STATUS_HTML = {
       done:    '<span style="color:#16a34a;">&#9989;</span>',
@@ -2495,6 +2649,7 @@
     function applyStageToWidget(stageName, statusKey) {
       if (!widget || !stageName) return;
       const stages = TRACKS[widget.track] || [];
+      stageName = resolveStage(widget.track, stageName);
       const idx = stages.indexOf(stageName);
       if (idx < 0) return;
       stages.forEach((s, i) => {
@@ -2508,12 +2663,12 @@
     }
 
     function renderWidgetTable() {
-      const sum = document.getElementById('wdgSumState');
+      const sum = document.getElementById('toolWidgetNote');
       if (sum && widget) {
         const stages = TRACKS[widget.track] || [];
         const cur = stages.find(x => widget.status[x] === 'current');
         const done = stages.filter(x => widget.status[x] === 'done').length;
-        sum.textContent = cur ? ` — ${cur} (${done}/${stages.length} done)` : ` — ${done}/${stages.length} done`;
+        sum.textContent = cur ? `${cur} · ${done}/${stages.length}` : `${done}/${stages.length}`;
       }
       const table = document.getElementById('wdgTable');
       if (!widget) { table.innerHTML = ''; return; }
@@ -2643,11 +2798,18 @@
     }
 
     function renderFields() {
-      const card = document.getElementById('dynFieldsCard');
       const wrap = document.getElementById('dynFields');
+      const tool = document.getElementById('toolFields');
+      const badge = document.getElementById('toolFieldsBadge');
       const needs = activeTemplate?.needs || [];
-      if (!needs.length) { card.style.display = 'none'; wrap.innerHTML = ''; return; }
-      card.style.display = '';
+      // Nothing to fill in for this template — grey the button rather than
+      // leaving a live control that opens an empty panel.
+      tool.disabled = !needs.length;
+      tool.style.opacity = needs.length ? '' : '.45';
+      const unfilled = needs.filter(k => !(fieldValues[k] || '').trim()).length;
+      badge.textContent = unfilled ? unfilled : '';
+      badge.style.display = unfilled ? '' : 'none';
+      if (!needs.length) { wrap.innerHTML = ''; return; }
       wrap.innerHTML = needs.map(k => {
         const d = FIELD_DEFS[k]; if (!d) return '';
         const v = esc(fieldValues[k] || '');
@@ -2659,7 +2821,15 @@
         return `<div${full}><label>${esc(d.label)}</label>${input}</div>`;
       }).join('');
       wrap.querySelectorAll('[data-f]').forEach(el => {
-        const on = e => { fieldValues[e.target.dataset.f] = e.target.value; renderEmail(); scheduleSave(); };
+        const on = e => {
+          fieldValues[e.target.dataset.f] = e.target.value;
+          const needs = activeTemplate?.needs || [];
+          const unfilled = needs.filter(k => !(fieldValues[k] || '').trim()).length;
+          const badge = document.getElementById('toolFieldsBadge');
+          badge.textContent = unfilled ? unfilled : '';
+          badge.style.display = unfilled ? '' : 'none';
+          renderEmail(); scheduleSave();
+        };
         el.addEventListener('input', on);
         el.addEventListener('change', on);
       });
@@ -2706,42 +2876,35 @@
       // fold, and only the one you are working in stays open.
       const groups = [...new Set(list.map(t => t.group))];
       const picks = document.getElementById('quickPicks');
-      picks.innerHTML = groups.map(g => {
-        const items = list.filter(t => t.group === g);
-        const hasSug = suggested && items.some(t => t.id === suggested.id);
-        return `<details class="tmpl-group" data-group="${esc(g)}"${hasSug ? ' open' : ''}>`
-          + `<summary>${esc(g)}<span class="tmpl-gcount">${items.length}</span></summary>`
-          + items.map(t =>
-              `<button type="button" class="tmpl-item" data-id="${t.id}" data-group="${esc(g)}">`
-              + `<span class="tmpl-name">${esc(t.label)}</span>`
-              + (suggested && suggested.id === t.id ? '<span class="tmpl-sug">Suggested</span>' : '')
-              + '</button>').join('')
-          + '</details>';
-      }).join('');
+      picks.innerHTML = groups.map(g =>
+        `<div class="tmpl-glabel">${esc(g)}</div>`
+        + list.filter(t => t.group === g).map(t =>
+            `<button type="button" class="tmpl-item" data-id="${t.id}" data-group="${esc(g)}">`
+            + `<span class="tmpl-name">${esc(t.label)}</span>`
+            + (suggested && suggested.id === t.id ? '<span class="tmpl-sug">Suggested</span>' : '')
+            + '</button>').join('')
+      ).join('');
       picks.querySelectorAll('.tmpl-item').forEach(b =>
         b.addEventListener('click', () => selectTemplate(b.dataset.id)));
     }
 
-    // Big-number context for this ticket, echoing the queue's stat strip.
+    // One line of context in the header — state, service and the two dates that
+    // decide urgency — rather than a row of oversized figures competing with the
+    // email for attention.
     function renderTicketStats(t) {
       const el = document.getElementById('ticketStats');
       if (!el) return;
       const d = t.daysLeft;
-      const age = d === null ? '—' : Math.abs(d);
-      const ageLab = d === null ? 'No SLA' : d < 0 ? 'Days past SLA' : 'Days left';
-      // Blue Inter is reserved for the "KONE numbers" device, so only figures
-      // take the brand colour — word values stay black, as Inter must be.
-      const stat = (v, label, tone = '') => {
-        const isFigure = /^[0-9]/.test(String(v));
-        return `<div class="stat${tone ? ' ' + tone : ''}">`
-          + `<span class="stat-num${isFigure ? '' : ' stat-word'}">${esc(String(v))}</span>`
-          + `<span class="stat-lab">${esc(label)}</span></div>`;
-      };
-      el.innerHTML = stat(age, ageLab, d !== null && d < 0 ? 'warn' : '')
-        + stat(t.slaDate ? fmtShort(t.slaDate) : '—', 'SLA date')
-        + stat(t.prefLive ? fmtShort(t.prefLive) : '—', 'Preferred live')
-        + stat(t.state || '—', 'State')
-        + stat(t.subCategory.split('–')[0].trim() || '—', 'Service');
+      const age = d === null ? '' : d < 0
+        ? `<span class="late">${Math.abs(d)} days past SLA</span>`
+        : `<b>${d}</b> days left`;
+      el.innerHTML = [
+        `<span>${esc(t.state || '—')}</span>`,
+        `<span>${esc(t.subCategory || '—')}</span>`,
+        `<span>SLA <b>${t.slaDate ? esc(fmtShort(t.slaDate)) : '—'}</b></span>`,
+        `<span>Live <b>${t.prefLive ? esc(fmtShort(t.prefLive)) : '—'}</b></span>`,
+        age ? `<span>${age}</span>` : '',
+      ].filter(Boolean).join('');
     }
 
     function selectTemplate(id, { silent = false } = {}) {
@@ -2749,7 +2912,7 @@
       activeTemplate = t;
       document.getElementById('tmplSelect').value = t.id;
       document.querySelectorAll('.tmpl-item').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
-      document.querySelectorAll('.tmpl-group').forEach(g => { g.open = g.dataset.group === t.group; });
+      document.getElementById('toolTmplName').textContent = t.label;
       document.getElementById('tmplHint').textContent = t.hint || '';
 
       // The chosen email is what tells the widget where the ticket has got to.
@@ -3147,6 +3310,22 @@
         selectTicket(t, { tmpl: activeTemplate?.id, silent: true });
         toast('Saved details cleared for this ticket');
       });
+      // Toolbar panels — opening one closes the others, so the email is never
+      // pushed far down the page.
+      document.querySelectorAll('#docTools .tool').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.panel;
+          const wasOpen = btn.classList.contains('open');
+          document.querySelectorAll('#docTools .tool').forEach(b => b.classList.remove('open'));
+          document.querySelectorAll('.doc-panels .panel').forEach(p => { p.hidden = true; });
+          if (!wasOpen) {
+            btn.classList.add('open');
+            const panel = document.getElementById(id);
+            if (panel) panel.hidden = false;
+          }
+        });
+      });
+
       document.getElementById('copyRichBtn').addEventListener('click', copyRich);
       document.getElementById('openOutlookBtn').addEventListener('click', openInOutlook);
       document.getElementById('copyPlainBtn').addEventListener('click', () => {
