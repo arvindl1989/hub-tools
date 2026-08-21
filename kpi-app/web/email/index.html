@@ -584,6 +584,21 @@
     .wdg-status { cursor: pointer; user-select: none; white-space: nowrap; }
     .wdg-status:hover { background: #f1f5f9; }
 
+    .wdg-datewrap { display: flex; align-items: center; gap: 2px; }
+    .wdg-cal {
+      border: none; background: none; cursor: pointer; color: #94a3b8;
+      padding: 2px 3px; font-size: 0.74rem; line-height: 1; border-radius: 4px; flex: 0 0 auto;
+    }
+    .wdg-cal:hover { color: var(--primary); background: rgba(20,80,245,0.08); }
+    /* The native picker is driven by the button; it never needs to be seen. */
+    .wdg-picker { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+    .saved-pill {
+      font-size: 0.68rem; font-weight: 600; color: #15803d; background: #f0fdf4;
+      border: 1px solid #bbf7d0; border-radius: 999px; padding: 2px 8px;
+      text-transform: none; letter-spacing: 0; opacity: 0; transition: opacity .2s;
+    }
+    .saved-pill.show { opacity: 1; }
+
     /* ── Action bar ──────────────────────────────────────────────────── */
     .action-bar {
       display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0.85rem;
@@ -755,6 +770,8 @@
       <div class="nav-sep" style="background:var(--border); height:20px;"></div>
       <span class="email-nav-ticket" id="enTicketNum"></span>
       <span class="email-nav-desc" id="enTicketDesc"></span>
+      <span class="saved-pill" id="savedPill"><i class="fa-solid fa-check"></i> Saved</span>
+      <button class="copy-sm" id="forgetBtn" type="button" style="margin-left:auto;" title="Discard the links, dates and widget saved for this ticket">Clear saved</button>
     </div>
     <div class="email-body">
 
@@ -1340,17 +1357,23 @@
       fieldValues = {};
       bodyEdited = false;
 
-      // Reset inputs
-      ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'liveInput'].forEach(id => {
-        const el = document.getElementById(id); if (el) el.value = '';
+      // Anything entered for this ticket before wins over a blank slate.
+      const saved = loadStore()[ticket.id] || null;
+
+      LINK_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = saved?.links?.[id] || '';
       });
       ['caseOk', 'caseErr', 'feedbackOk', 'feedbackErr'].forEach(id => {
         document.getElementById(id).classList.remove('show');
       });
+      if (saved?.links?.caseUrlInput) generatedCaseLink = saved.links.caseUrlInput;
+      if (saved?.links?.feedbackUrlInput) generatedFeedbackLink = saved.links.feedbackUrlInput;
 
       // Recipients come straight off the ticket so nobody retypes them.
-      document.getElementById('toInput').value = ticket.client || '';
-      document.getElementById('ccInput').value = ticket.watchList || '';
+      document.getElementById('toInput').value = saved?.to || ticket.client || '';
+      document.getElementById('ccInput').value = saved?.cc || ticket.watchList || '';
+      if (saved?.fields) fieldValues = { ...saved.fields };
 
       // Populate header
       document.getElementById('enTicketNum').textContent = '#' + ticket.id;
@@ -1391,10 +1414,17 @@
       }
       taskSel.innerHTML = taskOpts.map(o => `<option value="${o}">${o}</option>`).join('');
 
-      // Progress widget, seeded from the ticket's own dates
-      const track = guessTrack(ticket);
+      // Progress widget: the ticket's own dates seed it, then anything saved
+      // for this ticket is layered on top.
+      const track = saved?.widget?.track || guessTrack(ticket);
       document.getElementById('wdgTrack').value = track;
       widget = defaultWidget(ticket, track);
+      if (saved?.widget) {
+        Object.assign(widget.dates, saved.widget.dates || {});
+        if (saved.widget.label != null) widget.label = saved.widget.label;
+        widget.statusTouched = !!saved.widget.statusTouched;
+        if (widget.statusTouched) Object.assign(widget.status, saved.widget.status || {});
+      }
       document.getElementById('wdgLabel').value = widget.label;
 
       selectTemplate(opts.tmpl || 'ack', { silent: !!opts.silent });
@@ -1687,21 +1717,57 @@
       const stages = TRACKS[widget.track] || [];
       const head = `<tr><th class="wdg-rowlab">${esc(widget.label || '')}</th>`
         + stages.map(s => `<th>${esc(s)}</th>`).join('') + '</tr>';
+      // Free text stays the source of truth — ranges like "Aug 10 - Aug 21, 2026
+      // Sprint" have to survive — so the calendar writes into it rather than
+      // replacing it with a date input.
       const dateRow = `<tr><td class="wdg-rowlab">Date</td>`
-        + stages.map(s => `<td><input class="wdg-date" data-stage="${esc(s)}" value="${esc(widget.dates[s] || '')}" placeholder="—"></td>`).join('') + '</tr>';
+        + stages.map(s => `<td><div class="wdg-datewrap">`
+            + `<input class="wdg-date" data-stage="${esc(s)}" value="${esc(widget.dates[s] || '')}" placeholder="—">`
+            + `<button type="button" class="wdg-cal" data-stage="${esc(s)}" title="Pick a date"><i class="fa-regular fa-calendar"></i></button>`
+            + `<input type="date" class="wdg-picker" data-stage="${esc(s)}" tabindex="-1" aria-hidden="true">`
+          + `</div></td>`).join('') + '</tr>';
       const statusRow = `<tr><td class="wdg-rowlab">Status</td>`
         + stages.map(s => `<td class="wdg-status" data-stage="${esc(s)}" title="Click to change">${STATUS_HTML[widget.status[s]] || '-'}</td>`).join('') + '</tr>';
       table.innerHTML = head + dateRow + statusRow;
 
       table.querySelectorAll('.wdg-date').forEach(inp => {
-        inp.addEventListener('input', e => { widget.dates[e.target.dataset.stage] = e.target.value; renderEmail(true); });
+        inp.addEventListener('input', e => {
+          widget.dates[e.target.dataset.stage] = e.target.value;
+          renderEmail(true); scheduleSave();
+        });
+      });
+      table.querySelectorAll('.wdg-cal').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const stage = e.currentTarget.dataset.stage;
+          const picker = table.querySelector(`.wdg-picker[data-stage="${CSS.escape(stage)}"]`);
+          if (!picker) return;
+          // Seed the picker with whatever the cell already reads, when parseable.
+          const cur = parseFlexDate(widget.dates[stage]);
+          if (cur) picker.value = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+          if (typeof picker.showPicker === 'function') { try { picker.showPicker(); return; } catch {} }
+          picker.style.pointerEvents = 'auto'; picker.focus(); picker.click();
+        });
+      });
+      table.querySelectorAll('.wdg-picker').forEach(pk => {
+        pk.addEventListener('change', e => {
+          const stage = e.target.dataset.stage;
+          const d = parseFlexDate(e.target.value);
+          if (!d) return;
+          widget.dates[stage] = fmtFullUS(d);
+          const field = table.querySelector(`.wdg-date[data-stage="${CSS.escape(stage)}"]`);
+          if (field) field.value = widget.dates[stage];
+          renderEmail(true); scheduleSave();
+        });
       });
       table.querySelectorAll('.wdg-status').forEach(td => {
         td.addEventListener('click', e => {
           const s = e.currentTarget.dataset.stage;
           const cur = STATUS_CYCLE.indexOf(widget.status[s]);
           widget.status[s] = STATUS_CYCLE[(cur + 1) % STATUS_CYCLE.length];
-          renderWidgetTable(); renderEmail(true);
+          // Hand-set statuses stop the template from driving the row, otherwise
+          // the next template choice would silently undo the edit.
+          widget.statusTouched = true;
+          renderWidgetTable(); renderEmail(true); scheduleSave();
         });
       });
     }
@@ -1786,8 +1852,9 @@
         return `<div${full}><label>${esc(d.label)}</label>${input}</div>`;
       }).join('');
       wrap.querySelectorAll('[data-f]').forEach(el => {
-        el.addEventListener('input', e => { fieldValues[e.target.dataset.f] = e.target.value; renderEmail(); });
-        el.addEventListener('change', e => { fieldValues[e.target.dataset.f] = e.target.value; renderEmail(); });
+        const on = e => { fieldValues[e.target.dataset.f] = e.target.value; renderEmail(); scheduleSave(); };
+        el.addEventListener('input', on);
+        el.addEventListener('change', on);
       });
     }
 
@@ -1826,7 +1893,7 @@
       document.getElementById('tmplHint').textContent = t.hint || '';
 
       // The chosen email is what tells the widget where the ticket has got to.
-      if (widget && t.stage) applyStageToWidget(t.stage, t.stageStatus || 'done');
+      if (widget && t.stage && !widget.statusTouched) applyStageToWidget(t.stage, t.stageStatus || 'done');
       renderWidgetTable();
 
       const sel = document.getElementById('taskTypeSelect');
@@ -1920,6 +1987,64 @@
       el.className = isErr ? 'err show' : 'show';
       clearTimeout(el._t);
       el._t = setTimeout(() => { el.className = isErr ? 'err' : ''; }, 2600);
+    }
+
+    // ── Per-ticket memory ─────────────────────────────────────────────────
+    // Links, dates and the widget were re-entered from scratch every visit.
+    // They are kept per ticket id in localStorage so returning to a ticket —
+    // tomorrow, or after a refresh — picks up exactly where it was left.
+    const STORE_KEY = 'hub_email_state_v1';
+    const STORE_MAX = 80;   // keep the store bounded; oldest ticket drops out
+    const LINK_IDS = ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'liveInput'];
+
+    function loadStore() {
+      try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; }
+    }
+
+    function saveTicketState() {
+      if (!currentTicket) return;
+      const store = loadStore();
+      const links = {};
+      LINK_IDS.forEach(id => {
+        const v = (document.getElementById(id)?.value || '').trim();
+        if (v) links[id] = v;
+      });
+      store[currentTicket.id] = {
+        ts: Date.now(),
+        links,
+        to: (document.getElementById('toInput')?.value || '').trim(),
+        cc: (document.getElementById('ccInput')?.value || '').trim(),
+        fields: { ...fieldValues },
+        widget: widget ? {
+          label: widget.label, track: widget.track,
+          dates: widget.dates, status: widget.status,
+          statusTouched: !!widget.statusTouched,
+        } : null,
+      };
+      const ids = Object.keys(store).sort((a, b) => (store[b].ts || 0) - (store[a].ts || 0));
+      ids.slice(STORE_MAX).forEach(id => delete store[id]);
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(store));
+        flashSaved();
+      } catch { /* quota or private mode — the tool still works, just forgets */ }
+    }
+
+    let saveTimer;
+    function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveTicketState, 400); }
+
+    function flashSaved() {
+      const el = document.getElementById('savedPill');
+      if (!el) return;
+      el.classList.add('show');
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove('show'), 1400);
+    }
+
+    function forgetTicketState() {
+      if (!currentTicket) return;
+      const store = loadStore();
+      delete store[currentTicket.id];
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch {}
     }
 
     // Opening a shared link (or just refreshing) lands on the same ticket and
@@ -2089,17 +2214,26 @@
         renderWidgetTable(); renderEmail(true);
       });
       document.getElementById('wdgLabel').addEventListener('input', e => {
-        if (widget) { widget.label = e.target.value; renderWidgetTable(); renderEmail(true); }
+        if (widget) { widget.label = e.target.value; renderWidgetTable(); renderEmail(true); scheduleSave(); }
       });
       document.getElementById('wdgOn').addEventListener('change', () => renderEmail(true));
       document.getElementById('wdgResetBtn').addEventListener('click', () => {
         if (!currentTicket) return;
         widget = defaultWidget(currentTicket, trackSel.value);
+        widget.statusTouched = false;
         if (activeTemplate?.stage) applyStageToWidget(activeTemplate.stage, activeTemplate.stageStatus || 'done');
-        renderWidgetTable(); renderEmail(true);
+        renderWidgetTable(); renderEmail(true); saveTicketState();
+        toast('Widget reset to the ticket dates');
       });
 
       // ── Compose actions ────────────────────────────────────────────
+      document.getElementById('forgetBtn').addEventListener('click', () => {
+        if (!currentTicket) return;
+        forgetTicketState();
+        const t = currentTicket;
+        selectTicket(t, { tmpl: activeTemplate?.id, silent: true });
+        toast('Saved details cleared for this ticket');
+      });
       document.getElementById('copyRichBtn').addEventListener('click', copyRich);
       document.getElementById('openOutlookBtn').addEventListener('click', openInOutlook);
       document.getElementById('copyPlainBtn').addEventListener('click', () => {
@@ -2113,8 +2247,14 @@
       document.getElementById('taskTypeSelect').addEventListener('change', buildSubject);
 
       // Links feeding the body → recompose, keeping any hand edits
-      ['previewInput', 'liveInput', 'caseUrlInput', 'feedbackUrlInput'].forEach(id => {
-        document.getElementById(id).addEventListener('input', () => { if (!bodyEdited) renderEmail(); });
+      LINK_IDS.forEach(id => {
+        document.getElementById(id).addEventListener('input', () => {
+          if (!bodyEdited) renderEmail();
+          scheduleSave();
+        });
+      });
+      ['toInput', 'ccInput'].forEach(id => {
+        document.getElementById(id).addEventListener('input', scheduleSave);
       });
 
       // Case link generator
