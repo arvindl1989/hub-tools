@@ -3642,10 +3642,13 @@ Rules:
 # swallow these routes. Shares the Postgres connection and holiday calendar but
 # is otherwise independent of the legacy Firebase tracker.
 import attendance_api
+import email_state_api
 
 attendance_api.configure(get_conn=_get_conn, holidays_by_year=HOLIDAYS_BY_YEAR,
                          diagnose=db_diagnosis)
+email_state_api.configure(get_conn=_get_conn, diagnose=db_diagnosis)
 app.include_router(attendance_api.router)
+app.include_router(email_state_api.router)
 
 
 # ── Serve KPI React app at /kpi/ and hub static tools at / ───────────────────

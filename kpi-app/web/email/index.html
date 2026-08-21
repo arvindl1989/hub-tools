@@ -912,6 +912,84 @@
       display: inline-flex; align-items: center; justify-content: center;
     }
 
+    /* ── Queue: stat strip, urgency bands, compact rows ───────────────── */
+    .stat-strip { display: flex; gap: 28px; padding: 14px 4px 18px; flex-wrap: wrap; }
+    .stat { display: flex; flex-direction: column; gap: 1px; }
+    .stat-num { font-family: 'Inter', sans-serif; font-size: 30px; line-height: 1; color: var(--primary); font-variant-numeric: tabular-nums; }
+    .stat.warn .stat-num { color: var(--text); }
+    .stat-lab { font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.68rem; color: var(--muted); }
+
+    .ticket-list { display: flex; flex-direction: column; gap: 18px; }
+    .band { display: flex; flex-direction: column; }
+    .band-head {
+      display: flex; align-items: center; gap: 9px; width: 100%;
+      background: none; border: none; cursor: pointer; padding: 4px 2px 8px;
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.06em;
+      font-size: 0.74rem; color: var(--text); text-align: left;
+    }
+    .band-caret { color: var(--muted); font-size: 0.7rem; }
+    .band-dot { width: 9px; height: 9px; border-radius: 2px; flex: 0 0 auto; }
+    .band-count {
+      font-size: 0.68rem; color: var(--muted);
+      border: 1px solid var(--border); border-radius: var(--radius-chip); padding: 1px 7px;
+    }
+    .u-critical { background: var(--k-red); }
+    .u-breached { background: var(--k-orange); }
+    .u-soon     { background: var(--yellow, #ffe141); }
+    .u-ontrack  { background: var(--k-green); }
+
+    .trow-head, .trow {
+      display: grid;
+      grid-template-columns: 4px 108px minmax(0, 1fr) 92px 150px 132px 74px 92px 168px;
+      gap: 12px; align-items: center;
+    }
+    .trow-head {
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.06em;
+      font-size: 0.66rem; color: var(--muted); padding: 0 12px 6px;
+    }
+    .trow {
+      background: var(--surface); border: 1px solid var(--border); border-top: none;
+      padding: 9px 12px; cursor: pointer; font-size: 0.82rem;
+      transition: border-color .12s ease, background .12s ease;
+    }
+    .trow:first-of-type { border-top: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
+    .trow:last-of-type  { border-radius: 0 0 var(--radius) var(--radius); }
+    .trow:hover { background: #fff; border-color: var(--primary); }
+    .trow:focus-visible { outline: none; box-shadow: var(--focus); }
+    .trow-urg { height: 26px; border-radius: 2px; }
+    .trow-id { font-family: var(--font-kone); letter-spacing: 0.04em; color: var(--primary); font-size: 0.74rem; }
+    .trow-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trow-who, .trow-svc, .trow-sla { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; }
+    .trow-days { font-family: var(--font-kone); letter-spacing: 0.04em; font-size: 0.7rem; }
+    .d-critical { color: #a8340c; } .d-breached { color: #8a5200; }
+    .d-soon { color: #7a5400; }     .d-ontrack { color: #0d7a46; }
+    .trow-next { font-size: 0.76rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trow-next em { font-style: normal; font-weight: 600; }
+    .card-next { margin-top: 8px; font-size: 0.74rem; color: var(--muted); }
+    .card-next em { font-style: normal; font-weight: 600; color: var(--text); }
+
+    .trow-next em.sent { color: var(--muted); font-weight: 400; }
+    .sent-tag {
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+      font-size: 0.6rem; color: #0d7a46; background: #e4f9ef;
+      border: 1px solid #aae1c8; border-radius: 3px; padding: 0 4px;
+    }
+
+    .view-toggle { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; }
+    .view-toggle button {
+      border: none; background: #fff; color: var(--muted); cursor: pointer;
+      padding: 7px 11px; font-size: 0.8rem; font-family: inherit;
+    }
+    .view-toggle button.active { background: var(--primary); color: #fff; }
+
+    .saved-pill.local-only { background: #fff1dc; border-color: #ffd79a; color: #8a5200; }
+
+    @media (max-width: 1240px) {
+      .trow-head, .trow { grid-template-columns: 4px 100px minmax(0, 1fr) 84px 120px 74px 88px; }
+      .trow-svc, .trow-head span:nth-child(5) { display: none; }
+      .trow .state-badge, .trow-head span:nth-child(6) { display: none; }
+    }
+
     /* ── Empty state ──────────────────────────────────────────────────── */
     .empty-msg h3 { font-family: 'Inter', sans-serif; text-transform: none; font-weight: 400; color: var(--text); }
     .empty-msg p { color: var(--muted); }
@@ -1027,7 +1105,12 @@
         <option value="id_asc">Ticket ID: Asc</option>
       </select>
       <div class="filter-bar-spacer"></div>
-      <span class="filter-count" id="filterCount"></span>
+      <span class="filter-count" id="filterCount" style="display:none"></span>
+      <div class="view-toggle" id="viewToggle">
+        <button type="button" data-view="rows" title="Compact rows"><i class="fa-solid fa-list"></i></button>
+        <button type="button" data-view="cards" title="Cards"><i class="fa-solid fa-table-cells-large"></i></button>
+      </div>
+      <select class="filter-select" id="whoAmISel" title="Scopes the queue to your work"></select>
       <button class="refresh-btn" id="refreshBtn"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
       <button class="sn-sync-btn" id="snSyncBtn" title="Sync latest data from ServiceNow into the sheet, then refresh"><i class="fa-solid fa-arrow-up-from-bracket"></i> Sync from SN</button>
       <button class="settings-btn" id="settingsBtn"><i class="fa-solid fa-gear"></i></button>
@@ -1035,7 +1118,8 @@
 
     <!-- Ticket Grid -->
     <div class="list-wrap">
-      <div id="ticketGrid" class="ticket-grid"></div>
+      <div class="stat-strip" id="statStrip"></div>
+      <div id="ticketGrid" class="ticket-list"></div>
       <div id="emptyMsg" class="empty-msg hidden">
         <i class="fa-solid fa-inbox"></i>
         <h3>No tickets match your filters</h3>
@@ -1464,6 +1548,13 @@
           })
           .filter(t => t.id);
         populateFilterOptions();
+        const whoSel = document.getElementById('whoAmISel');
+        whoSel.innerHTML = '<option value="">Who are you?</option>'
+          + [...new Set(allTickets.map(t => t.assignee).filter(Boolean))].sort()
+              .map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+        whoSel.value = whoAmI();
+        restoreFilters();
+        await initSharedState();
         applyFilters();
         showView('list');
         restoreFromUrl();
@@ -1532,11 +1623,123 @@
     }
 
     // ── Card rendering ────────────────────────────────────────────────────
+    // ── The queue ─────────────────────────────────────────────────────────
+    // 83 identical cards, every one of them flagged red, told you nothing about
+    // what to do next. The list is banded by how far past SLA a ticket is, and
+    // each row names the email that is actually due — the SLA maths for that is
+    // already here, it just was not being used.
+
+    const BANDS = [
+      { key: 'critical', label: 'Breached over 30 days', test: d => d !== null && d <= -30 },
+      { key: 'breached', label: 'Breached',              test: d => d !== null && d < 0 && d > -30 },
+      { key: 'soon',     label: 'Due within a week',     test: d => d !== null && d >= 0 && d <= 7 },
+      { key: 'ontrack',  label: 'On track',              test: d => d === null || d > 7 },
+    ];
+
+    const VIEW_KEY = 'hub_email_view';
+    const FILTERS_KEY = 'hub_email_filters';
+    const COLLAPSE_KEY = 'hub_email_collapsed';
+
+    const getView = () => localStorage.getItem(VIEW_KEY) || 'rows';
+    function collapsedBands() {
+      try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); } catch { return new Set(); }
+    }
+
+    // Which email is due, expressed as a role so it resolves against whichever
+    // template set the ticket's service uses.
+    function nextActionFor(t) {
+      const set = templatesFor(t);
+      const byRole = r => set.find(x => x.role === r) || null;
+      const st = (t.state || '').toLowerCase();
+      const saved = stateFor(t.id);
+
+      if (st === 'on hold') {
+        const oh = parseFlexDate(saved?.fields?.ohDate);
+        if (oh) {
+          const held = -(daysFromToday(oh) ?? 0);
+          if (held >= 15) return byRole('closure');
+          if (held >= 13) return byRole('reminder2');
+          if (held >= 7)  return byRole('reminder1');
+        }
+        return byRole('onhold');
+      }
+      // State leads, not lateness. With a backlog where nearly everything is
+      // past SLA, leading on "missed live date" labelled all 83 rows the same —
+      // and a ticket nobody has even acknowledged needs an acknowledgement, not
+      // an apology. Age is already its own column.
+      const late = t.daysLeft !== null && t.daysLeft < 0;
+      if (st === 'open' || st === 'assigned') return byRole('ack');
+      if (st === 'in review') return byRole('commence');
+      if (st === 'pending confirmation') return byRole('preview');
+      if (st === 'work in progress') return late ? byRole('missed') : byRole('preview');
+      return late ? byRole('missed') : null;
+    }
+
+    // A ticket whose suggested email has already gone out reads as done rather
+    // than nagging for the same send twice.
+    function alreadySent(t, tmpl) {
+      return !!tmpl && stateFor(t.id)?.lastTemplate === tmpl.id;
+    }
+
+    function renderStats() {
+      const el = document.getElementById('statStrip');
+      if (!el) return;
+      const n = filteredTickets.length;
+      const breached = filteredTickets.filter(t => t.daysLeft !== null && t.daysLeft < 0).length;
+      const hold = filteredTickets.filter(t => (t.state || '').toLowerCase() === 'on hold').length;
+      const waiting = filteredTickets.filter(t => (t.state || '').toLowerCase() === 'pending confirmation').length;
+      const stat = (v, label, tone = '') =>
+        `<div class="stat${tone ? ' ' + tone : ''}"><span class="stat-num">${v}</span><span class="stat-lab">${label}</span></div>`;
+      el.innerHTML = stat(n, 'Showing') + stat(breached, 'Past SLA', breached ? 'warn' : '')
+        + stat(hold, 'On hold') + stat(waiting, 'Awaiting approval');
+    }
+
+    function rowHtml(t) {
+      const next = nextActionFor(t);
+      const days = t.daysLeft;
+      const band = BANDS.find(b => b.test(days))?.key || 'ontrack';
+      const dayTxt = days === null ? '—' : days < 0 ? `${Math.abs(days)}d over` : `${days}d left`;
+      return `<div class="trow" data-id="${esc(t.id)}" role="button" tabindex="0">
+        <span class="trow-urg u-${band}"></span>
+        <span class="trow-id">${esc(t.id)}</span>
+        <span class="trow-title" title="${esc(t.description)}">${esc(t.description)}</span>
+        <span class="trow-who">${esc(t.assignee.split(' ')[0] || '—')}</span>
+        <span class="trow-svc">${esc(t.subCategory.split('–')[0].trim())}</span>
+        <span class="state-badge ${STATE_CLASS[t.state] || 's-open'}">${esc(t.state)}</span>
+        <span class="trow-sla">${t.slaDate ? esc(fmtShort(t.slaDate)) : '—'}</span>
+        <span class="trow-days d-${band}">${dayTxt}</span>
+        <span class="trow-next">${next
+          ? `<em class="${alreadySent(t, next) ? 'sent' : ''}">${esc(next.label)}</em>${alreadySent(t, next) ? ' <span class="sent-tag">sent</span>' : ''}`
+          : '—'}</span>
+      </div>`;
+    }
+
+    function cardHtml(t) {
+      const stateClass = STATE_CLASS[t.state] || 's-open';
+      const accentClass = ACCENT_CLASS[t.state] || 'accent-open';
+      const next = nextActionFor(t);
+      return `<div class="ticket-card ${accentClass}" data-id="${esc(t.id)}" role="button" tabindex="0">
+          <div class="card-top">
+            <span class="ticket-num">${esc(t.id)}</span>
+            <span class="state-badge ${stateClass}">${esc(t.state)}</span>
+          </div>
+          <p class="ticket-desc">${esc(t.description)}</p>
+          <div class="card-meta">
+            <span class="meta-chip"><i class="fa-solid fa-user"></i>${esc(t.assignee.split(' ')[0])}</span>
+            <span class="meta-chip"><i class="fa-solid fa-layer-group"></i>${esc(t.subCategory.split('–')[0].trim())}</span>
+          </div>
+          <div class="card-footer">
+            <span class="sla-info">SLA: ${fmtDate(t.slaDate)}</span>
+            ${daysBadge(t.daysLeft)}
+          </div>
+          ${next ? `<div class="card-next">Next: <em>${esc(next.label)}</em></div>` : ''}
+        </div>`;
+    }
+
     function renderGrid() {
       const grid = document.getElementById('ticketGrid');
       const empty = document.getElementById('emptyMsg');
-      const count = document.getElementById('filterCount');
-      count.textContent = `${filteredTickets.length} ticket${filteredTickets.length !== 1 ? 's' : ''}`;
+      renderStats();
 
       if (!filteredTickets.length) {
         grid.innerHTML = '';
@@ -1545,44 +1748,82 @@
       }
       empty.classList.add('hidden');
 
-      grid.innerHTML = filteredTickets.map(t => {
-        const stateClass = STATE_CLASS[t.state] || 's-open';
-        const accentClass = ACCENT_CLASS[t.state] || 'accent-open';
-        const badge = daysBadge(t.daysLeft);
-        const shortAssignee = t.assignee.split(' ')[0];
-        const shortService = t.subCategory.split('–')[0].trim();
-        return `
-          <div class="ticket-card ${accentClass}" data-id="${esc(t.id)}" role="button" tabindex="0">
-            <div class="card-top">
-              <span class="ticket-num">${esc(t.id)}</span>
-              <span class="state-badge ${stateClass}">${esc(t.state)}</span>
-            </div>
-            <p class="ticket-desc">${esc(t.description)}</p>
-            <div class="card-meta">
-              <span class="meta-chip"><i class="fa-solid fa-user"></i>${esc(shortAssignee)}</span>
-              <span class="meta-chip"><i class="fa-solid fa-building"></i>${esc(t.client || '—')}</span>
-              <span class="meta-chip"><i class="fa-solid fa-layer-group"></i>${esc(shortService)}</span>
-              ${t.created ? `<span class="meta-chip"><i class="fa-regular fa-calendar"></i>Created: ${fmtShort(t.created)}</span>` : ''}
-              ${t.prefLive ? `<span class="meta-chip"><i class="fa-solid fa-calendar-day"></i>Live: ${fmtShort(t.prefLive)}</span>` : ''}
-            </div>
-            <div class="card-footer">
-              <span class="sla-info"><i class="fa-regular fa-calendar-check"></i> SLA: ${fmtDate(t.slaDate)}</span>
-              ${badge}
-            </div>
-          </div>`;
-      }).join('');
+      const view = getView();
+      const collapsed = collapsedBands();
+      grid.className = 'ticket-list';
 
-      grid.querySelectorAll('.ticket-card').forEach(card => {
-        const handler = () => {
-          const t = allTickets.find(t => t.id === card.dataset.id);
-          if (t) selectTicket(t);
+      const out = [];
+      BANDS.forEach(band => {
+        const rows = filteredTickets.filter(t => band.test(t.daysLeft));
+        if (!rows.length) return;
+        const isShut = collapsed.has(band.key);
+        out.push(`<section class="band">
+          <button class="band-head" data-band="${band.key}" aria-expanded="${!isShut}">
+            <span class="band-caret">${isShut ? '&#9656;' : '&#9662;'}</span>
+            <span class="band-dot u-${band.key}"></span>
+            <span class="band-label">${band.label}</span>
+            <span class="band-count">${rows.length}</span>
+          </button>`);
+        if (!isShut) {
+          out.push(view === 'cards'
+            ? `<div class="ticket-grid">${rows.map(cardHtml).join('')}</div>`
+            : `<div class="trow-head">
+                 <span></span><span>Ticket</span><span>Request</span><span>Owner</span>
+                 <span>Service</span><span>State</span><span>SLA</span><span>Age</span><span>Next email</span>
+               </div>${rows.map(rowHtml).join('')}`);
+        }
+        out.push('</section>');
+      });
+      grid.innerHTML = out.join('');
+
+      grid.querySelectorAll('.band-head').forEach(b => {
+        b.addEventListener('click', () => {
+          const set = collapsedBands();
+          set.has(b.dataset.band) ? set.delete(b.dataset.band) : set.add(b.dataset.band);
+          try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set])); } catch {}
+          renderGrid();
+        });
+      });
+
+      grid.querySelectorAll('.trow, .ticket-card').forEach(el => {
+        const open = () => {
+          const t = allTickets.find(x => x.id === el.dataset.id);
+          if (!t) return;
+          const next = nextActionFor(t);
+          selectTicket(t, next ? { tmpl: next.id } : {});
         };
-        card.addEventListener('click', handler);
-        card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') handler(); });
+        el.addEventListener('click', open);
+        el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
       });
     }
 
-    // ── Ticket selection + email view ─────────────────────────────────────
+    // Filters are remembered so the queue opens on your own work, not everyone's
+    function saveFilters() {
+      const v = {};
+      ['filterAssignee', 'filterService', 'filterState', 'sortBy'].forEach(id => {
+        v[id] = document.getElementById(id).value;
+      });
+      try { localStorage.setItem(FILTERS_KEY, JSON.stringify(v)); } catch {}
+    }
+
+    function restoreFilters() {
+      let v;
+      try { v = JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null'); } catch { v = null; }
+      if (!v) {
+        // First run: scope to whoever this person said they are.
+        const me = whoAmI();
+        if (me) {
+          const sel = document.getElementById('filterAssignee');
+          if ([...sel.options].some(o => o.value === me)) sel.value = me;
+        }
+        return;
+      }
+      Object.entries(v).forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (el && [...el.options].some(o => o.value === val)) el.value = val;
+      });
+    }
+
     function buildSubject() {
       if (!currentTicket) return;
       const taskSel = document.getElementById('taskTypeSelect');
@@ -1608,7 +1849,7 @@
       bodyEdited = false;
 
       // Anything entered for this ticket before wins over a blank slate.
-      const saved = loadStore()[ticket.id] || null;
+      const saved = stateFor(ticket.id);
 
       LINK_IDS.forEach(id => {
         const el = document.getElementById(id);
@@ -1724,7 +1965,7 @@
     const TEMPLATES = [
       // ── Intake ────────────────────────────────────────────────────────
       {
-        id: 'ack', label: 'Ticket Acknowledgement', group: 'Intake', quick: true,
+        id: 'ack', role: 'ack', label: 'Ticket Acknowledgement', group: 'Intake', quick: true,
         task: 'Assigned', stage: 'Request raised',
         hint: 'Sent when the ticket is picked up. The SLA paragraph switches automatically depending on whether the preferred live date is achievable.',
         body: ctx => {
@@ -1741,7 +1982,7 @@
         },
       },
       {
-        id: 'commence', label: 'Work Commences Confirmation', group: 'Intake', quick: true,
+        id: 'commence', role: 'commence', label: 'Work Commences Confirmation', group: 'Intake', quick: true,
         task: 'In Review', stage: 'Content Validation',
         hint: 'Confirms the brief is complete and build has started.',
         body: ctx => GREET(ctx)
@@ -1794,7 +2035,7 @@
 
       // ── On hold ───────────────────────────────────────────────────────
       {
-        id: 'onhold', label: 'Ticket On-Hold', group: 'On hold', quick: true,
+        id: 'onhold', role: 'onhold', label: 'Ticket On-Hold', group: 'On hold', quick: true,
         task: 'On Hold', stage: null, stageStatus: 'current',
         needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
@@ -1803,7 +2044,7 @@
           + `<p>Thank you for your support on this!</p>` + SIG(ctx),
       },
       {
-        id: 'oh-r1', label: 'On-Hold — First Reminder (Day 7)', group: 'On hold',
+        id: 'oh-r1', role: 'reminder1', label: 'On-Hold — First Reminder (Day 7)', group: 'On hold',
         task: 'On Hold', stage: null, needs: ['reason', 'ohDate'],
         body: ctx => GREET(ctx)
           + `<p>Just a quick heads-up that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.” We can keep it on hold for up to 14 working days.</p>`
@@ -1812,7 +2053,7 @@
           + `<p>Thanks!</p>` + SIG(ctx),
       },
       {
-        id: 'oh-r2', label: 'On-Hold — Final Reminder (Day 13)', group: 'On hold',
+        id: 'oh-r2', role: 'reminder2', label: 'On-Hold — Final Reminder (Day 13)', group: 'On hold',
         task: 'On Hold', stage: null, needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
           + `<p>Just a final reminder that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.” We’re nearing the 14-day mark, with the deadline on ${ctx.dateOr('closureDate', ctx.hold14Txt)}.</p>`
@@ -1820,7 +2061,7 @@
           + `<p>Thanks for your quick attention!</p>` + SIG(ctx),
       },
       {
-        id: 'oh-closure', label: 'On-Hold — Closure Notice (Day 15)', group: 'On hold',
+        id: 'oh-closure', role: 'closure', label: 'On-Hold — Closure Notice (Day 15)', group: 'On hold',
         task: 'Closed Incomplete', stage: 'Request completed',
         needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
@@ -1831,7 +2072,7 @@
 
       // ── Delivery ──────────────────────────────────────────────────────
       {
-        id: 'preview', label: 'Preview Ready', group: 'Delivery', quick: true,
+        id: 'preview', role: 'preview', label: 'Preview Ready', group: 'Delivery', quick: true,
         task: 'Pending Confirmation', stage: 'FL testing & approval', stageStatus: 'current',
         needs: ['goLiveTime'],
         hint: 'Uses the Preview Link from the ServiceNow Links card above.',
@@ -1870,7 +2111,7 @@
           + `<p>Thanks</p>` + SIG(ctx),
       },
       {
-        id: 'missed-pld', label: 'Missed Preferred Live Date', group: 'Delivery',
+        id: 'missed-pld', role: 'missed', label: 'Missed Preferred Live Date', group: 'Delivery',
         task: 'In Progress', stage: 'Journey development', stageStatus: 'current',
         body: ctx => GREET(ctx)
           + `<p>I've looked into every possibility to meet your preferred deadline for today, but due to other priorities, I've only gotten halfway through your request. I apologize for missing your preferred live date, but I'll definitely have everything done by our agreed service level agreement of 10 days, which is <strong>${ctx.slaTxt}</strong> (since the request was made on <strong>${ctx.createdTxt}</strong>).</p>`
@@ -1893,7 +2134,7 @@
 
       // ── Closing ───────────────────────────────────────────────────────
       {
-        id: 'live', label: 'Live — Request Completed', group: 'Closing', quick: true,
+        id: 'live', role: 'done', label: 'Live — Request Completed', group: 'Closing', quick: true,
         task: 'Closed Completed', stage: 'Request completed',
         hint: 'Uses the Live Link field below and the Feedback URL from the links card.',
         body: ctx => GREET(ctx)
@@ -1925,7 +2166,7 @@
 
     const CPGD_TEMPLATES = [
       {
-        id: 'cp-ack', label: 'Introduction / Acknowledgement', group: 'Intake', quick: true,
+        id: 'cp-ack', role: 'ack', label: 'Introduction / Acknowledgement', group: 'Intake', quick: true,
         task: 'Assigned', stage: 'Request raised',
         hint: 'The SLA paragraph switches automatically on whether the preferred date is achievable.',
         body: ctx => {
@@ -1943,7 +2184,7 @@
         },
       },
       {
-        id: 'cp-commence', label: 'Work Commences / Confirmation', group: 'Intake', quick: true,
+        id: 'cp-commence', role: 'commence', label: 'Work Commences / Confirmation', group: 'Intake', quick: true,
         task: 'In Review', stage: 'Brief validation',
         body: ctx => GREET(ctx)
           + `<p>I've reviewed the brief and I have all the necessary information to begin work.</p>`
@@ -1986,7 +2227,7 @@
 
       // ── On hold ───────────────────────────────────────────────────────
       {
-        id: 'cp-onhold', label: 'Ticket Put On-Hold', group: 'On hold', quick: true,
+        id: 'cp-onhold', role: 'onhold', label: 'Ticket Put On-Hold', group: 'On hold', quick: true,
         task: 'On Hold', stage: null, stageStatus: 'current',
         needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
@@ -1997,7 +2238,7 @@
           + CPGD_SIGN(ctx, 'Best regards,'),
       },
       {
-        id: 'cp-oh-r1', label: 'On-Hold — First Reminder (Day 7)', group: 'On hold',
+        id: 'cp-oh-r1', role: 'reminder1', label: 'On-Hold — First Reminder (Day 7)', group: 'On hold',
         task: 'On Hold', stage: null, needs: ['reason', 'ohDate'],
         body: ctx => GREET(ctx)
           + `<p>Just a quick heads-up that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.”</p>`
@@ -2007,7 +2248,7 @@
           + `<p>Thanks!</p>` + CPGD_SIGN(ctx, 'Best Regards,'),
       },
       {
-        id: 'cp-oh-r2', label: 'On-Hold — Final Reminder (Day 13)', group: 'On hold',
+        id: 'cp-oh-r2', role: 'reminder2', label: 'On-Hold — Final Reminder (Day 13)', group: 'On hold',
         task: 'On Hold', stage: null, needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
           + `<p>Just a final reminder that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.”</p>`
@@ -2016,7 +2257,7 @@
           + `<p>Thanks for your quick attention!</p>` + CPGD_SIGN(ctx, 'Best Regards,'),
       },
       {
-        id: 'cp-oh-closure', label: 'On-Hold — Closure (Day 15)', group: 'On hold',
+        id: 'cp-oh-closure', role: 'closure', label: 'On-Hold — Closure (Day 15)', group: 'On hold',
         task: 'Closed Incomplete', stage: 'Delivered',
         needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
@@ -2069,7 +2310,7 @@
           + CPGD_SIGN(ctx, 'Best,'),
       },
       {
-        id: 'cp-preview', label: 'Preview / Approval', group: 'Review rounds', quick: true,
+        id: 'cp-preview', role: 'preview', label: 'Preview / Approval', group: 'Review rounds', quick: true,
         task: 'Pending Confirmation', stage: 'Final review', stageStatus: 'current',
         needs: ['sharePoint'],
         body: ctx => GREET(ctx)
@@ -2084,7 +2325,7 @@
 
       // ── Closing ───────────────────────────────────────────────────────
       {
-        id: 'cp-missed', label: 'Missed Preferred Live Date', group: 'Closing',
+        id: 'cp-missed', role: 'missed', label: 'Missed Preferred Live Date', group: 'Closing',
         task: 'In Progress', stage: 'Design in progress', stageStatus: 'current',
         needs: ['newDate'],
         body: ctx => GREET(ctx)
@@ -2095,7 +2336,7 @@
           + CPGD_SIGN(ctx, 'Best Regards,'),
       },
       {
-        id: 'cp-closed', label: 'Ticket Closed — Completed', group: 'Closing', quick: true,
+        id: 'cp-closed', role: 'done', label: 'Ticket Closed — Completed', group: 'Closing', quick: true,
         task: 'Closed Completed', stage: 'Delivered',
         needs: ['sharePoint'],
         hint: 'Delivery is the SharePoint folder, not a live URL.',
@@ -2465,57 +2706,100 @@
     // They are kept per ticket id in localStorage so returning to a ticket —
     // tomorrow, or after a refresh — picks up exactly where it was left.
     const STORE_KEY = 'hub_email_state_v1';
-    const STORE_MAX = 80;   // keep the store bounded; oldest ticket drops out
+    const STORE_MAX = 80;   // local mirror only; the server keeps everything
     const LINK_IDS = ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'liveInput'];
+    const WHOAMI_KEY = 'hub_email_whoami';
 
-    function loadStore() {
+    // Saved details live on the server so the whole team sees the same links
+    // and dates on a ticket. localStorage stays as a mirror: it answers
+    // instantly while the fetch is in flight, and it is the whole story when
+    // the backend has no database attached.
+    let remoteState = {};
+    let sharedOn = false;
+
+    function loadLocal() {
       try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; }
     }
 
+    function writeLocal(store) {
+      const ids = Object.keys(store).sort((x, y) => (store[y].ts || 0) - (store[x].ts || 0));
+      ids.slice(STORE_MAX).forEach(id => delete store[id]);
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch {}
+    }
+
+    async function initSharedState() {
+      try {
+        const res = await fetch('/api/email-state', { cache: 'no-store' });
+        if (!res.ok) throw new Error(String(res.status));
+        remoteState = await res.json();
+        sharedOn = true;
+      } catch {
+        remoteState = {};
+        sharedOn = false;   // fall back to this browser only
+      }
+      const pill = document.getElementById('savedPill');
+      if (pill) pill.dataset.shared = sharedOn ? '1' : '0';
+    }
+
+    // Server copy wins when it exists — it is what everyone else sees.
+    function stateFor(id) { return remoteState[id] || loadLocal()[id] || null; }
+
+    function whoAmI() { return localStorage.getItem(WHOAMI_KEY) || ''; }
+
     function saveTicketState() {
       if (!currentTicket) return;
-      const store = loadStore();
       const links = {};
       LINK_IDS.forEach(id => {
         const v = (document.getElementById(id)?.value || '').trim();
         if (v) links[id] = v;
       });
-      store[currentTicket.id] = {
-        ts: Date.now(),
+      const payload = {
         links,
         to: (document.getElementById('toInput')?.value || '').trim(),
         cc: (document.getElementById('ccInput')?.value || '').trim(),
         fields: { ...fieldValues },
+        lastTemplate: activeTemplate?.id || null,
         widget: widget ? {
           label: widget.label, track: widget.track,
           dates: widget.dates, status: widget.status,
           statusTouched: !!widget.statusTouched,
         } : null,
       };
-      const ids = Object.keys(store).sort((a, b) => (store[b].ts || 0) - (store[a].ts || 0));
-      ids.slice(STORE_MAX).forEach(id => delete store[id]);
-      try {
-        localStorage.setItem(STORE_KEY, JSON.stringify(store));
-        flashSaved();
-      } catch { /* quota or private mode — the tool still works, just forgets */ }
+
+      const local = loadLocal();
+      local[currentTicket.id] = { ...payload, ts: Date.now() };
+      writeLocal(local);
+      remoteState[currentTicket.id] = { ...payload };
+
+      if (!sharedOn) { flashSaved(false); return; }
+      fetch(`/api/email-state/${encodeURIComponent(currentTicket.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload, updated_by: whoAmI() || null }),
+      }).then(r => flashSaved(r.ok)).catch(() => flashSaved(false));
     }
 
     let saveTimer;
     function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveTicketState, 400); }
 
-    function flashSaved() {
+    function flashSaved(shared = true) {
       const el = document.getElementById('savedPill');
       if (!el) return;
+      el.innerHTML = shared
+        ? '<i class="fa-solid fa-check"></i> Saved for everyone'
+        : '<i class="fa-solid fa-laptop"></i> Saved on this device';
+      el.classList.toggle('local-only', !shared);
       el.classList.add('show');
       clearTimeout(el._t);
-      el._t = setTimeout(() => el.classList.remove('show'), 1400);
+      el._t = setTimeout(() => el.classList.remove('show'), 1800);
     }
 
     function forgetTicketState() {
       if (!currentTicket) return;
-      const store = loadStore();
-      delete store[currentTicket.id];
-      try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch {}
+      const id = currentTicket.id;
+      const local = loadLocal(); delete local[id]; writeLocal(local);
+      delete remoteState[id];
+      if (sharedOn) fetch(`/api/email-state/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
     }
 
     // Opening a shared link (or just refreshing) lands on the same ticket and
@@ -2631,6 +2915,27 @@
       });
 
       // Filters
+      // View toggle
+      document.querySelectorAll('#viewToggle button').forEach(b => {
+        b.addEventListener('click', () => {
+          try { localStorage.setItem(VIEW_KEY, b.dataset.view); } catch {}
+          document.querySelectorAll('#viewToggle button').forEach(x =>
+            x.classList.toggle('active', x.dataset.view === b.dataset.view));
+          renderGrid();
+        });
+        b.classList.toggle('active', b.dataset.view === getView());
+      });
+
+      // Who is using this — feeds the shared save log and scopes the queue
+      document.getElementById('whoAmISel').addEventListener('change', e => {
+        try { localStorage.setItem(WHOAMI_KEY, e.target.value); } catch {}
+        const sel = document.getElementById('filterAssignee');
+        if (e.target.value && [...sel.options].some(o => o.value === e.target.value)) {
+          sel.value = e.target.value;
+          applyFilters(); saveFilters();
+        }
+      });
+
       let searchTimer;
       ['searchInput', 'filterAssignee', 'filterService', 'filterState', 'sortBy'].forEach(id => {
         const el = document.getElementById(id);
@@ -2641,7 +2946,7 @@
             searchTimer = setTimeout(applyFilters, 180);
           });
         } else {
-          el.addEventListener('change', applyFilters);
+          el.addEventListener('change', () => { applyFilters(); saveFilters(); });
         }
       });
 
