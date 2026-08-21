@@ -538,6 +538,87 @@
       .filter-bar { gap: 0.5rem; }
       .filter-bar input[type="text"] { width: 150px; }
     }
+    /* ── Template picker ─────────────────────────────────────────────── */
+    .quick-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+    .qpick {
+      border: 1px solid var(--border); background: #fff; color: var(--text);
+      border-radius: 999px; padding: 5px 12px; font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all .12s;
+    }
+    .qpick:hover { border-color: var(--primary); color: var(--primary); }
+    .qpick.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .tmpl-hint { font-size: 0.76rem; color: var(--muted); margin: 0.5rem 0 0; line-height: 1.5; }
+    .editable-tag {
+      font-size: 0.68rem; font-weight: 500; color: var(--muted); text-transform: none;
+      letter-spacing: 0; margin-left: 8px;
+    }
+    .ph-warn {
+      font-size: 0.72rem; font-weight: 600; color: #b45309; background: #fffbeb;
+      border: 1px solid #fde68a; border-radius: 6px; padding: 3px 9px; text-transform: none; letter-spacing: 0;
+    }
+
+    /* ── Progress widget ─────────────────────────────────────────────── */
+    .wdg-toggle {
+      font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: none;
+      letter-spacing: 0; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+    }
+    .wdg-track-row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 0.7rem; flex-wrap: wrap;
+    }
+    .wdg-track-row label {
+      font-size: 0.72rem; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.05em; margin: 0;
+    }
+    .wdg-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+    .wdg-table { border-collapse: collapse; width: 100%; font-size: 0.78rem; }
+    .wdg-table th, .wdg-table td {
+      border: 1px solid var(--border); padding: 7px 9px; text-align: center; vertical-align: middle;
+    }
+    .wdg-table th { background: #f8fafc; font-weight: 700; color: var(--text); min-width: 108px; }
+    .wdg-table .wdg-rowlab { background: #f8fafc; font-weight: 700; width: 62px; min-width: 62px; }
+    .wdg-date {
+      border: none; background: transparent; width: 100%; text-align: center;
+      font-family: inherit; font-size: 0.78rem; color: var(--text); padding: 2px;
+    }
+    .wdg-date:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-radius: 4px; }
+    .wdg-status { cursor: pointer; user-select: none; white-space: nowrap; }
+    .wdg-status:hover { background: #f1f5f9; }
+
+    /* ── Action bar ──────────────────────────────────────────────────── */
+    .action-bar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0.85rem;
+      padding-top: 0.85rem; border-top: 1px solid var(--border);
+    }
+    .btn-secondary-a {
+      border: 1px solid var(--border); background: #fff; color: var(--text);
+      border-radius: 8px; padding: 9px 15px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 7px;
+      transition: all .12s;
+    }
+    .btn-secondary-a:hover { border-color: var(--primary); color: var(--primary); }
+    .email-content[contenteditable="true"]:focus {
+      outline: 2px solid rgba(20,80,245,0.25); outline-offset: 3px; border-radius: 4px;
+    }
+
+    /* Widget as it appears inside the composed email body */
+    .email-content table.pw {
+      border-collapse: collapse; margin: 0 0 14px; font-size: 13px; font-family: Aptos, Calibri, sans-serif;
+    }
+    .email-content table.pw th, .email-content table.pw td {
+      border: 1px solid #d0d7de; padding: 6px 10px; text-align: center;
+    }
+    .email-content table.pw th { background: #f6f8fa; font-weight: 700; }
+
+    /* ── Toast ───────────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(12px);
+      background: #0f172a; color: #fff; padding: 10px 18px; border-radius: 10px;
+      font-size: 0.83rem; font-weight: 600; z-index: 4000; opacity: 0;
+      pointer-events: none; transition: opacity .18s, transform .18s;
+      box-shadow: 0 8px 24px rgba(15,23,42,.28); max-width: 90vw;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.err { background: #b91c1c; }
   </style>
 </head>
 <body>
@@ -738,11 +819,65 @@
             <div class="link-ok" id="feedbackOk"><i class="fa-solid fa-check-circle"></i><a id="feedbackLinkEl" href="#" target="_blank"></a><button class="copy-sm" id="feedbackCopyBtn">Copy</button></div>
             <div class="field-err" id="feedbackErr"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
           </div>
-          <div style="grid-column: 1 / -1;">
-            <label>Preview Link <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— paste the preview URL here</span></label>
+          <div>
+            <label>Preview Link <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— used by the Preview email</span></label>
             <input type="url" class="field-input" id="previewInput" placeholder="https://…">
           </div>
+          <div>
+            <label>Live Link <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— used by the Live email</span></label>
+            <input type="url" class="field-input" id="liveInput" placeholder="https://… (published page / asset URL)">
+          </div>
         </div>
+      </div>
+
+      <!-- Recipients -->
+      <div class="form-card">
+        <div class="card-title"><i class="fa-solid fa-paper-plane"></i> Recipients</div>
+        <div class="grid-2">
+          <div>
+            <label>To</label>
+            <input type="text" class="field-input" id="toInput" placeholder="name@kone.com">
+          </div>
+          <div>
+            <label>Cc <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">— prefilled from the ticket watch list</span></label>
+            <input type="text" class="field-input" id="ccInput" placeholder="separate multiple with ;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Template picker -->
+      <div class="form-card">
+        <div class="card-title"><i class="fa-solid fa-envelope-open-text"></i> Email Template</div>
+        <div class="quick-picks" id="quickPicks"></div>
+        <select class="field-input" id="tmplSelect" style="margin-top:0.65rem;"></select>
+        <p class="tmpl-hint" id="tmplHint"></p>
+      </div>
+
+      <!-- Fields the chosen template needs (rendered on demand) -->
+      <div class="form-card" id="dynFieldsCard" style="display:none;">
+        <div class="card-title"><i class="fa-solid fa-sliders"></i> Details for this email</div>
+        <div class="grid-2" id="dynFields"></div>
+      </div>
+
+      <!-- Progress / visibility widget -->
+      <div class="form-card">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span><i class="fa-solid fa-diagram-project"></i> Progress Widget</span>
+          <span style="display:flex;align-items:center;gap:10px;">
+            <label class="wdg-toggle"><input type="checkbox" id="wdgOn" checked> Include in email</label>
+            <button class="copy-sm" id="wdgResetBtn" type="button">Reset dates</button>
+          </span>
+        </div>
+        <div class="wdg-track-row">
+          <label>Track</label>
+          <select class="field-input" id="wdgTrack" style="width:260px;"></select>
+          <label style="margin-left:auto;">Header</label>
+          <input type="text" class="field-input" id="wdgLabel" style="width:170px;" placeholder="DEA - 2A">
+        </div>
+        <div class="wdg-scroll">
+          <table class="wdg-table" id="wdgTable"></table>
+        </div>
+        <p class="tmpl-hint">Click a status cell to cycle it: done → current → pending. Dates are editable and free text, so “Aug 10 – Aug 21, 2026 Sprint” works.</p>
       </div>
 
       <!-- Subject -->
@@ -753,60 +888,26 @@
         </div>
         <div class="subject-row">
           <input type="text" class="field-input" id="subjectInput" placeholder="Email subject line">
+          <button class="copy-sm" id="copySubjBtn" type="button">Copy</button>
           <button class="ai-btn" id="aiSubjectBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Suggest</button>
         </div>
       </div>
 
-      <!-- Email Tabs -->
-      <div class="email-tabs" id="emailTabs">
-        <button class="etab active" data-tab="assigned">Assigned</button>
-        <button class="etab" data-tab="confirmation">Confirmation</button>
-        <button class="etab" data-tab="preview">Preview</button>
-        <button class="etab" data-tab="onhold">On Hold</button>
-        <button class="etab" data-tab="pendingconf">Pending Confirmation</button>
-        <button class="etab" data-tab="closed">Closed Completed</button>
-      </div>
-
-      <div id="tab-assigned" class="tab-panel active">
-        <div class="email-box"><div id="body-assigned" class="email-content"></div><button class="copy-email-btn" data-src="body-assigned"><i class="fa-regular fa-copy"></i> Copy</button></div>
-      </div>
-      <div id="tab-confirmation" class="tab-panel">
-        <div class="email-box"><div id="body-confirmation" class="email-content"></div><button class="copy-email-btn" data-src="body-confirmation"><i class="fa-regular fa-copy"></i> Copy</button></div>
-      </div>
-      <div id="tab-preview" class="tab-panel">
-        <div class="email-box"><div id="body-preview" class="email-content"></div><button class="copy-email-btn" data-src="body-preview"><i class="fa-regular fa-copy"></i> Copy</button></div>
-      </div>
-      <div id="tab-onhold" class="tab-panel">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
-          <div>
-            <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">On Hold Reason</label>
-            <input type="text" class="field-input" id="ohReasonInput" placeholder="e.g. Awaiting client assets" oninput="renderEmails()">
-          </div>
-          <div>
-            <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">On Hold Start Date</label>
-            <input type="date" class="field-input" id="ohDateInput" oninput="renderEmails()">
-          </div>
+      <!-- Composed email -->
+      <div class="form-card" style="padding-bottom:0.9rem;">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span><i class="fa-regular fa-envelope"></i> Email <span class="editable-tag">editable — click to change any wording</span></span>
+          <span id="phWarn" class="ph-warn" style="display:none;"></span>
         </div>
-        <div class="sub-tabs">
-          <button class="stab active" data-sub="oh-initial">Initial</button>
-          <button class="stab" data-sub="oh-r1">1st Reminder</button>
-          <button class="stab" data-sub="oh-r2">Final Reminder</button>
-          <button class="stab" data-sub="oh-closure">Closure</button>
+        <div class="email-box">
+          <div id="body-main" class="email-content" contenteditable="true" spellcheck="true"></div>
         </div>
-        <div id="sub-oh-initial" class="sub-panel active"><div class="email-box"><div id="body-oh-initial" class="email-content"></div><button class="copy-email-btn" data-src="body-oh-initial"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
-        <div id="sub-oh-r1" class="sub-panel"><div class="email-box"><div id="body-oh-r1" class="email-content"></div><button class="copy-email-btn" data-src="body-oh-r1"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
-        <div id="sub-oh-r2" class="sub-panel"><div class="email-box"><div id="body-oh-r2" class="email-content"></div><button class="copy-email-btn" data-src="body-oh-r2"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
-        <div id="sub-oh-closure" class="sub-panel"><div class="email-box"><div id="body-oh-closure" class="email-content"></div><button class="copy-email-btn" data-src="body-oh-closure"><i class="fa-regular fa-copy"></i> Copy</button></div></div>
-      </div>
-      <div id="tab-pendingconf" class="tab-panel">
-        <div class="email-box"><div id="body-pendingconf" class="email-content"></div><button class="copy-email-btn" data-src="body-pendingconf"><i class="fa-regular fa-copy"></i> Copy</button></div>
-      </div>
-      <div id="tab-closed" class="tab-panel">
-        <div style="margin-bottom:0.85rem;">
-          <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Live Link URL</label>
-          <input type="url" class="field-input" id="liveInput" placeholder="https://… (published page / asset URL)" oninput="renderEmails()">
+        <div class="action-bar">
+          <button class="btn-primary" id="copyRichBtn"><i class="fa-regular fa-copy"></i> Copy for Outlook</button>
+          <button class="btn-secondary-a" id="openOutlookBtn"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Outlook</button>
+          <button class="btn-secondary-a" id="copyPlainBtn"><i class="fa-solid fa-align-left"></i> Copy plain text</button>
+          <button class="btn-secondary-a" id="resetBodyBtn"><i class="fa-solid fa-rotate-left"></i> Reset edits</button>
         </div>
-        <div class="email-box"><div id="body-closed" class="email-content"></div><button class="copy-email-btn" data-src="body-closed"><i class="fa-regular fa-copy"></i> Copy</button></div>
       </div>
 
     </div>
@@ -949,30 +1050,67 @@
     }
 
     // ── Date utilities ────────────────────────────────────────────────────
+    // Sheets are authored in one timezone; browsers render in another. Override
+    // if the sheet's timezone differs from the people reading it.
+    const SHEET_TZ = localStorage.getItem('hub_sheet_tz')
+      || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+    // Resolve an instant to the calendar date it falls on in `tz`.
+    function calendarDateIn(instant, tz) {
+      try {
+        const [y, m, d] = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+        }).format(instant).split('-').map(Number);
+        return new Date(y, m - 1, d);
+      } catch {
+        return new Date(instant.getFullYear(), instant.getMonth(), instant.getDate());
+      }
+    }
+
     function parseFlexDate(val) {
-      if (!val || val === '') return null;
+      if (val === null || val === undefined || val === '') return null;
       if (typeof val === 'number') {
-        // Excel/Sheets serial number
-        const d = new Date((val - 25569) * 86400 * 1000);
+        // Excel/Sheets serial number — a whole-day count, so read it back in UTC.
+        const d = new Date(Math.round((val - 25569) * 86400 * 1000));
         return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
       }
       const s = String(val).trim();
       if (!s) return null;
-      // ISO: 2025-05-18 or 2025-05-18T...
+
+      // ISO carrying an explicit zone ("...Z" / "+05:30") is an *instant*, not a
+      // date. Google serializes a sheet's midnight into UTC, so slicing the first
+      // ten characters yields the previous day for any timezone ahead of UTC —
+      // this was every date in the tool reading one day early. Resolve the
+      // instant in the sheet's timezone instead of trusting the UTC prefix.
+      const isoZoned = s.match(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})$/i);
+      if (isoZoned) {
+        const inst = new Date(s.replace(' ', 'T'));
+        return isNaN(inst) ? null : calendarDateIn(inst, SHEET_TZ);
+      }
+
+      // ISO with no zone (date-only, or "2025-05-18 08:30:00") is already a local
+      // wall-clock date — pin it to local midnight so no shift can occur.
       if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-        const d = new Date(s.substring(0, 10) + 'T00:00:00');
-        return isNaN(d) ? null : d;
+        const [y, m, d] = s.substring(0, 10).split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        return isNaN(dt) ? null : dt;
       }
-      // ServiceNow format: 2025-05-18 08:30:00
-      // Already handled above
-      // US format: 5/18/2025
-      const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      if (usMatch) {
-        const d = new Date(+usMatch[3], +usMatch[1] - 1, +usMatch[2]);
-        return isNaN(d) ? null : d;
+
+      // Slash dates. Sheets export in the spreadsheet's locale, so d/m/yyyy is as
+      // likely as m/d/yyyy; a first part above 12 can only be the day.
+      const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (slash) {
+        let [, p1, p2, yr] = slash;
+        p1 = +p1; p2 = +p2;
+        const [mo, day] = (p1 > 12 && p2 <= 12) ? [p2, p1] : [p1, p2];
+        const dt = new Date(+yr, mo - 1, day);
+        return isNaN(dt) ? null : dt;
       }
-      const d = new Date(s);
-      return isNaN(d) ? null : d;
+
+      // "29 Jul 2026" / "Jul 29, 2026" — parsed as local, then flattened to a date.
+      const dt = new Date(s);
+      if (isNaN(dt)) return null;
+      return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
     }
 
     function addWorkDays(date, days) {
@@ -1062,6 +1200,7 @@
         populateFilterOptions();
         applyFilters();
         showView('list');
+        restoreFromUrl();
       } catch (e) {
         if (!silent) alert('Could not load sheet data: ' + e.message + '\n\nMake sure the sheet is published to the web as CSV.');
         else console.error('Sheet refresh failed:', e);
@@ -1178,18 +1317,40 @@
     }
 
     // ── Ticket selection + email view ─────────────────────────────────────
-    function selectTicket(ticket) {
+    function buildSubject() {
+      if (!currentTicket) return;
+      const taskSel = document.getElementById('taskTypeSelect');
+      const desc = currentTicket.description.length > 60
+        ? currentTicket.description.slice(0, 60) + '…' : currentTicket.description;
+      document.getElementById('subjectInput').value =
+        `${taskSel.value} - ${desc} - Hub Ticket #${currentTicket.id}`;
+    }
+
+    function guessTrack(ticket) {
+      const s = (ticket.subCategory || '').toLowerCase();
+      if (s.includes('email')) return 'Email Journey';
+      if (s.includes('website') || s.includes('content')) return 'Website Content';
+      return 'Generic';
+    }
+
+    function selectTicket(ticket, opts = {}) {
       currentTicket = ticket;
       generatedCaseLink = '';
       generatedFeedbackLink = '';
+      fieldValues = {};
+      bodyEdited = false;
 
       // Reset inputs
-      ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'ohReasonInput', 'ohDateInput', 'liveInput'].forEach(id => {
-        document.getElementById(id).value = '';
+      ['caseUrlInput', 'feedbackUrlInput', 'previewInput', 'liveInput'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
       });
       ['caseOk', 'caseErr', 'feedbackOk', 'feedbackErr'].forEach(id => {
         document.getElementById(id).classList.remove('show');
       });
+
+      // Recipients come straight off the ticket so nobody retypes them.
+      document.getElementById('toInput').value = ticket.client || '';
+      document.getElementById('ccInput').value = ticket.watchList || '';
 
       // Populate header
       document.getElementById('enTicketNum').textContent = '#' + ticket.id;
@@ -1219,174 +1380,568 @@
       const stateBadge = document.getElementById('ethState');
       stateBadge.textContent = ticket.state;
       stateBadge.className = 'state-badge ' + (STATE_CLASS[ticket.state] || 's-open');
-
       document.getElementById('ethDaysBadgeWrap').innerHTML = daysBadge(ticket.daysLeft);
 
-      // Populate task type dropdown
+      // Task type dropdown
       const taskSel = document.getElementById('taskTypeSelect');
       const normKey = ticket.subCategory.toLowerCase().replace(/\s*[-–—]\s*/g, ' ').trim();
       let taskOpts = TASK_TYPES._default;
-      for (const [key, opts] of Object.entries(TASK_TYPES)) {
-        if (key !== '_default' && normKey.includes(key)) { taskOpts = opts; break; }
+      for (const [key, o] of Object.entries(TASK_TYPES)) {
+        if (key !== '_default' && normKey.includes(key)) { taskOpts = o; break; }
       }
       taskSel.innerHTML = taskOpts.map(o => `<option value="${o}">${o}</option>`).join('');
 
-      function buildSubject() {
-        const type = taskSel.value;
-        const desc = ticket.description.length > 60 ? ticket.description.slice(0, 60) + '…' : ticket.description;
-        document.getElementById('subjectInput').value = `${type} - ${desc} - Hub Ticket #${ticket.id}`;
-      }
-      taskSel.onchange = buildSubject;
-      buildSubject();
+      // Progress widget, seeded from the ticket's own dates
+      const track = guessTrack(ticket);
+      document.getElementById('wdgTrack').value = track;
+      widget = defaultWidget(ticket, track);
+      document.getElementById('wdgLabel').value = widget.label;
 
-      // Reset to first tab
-      switchETab('assigned');
-      switchSubTab('oh-initial');
-
-      renderEmails();
+      selectTemplate(opts.tmpl || 'ack', { silent: !!opts.silent });
       showView('email');
       window.scrollTo(0, 0);
     }
 
     // ── Email templates ───────────────────────────────────────────────────
-    function buildEmails(ticket, caseLink, feedbackLink, previewLink, ohReason, ohDate, liveLink) {
-      const { id, description, client, assignee, slaDays, slaDate, prefLive } = ticket;
-      const slaStr = fmtDate(slaDate);
-      const liveStr = fmtDate(prefLive);
-      const cHref = caseLink || '#';
-      const fHref = feedbackLink || '#';
-      const isEarlier = prefLive && slaDate && prefLive < slaDate;
-      const prevText = previewLink ? `\n${previewLink}` : '\n[Preview Link To Be Provided]';
-      const ohReasonStr = ohReason || '[On Hold Reason]';
-      const ohDateStr = ohDate ? fmtDate(new Date(ohDate + 'T00:00:00')) : '[On Hold Date]';
-      const closureDate = ohDate ? fmtDate(addWorkDays(new Date(ohDate + 'T00:00:00'), 14)) : '[Closure Date]';
+    // Wording is reproduced verbatim from Email_Template.docx. Anything the
+    // sender still has to supply stays a [Placeholder] and is highlighted in
+    // the preview so it can't be pasted into Outlook unnoticed.
 
-      const assigned = `Hello ${client},
+    const PH = s => `<span class="ph" style="background:#fef3c7;border-bottom:1px dashed #d97706;padding:0 2px;">${s}</span>`;
 
-Thank you for submitting your request to the Digital Marketing Hub team. We've received your request to "${description}" and your ticket number is #${id}. You can track its progress <a href="${cHref}">here</a>.
+    // Fields a template can ask for. Rendered on demand above the preview.
+    const FIELD_DEFS = {
+      reason:        { label: 'Reason',                 type: 'text', ph: 'e.g. awaiting additional information' },
+      details:       { label: 'Details needed',         type: 'area', ph: 'One per line' },
+      ohDate:        { label: 'On-hold start date',     type: 'date' },
+      closureDate:   { label: 'Closure date',           type: 'date' },
+      newSpecialist: { label: 'New specialist',         type: 'text', ph: 'Taking over' },
+      prevSpecialist:{ label: 'Previous specialist',    type: 'text', ph: 'Handing over' },
+      fileName:      { label: 'File name received',     type: 'text', ph: 'brief.docx' },
+      jiraTicket:    { label: 'JIRA ticket / link',     type: 'text', ph: 'ITSM0012345' },
+      channel:       { label: 'Channel',                type: 'select', opts: ['Email Journey', 'Paid Search', 'Paid Social'] },
+      depTeam:       { label: 'Dependency owner',       type: 'select', opts: ['IT', 'SFMC', 'relevant team'] },
+      goLiveTime:    { label: 'Go-live time',           type: 'text', ph: '08:00 AM IST' },
+      liveNow:       { label: "What's live now",        type: 'area', ph: 'One per line' },
+      liveNext:      { label: "What's next",            type: 'area', ph: 'One per line' },
+      partialDate:   { label: 'Partial go-live date',   type: 'date' },
+    };
 
-I'm ${assignee}, and I will be handling your ticket. You can contact me anytime via email or MS Teams.
+    const SIG = ctx => `<p>Warm Regards,<br><strong>${esc(ctx.specialist)}</strong><br>`
+      + `Digital Marketing Specialist – Marketing Hub<br>KBS x Global Marketing</p>`;
 
-Next steps: I'll review your request to ensure we have all the necessary information to begin and will confirm via email within 24 hours. If I need any clarification or additional details, I'll reach out promptly.
+    const GREET = ctx => `<p>Hi ${ctx.contact ? esc(ctx.contact) : PH("[Recipient's Name]")},</p>`;
 
-We usually have a ${slaDays}-working-day turnaround, so we're targeting ${slaStr} to have everything wrapped up.${
-  isEarlier
-    ? ` I saw that you'd prefer a completion date of ${liveStr}, which is a bit sooner than our usual timeframe. We'll do our best to meet that earlier date and will keep you updated along the way.`
-    : liveStr !== 'TBD'
-      ? ` We have also noted your preferred completion date of ${liveStr}.`
-      : ''
-}`;
+    const listOf = (raw, fallback) => {
+      const lines = String(raw || '').split('\n').map(s => s.trim()).filter(Boolean);
+      if (!lines.length) return `<ul><li>${PH(fallback)}</li><li>${PH(fallback)}</li></ul>`;
+      return `<ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`;
+    };
 
-      const confirmation = `Hello ${client},
+    const TEMPLATES = [
+      // ── Intake ────────────────────────────────────────────────────────
+      {
+        id: 'ack', label: 'Ticket Acknowledgement', group: 'Intake', quick: true,
+        task: 'Assigned', stage: 'Request raised',
+        hint: 'Sent when the ticket is picked up. The SLA paragraph switches automatically depending on whether the preferred live date is achievable.',
+        body: ctx => {
+          const matched = ctx.prefLive && ctx.slaDate && ctx.prefLive >= ctx.slaDate;
+          const sla = matched
+            ? `<p>Thanks for your request! We’re aiming to complete it within our 10-working-day Service Level Agreement which also matches your preferred live date of ${ctx.prefLiveTxt}.</p>`
+              + `<p>We’ll keep you updated on our progress and let you know if anything changes.</p>`
+            : `<p>We usually have a 10-working-day turnaround, so we’re targeting ${ctx.slaTxt} to have everything wrapped up. I saw that you’d prefer a completion date of ${ctx.prefLiveTxt}, which is a bit sooner than our usual timeframe. We’ll do our best to meet that earlier date and keep you updated along the way. If anything changes, we’ll let you know as soon as possible.</p>`;
+          return GREET(ctx)
+            + `<p>Thank you for submitting your request to the Digital Marketing Hub team. We've received your request to “<strong>${esc(ctx.title)}</strong>” and your ticket number is <strong>${esc(ctx.id)}</strong>. You can track its progress ${ctx.caseLinkHtml}.</p>`
+            + `<p>I ${esc(ctx.specialist)} will be handling your ticket, and you can contact me anytime via email or MS Teams.</p>`
+            + `<p><strong>Next steps</strong>: I'll review your request to ensure we have all the necessary information to begin. I'll confirm via email within 24 hours. If I need any clarification or additional details, I'll reach out to you promptly.</p>`
+            + sla + SIG(ctx);
+        },
+      },
+      {
+        id: 'commence', label: 'Work Commences Confirmation', group: 'Intake', quick: true,
+        task: 'In Review', stage: 'Content Validation',
+        hint: 'Confirms the brief is complete and build has started.',
+        body: ctx => GREET(ctx)
+          + `<p>Thanks — everything we need is in place, so work on your request is now underway. Once I have a preview link ready, I'll promptly send it to you via email.</p>`
+          + SIG(ctx),
+      },
+      {
+        id: 'clarification', label: 'Clarification Required', group: 'Intake',
+        task: 'On Hold', stage: 'Content Validation', stageStatus: 'current',
+        needs: ['details', 'closureDate'],
+        hint: 'Puts the ticket on hold pending information. 14 working days before auto-closure.',
+        body: ctx => GREET(ctx)
+          + `<p>We've reviewed your brief, and before we proceed, we require some additional information. Could you please provide the following details:</p>`
+          + listOf(ctx.f.details, '[Details]')
+          + `<p><strong>Your ticket status:</strong> We will need those details to proceed, so your ticket will be on hold until we receive it.</p>`
+          + `<p>Please send them over at your earliest convenience. We understand things can get busy, but every day counts toward meeting your preferred live date ${ctx.prefLiveTxt}.</p>`
+          + `<p>We can hold your ticket for up to 14 working days, until ${ctx.dateOr('closureDate', ctx.hold14Txt)}. If we haven't heard back from you by then, we'll have to close the ticket, and no further action will be taken from our end.</p>`
+          + `<p>Thanks for your prompt attention to this!</p>` + SIG(ctx),
+      },
+      {
+        id: 'received-clarification', label: 'Received Clarification', group: 'Intake',
+        task: 'In Progress', stage: 'Content Validation',
+        body: ctx => GREET(ctx)
+          + `<p>Thank you for providing the necessary details—really appreciate it!</p>`
+          + `<p>We'll start working on your ticket now. Once we have a preview link ready, we'll promptly send it over to you.</p>`
+          + SIG(ctx),
+      },
+      {
+        id: 'rejection', label: 'Rejection — Brief Template Not Used', group: 'Intake',
+        task: 'Closed Incomplete', stage: 'Request raised', stageStatus: 'current',
+        needs: ['fileName'],
+        body: ctx => GREET(ctx)
+          + `<p>Thanks a bunch for submitting your request to our Digital Marketing Hub team—really appreciate it!</p>`
+          + `<p>I reviewed the file (${ctx.f.fileName ? esc(ctx.f.fileName) : PH('File name.docx')}) you sent with your ticket. It looks like the brief template wasn’t used. Could you please update it accordingly?</p>`
+          + `<p>Just a quick reminder: using the template helps us understand your needs clearly and serve you better. It’s essential for submitting a request. Without it, I won’t be able to proceed with your request, so I’ll need to close your current ticket (number: <strong>${esc(ctx.id)}</strong>). Could you please resubmit it using the template?</p>`
+          + `<p>But hey, no worries! You can easily create a new request using the attached template. It's straightforward—just download it, fill in the details, and make sure to attach it when you submit the form.</p>`
+          + `<p>I'm really looking forward to helping you out!</p>` + SIG(ctx),
+      },
+      {
+        id: 'reassigned', label: 'Ticket Reassigned', group: 'Intake',
+        task: 'Assigned', stage: null,
+        needs: ['newSpecialist', 'prevSpecialist', 'reason'],
+        body: ctx => GREET(ctx)
+          + `<p>I’m ${ctx.f.newSpecialist ? esc(ctx.f.newSpecialist) : esc(ctx.specialist)}, and I’ll be taking over your ticket from ${ctx.f.prevSpecialist ? esc(ctx.f.prevSpecialist) : PH('[Previous Specialist’s Name]')}.</p>`
+          + `<p><strong>Reason for Reassignment:</strong> ${ctx.f.reason ? esc(ctx.f.reason) : PH('e.g. “I’m taking over to ensure you get the specialized support you need.”')}</p>`
+          + `<p>Rest assured, this change will not affect the speed of your ticket or our commitment to meeting the Service-Level-Agreement/Preferred-Live date. I’m fully briefed on your ticket and will ensure everything stays on track.</p>`
+          + `<p>If you have any questions or would like to discuss the next steps, feel free to reach out. I’m here to help!</p>`
+          + `<p>Thanks for your understanding and patience!</p>` + SIG(ctx),
+      },
 
-I've reviewed the brief and I have all the necessary information to begin work.
+      // ── On hold ───────────────────────────────────────────────────────
+      {
+        id: 'onhold', label: 'Ticket On-Hold', group: 'On hold', quick: true,
+        task: 'On Hold', stage: null, stageStatus: 'current',
+        needs: ['reason', 'ohDate', 'closureDate'],
+        body: ctx => GREET(ctx)
+          + `<p>As per your confirmation, your ticket is on hold due to ${ctx.f.reason ? esc(ctx.f.reason) : PH('[reason, e.g. "awaiting additional information"]')}. We are happy to wait, but every day counts toward meeting your preferred live date ${ctx.prefLiveTxt}.</p>`
+          + `<p>We can hold your ticket for up to 14 working days, until ${ctx.dateOr('closureDate', ctx.hold14Txt)}. If we don’t have the necessary information to work on your ticket by then, we’ll have to close the ticket, and you can create a new ticket when you have the required details.</p>`
+          + `<p>Thank you for your support on this!</p>` + SIG(ctx),
+      },
+      {
+        id: 'oh-r1', label: 'On-Hold — First Reminder (Day 7)', group: 'On hold',
+        task: 'On Hold', stage: null, needs: ['reason', 'ohDate'],
+        body: ctx => GREET(ctx)
+          + `<p>Just a quick heads-up that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.” We can keep it on hold for up to 14 working days.</p>`
+          + `<p>With only a few days left, we wanted to check if you have any updates or info for us.</p>`
+          + `<p>We’re aiming to resolve this ticket as soon as possible, so let us know if there’s anything you can share.</p>`
+          + `<p>Thanks!</p>` + SIG(ctx),
+      },
+      {
+        id: 'oh-r2', label: 'On-Hold — Final Reminder (Day 13)', group: 'On hold',
+        task: 'On Hold', stage: null, needs: ['reason', 'ohDate', 'closureDate'],
+        body: ctx => GREET(ctx)
+          + `<p>Just a final reminder that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.” We’re nearing the 14-day mark, with the deadline on ${ctx.dateOr('closureDate', ctx.hold14Txt)}.</p>`
+          + `<p>If we don’t hear from you by then, we’ll need to close the ticket. However, you can always open a new one when you’re ready with the details.</p>`
+          + `<p>Thanks for your quick attention!</p>` + SIG(ctx),
+      },
+      {
+        id: 'oh-closure', label: 'On-Hold — Closure Notice (Day 15)', group: 'On hold',
+        task: 'Closed Incomplete', stage: 'Request completed',
+        needs: ['reason', 'ohDate', 'closureDate'],
+        body: ctx => GREET(ctx)
+          + `<p>We’ve had your ticket on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.” Since we haven’t received a response, we’ve gone ahead and closed it as of ${ctx.dateOr('closureDate', ctx.todayTxt)}.</p>`
+          + `<p>If you still need help, just create a new ticket with the details, and we’ll get right on it.</p>`
+          + `<p>Thanks for understanding!</p>` + SIG(ctx),
+      },
 
-Once I have a preview link ready, I'll promptly send it to you via email.`;
+      // ── Delivery ──────────────────────────────────────────────────────
+      {
+        id: 'preview', label: 'Preview Ready', group: 'Delivery', quick: true,
+        task: 'Pending Confirmation', stage: 'FL testing & approval', stageStatus: 'current',
+        needs: ['goLiveTime'],
+        hint: 'Uses the Preview Link from the ServiceNow Links card above.',
+        body: ctx => GREET(ctx)
+          + `<p>Exciting news! I've got a sneak peek of your request <strong>${esc(ctx.id)}</strong> regarding the “${esc(ctx.title)}”, ready for your review.</p>`
+          + `<p>Check out the preview here: ${ctx.previewLinkHtml}</p>`
+          + `<p><strong>Next step:</strong></p>`
+          + `<p>If the preview meets your expectations and doesn't require any changes, please reply to this email with your approval to proceed with the page going live. I'll then schedule it to be published on your preferred live date, ${ctx.prefLiveTxt}, at ${ctx.f.goLiveTime ? esc(ctx.f.goLiveTime) : '08:00 AM IST'}. Alternatively, if you prefer to go live at the earliest possible time, please specify the date and time.</p>`
+          + `<p>If you have any amends you want to make, or you have a change to your request to submit, please use the form at this link here to do so: <a href="#">Change Request Form</a>. Please do not reply to this email with any amends – we will only collect them from the form above.</p>`
+          + SIG(ctx),
+      },
+      {
+        id: 'testing', label: 'Testing In Progress', group: 'Delivery',
+        task: 'In Progress', stage: 'FL testing & approval', stageStatus: 'current',
+        body: ctx => GREET(ctx)
+          + `<p>The email journey has been successfully created, and you will start receiving the emails for testing soon. Please review them once they arrive and let us know if you encounter any issues or require adjustments.</p>`
+          + `<p>Regards,<br><strong>${esc(ctx.specialist)}</strong></p>`,
+      },
+      {
+        id: 'dependency', label: 'Dependency Raised', group: 'Delivery',
+        task: 'Dependency', stage: 'Journey development', stageStatus: 'current',
+        needs: ['channel', 'depTeam', 'reason', 'jiraTicket'],
+        body: ctx => GREET(ctx)
+          + `<p>The preview of the ${esc(ctx.f.channel || 'Email Journey')} has been shared and approved by you.</p>`
+          + `<p>Next steps are with the ${esc(ctx.f.depTeam || 'IT')} team since there are ${ctx.f.reason ? esc(ctx.f.reason) : PH('[mention issues, errors, or delays]')}, so the ticket has now been moved to “Dependency” status.</p>`
+          + `<p>I've raised a JIRA ticket for this: ${ctx.f.jiraTicket ? esc(ctx.f.jiraTicket) : PH('[IT Ticket Number/Link]')}, in case you want to check the details. I’ll continue to follow up with the team and keep you posted as things progress.</p>`
+          + `<p>Regards,<br><strong>${esc(ctx.specialist)}</strong></p>`,
+      },
+      {
+        id: 'deployment', label: 'Deployment Scheduled', group: 'Delivery', quick: true,
+        task: 'Pending Confirmation', stage: 'Deployment scheduled', stageStatus: 'current',
+        needs: ['goLiveTime'],
+        hint: 'Matches the confirmation note in your reference email — the widget carries the schedule.',
+        body: ctx => GREET(ctx)
+          + `<p>As approved in chat, the journey is scheduled on <strong>${ctx.prefLiveTxt}${ctx.f.goLiveTime ? ' - ' + esc(ctx.f.goLiveTime) : ''}</strong>.</p>`
+          + `<p>Thanks</p>` + SIG(ctx),
+      },
+      {
+        id: 'missed-pld', label: 'Missed Preferred Live Date', group: 'Delivery',
+        task: 'In Progress', stage: 'Journey development', stageStatus: 'current',
+        body: ctx => GREET(ctx)
+          + `<p>I've looked into every possibility to meet your preferred deadline for today, but due to other priorities, I've only gotten halfway through your request. I apologize for missing your preferred live date, but I'll definitely have everything done by our agreed service level agreement of 10 days, which is <strong>${ctx.slaTxt}</strong> (since the request was made on <strong>${ctx.createdTxt}</strong>).</p>`
+          + `<p>I'll keep you posted on my progress. If you have any concerns or aren't happy with this delay, please let us know in the ${ctx.feedbackLinkHtml} for further action.</p>`
+          + SIG(ctx),
+      },
+      {
+        id: 'partial', label: 'Partially Going Live', group: 'Delivery',
+        task: 'In Progress', stage: 'Deployment scheduled', stageStatus: 'current',
+        needs: ['partialDate', 'reason', 'liveNow', 'liveNext'],
+        body: ctx => GREET(ctx)
+          + `<p>Good news! As agreed, we’re partially going live with your request as of ${ctx.dateOr('partialDate', ctx.todayTxt)}.</p>`
+          + `<p><strong>Reason for Partial Go-Live:</strong> ${ctx.f.reason ? esc(ctx.f.reason) : PH('e.g. “We’re rolling out the initial features first while we finalize the remaining components.”')}</p>`
+          + `<p>Here’s what’s happening:</p>`
+          + `<p><strong>What’s Live Now:</strong></p>${listOf(ctx.f.liveNow, '[List of completed items]')}`
+          + `<p><strong>What’s Next:</strong></p>${listOf(ctx.f.liveNext, '[List of items still in progress]')}`
+          + `<p>We’re working on finalizing the remaining parts and will keep you updated on our progress. If you have any questions or need more details, feel free to reach out!</p>`
+          + `<p>Thanks for your patience and support!</p>` + SIG(ctx),
+      },
 
-      const preview = `Hello ${client},
+      // ── Closing ───────────────────────────────────────────────────────
+      {
+        id: 'live', label: 'Live — Request Completed', group: 'Closing', quick: true,
+        task: 'Closed Completed', stage: 'Request completed',
+        hint: 'Uses the Live Link field below and the Feedback URL from the links card.',
+        body: ctx => GREET(ctx)
+          + `<p>Great news! Your request number <strong>${esc(ctx.id)}</strong> has been successfully processed and is now live at the URL provided.</p>`
+          + `<p>Live site link: ${ctx.liveLinkHtml}</p>`
+          + `<p>Consider this ticket closed. If you need any tweaks, just open a new ticket.</p>`
+          + `<p>We'd love to hear your thoughts on how we did, so we can keep getting better. Share your feedback with us using the form linked here ${ctx.feedbackLinkHtml}.</p>`
+          + SIG(ctx),
+      },
+      {
+        id: 'closed', label: 'Ticket Closed', group: 'Closing',
+        task: 'Closed Incomplete', stage: 'Request completed',
+        needs: ['reason', 'closureDate'],
+        body: ctx => GREET(ctx)
+          + `<p>Just a heads-up: we’re closing your ticket <strong>${esc(ctx.id)}</strong> as of ${ctx.dateOr('closureDate', ctx.todayTxt)}.</p>`
+          + `<p><strong>Why We’re Closing It:</strong> ${ctx.f.reason ? esc(ctx.f.reason) : PH('e.g. “We haven’t heard back from you.”')}</p>`
+          + `<p>No more action will be taken on this ticket. If you still need help or have more details to share, just create a new ticket, and we’ll get right on it.</p>`
+          + `<p>We’d love your feedback on how we did. If you have a moment, please fill out our ${ctx.feedbackLinkHtml}.</p>`
+          + `<p>Thanks for your understanding and let us know if you need anything else!</p>` + SIG(ctx),
+      },
+    ];
 
-Exciting news!
+    // ── Progress widget ───────────────────────────────────────────────────
+    const TRACKS = {
+      'Email Journey': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Journey development', 'FL testing & approval', 'Deployment scheduled', 'Request completed'],
+      'Website Content': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Page build', 'FL testing & approval', 'Deployment scheduled', 'Request completed'],
+      'Generic': ['Request raised', 'In review', 'In progress', 'Preview shared', 'Approved', 'Live', 'Request completed'],
+    };
+    const STATUS_CYCLE = ['done', 'current', 'pending', 'na'];
+    const STATUS_HTML = {
+      done:    '<span style="color:#16a34a;">&#9989;</span>',
+      current: '<span style="color:#ea580c;">&#128992;</span> Current Stage',
+      pending: '<span>&#8987;</span> Pending',
+      na:      '-',
+    };
 
-I've got a sneak peek of your request #${id} regarding the "${description}", ready for your review.
+    // widget = { label, track, dates: {stage: text}, status: {stage: key} }
+    let widget = null;
 
-Check out the preview here:${prevText}
-
-If the preview meets your expectations and doesn't require any changes, please reply to this email with your approval to proceed with the page going live. I'll then schedule it to be published on your preferred live date, ${liveStr}, at 08:00 AM IST. Alternatively, if you prefer to go live at the earliest possible time, please specify the date and time.
-
-If you have any amends to submit, please use <a href="${cHref}">our ticket</a> to submit them. Please do not reply to this email with amends.`;
-
-      const ohInitial = `Hello ${client},
-
-As per your confirmation, your ticket is on hold due to ${ohReasonStr}.
-
-We are happy to wait, but every day counts toward meeting your preferred live date ${liveStr}.
-
-We can hold your ticket for up to 14 working days, until ${closureDate}. If we don't have the necessary information to work on your ticket by then, we'll have to close the ticket, and you can create a new ticket when you have the required details.
-
-Thank you for your support on this!`;
-
-      const ohR1 = `Hello ${client},
-
-Just a quick heads-up that your ticket has been on hold since ${ohDateStr} due to "${ohReasonStr}." We can keep it on hold for up to 14 working days.
-
-With only a few days left, we wanted to check if you have any updates or info for us.
-
-We're aiming to resolve this ticket as soon as possible, so let us know if there's anything you can share.
-
-Thanks!`;
-
-      const ohR2 = `Hello ${client},
-
-Just a final reminder that your ticket has been on hold since ${ohDateStr} due to "${ohReasonStr}." We're nearing the 14-day mark, with the deadline on ${closureDate}.
-
-If we don't hear from you by then, we'll need to close the ticket. However, you can always open a new one when you're ready with the details.
-
-Thanks for your quick attention!`;
-
-      const ohClosure = `Hello ${client},
-
-We've had your ticket on hold since ${ohDateStr} due to "${ohReasonStr}." Since we haven't received a response, we've gone ahead and closed it as of ${closureDate}.
-
-If you still need help, just create a new ticket with the details, and we'll get right on it.
-
-Thanks for understanding!`;
-
-      const pendingConf = `Hello ${client},
-
-Your request #${id} regarding "${description}" has been completed and is ready to be closed.
-
-Could you please log in to the portal and mark the ticket as "Closed Completed"? You can access your ticket <a href="${cHref}">here</a>.
-
-Once you confirm, we'll get the ticket officially closed on our end.
-
-Thank you for your support!`;
-
-      const closed = `Hello ${client},
-
-Great news — your ticket #${id} regarding "${description}" has been completed and is now live!${liveLink ? `\n\nYou can view it here: ${liveLink}` : ''}
-
-Thank you for working with us! We'd love to hear your thoughts on how we did so we can keep improving. Please take a moment to share your feedback <a href="${fHref}">here</a> — it's a quick survey and your input makes a real difference.
-
-Thanks again!`;
-
-      return { assigned, confirmation, preview, ohInitial, ohR1, ohR2, ohClosure, pendingConf, closed };
+    function defaultWidget(ticket, track) {
+      const stages = TRACKS[track] || TRACKS['Email Journey'];
+      const dates = {}, status = {};
+      stages.forEach(s => { dates[s] = ''; status[s] = 'pending'; });
+      if (ticket.created) dates[stages[0]] = fmtFullUS(ticket.created);
+      const sched = ticket.prefLive || ticket.slaDate;
+      if (sched && stages.includes('Deployment scheduled')) dates['Deployment scheduled'] = fmtFullUS(sched);
+      return { label: guessTrackLabel(ticket), track, dates, status };
     }
 
-    function renderEmails() {
+    function guessTrackLabel(ticket) {
+      const tag = (ticket.tags || '').match(/\b[A-Z]{2,4}\s*-?\s*\d+[A-Z]?\b/);
+      return tag ? tag[0] : '';
+    }
+
+    // Advance every stage before the current one to done, leave later ones pending.
+    function applyStageToWidget(stageName, statusKey) {
+      if (!widget || !stageName) return;
+      const stages = TRACKS[widget.track] || [];
+      const idx = stages.indexOf(stageName);
+      if (idx < 0) return;
+      stages.forEach((s, i) => {
+        if (i < idx) widget.status[s] = 'done';
+        else if (i === idx) widget.status[s] = statusKey || 'current';
+        else widget.status[s] = 'pending';
+      });
+      if (stages[stages.length - 1] === stageName && statusKey === 'done') {
+        stages.forEach(s => { widget.status[s] = 'done'; });
+      }
+    }
+
+    function renderWidgetTable() {
+      const table = document.getElementById('wdgTable');
+      if (!widget) { table.innerHTML = ''; return; }
+      const stages = TRACKS[widget.track] || [];
+      const head = `<tr><th class="wdg-rowlab">${esc(widget.label || '')}</th>`
+        + stages.map(s => `<th>${esc(s)}</th>`).join('') + '</tr>';
+      const dateRow = `<tr><td class="wdg-rowlab">Date</td>`
+        + stages.map(s => `<td><input class="wdg-date" data-stage="${esc(s)}" value="${esc(widget.dates[s] || '')}" placeholder="—"></td>`).join('') + '</tr>';
+      const statusRow = `<tr><td class="wdg-rowlab">Status</td>`
+        + stages.map(s => `<td class="wdg-status" data-stage="${esc(s)}" title="Click to change">${STATUS_HTML[widget.status[s]] || '-'}</td>`).join('') + '</tr>';
+      table.innerHTML = head + dateRow + statusRow;
+
+      table.querySelectorAll('.wdg-date').forEach(inp => {
+        inp.addEventListener('input', e => { widget.dates[e.target.dataset.stage] = e.target.value; renderEmail(true); });
+      });
+      table.querySelectorAll('.wdg-status').forEach(td => {
+        td.addEventListener('click', e => {
+          const s = e.currentTarget.dataset.stage;
+          const cur = STATUS_CYCLE.indexOf(widget.status[s]);
+          widget.status[s] = STATUS_CYCLE[(cur + 1) % STATUS_CYCLE.length];
+          renderWidgetTable(); renderEmail(true);
+        });
+      });
+    }
+
+    // The table that actually goes into the email — inline styles only, because
+    // Outlook drops <style> blocks and anything class-based.
+    function widgetEmailHtml() {
+      if (!widget || !document.getElementById('wdgOn').checked) return '';
+      const stages = TRACKS[widget.track] || [];
+      const B = 'border:1px solid #d0d7de;padding:6px 10px;text-align:center;';
+      const H = B + 'background:#f6f8fa;font-weight:700;';
+      const head = `<tr><th style="${H}">${esc(widget.label || '')}</th>`
+        + stages.map(s => `<th style="${H}">${esc(s)}</th>`).join('') + '</tr>';
+      const dates = `<tr><td style="${H}">Date</td>`
+        + stages.map(s => `<td style="${B}">${esc(widget.dates[s] || '-')}</td>`).join('') + '</tr>';
+      const status = `<tr><td style="${H}">Status</td>`
+        + stages.map(s => `<td style="${B}">${STATUS_HTML[widget.status[s]] || '-'}</td>`).join('') + '</tr>';
+      return `<table class="pw" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Aptos,Calibri,sans-serif;font-size:13px;margin:0 0 14px;">`
+        + head + dates + status + '</table>';
+    }
+
+    // ── Composition ───────────────────────────────────────────────────────
+    let activeTemplate = null;
+    let fieldValues = {};
+    let bodyEdited = false;
+
+    function fmtFullUS(date) {
+      if (!date) return '';
+      return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function linkHtml(url, label, phLabel) {
+      const u = (url || '').trim();
+      if (!u) return PH(phLabel);
+      return `<a href="${esc(u)}">${esc(label)}</a>`;
+    }
+
+    function buildCtx(ticket) {
+      const val = id => (document.getElementById(id)?.value || '').trim();
+      const hold14 = ticket.created ? addWorkDays(new Date(), 14) : null;
+      const ctx = {
+        id: ticket.id,
+        title: ticket.description,
+        specialist: ticket.assignee || 'the Digital Marketing Hub team',
+        contact: (ticket.client || '').split(/[<(]/)[0].trim(),
+        prefLive: ticket.prefLive,
+        slaDate: ticket.slaDate,
+        prefLiveTxt: ticket.prefLive ? `<strong>${fmtFull(ticket.prefLive)}</strong>` : PH('[Preferred Live Date]'),
+        slaTxt: ticket.slaDate ? fmtFull(ticket.slaDate) : PH('[SLA Date]'),
+        createdTxt: ticket.created ? fmtFull(ticket.created) : PH('[Ticket Created Date]'),
+        todayTxt: fmtFull(new Date()),
+        hold14Txt: hold14 ? fmtFull(hold14) : PH('[Closure Date]'),
+        f: fieldValues,
+        caseLinkHtml: linkHtml(val('caseUrlInput'), 'here', '[track its progress here]'),
+        previewLinkHtml: linkHtml(val('previewInput'), 'Preview Link', '[Preview Link]'),
+        feedbackLinkHtml: linkHtml(val('feedbackUrlInput'), 'feedback form', '[feedback form]'),
+        liveLinkHtml: linkHtml(val('liveInput'), val('liveInput') || 'Live Site Link', '[Live Site Link]'),
+      };
+      ctx.dateOr = (key, fallback) => {
+        const v = (fieldValues[key] || '').trim();
+        if (!v) return fallback;
+        const d = parseFlexDate(v);
+        return d ? `<strong>${fmtFull(d)}</strong>` : esc(v);
+      };
+      return ctx;
+    }
+
+    function renderFields() {
+      const card = document.getElementById('dynFieldsCard');
+      const wrap = document.getElementById('dynFields');
+      const needs = activeTemplate?.needs || [];
+      if (!needs.length) { card.style.display = 'none'; wrap.innerHTML = ''; return; }
+      card.style.display = '';
+      wrap.innerHTML = needs.map(k => {
+        const d = FIELD_DEFS[k]; if (!d) return '';
+        const v = esc(fieldValues[k] || '');
+        const full = (d.type === 'area') ? ' style="grid-column:1/-1;"' : '';
+        let input;
+        if (d.type === 'area') input = `<textarea class="field-input" data-f="${k}" rows="3" placeholder="${esc(d.ph || '')}">${v}</textarea>`;
+        else if (d.type === 'select') input = `<select class="field-input" data-f="${k}">${d.opts.map(o => `<option${fieldValues[k] === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+        else input = `<input type="${d.type === 'date' ? 'date' : 'text'}" class="field-input" data-f="${k}" value="${v}" placeholder="${esc(d.ph || '')}">`;
+        return `<div${full}><label>${esc(d.label)}</label>${input}</div>`;
+      }).join('');
+      wrap.querySelectorAll('[data-f]').forEach(el => {
+        el.addEventListener('input', e => { fieldValues[e.target.dataset.f] = e.target.value; renderEmail(); });
+        el.addEventListener('change', e => { fieldValues[e.target.dataset.f] = e.target.value; renderEmail(); });
+      });
+    }
+
+    // keepEdits: re-render the widget inside a body the user has already tweaked
+    // without throwing their wording away.
+    function renderEmail(keepEdits = false) {
+      if (!activeTemplate || !currentTicket) return;
+      const box = document.getElementById('body-main');
+      if (keepEdits && bodyEdited) {
+        const existing = box.querySelector('table.pw');
+        const fresh = widgetEmailHtml();
+        if (existing) { existing.outerHTML = fresh || ''; }
+        else if (fresh) { box.insertAdjacentHTML('afterbegin', fresh); }
+        updatePlaceholderWarning();
+        return;
+      }
+      const ctx = buildCtx(currentTicket);
+      box.innerHTML = widgetEmailHtml() + activeTemplate.body(ctx);
+      bodyEdited = false;
+      updatePlaceholderWarning();
+    }
+
+    function updatePlaceholderWarning() {
+      const n = document.querySelectorAll('#body-main .ph').length;
+      const el = document.getElementById('phWarn');
+      if (!n) { el.style.display = 'none'; return; }
+      el.style.display = '';
+      el.textContent = `${n} placeholder${n === 1 ? '' : 's'} still to fill`;
+    }
+
+    function selectTemplate(id, { silent = false } = {}) {
+      const t = TEMPLATES.find(x => x.id === id) || TEMPLATES[0];
+      activeTemplate = t;
+      document.getElementById('tmplSelect').value = t.id;
+      document.querySelectorAll('.qpick').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
+      document.getElementById('tmplHint').textContent = t.hint || '';
+
+      // The chosen email is what tells the widget where the ticket has got to.
+      if (widget && t.stage) applyStageToWidget(t.stage, t.stageStatus || 'done');
+      renderWidgetTable();
+
+      const sel = document.getElementById('taskTypeSelect');
+      if (t.task && [...sel.options].some(o => o.value === t.task)) sel.value = t.task;
+      buildSubject();
+      renderFields();
+      renderEmail();
+      if (!silent) syncUrl();
+    }
+
+    // ── Clipboard + Outlook ───────────────────────────────────────────────
+    function emailHtmlForSend() {
+      const clone = document.getElementById('body-main').cloneNode(true);
+      // Placeholders are a UI affordance, not content — send the bare text.
+      clone.querySelectorAll('.ph').forEach(s => { s.replaceWith(document.createTextNode(s.textContent)); });
+      return `<div style="font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:11pt;color:#000;">${clone.innerHTML}</div>`;
+    }
+
+    function emailTextForSend() {
+      const clone = document.getElementById('body-main').cloneNode(true);
+      clone.querySelectorAll('.ph').forEach(s => { s.replaceWith(document.createTextNode(s.textContent)); });
+      clone.querySelectorAll('a').forEach(a => {
+        const href = a.getAttribute('href') || '';
+        if (href && href !== '#' && a.textContent.trim() !== href) a.textContent = `${a.textContent} (${href})`;
+      });
+      clone.querySelectorAll('table.pw tr').forEach(tr => {
+        const cells = [...tr.children].map(td => td.innerText.trim()).join(' | ');
+        tr.replaceWith(document.createTextNode(cells + '\n'));
+      });
+      return clone.innerText.replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    async function copyRich() {
+      const html = emailHtmlForSend(), text = emailTextForSend();
+      try {
+        if (navigator.clipboard && window.ClipboardItem) {
+          await navigator.clipboard.write([new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([text], { type: 'text/plain' }),
+          })]);
+          toast('Copied with formatting — paste straight into Outlook');
+          return;
+        }
+      } catch (e) { /* falls through to the execCommand path below */ }
+      // Safari and older Edge: copy a live selection so the HTML flavour survives.
+      const holder = document.createElement('div');
+      holder.style.cssText = 'position:fixed;left:-9999px;top:0;';
+      holder.innerHTML = html;
+      document.body.appendChild(holder);
+      const range = document.createRange(); range.selectNodeContents(holder);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      const ok = document.execCommand('copy');
+      sel.removeAllRanges(); holder.remove();
+      toast(ok ? 'Copied with formatting — paste straight into Outlook' : 'Copy failed — try the plain text button', !ok);
+    }
+
+    // An .eml opens as a real draft in Outlook with recipients and subject
+    // already filled — mailto: would strip the table and truncate the body.
+    function openInOutlook() {
+      const to = (document.getElementById('toInput').value || '').trim();
+      const cc = (document.getElementById('ccInput').value || '').trim();
+      const subject = (document.getElementById('subjectInput').value || '').trim();
+      const b64of = str => btoa(unescape(encodeURIComponent(str)));
+      const b64 = b64of(`<html><head><meta charset="utf-8"></head><body>${emailHtmlForSend()}</body></html>`);
+      // Headers are ASCII-only. Subjects routinely carry an en dash from the
+      // service names, which would reach Outlook as mojibake unencoded.
+      const encHeader = v => /^[\x20-\x7E]*$/.test(v) ? v : `=?UTF-8?B?${b64of(v)}?=`;
+      const eml = [
+        'X-Unsent: 1',
+        `To: ${to}`,
+        cc ? `Cc: ${cc}` : null,
+        `Subject: ${encHeader(subject)}`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset="utf-8"',
+        'Content-Transfer-Encoding: base64',
+        '', b64,
+      ].filter(x => x !== null).join('\r\n');
+      const blob = new Blob([eml], { type: 'message/rfc822' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(currentTicket?.id || 'email')}-${activeTemplate?.id || 'draft'}.eml`;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      toast('Draft downloaded — open it to launch Outlook');
+    }
+
+    function toast(msg, isErr = false) {
+      let el = document.getElementById('toast');
+      if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+      el.textContent = msg;
+      el.className = isErr ? 'err show' : 'show';
+      clearTimeout(el._t);
+      el._t = setTimeout(() => { el.className = isErr ? 'err' : ''; }, 2600);
+    }
+
+    // Opening a shared link (or just refreshing) lands on the same ticket and
+    // template instead of dumping the user back at the list.
+    function restoreFromUrl() {
+      const q = new URLSearchParams(location.search);
+      const id = q.get('ticket');
+      if (!id) return;
+      const t = allTickets.find(x => x.id === id);
+      if (t) selectTicket(t, { tmpl: q.get('tmpl') || 'ack', silent: true });
+    }
+
+    // ── URL state — a refresh (or a shared link) lands back on the same ticket
+    function syncUrl() {
       if (!currentTicket) return;
-      const preview = document.getElementById('previewInput').value.trim();
-      const ohReason = document.getElementById('ohReasonInput').value.trim();
-      const ohDate = document.getElementById('ohDateInput').value;
-      const liveLink = document.getElementById('liveInput').value.trim();
-      const e = buildEmails(currentTicket, generatedCaseLink, generatedFeedbackLink, preview, ohReason, ohDate, liveLink);
-      const set = (id, txt) => { document.getElementById(id).innerHTML = txt.replace(/\n/g, '<br>'); };
-      set('body-assigned', e.assigned);
-      set('body-confirmation', e.confirmation);
-      set('body-preview', e.preview);
-      set('body-oh-initial', e.ohInitial);
-      set('body-oh-r1', e.ohR1);
-      set('body-oh-r2', e.ohR2);
-      set('body-oh-closure', e.ohClosure);
-      set('body-pendingconf', e.pendingConf);
-      set('body-closed', e.closed);
+      const p = new URLSearchParams();
+      p.set('ticket', currentTicket.id);
+      if (activeTemplate) p.set('tmpl', activeTemplate.id);
+      history.replaceState(null, '', `${location.pathname}?${p}`);
     }
+    function clearUrl() { history.replaceState(null, '', location.pathname); }
 
-    // ── Tab switching ─────────────────────────────────────────────────────
-    function switchETab(name) {
-      document.querySelectorAll('#emailTabs .etab').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.querySelector(`#emailTabs .etab[data-tab="${name}"]`).classList.add('active');
-      document.getElementById('tab-' + name).classList.add('active');
-    }
-
-    function switchSubTab(name) {
-      document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
-      document.querySelector(`.stab[data-sub="${name}"]`).classList.add('active');
-      document.getElementById('sub-' + name).classList.add('active');
-    }
-
-    // ── Link parsers ──────────────────────────────────────────────────────
     function parseCaseLink(raw) {
       const idx = raw.indexOf('/target/');
       if (idx === -1) throw new Error('URL does not contain /target/ — copy the full agent URL.');
@@ -1427,14 +1982,6 @@ Thanks again!`;
       btn.innerHTML = text;
       btn.style.color = '#059669';
       setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 2000);
-    }
-
-    function copyEmailText(srcId, btn) {
-      const el = document.getElementById(srcId);
-      const clone = el.cloneNode(true);
-      // Convert links to "text (url)" in plain text
-      clone.querySelectorAll('a').forEach(a => { a.textContent = `${a.textContent} (${a.href})`; });
-      navigator.clipboard.writeText(clone.innerText).then(() => flashBtn(btn, '<i class="fa-solid fa-check"></i> Copied!'));
     }
 
     // ── DOMContentLoaded ──────────────────────────────────────────────────
@@ -1488,8 +2035,18 @@ Thanks again!`;
       });
 
       // Filters
+      let searchTimer;
       ['searchInput', 'filterAssignee', 'filterService', 'filterState', 'sortBy'].forEach(id => {
-        document.getElementById(id).addEventListener(id === 'searchInput' ? 'input' : 'change', applyFilters);
+        const el = document.getElementById(id);
+        if (id === 'searchInput') {
+          // Typing rebuilt every card on each keystroke; wait for a pause instead.
+          el.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(applyFilters, 180);
+          });
+        } else {
+          el.addEventListener('change', applyFilters);
+        }
       });
 
       // Refresh
@@ -1502,27 +2059,63 @@ Thanks again!`;
 
       // Back to list
       document.getElementById('backToListBtn').addEventListener('click', () => {
+        clearUrl();
         showView('list');
         renderGrid(); // re-highlight if needed
       });
 
-      // Email tab links
-      document.querySelectorAll('#emailTabs .etab').forEach(btn => {
-        btn.addEventListener('click', () => switchETab(btn.dataset.tab));
+      // ── Template picker ────────────────────────────────────────────
+      const tmplSel = document.getElementById('tmplSelect');
+      const groups = [...new Set(TEMPLATES.map(t => t.group))];
+      tmplSel.innerHTML = groups.map(g =>
+        `<optgroup label="${g}">` +
+        TEMPLATES.filter(t => t.group === g).map(t => `<option value="${t.id}">${esc(t.label)}</option>`).join('') +
+        '</optgroup>').join('');
+      tmplSel.addEventListener('change', e => selectTemplate(e.target.value));
+
+      document.getElementById('quickPicks').innerHTML = TEMPLATES.filter(t => t.quick)
+        .map(t => `<button type="button" class="qpick" data-id="${t.id}">${esc(t.label)}</button>`).join('');
+      document.querySelectorAll('.qpick').forEach(b =>
+        b.addEventListener('click', () => selectTemplate(b.dataset.id)));
+
+      // ── Progress widget controls ───────────────────────────────────
+      const trackSel = document.getElementById('wdgTrack');
+      trackSel.innerHTML = Object.keys(TRACKS).map(k => `<option>${k}</option>`).join('');
+      trackSel.addEventListener('change', e => {
+        if (!currentTicket) return;
+        widget = defaultWidget(currentTicket, e.target.value);
+        document.getElementById('wdgLabel').value = widget.label;
+        if (activeTemplate?.stage) applyStageToWidget(activeTemplate.stage, activeTemplate.stageStatus || 'done');
+        renderWidgetTable(); renderEmail(true);
+      });
+      document.getElementById('wdgLabel').addEventListener('input', e => {
+        if (widget) { widget.label = e.target.value; renderWidgetTable(); renderEmail(true); }
+      });
+      document.getElementById('wdgOn').addEventListener('change', () => renderEmail(true));
+      document.getElementById('wdgResetBtn').addEventListener('click', () => {
+        if (!currentTicket) return;
+        widget = defaultWidget(currentTicket, trackSel.value);
+        if (activeTemplate?.stage) applyStageToWidget(activeTemplate.stage, activeTemplate.stageStatus || 'done');
+        renderWidgetTable(); renderEmail(true);
       });
 
-      // Sub-tab links
-      document.querySelectorAll('.stab').forEach(btn => {
-        btn.addEventListener('click', () => switchSubTab(btn.dataset.sub));
+      // ── Compose actions ────────────────────────────────────────────
+      document.getElementById('copyRichBtn').addEventListener('click', copyRich);
+      document.getElementById('openOutlookBtn').addEventListener('click', openInOutlook);
+      document.getElementById('copyPlainBtn').addEventListener('click', () => {
+        navigator.clipboard.writeText(emailTextForSend()).then(() => toast('Plain text copied'));
       });
-
-      // Copy email buttons
-      document.querySelectorAll('.copy-email-btn').forEach(btn => {
-        btn.addEventListener('click', () => copyEmailText(btn.dataset.src, btn));
+      document.getElementById('resetBodyBtn').addEventListener('click', () => { bodyEdited = false; renderEmail(); toast('Reverted to the template'); });
+      document.getElementById('copySubjBtn').addEventListener('click', () => {
+        navigator.clipboard.writeText(document.getElementById('subjectInput').value).then(() => toast('Subject copied'));
       });
+      document.getElementById('body-main').addEventListener('input', () => { bodyEdited = true; updatePlaceholderWarning(); });
+      document.getElementById('taskTypeSelect').addEventListener('change', buildSubject);
 
-      // Preview input → re-render
-      document.getElementById('previewInput').addEventListener('input', renderEmails);
+      // Links feeding the body → recompose, keeping any hand edits
+      ['previewInput', 'liveInput', 'caseUrlInput', 'feedbackUrlInput'].forEach(id => {
+        document.getElementById(id).addEventListener('input', () => { if (!bodyEdited) renderEmail(); });
+      });
 
       // Case link generator
       document.getElementById('genCaseBtn').addEventListener('click', () => {
@@ -1536,7 +2129,7 @@ Thanks again!`;
           const linkEl = document.getElementById('caseLinkEl');
           linkEl.href = url; linkEl.textContent = url;
           document.getElementById('caseOk').classList.add('show');
-          renderEmails();
+          if (!bodyEdited) renderEmail();
         } catch (e) { showFieldErr('caseErr', e.message); }
       });
       document.getElementById('caseCopyBtn').addEventListener('click', e => {
@@ -1555,7 +2148,7 @@ Thanks again!`;
           const linkEl = document.getElementById('feedbackLinkEl');
           linkEl.href = url; linkEl.textContent = url;
           document.getElementById('feedbackOk').classList.add('show');
-          renderEmails();
+          if (!bodyEdited) renderEmail();
         } catch (e) { showFieldErr('feedbackErr', e.message); }
       });
       document.getElementById('feedbackCopyBtn').addEventListener('click', e => {
