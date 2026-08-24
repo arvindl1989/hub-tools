@@ -920,20 +920,53 @@ _HISTORY_RATING_RENAME = {
 }
 
 
+def _json_safe(value):
+    """Recursively convert pandas/numpy types that json.dumps rejects.
+
+    pd.read_csv returns plain strings for every cell; pd.read_excel returns
+    real Timestamp objects for anything typed as a date, which is what the
+    original CSV-only version of this endpoint never had to handle. Applied
+    once, generically, rather than special-cased to the one column that
+    happened to trigger it in this file — the next xlsx someone imports here
+    could have a numeric or boolean column with the exact same problem.
+    """
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, pd.Timestamp):
+        return None if pd.isna(value) else value.strftime("%Y-%m-%d")
+    if isinstance(value, (np.integer,)):
+        return int(value)
+    if isinstance(value, (np.floating,)):
+        return None if pd.isna(value) else float(value)
+    if isinstance(value, (np.bool_,)):
+        return bool(value)
+    return value
+
+
 class HistoryImportBody(BaseModel):
-    csv: str
+    csv: Optional[str] = None
+    xlsx_base64: Optional[str] = None   # the reference doc is Excel-native; no CSV-export step needed
     imported_by: Optional[str] = None
 
 
 @app.post("/api/feedback/import-history")
 async def import_feedback_history(body: HistoryImportBody):
-    text = (body.csv or "").strip()
-    if not text:
-        raise HTTPException(400, "csv body is empty")
-    try:
-        raw = pd.read_csv(io.StringIO(text))
-    except Exception as exc:
-        raise HTTPException(400, f"Could not parse the CSV: {exc}")
+    if body.xlsx_base64:
+        import base64
+        try:
+            raw = pd.read_excel(io.BytesIO(base64.b64decode(body.xlsx_base64)))
+        except Exception as exc:
+            raise HTTPException(400, f"Could not parse the spreadsheet: {exc}")
+    else:
+        text = (body.csv or "").strip()
+        if not text:
+            raise HTTPException(400, "csv or xlsx_base64 body is required")
+        try:
+            raw = pd.read_csv(io.StringIO(text))
+        except Exception as exc:
+            raise HTTPException(400, f"Could not parse the CSV: {exc}")
 
     missing = _HISTORY_COLUMNS - set(raw.columns)
     if missing:
@@ -950,7 +983,7 @@ async def import_feedback_history(body: HistoryImportBody):
     for _, row in raw[has_id].iterrows():
         instance_id = str(row["Assessment ID"]).strip()
         for col in ("Area", "FL", "Frontlines"):
-            val = row.get(col)
+            val = _json_safe(row.get(col))
             if val not in (None, ""):
                 sn_data_api.set_override("feedback", instance_id, col, str(val), body.imported_by)
                 overrides_written += 1
@@ -978,7 +1011,7 @@ async def import_feedback_history(body: HistoryImportBody):
         for src, dst in (("Overall", "Overall Rating"), ("Quality", "Quality Rating"),
                           ("Timeliness", "Timeliness Rating"), ("Interaction", "Interaction Rating")):
             payload[dst] = row.get(src)
-        sn_data_api.add_manual_row("feedback", row_key, payload, body.imported_by)
+        sn_data_api.add_manual_row("feedback", row_key, _json_safe(payload), body.imported_by)
         manual_written += 1
 
     print(f"[FEEDBACK-HISTORY] {overrides_written} overrides, {manual_written} manual rows "
