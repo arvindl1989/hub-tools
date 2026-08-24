@@ -766,8 +766,20 @@ def normalize_feedback_csv_headers(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=rename)
 
 
-def transform_feedback_csv(text: str, allowed_specialists: list[str]) -> pd.DataFrame:
-    """EAV ServiceNow export -> one row per response, specialists only."""
+def transform_feedback_csv(text: str) -> pd.DataFrame:
+    """EAV ServiceNow export -> one row per response.
+
+    Every real response syncs, regardless of who it names as the specialist —
+    including a blank one. Confirmed against a real export: 8 of 72 genuine
+    Service Feedback Form responses have no Specialist Name recorded in
+    ServiceNow at all (the field itself is blank), even though the historical
+    reference sheet has the correct name for every one of them from someone
+    checking by hand. Filtering by a tracked-specialist whitelist here meant
+    those 8 were dropped before they ever reached storage, so there was no row
+    left for that correction to attach to — the sync was silently discarding
+    real feedback. Any scoping to particular specialists belongs at reporting
+    time, not at ingestion, so a correction always has something to land on.
+    """
     raw = pd.read_csv(io.StringIO(text))
     raw = normalize_feedback_csv_headers(raw)
     missing = {"Instance", "Metric", "String value", "Source"} - set(raw.columns)
@@ -800,8 +812,6 @@ def transform_feedback_csv(text: str, allowed_specialists: list[str]) -> pd.Data
     wide = wide.merge(dates, on="Instance", how="left")
 
     wide = wide.rename(columns=_FEEDBACK_RENAME)
-    if "Specialist Name" in wide.columns:
-        wide = wide[wide["Specialist Name"].isin(allowed_specialists)]
     # Area/FL/Frontlines never come from ServiceNow — they are added by hand,
     # per response, after the fact. Carrying them as empty columns on every
     # freshly synced row (rather than only on rows someone has already
@@ -982,7 +992,13 @@ async def import_feedback_history(body: HistoryImportBody):
     overrides_written = 0
     for _, row in raw[has_id].iterrows():
         instance_id = str(row["Assessment ID"]).strip()
-        for col in ("Area", "FL", "Frontlines"):
+        # Specialist Name is corrected here too, not just Area/FL/Frontlines —
+        # 8 real responses have ServiceNow's own Specialist Name field blank,
+        # even though the reference sheet has the right person recorded for
+        # every one of them. Without this, those rows sync with no specialist
+        # at all and this sheet's whole reason for existing on them (naming
+        # who actually handled it) never reaches storage.
+        for col in ("Area", "FL", "Frontlines", "Specialist Name"):
             val = _json_safe(row.get(col))
             if val not in (None, ""):
                 sn_data_api.set_override("feedback", instance_id, col, str(val), body.imported_by)
@@ -1052,7 +1068,7 @@ async def upload_csv(body: CsvUploadBody):
 
     if body.dataset == "feedback":
         try:
-            frame = transform_feedback_csv(text, DEFAULT_PEOPLE)
+            frame = transform_feedback_csv(text)
         except ValueError as exc:
             raise HTTPException(400, str(exc))
         except Exception as exc:
@@ -1072,7 +1088,11 @@ async def upload_csv(body: CsvUploadBody):
             "persisted": True,
             "dataset": "feedback",
             "total_rows": len(rows),
-            "specialists": sorted(frame["Specialist Name"].unique().tolist()) if "Specialist Name" in frame else [],
+            # Blanks are now real, expected values here — a genuine response
+            # where ServiceNow itself never recorded who handled it — so this
+            # has to filter them rather than sort a mix of str and float(nan),
+            # which sorted() cannot compare at all.
+            "specialists": sorted(v for v in frame["Specialist Name"].unique().tolist() if isinstance(v, str)) if "Specialist Name" in frame else [],
         }
 
     try:
