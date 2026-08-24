@@ -989,14 +989,18 @@ async def import_feedback_history(body: HistoryImportBody):
                 overrides_written += 1
 
     manual_written = 0
-    for _, row in raw[~has_id].iterrows():
-        # Deterministic, not sequential — re-running the same file twice must
-        # produce the same keys so the upsert overwrites rather than
-        # duplicates. Position in the sheet is not stable across re-exports;
-        # the row's own content is.
+    # Keyed on position within this subset, not content alone. Content-only
+    # keys collapsed genuinely distinct rows that happen to read identically —
+    # five rows in the real sheet share the exact same specialist, date and
+    # comment, and 141 rows landed as 138 before this fix, silently dropping
+    # three real responses. Position keeps every row distinct regardless of
+    # whether its text matches another row's, while still being deterministic
+    # enough that re-importing the same unchanged file updates the same 141
+    # entries rather than creating fresh duplicates each time.
+    for position, (_, row) in enumerate(raw[~has_id].iterrows()):
         basis = "|".join(str(row.get(c) or "") for c in
                           ("Specialist Name", "Feedback Date", "Feedback Comments", "Service Type"))
-        row_key = "MANUAL-" + hashlib.sha1(basis.encode("utf-8")).hexdigest()[:10]
+        row_key = f"MANUAL-{position:04d}-" + hashlib.sha1(basis.encode("utf-8")).hexdigest()[:8]
         payload = {
             "Instance Number": row_key,
             "Requester Name": None,

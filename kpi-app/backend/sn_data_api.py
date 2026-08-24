@@ -405,6 +405,31 @@ async def put_manual_row(dataset: str, body: ManualRowIn):
     return add_manual_row(dataset, body.row_key, body.payload, body.added_by)
 
 
+@router.delete("/{dataset}/manual-rows")
+async def clear_manual_rows(dataset: str):
+    """Remove every permanent row for a dataset in one call.
+
+    Exists specifically for re-importing after the row-key scheme changes —
+    old keys and new keys will not match, so without clearing first, a
+    re-import adds a second, differently-keyed copy of every row alongside
+    the stale originals rather than replacing them.
+    """
+    _check(dataset)
+    c = _conn()
+    try:
+        with c, c.cursor() as cur:
+            _ensure(cur)
+            cur.execute("DELETE FROM sn_manual_row WHERE dataset = %s", (dataset,))
+            deleted = cur.rowcount
+        _notify(dataset)
+        return {"ok": True, "deleted": deleted}
+    finally:
+        try:
+            c.close()
+        except Exception:
+            pass
+
+
 @router.delete("/{dataset}/manual-rows/{row_key}")
 async def delete_manual_row(dataset: str, row_key: str):
     _check(dataset)
