@@ -737,7 +737,15 @@ def transform_feedback_csv(text: str, allowed_specialists: list[str]) -> pd.Data
     raw = pd.read_csv(io.StringIO(text))
     missing = {"Instance", "Metric", "String value", "Source"} - set(raw.columns)
     if missing:
-        raise ValueError(f"Export is missing expected columns: {', '.join(sorted(missing))}")
+        # Naming the columns actually present, not just the ones absent — the
+        # tickets sync hit this same class of bug (ServiceNow exporting raw
+        # field names instead of display labels) and the fix took two rounds
+        # partly because the first error didn't show what the raw export
+        # actually looked like.
+        raise ValueError(
+            f"Export is missing expected columns: {', '.join(sorted(missing))}. "
+            f"Columns actually present: {', '.join(raw.columns)}"
+        )
 
     # Other assessment templates (e.g. "Release Feedback Survey") share a metric
     # name ("Overall Rating") with this one, so filtering by Source rather than
