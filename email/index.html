@@ -1264,8 +1264,12 @@
     <div class="setup-wrap" style="align-items:flex-start; padding-top:2.5rem;">
       <div class="setup-card" style="max-width:680px;">
         <div class="icon">📊</div>
-        <h1>Connect Your Ticket Sheet</h1>
-        <p>Uses a Google Apps Script that sits inside your sheet and serves the data as JSON — no CORS issues, no API keys. One-time 3-minute setup, then it loads automatically every visit.</p>
+        <h1>Where ticket data comes from</h1>
+        <p><strong>Nothing to set up here.</strong> Ticket data is pulled from ServiceNow by the
+        browser extension and stored centrally, shared across the whole team — click
+        <strong>Sync</strong> in the extension to fetch the latest, then reload this page.
+        The Apps Script setup below is the previous Google Sheets method, kept only as a
+        fallback for if the stored data is ever unavailable.</p>
 
         <div class="setup-steps" style="margin-bottom:1.25rem;">
           <strong style="font-size:0.82rem; color:var(--text); display:block; margin-bottom:0.6rem;">Step 1 — Add the script to your Google Sheet</strong>

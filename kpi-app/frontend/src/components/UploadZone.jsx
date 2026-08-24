@@ -2,14 +2,12 @@ import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { uploadFile, uploadFromSheetUrl } from '../api'
 
-const SHEET_URL_KEY = 'aegis_sheet_url'
 
 export default function UploadZone({ onUpload }) {
   const [uploading, setUploading]   = useState(false)
   const [progress,  setProgress]    = useState(0)
   const [error,     setError]       = useState(null)
   const [mode,      setMode]        = useState('file') // 'file' | 'sheet'
-  const [sheetUrl,  setSheetUrl]    = useState(() => localStorage.getItem(SHEET_URL_KEY) || '')
 
   const run = useCallback(async (fn) => {
     setError(null)
@@ -31,11 +29,12 @@ export default function UploadZone({ onUpload }) {
     run((prog) => uploadFile(file, prog))
   }, [run])
 
-  const connectSheet = () => {
-    if (!sheetUrl.trim()) { setError('Paste your Apps Script URL first.'); return }
-    localStorage.setItem(SHEET_URL_KEY, sheetUrl.trim())
-    // Explicit user action — bypass the proxy cache and pull live.
-    run((prog) => uploadFromSheetUrl(sheetUrl.trim(), prog, { refresh: true }))
+  const reloadFromServer = () => {
+    // No URL guard: the argument is ignored by uploadFromSheetUrl, which reads
+    // /api/tickets (Postgres snapshot first, sheet only as a fallback). Keeping
+    // the old "paste your Apps Script URL first" check would have made this
+    // button permanently refuse to run now that the input is gone.
+    run((prog) => uploadFromSheetUrl(null, prog, { refresh: true }))
   }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -74,7 +73,7 @@ export default function UploadZone({ onUpload }) {
         display: 'flex', background: '#f1ede3', borderRadius: 10,
         padding: 3, marginBottom: 20, gap: 3,
       }}>
-        {[['file', '⬆ Upload Excel'], ['sheet', '⚡ Google Sheet']].map(([m, label]) => (
+        {[['file', '⬆ Upload Excel'], ['sheet', '⚡ Reload from ServiceNow']].map(([m, label]) => (
           <button key={m} onClick={() => { setMode(m); setError(null) }} disabled={uploading} style={{
             flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
             fontSize: 13, fontWeight: 600, fontFamily: 'Inter, sans-serif',
@@ -147,40 +146,34 @@ export default function UploadZone({ onUpload }) {
           </div>
         </div>
       ) : (
-        /* ── Google Sheet ── */
+        /* ── Reload from stored ServiceNow data ──
+           The Apps Script URL input that used to live here was already dead:
+           uploadFromSheetUrl ignores its first argument entirely and just
+           calls /api/tickets, which now prefers the Postgres snapshot the
+           browser extension syncs. Keeping a text box that looks like it
+           configures the data source, but changes nothing whatsoever, is
+           worse than having no box at all. */
         <div style={{ border: '2px solid #e8e2d6', borderRadius: 16, padding: '28px 28px', background: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             <div style={{ width: 36, height: 36, borderRadius: 9, background: blueFaint, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
               </svg>
             </div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#141414', margin: 0 }}>Connect via Google Apps Script</p>
-              <p style={{ fontSize: 12, color: '#6e6e6e', margin: 0 }}>Uses the same URL already saved in Email Tracker</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#141414', margin: 0 }}>Reload from ServiceNow data</p>
+              <p style={{ fontSize: 12, color: '#6e6e6e', margin: 0 }}>Uses the latest data synced by the browser extension</p>
             </div>
           </div>
 
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-            Apps Script Web App URL
-          </label>
-          <input
-            type="url"
-            value={sheetUrl}
-            onChange={e => setSheetUrl(e.target.value)}
-            placeholder="https://script.google.com/macros/s/…/exec"
-            style={{
-              width: '100%', padding: '10px 12px', border: '1px solid #e8e2d6',
-              borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif',
-              color: '#141414', outline: 'none', marginBottom: 14,
-              background: '#faf8f3',
-            }}
-            onFocus={e => e.target.style.borderColor = blue}
-            onBlur={e => e.target.style.borderColor = '#e8e2d6'}
-          />
+          <p style={{ fontSize: 13, color: '#6e6e6e', lineHeight: 1.6, margin: '0 0 16px' }}>
+            Ticket data is stored centrally and shared across the team. To pull the newest
+            tickets from ServiceNow, use <strong style={{ color: '#141414' }}>Sync</strong> in the
+            browser extension — then reload here.
+          </p>
 
-          <button onClick={connectSheet} style={{
+          <button onClick={reloadFromServer} style={{
             width: '100%', padding: '11px', borderRadius: 9, border: 'none',
             background: blue, color: '#fff', fontSize: 14, fontWeight: 600,
             fontFamily: 'Inter, sans-serif', cursor: 'pointer',
@@ -190,7 +183,7 @@ export default function UploadZone({ onUpload }) {
             onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
             onMouseLeave={e => e.currentTarget.style.filter = 'none'}
           >
-            Load from Sheet
+            Reload latest data
           </button>
 
           <p style={{ fontSize: 11, color: '#9c9c9c', textAlign: 'center', marginTop: 12, marginBottom: 0 }}>

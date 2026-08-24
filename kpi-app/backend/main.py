@@ -569,6 +569,7 @@ def _parse_dates_robust(series: pd.Series) -> pd.Series:
 
 def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = normalize_columns(df.copy())
+    df = normalize_sub_category(df)
 
     detected_cols = [c for c in ["created_date", "preferred_live_date", "due_date", "closed_date"] if c in df.columns]
     print(f"[PARSE] Columns detected: {list(df.columns)}", flush=True)
@@ -882,11 +883,21 @@ _DASH_VARIANTS = re.compile(r"\s*[\u2012\u2013\u2014\u2212-]\s*")
 
 
 def normalize_sub_category(df: pd.DataFrame) -> pd.DataFrame:
-    if "Sub-Category" in df.columns:
-        df["Sub-Category"] = (
-            df["Sub-Category"].astype(str).str.strip()
-            .apply(lambda v: _DASH_VARIANTS.sub(" \u2013 ", v) if v and v != "nan" else v)
-        )
+    """Collapse dash variants in the sub-category to one canonical spelling.
+
+    Accepts either the display label ("Sub-Category", pre-normalize_columns) or
+    the internal name ("sub_category", after it), because this runs from
+    process_dataframe — which every ingestion path funnels through — rather
+    than only from the ServiceNow sync where the problem was first noticed.
+    Excel uploads and the sheet path produce the same two-spellings-one-category
+    split, and fixing it in only one path left the others quietly broken.
+    """
+    for col in ("Sub-Category", "sub_category"):
+        if col in df.columns:
+            df[col] = (
+                df[col].astype(str).str.strip()
+                .apply(lambda v: _DASH_VARIANTS.sub(" \u2013 ", v) if v and v not in ("nan", "None", "") else v)
+            )
     return df
 
 
