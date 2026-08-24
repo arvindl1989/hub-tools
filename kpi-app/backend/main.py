@@ -761,6 +761,55 @@ def transform_feedback_csv(text: str, allowed_specialists: list[str]) -> pd.Data
     return wide
 
 
+# ── Ticket CSV header normalization ──────────────────────────────────────────
+# ServiceNow's ?CSV list export sometimes returns internal field names — the
+# backend's technical identifiers, snake_case with a "u_"/"sys_" prefix for
+# custom and system fields — rather than the display labels the list view
+# shows on screen. Confirmed against a real export from this instance:
+#   state, assigned_to, u_sub_category, sys_created_on, u_preffered_live_date...
+# Everything downstream (this file's own normalize_columns/COLUMN_ALIASES, and
+# every exact-key lookup in the email tracker's JS) expects the display labels
+# — "State", "Assigned to", "Sub-Category" — so 14 of 16 columns were silently
+# dropped before reaching either consumer, not just the tracker.
+#
+# Renaming here, once, at ingestion, means every reader keeps working with the
+# labels it has always used rather than teaching each of them to recognize a
+# second naming scheme. Explicit rather than a generic snake_case humanizer
+# because the mapping isn't mechanically derivable from the raw string alone —
+# "u_sub_category" needs a hyphen, not the space a humanizer would produce, and
+# "u_preffered_live_date" carries a misspelling in this instance's own field
+# name that has to be corrected, not preserved.
+_TICKET_RAW_FIELD_RENAME = {
+    "number":                 "Number",
+    "short_description":      "Short description",
+    "u_sub_category":          "Sub-Category",
+    "requested_by":            "Requested by",
+    "watch_list":              "Watch list",
+    "u_team":                  "Team",
+    "u_area":                  "Area",
+    "assigned_to":             "Assigned to",
+    "state":                   "State",
+    "u_preffered_live_date":   "Preferred Live Date",
+    "due_date":                "Due date",
+    "sys_tags":                "Tags",
+    "sys_created_on":          "Created",
+    "closed_at":                "Closed",
+    "opened_by":                "Opened by",
+    "activity_due":             "Activity due",
+}
+
+
+def normalize_ticket_csv_headers(df: pd.DataFrame) -> pd.DataFrame:
+    """Rename raw ServiceNow field names to display labels, leaving anything
+    already in display form untouched — safe to run whether the export used
+    technical names or labels."""
+    rename = {c: _TICKET_RAW_FIELD_RENAME[c] for c in df.columns if c in _TICKET_RAW_FIELD_RENAME}
+    if rename:
+        print(f"[UPLOAD-CSV] Normalized {len(rename)} raw ServiceNow field name(s): "
+              f"{list(rename.keys())}", flush=True)
+    return df.rename(columns=rename)
+
+
 class CsvUploadBody(BaseModel):
     csv: str
     source_label: str = "ServiceNow"
@@ -826,6 +875,8 @@ async def upload_csv(body: CsvUploadBody):
         raise HTTPException(400, f"Could not parse the CSV: {exc}")
     if frame.empty:
         raise HTTPException(400, "The export contained no rows")
+    if body.dataset == "tickets":
+        frame = normalize_ticket_csv_headers(frame)
 
     print(f"[UPLOAD-CSV] {len(frame)} rows from '{body.source_label}' -> {body.dataset}", flush=True)
 
