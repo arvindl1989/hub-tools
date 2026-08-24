@@ -95,6 +95,14 @@ CREATE TABLE IF NOT EXISTS sn_override (
     updated_by  TEXT,
     PRIMARY KEY (dataset, row_key, column_name)
 );
+CREATE TABLE IF NOT EXISTS sn_manual_row (
+    dataset    TEXT NOT NULL,
+    row_key    TEXT NOT NULL,
+    payload    JSONB NOT NULL,
+    added_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    added_by   TEXT,
+    PRIMARY KEY (dataset, row_key)
+);
 """
 
 
@@ -131,13 +139,45 @@ def _check(dataset: str) -> dict:
 
 # ── Reading ───────────────────────────────────────────────────────────────────
 
-def load_rows(dataset: str) -> tuple[list, dict]:
-    """Snapshot rows with corrections applied, plus metadata.
+def _apply_overrides(rows: list, overrides: list, key_col: str) -> int:
+    """Patch `rows` in place with (row_key, column, value) triples. Returns how
+    many rows were touched. Shared between synced and manual rows so a
+    correction applies uniformly regardless of which table a row lives in —
+    the override table does not know or care where the row it targets came
+    from."""
+    if not overrides:
+        return 0
+    by_key: dict[str, dict] = {}
+    for row_key, column, value in overrides:
+        by_key.setdefault(row_key, {})[column] = value
+    applied = 0
+    for row in rows:
+        patch = by_key.get(str(row.get(key_col, "")).strip())
+        if patch:
+            row.update(patch)
+            applied += 1
+    return applied
 
-    Returns ([], {}) when nothing has been synced yet, so callers can fall back
-    to their previous source rather than showing an empty dashboard.
+
+def _manual_rows(cur, dataset: str) -> list:
+    cur.execute("SELECT payload FROM sn_manual_row WHERE dataset = %s ORDER BY added_at", (dataset,))
+    return [r[0] if isinstance(r[0], dict) else json.loads(r[0]) for r in cur.fetchall()]
+
+
+def load_rows(dataset: str) -> tuple[list, dict]:
+    """Synced rows plus permanent manual rows, both with corrections applied.
+
+    Manual rows exist for entries that will never come from a sync at all —
+    old feedback predating ServiceNow tracking, for instance — so they live in
+    a separate table save_snapshot never touches, and are merged in here on
+    every read rather than being folded into the snapshot itself.
+
+    Returns ([], {}) only when there is neither a snapshot nor any manual rows,
+    so callers can fall back to their previous source rather than showing an
+    empty dashboard.
     """
     cfg = _check(dataset)
+    key_col = cfg["key"]
     c = _conn()
     try:
         with c, c.cursor() as cur:
@@ -147,13 +187,15 @@ def load_rows(dataset: str) -> tuple[list, dict]:
                 (dataset,),
             )
             snap = cur.fetchone()
-            if not snap:
+            rows = (snap[0] if isinstance(snap[0], list) else json.loads(snap[0])) if snap else []
+            manual = _manual_rows(cur, dataset)
+            if not rows and not manual:
                 return [], {}
-            rows = snap[0] if isinstance(snap[0], list) else json.loads(snap[0])
             meta = {
-                "row_count": snap[1],
-                "synced_at": snap[2].isoformat() if snap[2] else None,
-                "synced_by": snap[3],
+                "row_count": snap[1] if snap else 0,
+                "synced_at": snap[2].isoformat() if snap and snap[2] else None,
+                "synced_by": snap[3] if snap else None,
+                "manual_row_count": len(manual),
             }
             cur.execute(
                 "SELECT row_key, column_name, value FROM sn_override WHERE dataset = %s",
@@ -166,19 +208,9 @@ def load_rows(dataset: str) -> tuple[list, dict]:
         except Exception:
             pass
 
-    if overrides:
-        by_key: dict[str, dict] = {}
-        for row_key, column, value in overrides:
-            by_key.setdefault(row_key, {})[column] = value
-        key_col = cfg["key"]
-        applied = 0
-        for row in rows:
-            patch = by_key.get(str(row.get(key_col, "")).strip())
-            if patch:
-                row.update(patch)
-                applied += 1
-        meta["overrides_applied"] = applied
-    return rows, meta
+    combined = rows + manual
+    meta["overrides_applied"] = _apply_overrides(combined, overrides, key_col)
+    return combined, meta
 
 
 @router.get("/{dataset}")
@@ -278,10 +310,12 @@ async def list_overrides(dataset: str):
             pass
 
 
-@router.put("/{dataset}/overrides")
-async def put_override(dataset: str, body: OverrideIn):
+def set_override(dataset: str, row_key: str, column_name: str, value: Optional[str],
+                  updated_by: Optional[str] = None) -> dict:
     _check(dataset)
-    if not body.row_key.strip() or not body.column_name.strip():
+    row_key = (row_key or "").strip()
+    column_name = (column_name or "").strip()
+    if not row_key or not column_name:
         raise HTTPException(400, "row_key and column_name are required")
     c = _conn()
     try:
@@ -292,8 +326,93 @@ async def put_override(dataset: str, body: OverrideIn):
                 "VALUES (%s, %s, %s, %s, now(), %s) "
                 "ON CONFLICT (dataset, row_key, column_name) DO UPDATE SET "
                 "value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by",
-                (dataset, body.row_key.strip(), body.column_name.strip(), body.value, body.updated_by),
+                (dataset, row_key, column_name, value, updated_by),
             )
+        _notify(dataset)
+        return {"ok": True}
+    finally:
+        try:
+            c.close()
+        except Exception:
+            pass
+
+
+@router.put("/{dataset}/overrides")
+async def put_override(dataset: str, body: OverrideIn):
+    return set_override(dataset, body.row_key, body.column_name, body.value, body.updated_by)
+
+
+class ManualRowIn(BaseModel):
+    row_key: str
+    payload: dict = Field(default_factory=dict)
+    added_by: Optional[str] = None
+
+
+@router.get("/{dataset}/manual-rows")
+async def list_manual_rows(dataset: str):
+    _check(dataset)
+    c = _conn()
+    try:
+        with c, c.cursor() as cur:
+            _ensure(cur)
+            cur.execute(
+                "SELECT row_key, payload, added_at, added_by FROM sn_manual_row "
+                "WHERE dataset = %s ORDER BY added_at", (dataset,),
+            )
+            return [
+                {"row_key": r[0], "payload": r[1] if isinstance(r[1], dict) else json.loads(r[1]),
+                 "added_at": r[2].isoformat() if r[2] else None, "added_by": r[3]}
+                for r in cur.fetchall()
+            ]
+    finally:
+        try:
+            c.close()
+        except Exception:
+            pass
+
+
+def add_manual_row(dataset: str, row_key: str, payload: dict, added_by: Optional[str] = None) -> dict:
+    """Add or replace one permanent row. Upsert on (dataset, row_key), so
+    re-running the same import twice is safe rather than duplicating rows —
+    callers generate row_key deterministically from row content for exactly
+    this reason."""
+    _check(dataset)
+    row_key = (row_key or "").strip()
+    if not row_key:
+        raise HTTPException(400, "row_key is required")
+    c = _conn()
+    try:
+        with c, c.cursor() as cur:
+            _ensure(cur)
+            cur.execute(
+                "INSERT INTO sn_manual_row (dataset, row_key, payload, added_at, added_by) "
+                "VALUES (%s, %s, %s::jsonb, now(), %s) "
+                "ON CONFLICT (dataset, row_key) DO UPDATE SET "
+                "payload = EXCLUDED.payload, added_at = sn_manual_row.added_at, added_by = EXCLUDED.added_by",
+                (dataset, row_key, json.dumps(payload), added_by),
+            )
+        _notify(dataset)
+        return {"ok": True, "row_key": row_key}
+    finally:
+        try:
+            c.close()
+        except Exception:
+            pass
+
+
+@router.put("/{dataset}/manual-rows")
+async def put_manual_row(dataset: str, body: ManualRowIn):
+    return add_manual_row(dataset, body.row_key, body.payload, body.added_by)
+
+
+@router.delete("/{dataset}/manual-rows/{row_key}")
+async def delete_manual_row(dataset: str, row_key: str):
+    _check(dataset)
+    c = _conn()
+    try:
+        with c, c.cursor() as cur:
+            _ensure(cur)
+            cur.execute("DELETE FROM sn_manual_row WHERE dataset = %s AND row_key = %s", (dataset, row_key))
         _notify(dataset)
         return {"ok": True}
     finally:

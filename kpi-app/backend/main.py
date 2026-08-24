@@ -8,6 +8,7 @@ import numpy as np
 import io
 import os
 import re
+import hashlib
 import uuid
 import json
 from pathlib import Path
@@ -801,6 +802,14 @@ def transform_feedback_csv(text: str, allowed_specialists: list[str]) -> pd.Data
     wide = wide.rename(columns=_FEEDBACK_RENAME)
     if "Specialist Name" in wide.columns:
         wide = wide[wide["Specialist Name"].isin(allowed_specialists)]
+    # Area/FL/Frontlines never come from ServiceNow — they are added by hand,
+    # per response, after the fact. Carrying them as empty columns on every
+    # freshly synced row (rather than only on rows someone has already
+    # annotated) means the master-sheet grid always shows them as editable
+    # cells for new responses, not just old ones.
+    for col in ("Area", "FL", "Frontlines"):
+        if col not in wide.columns:
+            wide[col] = ""
     return wide
 
 
@@ -887,6 +896,94 @@ class CsvUploadBody(BaseModel):
     source_label: str = "ServiceNow"
     dataset: str = "tickets"      # which ServiceNow table this export came from
     synced_by: Optional[str] = None
+
+
+# ── Feedback history import ───────────────────────────────────────────────────
+# The reference sheet a specialist maintains by hand: one Assessment ID column
+# (blank for feedback older than ServiceNow tracking), and Area/FL/Frontlines
+# columns nobody else has a way to populate. Two different destinations for
+# the same file, split on whether that ID is present:
+#   has an Assessment ID -> the row already exists (or will) in a ServiceNow
+#     sync; only its Area/FL/Frontlines are new information, so they become
+#     overrides on that instance.
+#   no Assessment ID -> the row itself will never come from ServiceNow, ever
+#     — it predates tracking entirely — so the whole row becomes a permanent
+#     manual row, immune to every future sync.
+_HISTORY_COLUMNS = {
+    "Assessment ID", "Frontlines", "FL", "Area", "Specialist Name", "Service Type",
+    "Interaction", "Quality", "Overall", "Timeliness", "Feedback Comments", "Feedback Date",
+}
+_HISTORY_RATING_RENAME = {
+    "Interaction": "Interaction Rating", "Quality": "Quality Rating",
+    "Overall": "Overall Rating", "Timeliness": "Timeliness Rating",
+    "Feedback Comments": "Detailed Feedback comments", "Feedback Date": "Submitted Date",
+}
+
+
+class HistoryImportBody(BaseModel):
+    csv: str
+    imported_by: Optional[str] = None
+
+
+@app.post("/api/feedback/import-history")
+async def import_feedback_history(body: HistoryImportBody):
+    text = (body.csv or "").strip()
+    if not text:
+        raise HTTPException(400, "csv body is empty")
+    try:
+        raw = pd.read_csv(io.StringIO(text))
+    except Exception as exc:
+        raise HTTPException(400, f"Could not parse the CSV: {exc}")
+
+    missing = _HISTORY_COLUMNS - set(raw.columns)
+    if missing:
+        raise HTTPException(
+            400,
+            f"Missing expected columns: {', '.join(sorted(missing))}. "
+            f"Columns actually present: {', '.join(raw.columns)}",
+        )
+
+    raw = raw.astype(object).where(pd.notna(raw), None)
+    has_id = raw["Assessment ID"].notna() & (raw["Assessment ID"].astype(str).str.strip() != "")
+
+    overrides_written = 0
+    for _, row in raw[has_id].iterrows():
+        instance_id = str(row["Assessment ID"]).strip()
+        for col in ("Area", "FL", "Frontlines"):
+            val = row.get(col)
+            if val not in (None, ""):
+                sn_data_api.set_override("feedback", instance_id, col, str(val), body.imported_by)
+                overrides_written += 1
+
+    manual_written = 0
+    for _, row in raw[~has_id].iterrows():
+        # Deterministic, not sequential — re-running the same file twice must
+        # produce the same keys so the upsert overwrites rather than
+        # duplicates. Position in the sheet is not stable across re-exports;
+        # the row's own content is.
+        basis = "|".join(str(row.get(c) or "") for c in
+                          ("Specialist Name", "Feedback Date", "Feedback Comments", "Service Type"))
+        row_key = "MANUAL-" + hashlib.sha1(basis.encode("utf-8")).hexdigest()[:10]
+        payload = {
+            "Instance Number": row_key,
+            "Requester Name": None,
+            "Specialist Name": row.get("Specialist Name"),
+            "Service Type": row.get("Service Type"),
+            "Detailed Feedback comments": row.get("Feedback Comments"),
+            "Submitted Date": row.get("Feedback Date"),
+            "Area": row.get("Area"),
+            "FL": row.get("FL"),
+            "Frontlines": row.get("Frontlines"),
+        }
+        for src, dst in (("Overall", "Overall Rating"), ("Quality", "Quality Rating"),
+                          ("Timeliness", "Timeliness Rating"), ("Interaction", "Interaction Rating")):
+            payload[dst] = row.get(src)
+        sn_data_api.add_manual_row("feedback", row_key, payload, body.imported_by)
+        manual_written += 1
+
+    print(f"[FEEDBACK-HISTORY] {overrides_written} overrides, {manual_written} manual rows "
+          f"from '{body.imported_by}'", flush=True)
+    return {"ok": True, "overrides_written": overrides_written, "manual_rows_written": manual_written}
 
 
 @app.post("/api/upload-csv")
