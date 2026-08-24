@@ -187,7 +187,7 @@
     .sn-sync-btn.syncing { color: #f59e0b; border-color: #f59e0b; }
     .sn-sync-btn.success { color: #16a34a; border-color: #16a34a; }
     .sn-sync-btn.error   { color: #dc2626; border-color: #dc2626; }
-    .sn-sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .sn-sync-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
     /* SN Sync config modal */
     .sn-config-modal {
@@ -1351,7 +1351,13 @@
       </div>
       <select class="filter-select" id="whoAmISel" title="Scopes the queue to your work"></select>
       <button class="refresh-btn" id="refreshBtn"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
-      <button class="sn-sync-btn" id="snSyncBtn" title="Sync latest data from ServiceNow into the sheet, then refresh"><i class="fa-solid fa-arrow-up-from-bracket"></i> Sync from SN</button>
+      <!-- Disabled: the extension now posts straight to the backend, so this
+           button would sync and then re-read an unchanged sheet — reporting
+           success while showing identical data. Use the extension popup until
+           the trackers read the synced snapshot. -->
+      <button class="sn-sync-btn" id="snSyncBtn" disabled
+              title="Temporarily unavailable — use the extension popup to sync. This button will return once the trackers read synced data directly.">
+        <i class="fa-solid fa-arrow-up-from-bracket"></i> Sync from SN</button>
       <button class="settings-btn" id="settingsBtn"><i class="fa-solid fa-gear"></i></button>
     </div>
 
