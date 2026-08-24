@@ -94,6 +94,16 @@ class StatePut(BaseModel):
 MAX_PAYLOAD_BYTES = 64 * 1024
 
 
+def _ensure_table(cur) -> None:
+    """Create the table on demand.
+
+    Railway's private DNS is not always resolvable the instant the app boots,
+    so the startup schema init can fail while every later request succeeds —
+    leaving queries to hit a table that was never created. Cheap to re-run.
+    """
+    cur.execute(_SCHEMA)
+
+
 @router.get("")
 async def list_state(ids: str = ""):
     """Every saved ticket, or just the ones named in `ids` (comma separated).
@@ -104,6 +114,7 @@ async def list_state(ids: str = ""):
     c = _conn()
     try:
         with c, c.cursor() as cur:
+            _ensure_table(cur)
             wanted = [i.strip() for i in ids.split(",") if i.strip()]
             if wanted:
                 cur.execute(
@@ -142,6 +153,7 @@ async def put_state(ticket_id: str, body: StatePut):
     c = _conn()
     try:
         with c, c.cursor() as cur:
+            _ensure_table(cur)
             cur.execute(
                 "INSERT INTO email_ticket_state (ticket_id, payload, updated_at, updated_by) "
                 "VALUES (%s, %s::jsonb, now(), %s) "

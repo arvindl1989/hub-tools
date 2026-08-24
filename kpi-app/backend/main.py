@@ -84,10 +84,20 @@ def _get_conn():
         import psycopg2
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
-        # Railway and most cloud Postgres require SSL — add if not already specified
+        # Public cloud Postgres wants TLS; Railway's private endpoint
+        # (*.railway.internal) does not terminate it, and forcing require there
+        # fails with "server does not support SSL". prefer negotiates TLS when
+        # the server offers it and connects plainly when it does not, so one
+        # setting is correct for the internal host, localhost and public hosts.
         if "sslmode" not in url:
+            host_is_private = (
+                ".railway.internal" in url
+                or "@localhost" in url
+                or "@127.0.0.1" in url
+                or ".internal:" in url
+            )
             sep = "&" if "?" in url else "?"
-            url = url + sep + "sslmode=require"
+            url = url + sep + ("sslmode=prefer" if host_is_private else "sslmode=require")
         conn = psycopg2.connect(url, connect_timeout=10)
         _LAST_DB_ERROR = None
         print(f"[DB] Connected to PostgreSQL", flush=True)
