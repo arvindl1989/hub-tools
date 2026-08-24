@@ -69,7 +69,11 @@ async function fetchCsv(csvUrl) {
   if (!tabs.length) {
     throw new Error('No ServiceNow tab is open. Open ServiceNow and sign in, then sync again.');
   }
-  const [{ result, error }] = await chrome.scripting.executeScript({
+  // executeScript resolves to one InjectionResult per frame; the injected
+  // function's return value is on .result. The previous version unwrapped that
+  // and then destructured it as an array, which threw "(intermediate value) is
+  // not iterable" before any request was ever made.
+  const frames = await chrome.scripting.executeScript({
     target: { tabId: tabs[0].id },
     func: async (url) => {
       try {
@@ -86,9 +90,12 @@ async function fetchCsv(csvUrl) {
       }
     },
     args: [csvUrl],
-  }).then(r => r[0].result);
-  if (error) throw new Error(error);
-  return result;
+  });
+
+  const outcome = frames && frames[0] && frames[0].result;
+  if (!outcome) throw new Error('No response from the ServiceNow tab — try reloading it.');
+  if (outcome.error) throw new Error(outcome.error);
+  return outcome.result;
 }
 
 async function pushToHub(hubUrl, csv) {
