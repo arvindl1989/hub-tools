@@ -82,7 +82,23 @@ async function fetchCsv(csvUrl) {
           headers: { Accept: 'text/csv,text/plain,*/*' },
         });
         if (!res.ok) return { error: `ServiceNow returned HTTP ${res.status}` };
-        const text = await res.text();
+        // res.text() always decodes as UTF-8 regardless of the export's actual
+        // charset, and this instance's CSV export is Windows-1252 — confirmed
+        // against a real export where an en dash (0x96) is not valid UTF-8.
+        // A UTF-8 decode does not fail on that byte, it silently replaces it
+        // with U+FFFD, destroying the character with no way to recover it
+        // afterward, which is what put "Content Production � Graphic
+        // Design" in front of a user. Try strict UTF-8 first — most exports
+        // are plain ASCII, identical in both encodings — and only fall back to
+        // Windows-1252 when the bytes are not valid UTF-8, rather than
+        // assuming one encoding for every ServiceNow instance.
+        const buf = await res.arrayBuffer();
+        let text;
+        try {
+          text = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+        } catch {
+          text = new TextDecoder('windows-1252').decode(buf);
+        }
         if (!text.trim()) return { error: 'ServiceNow returned an empty export' };
         return { result: text };
       } catch (e) {

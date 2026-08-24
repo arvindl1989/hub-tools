@@ -7,6 +7,7 @@ import xlsxwriter
 import numpy as np
 import io
 import os
+import re
 import uuid
 import json
 from pathlib import Path
@@ -799,6 +800,35 @@ _TICKET_RAW_FIELD_RENAME = {
 }
 
 
+# ── Sub-Category dash normalization ──────────────────────────────────────────
+# Confirmed against a real export: 187 rows use an en dash for "Content
+# Production – Graphic Design" and 2 use a plain hyphen for the identically
+# spelled category — someone typed it differently at some point, and ServiceNow
+# stores whatever was typed rather than a single picklist value. Left alone,
+# these read as two different categories everywhere downstream: two checkboxes
+# in the filter, two slices in every by-service breakdown, and the 2 mis-typed
+# rows silently missing from the real total whenever someone filters by the
+# category. Collapsing dash variants to one canonical form at ingestion means
+# every reader — Postgres snapshot, dashboard filters, email tracker — sees one
+# category, not the specific keyboard used to type it.
+# Every exact-match constant elsewhere in this file — BANDWIDTH_RATES, the SLA
+# day counts, DEMAND_ENGAGEMENT_SUBS, BAU_SERVICES_DISPLAY — is keyed on the en
+# dash spelling ("Content Production – Graphic Design"), so that is the
+# canonical form to normalize toward, not a plain hyphen: a different choice
+# here would silently stop every one of those lookups matching for tickets
+# synced through this path, trading one inconsistency for a worse one.
+_DASH_VARIANTS = re.compile(r"\s*[\u2012\u2013\u2014\u2212-]\s*")
+
+
+def normalize_sub_category(df: pd.DataFrame) -> pd.DataFrame:
+    if "Sub-Category" in df.columns:
+        df["Sub-Category"] = (
+            df["Sub-Category"].astype(str).str.strip()
+            .apply(lambda v: _DASH_VARIANTS.sub(" \u2013 ", v) if v and v != "nan" else v)
+        )
+    return df
+
+
 def normalize_ticket_csv_headers(df: pd.DataFrame) -> pd.DataFrame:
     """Rename raw ServiceNow field names to display labels, leaving anything
     already in display form untouched — safe to run whether the export used
@@ -877,6 +907,7 @@ async def upload_csv(body: CsvUploadBody):
         raise HTTPException(400, "The export contained no rows")
     if body.dataset == "tickets":
         frame = normalize_ticket_csv_headers(frame)
+        frame = normalize_sub_category(frame)
 
     print(f"[UPLOAD-CSV] {len(frame)} rows from '{body.source_label}' -> {body.dataset}", flush=True)
 
