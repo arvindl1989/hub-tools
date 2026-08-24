@@ -23,8 +23,10 @@ router = APIRouter(prefix="/api/sn-data", tags=["servicenow"])
 
 # Which column identifies a row, per dataset. Overrides are keyed on it.
 DATASETS = {
-    "tickets":  {"key": "Number",  "label": "ServiceNow tickets"},
-    "feedback": {"key": "Number",  "label": "ServiceNow feedback"},
+    "tickets":  {"key": "Number",           "label": "ServiceNow tickets"},
+    # Feedback has no ServiceNow ticket number in its export — an assessment
+    # instance ID (AINST...) is what uniquely identifies one survey response.
+    "feedback": {"key": "Instance Number",  "label": "ServiceNow feedback"},
 }
 
 _get_conn: Optional[Callable] = None

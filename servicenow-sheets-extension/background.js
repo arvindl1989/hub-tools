@@ -98,11 +98,11 @@ async function fetchCsv(csvUrl) {
   return outcome.result;
 }
 
-async function pushToHub(hubUrl, csv) {
+async function pushToHub(hubUrl, csv, dataset, synced_by) {
   const res = await fetch(`${hubUrl}/api/upload-csv`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ csv, source_label: 'ServiceNow' }),
+    body: JSON.stringify({ csv, source_label: 'ServiceNow', dataset, synced_by }),
   });
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
@@ -114,16 +114,20 @@ async function pushToHub(hubUrl, csv) {
 
 // ── Sync ─────────────────────────────────────────────────────────────────────
 
-async function runSync({ snUrl, csvText } = {}) {
+async function runSync({ snUrl, csvText, dataset = 'tickets', synced_by } = {}) {
   const cfg = await getConfig();
+  const urlKey = dataset === 'feedback' ? 'feedbackSnUrl' : 'snUrl';
+  const targetUrl = snUrl || (await chrome.storage.local.get(urlKey))[urlKey] || cfg.snUrl;
   // The in-page button on a ServiceNow list already holds the export, so use it
   // rather than fetching the same rows a second time.
-  const csv = csvText || await fetchCsv(toCsvUrl(snUrl || cfg.snUrl));
-  const result = await pushToHub(cfg.hubUrl, csv);
+  const csv = csvText || await fetchCsv(toCsvUrl(targetUrl));
+  const result = await pushToHub(cfg.hubUrl, csv, dataset, synced_by);
+  const stamp = { syncedAt: new Date().toISOString(), rowCount: result.total_rows ?? 0 };
   await chrome.storage.local.set({
-    lastSyncedAt: new Date().toISOString(),
-    lastRowCount: result.total_rows ?? 0,
-    lastSessionId: result.session_id || '',
+    [`last_${dataset}`]: stamp,
+    // Kept for the tickets path specifically — older popup builds and the
+    // in-page button read these unprefixed keys.
+    ...(dataset === 'tickets' ? { lastSyncedAt: stamp.syncedAt, lastRowCount: stamp.rowCount } : {}),
   });
   return result;
 }
@@ -131,7 +135,7 @@ async function runSync({ snUrl, csvText } = {}) {
 // From the popup
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.action !== 'sync') return false;
-  runSync({ snUrl: msg.snUrl, csvText: msg.csvText })
+  runSync({ snUrl: msg.snUrl, csvText: msg.csvText, dataset: msg.dataset, synced_by: msg.synced_by })
     .then(result => sendResponse({ ok: true, ...result }))
     .catch(err => sendResponse({ ok: false, error: err.message }));
   return true;   // keep the channel open for the async reply

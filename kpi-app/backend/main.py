@@ -713,6 +713,54 @@ async def upload_json(body: JsonUploadBody):
         "columns_detected": list(df.columns),
     }
 
+# ── Feedback CSV transform ─────────────────────────────────────────────────
+# asmt_metric_result exports one row per (Instance, Metric) — seven metric rows
+# per survey response, long/EAV shape. The rest of the feedback pipeline
+# (_detect_feedback_columns) expects one row per response with each metric as
+# its own column, so this pivots before anything else touches it.
+_FEEDBACK_SOURCE_FILTER = "Service Feedback Form"
+
+# Renamed so the pivoted columns line up with what _detect_feedback_columns
+# already looks for, and so "Assigned to" (the requester in this export) can
+# never be mistaken for the specialist column, which the raw name invites —
+# "assigned to" is the FIRST candidate the specialist detector tries.
+_FEEDBACK_RENAME = {
+    "Instance": "Instance Number",
+    "Assigned to": "Requester Name",
+    "Updated": "Submitted Date",
+}
+
+
+def transform_feedback_csv(text: str, allowed_specialists: list[str]) -> pd.DataFrame:
+    """EAV ServiceNow export -> one row per response, specialists only."""
+    raw = pd.read_csv(io.StringIO(text))
+    missing = {"Instance", "Metric", "String value", "Source"} - set(raw.columns)
+    if missing:
+        raise ValueError(f"Export is missing expected columns: {', '.join(sorted(missing))}")
+
+    # Other assessment templates (e.g. "Release Feedback Survey") share a metric
+    # name ("Overall Rating") with this one, so filtering by Source rather than
+    # by which metrics are present is what actually isolates the right rows.
+    raw = raw[raw["Source"].astype(str).str.contains(_FEEDBACK_SOURCE_FILTER, na=False)]
+    if raw.empty:
+        return pd.DataFrame()
+
+    wide = raw.pivot_table(
+        index=["Instance", "Assigned to"], columns="Metric",
+        values="String value", aggfunc="first",
+    ).reset_index()
+
+    # The submission date lives per metric row, not per instance; take the
+    # latest one seen for that instance rather than losing it in the pivot.
+    dates = raw.groupby("Instance")["Updated"].max()
+    wide = wide.merge(dates, on="Instance", how="left")
+
+    wide = wide.rename(columns=_FEEDBACK_RENAME)
+    if "Specialist Name" in wide.columns:
+        wide = wide[wide["Specialist Name"].isin(allowed_specialists)]
+    return wide
+
+
 class CsvUploadBody(BaseModel):
     csv: str
     source_label: str = "ServiceNow"
@@ -722,13 +770,17 @@ class CsvUploadBody(BaseModel):
 
 @app.post("/api/upload-csv")
 async def upload_csv(body: CsvUploadBody):
-    """Take a raw CSV export and build a session from it.
+    """Take a raw CSV export and store it.
 
     The ServiceNow browser extension posts here directly rather than writing to
     a Google Sheet first — one hop instead of three, and no Sheets OAuth. CSV is
     parsed with pandas rather than in the extension because quoted fields,
     embedded commas and newlines are exactly what a hand-rolled parser gets
     wrong, and ServiceNow descriptions contain all three.
+
+    Tickets and feedback are different shapes on the ServiceNow side — tickets
+    export one row per ticket, feedback exports one row per (survey, metric) —
+    so `dataset` picks which path applies before anything shared runs.
     """
     text = (body.csv or "").strip()
     if not text:
@@ -742,6 +794,32 @@ async def upload_csv(body: CsvUploadBody):
             "ServiceNow returned a web page instead of CSV — the session has probably "
             "expired. Open ServiceNow, sign in, then sync again.",
         )
+
+    if body.dataset == "feedback":
+        try:
+            frame = transform_feedback_csv(text, DEFAULT_PEOPLE)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        except Exception as exc:
+            raise HTTPException(400, f"Could not parse the CSV: {exc}")
+        if frame.empty:
+            raise HTTPException(
+                400,
+                "No feedback rows matched — check the export contains Service Feedback "
+                "Form responses for the tracked specialists.",
+            )
+        rows = frame.astype(object).where(pd.notna(frame), None).to_dict(orient="records")
+        result = sn_data_api.save_snapshot("feedback", rows, body.synced_by)
+        print(f"[UPLOAD-CSV] {len(rows)} feedback rows stored "
+              f"(specialists: {frame['Specialist Name'].value_counts().to_dict() if 'Specialist Name' in frame else {}})",
+              flush=True)
+        return {
+            "persisted": True,
+            "dataset": "feedback",
+            "total_rows": len(rows),
+            "specialists": sorted(frame["Specialist Name"].unique().tolist()) if "Specialist Name" in frame else [],
+        }
+
     try:
         frame = pd.read_csv(io.StringIO(text))
     except Exception as exc:
@@ -3166,25 +3244,41 @@ def _detect_feedback_columns(df: pd.DataFrame) -> dict:
     return mapping
 
 def _load_feedback_df(force: bool = False):
-    """Fetch Sheet 2 as CSV, normalize, and cache for a few minutes."""
+    """Load feedback, preferring the synced ServiceNow snapshot over the sheet.
+
+    Same preference order as tickets, for the same reason: the snapshot comes
+    straight from ServiceNow with corrections applied, and the sheet has failed
+    in production before. Falls back to the sheet so nothing breaks before a
+    first sync has happened.
+    """
     import time as _time
     now = _time.time()
     if not force and _feedback_cache["df"] is not None and now - _feedback_cache["ts"] < _FEEDBACK_CACHE_TTL:
         return _feedback_cache["df"], _feedback_cache["columns"]
 
-    import httpx
     try:
-        with httpx.Client(follow_redirects=True, timeout=30) as client:
-            resp = client.get(_FEEDBACK_CSV_URL)
-            resp.raise_for_status()
-            raw = pd.read_csv(io.StringIO(resp.text))
-    except Exception as exc:
-        if _feedback_cache["df"] is not None:   # serve stale on transient failure
-            return _feedback_cache["df"], _feedback_cache["columns"]
-        raise HTTPException(
-            502,
-            f"Could not fetch the feedback sheet (make sure link sharing is on): {exc}",
-        )
+        snap_rows, snap_meta = sn_data_api.load_rows("feedback")
+    except Exception:
+        snap_rows, snap_meta = [], {}
+
+    if snap_rows:
+        print(f"[FEEDBACK] Serving {len(snap_rows)} rows from the synced snapshot "
+              f"({snap_meta.get('synced_at')})", flush=True)
+        raw = pd.DataFrame(snap_rows)
+    else:
+        import httpx
+        try:
+            with httpx.Client(follow_redirects=True, timeout=30) as client:
+                resp = client.get(_FEEDBACK_CSV_URL)
+                resp.raise_for_status()
+                raw = pd.read_csv(io.StringIO(resp.text))
+        except Exception as exc:
+            if _feedback_cache["df"] is not None:   # serve stale on transient failure
+                return _feedback_cache["df"], _feedback_cache["columns"]
+            raise HTTPException(
+                502,
+                f"Could not fetch the feedback sheet (make sure link sharing is on): {exc}",
+            )
 
     raw = raw.dropna(how="all").dropna(axis=1, how="all")
     raw.columns = [str(c).strip() for c in raw.columns]

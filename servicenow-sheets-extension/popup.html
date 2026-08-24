@@ -11,14 +11,30 @@
     <p class="sub">Pulls the list view as CSV using your signed-in session and sends it to the hub.</p>
   </header>
 
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab active" data-ds="tickets">Tickets</button>
+    <button type="button" class="tab" data-ds="feedback">Feedback</button>
+  </div>
+
   <button id="syncBtn" class="primary">Sync now</button>
   <p id="status" class="status"></p>
 
   <details id="cfg">
     <summary>Settings</summary>
 
-    <label for="snUrl">ServiceNow list URL</label>
-    <input type="text" id="snUrl" placeholder="Paste the list view URL from the address bar">
+    <div class="ds-panel" data-ds="tickets">
+      <label for="snUrl">Tickets — ServiceNow list URL</label>
+      <input type="text" id="snUrl" placeholder="Paste the list view URL from the address bar">
+    </div>
+
+    <div class="ds-panel" data-ds="feedback" hidden>
+      <label for="feedbackSnUrl">Feedback — ServiceNow list URL</label>
+      <input type="text" id="feedbackSnUrl" placeholder="Paste the list view URL from the address bar">
+      <p class="hint">The feedback export lists one row per rating per response
+        (Instance/Metric/String value) — the hub pivots it into one row per
+        response and keeps only the tracked specialists automatically.</p>
+    </div>
+
     <p class="hint">Navigate to the list you export today and copy the address bar. The classic
       <code>/now/nav/…</code> wrapper is fine — it gets unwrapped automatically.</p>
 

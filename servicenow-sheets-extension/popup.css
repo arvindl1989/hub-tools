@@ -22,3 +22,11 @@ input:focus { outline: none; border-color: #1450f5; box-shadow: 0 0 0 3px rgba(2
 .hint { font-size: 10.5px; color: #8a8a8a; margin: 5px 0 0; line-height: 1.45; }
 .hint code { background: #f3eee6; padding: 0 3px; border-radius: 3px; }
 .last { font-size: 10.5px; color: #8a8a8a; margin: 10px 0 0; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+.tab {
+  flex: 1 1 auto; background: #f3eee6; color: #727272; border: 1px solid #e6e6e6;
+  padding: 6px 8px; font-size: 12px; border-radius: 8px;
+}
+.tab.active { background: #1450f5; color: #fff; border-color: #1450f5; }
+.ds-panel[hidden] { display: none; }
