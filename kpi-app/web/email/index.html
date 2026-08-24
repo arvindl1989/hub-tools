@@ -1081,6 +1081,32 @@
     .tmpl-item { padding: 5px 8px; font-size: 0.78rem; }
     .tmpl-hint { margin-top: 0.35rem; font-size: 0.72rem; }
 
+    /* Template picker: searchable, each row explains itself */
+    .tmpl-search { width: 100%; margin-bottom: 12px; }
+    .tmpl-item { align-items: flex-start; gap: 10px; padding: 7px 8px; }
+    .tmpl-main { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1 1 auto; }
+    .tmpl-needs {
+      flex: 0 0 auto; font-family: var(--font-kone); text-transform: uppercase;
+      letter-spacing: 0.04em; font-size: 0.55rem; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 3px; padding: 0 4px;
+    }
+    .tmpl-item.active .tmpl-needs { border-color: var(--border-strong); color: var(--text); }
+    #fieldsForName { color: var(--primary); }
+
+    /* Sharing status — silent fallback was indistinguishable from working */
+    .share-banner {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff1dc; border-bottom: 1px solid #ffd79a; color: #8a5200;
+      padding: 8px 22px; font-size: 0.78rem;
+    }
+    .sb-tag {
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+      font-size: 0.62rem; background: #8a5200; color: #fff;
+      border-radius: var(--radius-chip); padding: 2px 7px; flex: 0 0 auto;
+    }
+    .sb-msg { flex: 1 1 auto; }
+    .sb-x { border: none; background: none; color: inherit; font-size: 1.1rem; cursor: pointer; line-height: 1; padding: 0 4px; }
+
     /* ── Empty state ──────────────────────────────────────────────────── */
     .empty-msg h3 { font-family: 'Inter', sans-serif; text-transform: none; font-weight: 400; color: var(--text); }
     .empty-msg p { color: var(--muted); }
@@ -1232,6 +1258,8 @@
   </div>
 
   <!-- ── VIEW: Setup ── -->
+  <div id="shareBanner" class="share-banner" style="display:none"></div>
+
   <div class="view active" id="view-setup">
     <div class="setup-wrap" style="align-items:flex-start; padding-top:2.5rem;">
       <div class="setup-card" style="max-width:680px;">
@@ -1381,13 +1409,14 @@
     <div class="doc-panels">
       <section class="panel" id="panel-tmpl" hidden>
         <div class="panel-head">Choose the email <span class="panel-count" id="tmplCount"></span></div>
+        <input type="text" class="field-input tmpl-search" id="tmplSearch" placeholder="Type to filter — e.g. reminder, preview, closed">
         <div class="tmpl-list" id="quickPicks"></div>
         <select id="tmplSelect" class="visually-hidden" tabindex="-1" aria-hidden="true"></select>
         <p class="tmpl-hint" id="tmplHint"></p>
       </section>
 
       <section class="panel" id="panel-fields" hidden>
-        <div class="panel-head">Details for this email</div>
+        <div class="panel-head">Details for <span id="fieldsForName"></span></div>
         <div class="panel-grid" id="dynFields"></div>
         <div id="dynFieldsCard" hidden></div>
       </section>
@@ -2879,11 +2908,33 @@
       picks.innerHTML = groups.map(g =>
         `<div class="tmpl-glabel">${esc(g)}</div>`
         + list.filter(t => t.group === g).map(t =>
-            `<button type="button" class="tmpl-item" data-id="${t.id}" data-group="${esc(g)}">`
-            + `<span class="tmpl-name">${esc(t.label)}</span>`
+            `<button type="button" class="tmpl-item" data-id="${t.id}" data-group="${esc(g)}" data-search="${esc((t.label + ' ' + g + ' ' + (t.hint || '')).toLowerCase())}">`
+            + `<span class="tmpl-main"><span class="tmpl-name">${esc(t.label)}</span>`
+            + (t.needs?.length ? `<span class="tmpl-needs">${t.needs.length} field${t.needs.length > 1 ? 's' : ''}</span>` : '')
+            + '</span>'
             + (suggested && suggested.id === t.id ? '<span class="tmpl-sug">Suggested</span>' : '')
             + '</button>').join('')
       ).join('');
+
+      const search = document.getElementById('tmplSearch');
+      if (search) {
+        search.value = '';
+        search.oninput = () => {
+          const q = search.value.trim().toLowerCase();
+          picks.querySelectorAll('.tmpl-item').forEach(b => {
+            b.style.display = !q || b.dataset.search.includes(q) ? '' : 'none';
+          });
+          // Hide a group label once everything under it is filtered out.
+          picks.querySelectorAll('.tmpl-glabel').forEach(lab => {
+            let n = lab.nextElementSibling, any = false;
+            while (n && !n.classList.contains('tmpl-glabel')) {
+              if (n.classList.contains('tmpl-item') && n.style.display !== 'none') any = true;
+              n = n.nextElementSibling;
+            }
+            lab.style.display = any ? '' : 'none';
+          });
+        };
+      }
       picks.querySelectorAll('.tmpl-item').forEach(b =>
         b.addEventListener('click', () => selectTemplate(b.dataset.id)));
     }
@@ -2913,6 +2964,8 @@
       document.getElementById('tmplSelect').value = t.id;
       document.querySelectorAll('.tmpl-item').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
       document.getElementById('toolTmplName').textContent = t.label;
+      const forName = document.getElementById('fieldsForName');
+      if (forName) forName.textContent = t.label;
       document.getElementById('tmplHint').textContent = t.hint || '';
 
       // The chosen email is what tells the widget where the ticket has got to.
@@ -2924,7 +2977,29 @@
       buildSubject();
       renderFields();
       renderEmail();
+      if (!silent) revealForTemplate(t);
       if (!silent) syncUrl();
+    }
+
+    // Picking an email should hand you the next thing to do: the fields it
+    // needs if it has any, otherwise get out of the way and show the message.
+    function revealForTemplate(t) {
+      const needs = t.needs || [];
+      openPanel(needs.length ? 'panel-fields' : null);
+      if (needs.length) {
+        const first = document.querySelector('#dynFields [data-f]');
+        if (first) first.focus({ preventScroll: true });
+      }
+    }
+
+    function openPanel(id) {
+      document.querySelectorAll('#docTools .tool').forEach(b => b.classList.remove('open'));
+      document.querySelectorAll('.doc-panels .panel').forEach(p => { p.hidden = true; });
+      if (!id) return;
+      const panel = document.getElementById(id);
+      const btn = document.querySelector(`#docTools .tool[data-panel="${id}"]`);
+      if (panel) panel.hidden = false;
+      if (btn) btn.classList.add('open');
     }
 
     // ── Clipboard + Outlook ───────────────────────────────────────────────
@@ -3038,18 +3113,46 @@
       try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch {}
     }
 
+    let sharedError = '';
+
     async function initSharedState() {
+      sharedError = '';
       try {
         const res = await fetch('/api/email-state', { cache: 'no-store' });
-        if (!res.ok) throw new Error(String(res.status));
+        if (!res.ok) {
+          // The 503 carries the backend's own diagnosis; swallowing it left the
+          // tool quietly device-only with no way to find out why.
+          let detail = `HTTP ${res.status}`;
+          try { detail = (await res.json()).detail || detail; } catch {}
+          throw new Error(detail);
+        }
         remoteState = await res.json();
         sharedOn = true;
-      } catch {
+      } catch (e) {
         remoteState = {};
         sharedOn = false;   // fall back to this browser only
+        sharedError = e?.message || 'Could not reach the server';
       }
       const pill = document.getElementById('savedPill');
       if (pill) pill.dataset.shared = sharedOn ? '1' : '0';
+      renderShareBanner();
+    }
+
+    function renderShareBanner() {
+      const el = document.getElementById('shareBanner');
+      if (!el) return;
+      if (sharedOn || sessionStorage.getItem('hub_share_banner_hidden') === '1') {
+        el.style.display = 'none';
+        return;
+      }
+      el.style.display = '';
+      el.innerHTML = `<span class="sb-tag">Not shared</span>`
+        + `<span class="sb-msg">Links and dates are saving to this browser only. ${esc(sharedError)}</span>`
+        + `<button type="button" class="sb-x" id="shareBannerX" title="Hide until reload">&times;</button>`;
+      document.getElementById('shareBannerX').addEventListener('click', () => {
+        try { sessionStorage.setItem('hub_share_banner_hidden', '1'); } catch {}
+        el.style.display = 'none';
+      });
     }
 
     // Server copy wins when it exists — it is what everyone else sees.
@@ -3314,14 +3417,11 @@
       // pushed far down the page.
       document.querySelectorAll('#docTools .tool').forEach(btn => {
         btn.addEventListener('click', () => {
-          const id = btn.dataset.panel;
           const wasOpen = btn.classList.contains('open');
-          document.querySelectorAll('#docTools .tool').forEach(b => b.classList.remove('open'));
-          document.querySelectorAll('.doc-panels .panel').forEach(p => { p.hidden = true; });
-          if (!wasOpen) {
-            btn.classList.add('open');
-            const panel = document.getElementById(id);
-            if (panel) panel.hidden = false;
+          openPanel(wasOpen ? null : btn.dataset.panel);
+          if (!wasOpen && btn.dataset.panel === 'panel-tmpl') {
+            const sb = document.getElementById('tmplSearch');
+            if (sb) sb.focus({ preventScroll: true });
           }
         });
       });
