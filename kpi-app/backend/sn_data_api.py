@@ -303,6 +303,48 @@ async def put_override(dataset: str, body: OverrideIn):
             pass
 
 
+def clear_snapshot(dataset: str) -> dict:
+    """Delete a dataset's snapshot so readers fall back to their prior source
+    (the Google Sheet, for tickets/feedback) on the next request.
+
+    This is the incident lever: a sync that lands with the wrong column shape
+    is otherwise invisible until someone notices every screen went blank or
+    wrong, and there was no way to undo it short of a database console. Every
+    reader already treats "no snapshot" as "fall back", so clearing it is safe
+    — it cannot make things worse than they were before any sync ran.
+    """
+    _check(dataset)
+    c = _conn()
+    try:
+        with c, c.cursor() as cur:
+            _ensure(cur)
+            cur.execute("DELETE FROM sn_snapshot WHERE dataset = %s", (dataset,))
+    finally:
+        try:
+            c.close()
+        except Exception:
+            pass
+    _notify(dataset)
+    return {"ok": True, "dataset": dataset}
+
+
+@router.delete("/{dataset}")
+async def delete_snapshot(dataset: str):
+    return clear_snapshot(dataset)
+
+
+@router.get("/{dataset}/clear")
+async def clear_snapshot_via_get(dataset: str):
+    """Same as DELETE /{dataset}, reachable by pasting a URL into a browser.
+
+    A browser address bar can only issue GET, and during an incident nobody
+    should have to find curl or Postman to undo a bad sync. Deliberately just
+    as destructive as the DELETE route — same guard (there is none beyond the
+    dataset name being valid), same recovery story.
+    """
+    return clear_snapshot(dataset)
+
+
 @router.delete("/{dataset}/overrides")
 async def delete_override(dataset: str, row_key: str, column_name: str):
     """Drop a correction so the row reverts to whatever ServiceNow says."""
