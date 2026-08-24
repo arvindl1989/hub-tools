@@ -1091,7 +1091,60 @@
       border: 1px solid var(--border); border-radius: 3px; padding: 0 4px;
     }
     .tmpl-item.active .tmpl-needs { border-color: var(--border-strong); color: var(--text); }
-    #fieldsForName { color: var(--primary); }
+    /* ── Collapsed progress table in the preview ─────────────────────── */
+    .pw-wrap { margin: 0 0 14px; }
+    .pw-wrap[data-collapsed="1"] table.pw { display: none; }
+    .pw-summary {
+      display: flex; align-items: center; gap: 10px;
+      background: #faf8f3; border: 1px dashed var(--border-strong);
+      border-radius: var(--radius); padding: 8px 12px;
+    }
+    .pw-wrap:not([data-collapsed]) .pw-summary { margin-bottom: 8px; }
+    .pw-sum-label {
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+      font-size: 0.68rem; color: var(--muted);
+    }
+    .pw-toggle {
+      margin-left: auto; border: 1px solid var(--border-strong); background: #fff;
+      color: var(--text); border-radius: var(--radius-chip); padding: 3px 10px;
+      font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+      font-size: 0.62rem; cursor: pointer;
+    }
+    .pw-toggle:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── Click-to-fill placeholders ──────────────────────────────────── */
+    #body-main .ph { cursor: pointer; }
+    #body-main .ph:hover { background: #fde68a !important; }
+    .ph-pop {
+      position: fixed; z-index: 300; width: 300px;
+      background: var(--surface); border: 1px solid var(--border-strong);
+      border-radius: var(--radius); padding: 12px 14px;
+      box-shadow: 0 10px 28px rgba(20,20,20,0.18);
+    }
+    .ph-pop label {
+      display: block; font-family: var(--font-kone); text-transform: uppercase;
+      letter-spacing: 0.05em; font-size: 0.66rem; color: var(--muted); margin-bottom: 6px;
+    }
+    .ph-pop .field-input { width: 100%; }
+    .ph-pop-hint { font-size: 0.68rem; color: var(--muted); margin: 8px 0 0; }
+    #phWarn { cursor: pointer; }
+
+    /* ── Overflow for rare actions ───────────────────────────────────── */
+    .more-wrap { position: relative; }
+    .more-menu {
+      position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 60;
+      background: var(--surface); border: 1px solid var(--border-strong);
+      border-radius: var(--radius); padding: 5px;
+      box-shadow: 0 8px 22px rgba(20,20,20,0.16); min-width: 180px;
+    }
+    .more-menu button {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      border: none; background: none; text-align: left; cursor: pointer;
+      padding: 8px 10px; border-radius: 6px;
+      font-family: 'Inter', sans-serif; font-size: 0.82rem; color: var(--text);
+    }
+    .more-menu button:hover { background: #f3eee6; }
+
 
     /* Sharing status — silent fallback was indistinguishable from working */
     .share-banner {
@@ -1399,9 +1452,6 @@
       <button type="button" class="tool" data-panel="panel-tmpl">
         <i class="fa-regular fa-envelope"></i><span id="toolTmplName">Choose email</span><i class="fa-solid fa-chevron-down caret"></i>
       </button>
-      <button type="button" class="tool" data-panel="panel-fields" id="toolFields">
-        <i class="fa-solid fa-sliders"></i>Details<span class="tool-badge" id="toolFieldsBadge"></span><i class="fa-solid fa-chevron-down caret"></i>
-      </button>
       <button type="button" class="tool" data-panel="panel-widget">
         <i class="fa-solid fa-diagram-project"></i>Progress<span class="tool-note" id="toolWidgetNote"></span><i class="fa-solid fa-chevron-down caret"></i>
       </button>
@@ -1423,12 +1473,6 @@
         <div class="tmpl-list" id="quickPicks"></div>
         <select id="tmplSelect" class="visually-hidden" tabindex="-1" aria-hidden="true"></select>
         <p class="tmpl-hint" id="tmplHint"></p>
-      </section>
-
-      <section class="panel" id="panel-fields" hidden>
-        <div class="panel-head">Details for <span id="fieldsForName"></span></div>
-        <div class="panel-grid" id="dynFields"></div>
-        <div id="dynFieldsCard" hidden></div>
       </section>
 
       <section class="panel" id="panel-widget" hidden>
@@ -1520,8 +1564,13 @@
     <div class="doc-actions">
       <button class="btn-primary" id="copyRichBtn"><i class="fa-regular fa-copy"></i> Copy for Outlook</button>
       <button class="btn-secondary-a" id="openOutlookBtn"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Outlook</button>
-      <button class="btn-secondary-a" id="copyPlainBtn"><i class="fa-solid fa-align-left"></i> Plain text</button>
-      <button class="btn-secondary-a" id="resetBodyBtn"><i class="fa-solid fa-rotate-left"></i> Reset edits</button>
+      <div class="more-wrap">
+        <button class="btn-secondary-a" id="moreBtn" type="button" title="More actions">&#8943;</button>
+        <div class="more-menu" id="moreMenu" hidden>
+          <button id="copyPlainBtn" type="button"><i class="fa-solid fa-align-left"></i> Copy plain text</button>
+          <button id="resetBodyBtn" type="button"><i class="fa-solid fa-rotate-left"></i> Reset edits</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2193,7 +2242,12 @@
     // sender still has to supply stays a [Placeholder] and is highlighted in
     // the preview so it can't be pasted into Outlook unnoticed.
 
-    const PH = s => `<span class="ph" style="background:#fef3c7;border-bottom:1px dashed #d97706;padding:0 2px;">${s}</span>`;
+    // Placeholders are atomic tokens (contenteditable=false): clicking one
+    // opens a fill-in popover instead of dropping a text caret into markup
+    // that gets stripped on send anyway. data-f carries which field it fills;
+    // '@panel:input' keys route to a panel (links, recipients) instead.
+    const PH = (s, key) => `<span class="ph" contenteditable="false"${key ? ` data-f="${key}"` : ''} style="background:#fef3c7;border-bottom:1px dashed #d97706;padding:0 2px;">${s}</span>`;
+    const PH2 = (key, s) => PH(s, key);
 
     // Fields a template can ask for. Rendered on demand above the preview.
     const FIELD_DEFS = {
@@ -2218,11 +2272,11 @@
     const SIG = ctx => `<p>Warm Regards,<br><strong>${esc(ctx.specialist)}</strong><br>`
       + `Digital Marketing Specialist – Marketing Hub<br>KBS x Global Marketing</p>`;
 
-    const GREET = ctx => `<p>Hi ${ctx.contact ? esc(ctx.contact) : PH("[Recipient's Name]")},</p>`;
+    const GREET = ctx => `<p>Hi ${ctx.contact ? esc(ctx.contact) : PH("[Recipient's Name]", '@panel-people:toInput')},</p>`;
 
-    const listOf = (raw, fallback) => {
+    const listOf = (raw, fallback, key) => {
       const lines = String(raw || '').split('\n').map(s => s.trim()).filter(Boolean);
-      if (!lines.length) return `<ul><li>${PH(fallback)}</li><li>${PH(fallback)}</li></ul>`;
+      if (!lines.length) return `<ul><li>${PH(fallback, key)}</li><li>${PH(fallback, key)}</li></ul>`;
       return `<ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`;
     };
 
@@ -2260,7 +2314,7 @@
         hint: 'Puts the ticket on hold pending information. 14 working days before auto-closure.',
         body: ctx => GREET(ctx)
           + `<p>We've reviewed your brief, and before we proceed, we require some additional information. Could you please provide the following details:</p>`
-          + listOf(ctx.f.details, '[Details]')
+          + listOf(ctx.f.details, '[Details]', 'details')
           + `<p><strong>Your ticket status:</strong> We will need those details to proceed, so your ticket will be on hold until we receive it.</p>`
           + `<p>Please send them over at your earliest convenience. We understand things can get busy, but every day counts toward meeting your preferred live date ${ctx.prefLiveTxt}.</p>`
           + `<p>We can hold your ticket for up to 14 working days, until ${ctx.dateOr('closureDate', ctx.hold14Txt)}. If we haven't heard back from you by then, we'll have to close the ticket, and no further action will be taken from our end.</p>`
@@ -2280,7 +2334,7 @@
         needs: ['fileName'],
         body: ctx => GREET(ctx)
           + `<p>Thanks a bunch for submitting your request to our Digital Marketing Hub team—really appreciate it!</p>`
-          + `<p>I reviewed the file (${ctx.f.fileName ? esc(ctx.f.fileName) : PH('File name.docx')}) you sent with your ticket. It looks like the brief template wasn’t used. Could you please update it accordingly?</p>`
+          + `<p>I reviewed the file (${ctx.f.fileName ? esc(ctx.f.fileName) : PH2('fileName', 'File name.docx')}) you sent with your ticket. It looks like the brief template wasn’t used. Could you please update it accordingly?</p>`
           + `<p>Just a quick reminder: using the template helps us understand your needs clearly and serve you better. It’s essential for submitting a request. Without it, I won’t be able to proceed with your request, so I’ll need to close your current ticket (number: <strong>${esc(ctx.id)}</strong>). Could you please resubmit it using the template?</p>`
           + `<p>But hey, no worries! You can easily create a new request using the attached template. It's straightforward—just download it, fill in the details, and make sure to attach it when you submit the form.</p>`
           + `<p>I'm really looking forward to helping you out!</p>` + SIG(ctx),
@@ -2290,8 +2344,8 @@
         task: 'Assigned', stage: null,
         needs: ['newSpecialist', 'prevSpecialist', 'reason'],
         body: ctx => GREET(ctx)
-          + `<p>I’m ${ctx.f.newSpecialist ? esc(ctx.f.newSpecialist) : esc(ctx.specialist)}, and I’ll be taking over your ticket from ${ctx.f.prevSpecialist ? esc(ctx.f.prevSpecialist) : PH('[Previous Specialist’s Name]')}.</p>`
-          + `<p><strong>Reason for Reassignment:</strong> ${ctx.f.reason ? esc(ctx.f.reason) : PH('e.g. “I’m taking over to ensure you get the specialized support you need.”')}</p>`
+          + `<p>I’m ${ctx.f.newSpecialist ? esc(ctx.f.newSpecialist) : esc(ctx.specialist)}, and I’ll be taking over your ticket from ${ctx.f.prevSpecialist ? esc(ctx.f.prevSpecialist) : PH2('prevSpecialist', '[Previous Specialist’s Name]')}.</p>`
+          + `<p><strong>Reason for Reassignment:</strong> ${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', 'e.g. “I’m taking over to ensure you get the specialized support you need.”')}</p>`
           + `<p>Rest assured, this change will not affect the speed of your ticket or our commitment to meeting the Service-Level-Agreement/Preferred-Live date. I’m fully briefed on your ticket and will ensure everything stays on track.</p>`
           + `<p>If you have any questions or would like to discuss the next steps, feel free to reach out. I’m here to help!</p>`
           + `<p>Thanks for your understanding and patience!</p>` + SIG(ctx),
@@ -2303,7 +2357,7 @@
         task: 'On Hold', stage: null, stageStatus: 'current',
         needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
-          + `<p>As per your confirmation, your ticket is on hold due to ${ctx.f.reason ? esc(ctx.f.reason) : PH('[reason, e.g. "awaiting additional information"]')}. We are happy to wait, but every day counts toward meeting your preferred live date ${ctx.prefLiveTxt}.</p>`
+          + `<p>As per your confirmation, your ticket is on hold due to ${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[reason, e.g. "awaiting additional information"]')}. We are happy to wait, but every day counts toward meeting your preferred live date ${ctx.prefLiveTxt}.</p>`
           + `<p>We can hold your ticket for up to 14 working days, until ${ctx.dateOr('closureDate', ctx.hold14Txt)}. If we don’t have the necessary information to work on your ticket by then, we’ll have to close the ticket, and you can create a new ticket when you have the required details.</p>`
           + `<p>Thank you for your support on this!</p>` + SIG(ctx),
       },
@@ -2311,7 +2365,7 @@
         id: 'oh-r1', role: 'reminder1', label: 'On-Hold — First Reminder (Day 7)', group: 'On hold',
         task: 'On Hold', stage: null, needs: ['reason', 'ohDate'],
         body: ctx => GREET(ctx)
-          + `<p>Just a quick heads-up that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.” We can keep it on hold for up to 14 working days.</p>`
+          + `<p>Just a quick heads-up that your ticket has been on hold since ${ctx.dateOr('ohDate', PH2('ohDate', '[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[Reason for placing the ticket on Hold]')}.” We can keep it on hold for up to 14 working days.</p>`
           + `<p>With only a few days left, we wanted to check if you have any updates or info for us.</p>`
           + `<p>We’re aiming to resolve this ticket as soon as possible, so let us know if there’s anything you can share.</p>`
           + `<p>Thanks!</p>` + SIG(ctx),
@@ -2320,7 +2374,7 @@
         id: 'oh-r2', role: 'reminder2', label: 'On-Hold — Final Reminder (Day 13)', group: 'On hold',
         task: 'On Hold', stage: null, needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
-          + `<p>Just a final reminder that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.” We’re nearing the 14-day mark, with the deadline on ${ctx.dateOr('closureDate', ctx.hold14Txt)}.</p>`
+          + `<p>Just a final reminder that your ticket has been on hold since ${ctx.dateOr('ohDate', PH2('ohDate', '[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[Reason for placing the ticket on Hold]')}.” We’re nearing the 14-day mark, with the deadline on ${ctx.dateOr('closureDate', ctx.hold14Txt)}.</p>`
           + `<p>If we don’t hear from you by then, we’ll need to close the ticket. However, you can always open a new one when you’re ready with the details.</p>`
           + `<p>Thanks for your quick attention!</p>` + SIG(ctx),
       },
@@ -2329,7 +2383,7 @@
         task: 'Closed Incomplete', stage: 'Request completed',
         needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
-          + `<p>We’ve had your ticket on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.” Since we haven’t received a response, we’ve gone ahead and closed it as of ${ctx.dateOr('closureDate', ctx.todayTxt)}.</p>`
+          + `<p>We’ve had your ticket on hold since ${ctx.dateOr('ohDate', PH2('ohDate', '[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[Reason for placing the ticket on Hold]')}.” Since we haven’t received a response, we’ve gone ahead and closed it as of ${ctx.dateOr('closureDate', ctx.todayTxt)}.</p>`
           + `<p>If you still need help, just create a new ticket with the details, and we’ll get right on it.</p>`
           + `<p>Thanks for understanding!</p>` + SIG(ctx),
       },
@@ -2361,8 +2415,8 @@
         needs: ['channel', 'depTeam', 'reason', 'jiraTicket'],
         body: ctx => GREET(ctx)
           + `<p>The preview of the ${esc(ctx.f.channel || 'Email Journey')} has been shared and approved by you.</p>`
-          + `<p>Next steps are with the ${esc(ctx.f.depTeam || 'IT')} team since there are ${ctx.f.reason ? esc(ctx.f.reason) : PH('[mention issues, errors, or delays]')}, so the ticket has now been moved to “Dependency” status.</p>`
-          + `<p>I've raised a JIRA ticket for this: ${ctx.f.jiraTicket ? esc(ctx.f.jiraTicket) : PH('[IT Ticket Number/Link]')}, in case you want to check the details. I’ll continue to follow up with the team and keep you posted as things progress.</p>`
+          + `<p>Next steps are with the ${esc(ctx.f.depTeam || 'IT')} team since there are ${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[mention issues, errors, or delays]')}, so the ticket has now been moved to “Dependency” status.</p>`
+          + `<p>I've raised a JIRA ticket for this: ${ctx.f.jiraTicket ? esc(ctx.f.jiraTicket) : PH2('jiraTicket', '[IT Ticket Number/Link]')}, in case you want to check the details. I’ll continue to follow up with the team and keep you posted as things progress.</p>`
           + `<p>Regards,<br><strong>${esc(ctx.specialist)}</strong></p>`,
       },
       {
@@ -2388,10 +2442,10 @@
         needs: ['partialDate', 'reason', 'liveNow', 'liveNext'],
         body: ctx => GREET(ctx)
           + `<p>Good news! As agreed, we’re partially going live with your request as of ${ctx.dateOr('partialDate', ctx.todayTxt)}.</p>`
-          + `<p><strong>Reason for Partial Go-Live:</strong> ${ctx.f.reason ? esc(ctx.f.reason) : PH('e.g. “We’re rolling out the initial features first while we finalize the remaining components.”')}</p>`
+          + `<p><strong>Reason for Partial Go-Live:</strong> ${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', 'e.g. “We’re rolling out the initial features first while we finalize the remaining components.”')}</p>`
           + `<p>Here’s what’s happening:</p>`
-          + `<p><strong>What’s Live Now:</strong></p>${listOf(ctx.f.liveNow, '[List of completed items]')}`
-          + `<p><strong>What’s Next:</strong></p>${listOf(ctx.f.liveNext, '[List of items still in progress]')}`
+          + `<p><strong>What’s Live Now:</strong></p>${listOf(ctx.f.liveNow, '[List of completed items]', 'liveNow')}`
+          + `<p><strong>What’s Next:</strong></p>${listOf(ctx.f.liveNext, '[List of items still in progress]', 'liveNext')}`
           + `<p>We’re working on finalizing the remaining parts and will keep you updated on our progress. If you have any questions or need more details, feel free to reach out!</p>`
           + `<p>Thanks for your patience and support!</p>` + SIG(ctx),
       },
@@ -2414,7 +2468,7 @@
         needs: ['reason', 'closureDate'],
         body: ctx => GREET(ctx)
           + `<p>Just a heads-up: we’re closing your ticket <strong>${esc(ctx.id)}</strong> as of ${ctx.dateOr('closureDate', ctx.todayTxt)}.</p>`
-          + `<p><strong>Why We’re Closing It:</strong> ${ctx.f.reason ? esc(ctx.f.reason) : PH('e.g. “We haven’t heard back from you.”')}</p>`
+          + `<p><strong>Why We’re Closing It:</strong> ${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', 'e.g. “We haven’t heard back from you.”')}</p>`
           + `<p>No more action will be taken on this ticket. If you still need help or have more details to share, just create a new ticket, and we’ll get right on it.</p>`
           + `<p>We’d love your feedback on how we did. If you have a moment, please fill out our ${ctx.feedbackLinkHtml}.</p>`
           + `<p>Thanks for your understanding and let us know if you need anything else!</p>` + SIG(ctx),
@@ -2461,7 +2515,7 @@
         needs: ['details', 'closureDate'],
         body: ctx => GREET(ctx)
           + `<p>We've reviewed your brief, and before we proceed, we require some additional information. Could you please provide the following details:</p>`
-          + listOf(ctx.f.details, '[Details]')
+          + listOf(ctx.f.details, '[Details]', 'details')
           + `<p><strong>Your ticket status:</strong> We will need those details to proceed, so your ticket will be on hold until we receive it.</p>`
           + `<p>Please send them over at your earliest convenience. We understand things can get busy, but every day counts toward meeting your preferred date ${ctx.prefLiveTxt}.</p>`
           + `<p>We can hold your ticket for up to 14 working days, until ${ctx.dateOr('closureDate', ctx.hold14Txt)}. If we haven't heard back from you by then, we'll have to close the ticket, and no further action will be taken from our end.</p>`
@@ -2495,7 +2549,7 @@
         task: 'On Hold', stage: null, stageStatus: 'current',
         needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
-          + `<p>We'd like to let you know that your ticket is currently on hold due to ${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason]')}.</p>`
+          + `<p>We'd like to let you know that your ticket is currently on hold due to ${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[Reason]')}.</p>`
           + `<p>We're happy to keep the ticket on hold while we wait for the required information. However, please note that this time will count toward meeting your preferred live date of ${ctx.prefLiveTxt}.</p>`
           + `<p>We can keep the ticket on hold for up to 14 working days, until ${ctx.dateOr('closureDate', ctx.hold14Txt)}. If we don't receive the necessary information by then, we'll need to close the ticket. Once you have the required details, you're welcome to submit a new ticket, and we'll be happy to support you.</p>`
           + `<p>Thank you for your understanding and support!</p>`
@@ -2505,7 +2559,7 @@
         id: 'cp-oh-r1', role: 'reminder1', label: 'On-Hold — First Reminder (Day 7)', group: 'On hold',
         task: 'On Hold', stage: null, needs: ['reason', 'ohDate'],
         body: ctx => GREET(ctx)
-          + `<p>Just a quick heads-up that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.”</p>`
+          + `<p>Just a quick heads-up that your ticket has been on hold since ${ctx.dateOr('ohDate', PH2('ohDate', '[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[Reason for placing the ticket on Hold]')}.”</p>`
           + `<p>We can keep it on hold for up to 14 working days.</p>`
           + `<p>With only a few days left, we wanted to check if you have any updates or info for us.</p>`
           + `<p>We're aiming to resolve this ticket as soon as possible, so let us know if there's anything you can share.</p>`
@@ -2515,7 +2569,7 @@
         id: 'cp-oh-r2', role: 'reminder2', label: 'On-Hold — Final Reminder (Day 13)', group: 'On hold',
         task: 'On Hold', stage: null, needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
-          + `<p>Just a final reminder that your ticket has been on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.”</p>`
+          + `<p>Just a final reminder that your ticket has been on hold since ${ctx.dateOr('ohDate', PH2('ohDate', '[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[Reason for placing the ticket on Hold]')}.”</p>`
           + `<p>We're nearing the 14-day mark, with the deadline on ${ctx.dateOr('closureDate', ctx.hold14Txt)}.</p>`
           + `<p>If we don't hear from you by then, we'll need to close the ticket. However, you can always open a new one when you're ready with the details.</p>`
           + `<p>Thanks for your quick attention!</p>` + CPGD_SIGN(ctx, 'Best Regards,'),
@@ -2525,7 +2579,7 @@
         task: 'Closed Incomplete', stage: 'Delivered',
         needs: ['reason', 'ohDate', 'closureDate'],
         body: ctx => GREET(ctx)
-          + `<p>We've had your ticket on hold since ${ctx.dateOr('ohDate', PH('[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH('[Reason for placing the ticket on Hold]')}.”</p>`
+          + `<p>We've had your ticket on hold since ${ctx.dateOr('ohDate', PH2('ohDate', '[On-Hold Date]'))} due to “${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[Reason for placing the ticket on Hold]')}.”</p>`
           + `<p>Since we haven't received a response, we've gone ahead and closed it as of ${ctx.dateOr('closureDate', ctx.todayTxt)}.</p>`
           + `<p>If you still need help, just create a new ticket with the details, and we'll get right on it.</p>`
           + `<p>Thanks for understanding!</p>` + CPGD_SIGN(ctx, 'Best regards,'),
@@ -2594,7 +2648,7 @@
         needs: ['newDate'],
         body: ctx => GREET(ctx)
           + `<p>I've looked into every possibility to meet your preferred deadline for today, but due to other priorities, I've only gotten halfway through your request.</p>`
-          + `<p>I apologize for missing your preferred live date, but we have prioritized your request and are looking to complete it by ${ctx.dateOr('newDate', PH('[Date]'))}.</p>`
+          + `<p>I apologize for missing your preferred live date, but we have prioritized your request and are looking to complete it by ${ctx.dateOr('newDate', PH2('newDate', '[Date]'))}.</p>`
           + `<p>Please let me know if that works for you.</p>`
           + `<p>I'll keep you posted on my progress. If you have any concerns or aren't happy with this delay, please let us know in the ${ctx.feedbackLinkHtml} for further action.</p>`
           + CPGD_SIGN(ctx, 'Best Regards,'),
@@ -2797,9 +2851,9 @@
       return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
     }
 
-    function linkHtml(url, label, phLabel) {
+    function linkHtml(url, label, phLabel, key) {
       const u = (url || '').trim();
-      if (!u) return PH(phLabel);
+      if (!u) return PH(phLabel, key);
       return `<a href="${esc(u)}">${esc(label)}</a>`;
     }
 
@@ -2819,13 +2873,13 @@
         todayTxt: fmtFull(new Date()),
         hold14Txt: hold14 ? fmtFull(hold14) : PH('[Closure Date]'),
         f: fieldValues,
-        caseLinkHtml: linkHtml(val('caseUrlInput'), 'here', '[track its progress here]'),
-        previewLinkHtml: linkHtml(val('previewInput'), 'Preview Link', '[Preview Link]'),
-        feedbackLinkHtml: linkHtml(val('feedbackUrlInput'), 'feedback form', '[feedback form]'),
-        liveLinkHtml: linkHtml(val('liveInput'), val('liveInput') || 'Live Site Link', '[Live Site Link]'),
+        caseLinkHtml: linkHtml(val('caseUrlInput'), 'here', '[track its progress here]', '@panel-links:caseUrlInput'),
+        previewLinkHtml: linkHtml(val('previewInput'), 'Preview Link', '[Preview Link]', '@panel-links:previewInput'),
+        feedbackLinkHtml: linkHtml(val('feedbackUrlInput'), 'feedback form', '[feedback form]', '@panel-links:feedbackUrlInput'),
+        liveLinkHtml: linkHtml(val('liveInput'), val('liveInput') || 'Live Site Link', '[Live Site Link]', '@panel-links:liveInput'),
         spLinkHtml: (fieldValues.sharePoint || '').trim()
           ? `<a href="${esc(fieldValues.sharePoint.trim())}">${esc(fieldValues.sharePoint.trim())}</a>`
-          : PH('[Teams/SharePoint Link or Folder]'),
+          : PH('[Teams/SharePoint Link or Folder]', 'sharePoint'),
       };
       ctx.dateOr = (key, fallback) => {
         const v = (fieldValues[key] || '').trim();
@@ -2836,59 +2890,40 @@
       return ctx;
     }
 
-    function renderFields() {
-      const wrap = document.getElementById('dynFields');
-      const tool = document.getElementById('toolFields');
-      const badge = document.getElementById('toolFieldsBadge');
-      const needs = activeTemplate?.needs || [];
-      // Nothing to fill in for this template — grey the button rather than
-      // leaving a live control that opens an empty panel.
-      tool.disabled = !needs.length;
-      tool.style.opacity = needs.length ? '' : '.45';
-      const unfilled = needs.filter(k => !(fieldValues[k] || '').trim()).length;
-      badge.textContent = unfilled ? unfilled : '';
-      badge.style.display = unfilled ? '' : 'none';
-      if (!needs.length) { wrap.innerHTML = ''; return; }
-      wrap.innerHTML = needs.map(k => {
-        const d = FIELD_DEFS[k]; if (!d) return '';
-        const v = esc(fieldValues[k] || '');
-        const full = (d.type === 'area') ? ' style="grid-column:1/-1;"' : '';
-        let input;
-        if (d.type === 'area') input = `<textarea class="field-input" data-f="${k}" rows="3" placeholder="${esc(d.ph || '')}">${v}</textarea>`;
-        else if (d.type === 'select') input = `<select class="field-input" data-f="${k}">${d.opts.map(o => `<option${fieldValues[k] === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
-        else input = `<input type="${d.type === 'date' ? 'date' : 'text'}" class="field-input" data-f="${k}" value="${v}" placeholder="${esc(d.ph || '')}">`;
-        return `<div${full}><label>${esc(d.label)}</label>${input}</div>`;
-      }).join('');
-      wrap.querySelectorAll('[data-f]').forEach(el => {
-        const on = e => {
-          fieldValues[e.target.dataset.f] = e.target.value;
-          const needs = activeTemplate?.needs || [];
-          const unfilled = needs.filter(k => !(fieldValues[k] || '').trim()).length;
-          const badge = document.getElementById('toolFieldsBadge');
-          badge.textContent = unfilled ? unfilled : '';
-          badge.style.display = unfilled ? '' : 'none';
-          renderEmail(); scheduleSave();
-        };
-        el.addEventListener('input', on);
-        el.addEventListener('change', on);
-      });
-    }
-
     // keepEdits: re-render the widget inside a body the user has already tweaked
     // without throwing their wording away.
+    // The table was ~40% of the visible email and is never edited there — its
+    // edits happen in the Progress panel. Collapsed behind a one-line summary
+    // while composing; the full table still goes into every copied/sent email.
+    let pwOpen = false;
+
+    function pwWrapHtml(tableHtml) {
+      if (!tableHtml) return '';
+      const stages = TRACKS[widget?.track] || [];
+      const cur = stages.find(x => widget?.status[x] === 'current');
+      const done = stages.filter(x => widget?.status[x] === 'done').length;
+      const label = cur ? `${cur} \u00b7 ${done}/${stages.length} done` : `${done}/${stages.length} done`;
+      return `<div class="pw-wrap"${pwOpen ? '' : ' data-collapsed="1"'} contenteditable="false">`
+        + `<div class="pw-summary"><span class="pw-sum-label">\u25a6 Progress table \u2014 ${esc(label)}</span>`
+        + `<button type="button" class="pw-toggle">${pwOpen ? 'Hide' : 'Show'}</button></div>`
+        + tableHtml + '</div>';
+    }
+
     function renderEmail(keepEdits = false) {
       if (!activeTemplate || !currentTicket) return;
       const box = document.getElementById('body-main');
       if (keepEdits && bodyEdited) {
-        const existing = box.querySelector('table.pw');
-        const fresh = widgetEmailHtml();
-        if (existing) { existing.outerHTML = fresh || ''; }
+        const fresh = pwWrapHtml(widgetEmailHtml());
+        const wrap = box.querySelector('.pw-wrap');
+        const bareTable = box.querySelector('table.pw');
+        if (wrap) { wrap.outerHTML = fresh; }
+        else if (bareTable) { bareTable.outerHTML = fresh; }
         else if (fresh) { box.insertAdjacentHTML('afterbegin', fresh); }
         updatePlaceholderWarning();
         return;
       }
       const ctx = buildCtx(currentTicket);
-      box.innerHTML = widgetEmailHtml() + activeTemplate.body(ctx);
+      box.innerHTML = pwWrapHtml(widgetEmailHtml()) + activeTemplate.body(ctx);
       bodyEdited = false;
       updatePlaceholderWarning();
     }
@@ -2974,8 +3009,6 @@
       document.getElementById('tmplSelect').value = t.id;
       document.querySelectorAll('.tmpl-item').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
       document.getElementById('toolTmplName').textContent = t.label;
-      const forName = document.getElementById('fieldsForName');
-      if (forName) forName.textContent = t.label;
       document.getElementById('tmplHint').textContent = t.hint || '';
 
       // The chosen email is what tells the widget where the ticket has got to.
@@ -2985,21 +3018,16 @@
       const sel = document.getElementById('taskTypeSelect');
       if (t.task && [...sel.options].some(o => o.value === t.task)) sel.value = t.task;
       buildSubject();
-      renderFields();
       renderEmail();
       if (!silent) revealForTemplate(t);
       if (!silent) syncUrl();
     }
 
-    // Picking an email should hand you the next thing to do: the fields it
-    // needs if it has any, otherwise get out of the way and show the message.
+    // Picking an email closes any open panel and shows the message — what the
+    // template still needs is filled in place, by clicking the highlighted
+    // placeholders inside the email itself.
     function revealForTemplate(t) {
-      const needs = t.needs || [];
-      openPanel(needs.length ? 'panel-fields' : null);
-      if (needs.length) {
-        const first = document.querySelector('#dynFields [data-f]');
-        if (first) first.focus({ preventScroll: true });
-      }
+      openPanel(null);
     }
 
     function openPanel(id) {
@@ -3015,14 +3043,25 @@
     // ── Clipboard + Outlook ───────────────────────────────────────────────
     function emailHtmlForSend() {
       const clone = document.getElementById('body-main').cloneNode(true);
-      // Placeholders are a UI affordance, not content — send the bare text.
+      // Placeholders and the collapsed-widget chrome are UI affordances, not
+      // content — send the bare text and the bare table.
       clone.querySelectorAll('.ph').forEach(s => { s.replaceWith(document.createTextNode(s.textContent)); });
+      clone.querySelectorAll('.pw-summary').forEach(e => e.remove());
+      clone.querySelectorAll('.pw-wrap').forEach(w => {
+        const t = w.querySelector('table.pw');
+        if (t) w.replaceWith(t); else w.remove();
+      });
       return `<div style="font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:11pt;color:#000;">${clone.innerHTML}</div>`;
     }
 
     function emailTextForSend() {
       const clone = document.getElementById('body-main').cloneNode(true);
       clone.querySelectorAll('.ph').forEach(s => { s.replaceWith(document.createTextNode(s.textContent)); });
+      clone.querySelectorAll('.pw-summary').forEach(e => e.remove());
+      clone.querySelectorAll('.pw-wrap').forEach(w => {
+        const t = w.querySelector('table.pw');
+        if (t) w.replaceWith(t); else w.remove();
+      });
       clone.querySelectorAll('a').forEach(a => {
         const href = a.getAttribute('href') || '';
         if (href && href !== '#' && a.textContent.trim() !== href) a.textContent = `${a.textContent} (${href})`;
@@ -3446,6 +3485,96 @@
         navigator.clipboard.writeText(document.getElementById('subjectInput').value).then(() => toast('Subject copied'));
       });
       document.getElementById('body-main').addEventListener('input', () => { bodyEdited = true; updatePlaceholderWarning(); });
+
+      // ── Fill placeholders where they sit ───────────────────────────────
+      // Clicking a highlighted [placeholder] opens a small input right there;
+      // '@panel-x:input' keys route to the Links / Recipients panel instead.
+      // This replaced the Details panel — same fields, no separate layer.
+      const phPop = document.getElementById('phPop');
+      let phPopKey = null;
+
+      function closePhPop() { phPop.hidden = true; phPopKey = null; }
+
+      function openPhPop(key, x, y) {
+        const d = FIELD_DEFS[key];
+        if (!d) return;
+        phPopKey = key;
+        document.getElementById('phPopLabel').textContent = d.label;
+        const holder = document.getElementById('phPopField');
+        const v = fieldValues[key] || '';
+        if (d.type === 'area') {
+          holder.innerHTML = `<textarea class="field-input" rows="3" placeholder="${esc(d.ph || '')}">${esc(v)}</textarea>`;
+        } else if (d.type === 'select') {
+          holder.innerHTML = `<select class="field-input">${d.opts.map(o => `<option${v === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+        } else {
+          holder.innerHTML = `<input type="${d.type === 'date' ? 'date' : 'text'}" class="field-input" value="${esc(v)}" placeholder="${esc(d.ph || '')}">`;
+        }
+        phPop.hidden = false;
+        // Position after unhiding so the size is measurable, clamped on screen.
+        const r = phPop.getBoundingClientRect();
+        phPop.style.left = Math.min(x, window.innerWidth - r.width - 12) + 'px';
+        phPop.style.top = Math.min(y + 10, window.innerHeight - r.height - 12) + 'px';
+        const input = holder.querySelector('input, textarea, select');
+        input.focus();
+        const commit = () => {
+          fieldValues[key] = input.value;
+          renderEmail();      // same full-rebuild the Details panel always did
+          scheduleSave();
+        };
+        input.addEventListener('input', commit);
+        input.addEventListener('change', commit);
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter' && d.type !== 'area') { e.preventDefault(); closePhPop(); }
+          if (e.key === 'Escape') closePhPop();
+        });
+      }
+
+      document.getElementById('body-main').addEventListener('click', e => {
+        const toggle = e.target.closest('.pw-toggle');
+        if (toggle) {
+          e.preventDefault();
+          pwOpen = !pwOpen;
+          const wrap = toggle.closest('.pw-wrap');
+          if (wrap) {
+            if (pwOpen) wrap.removeAttribute('data-collapsed');
+            else wrap.setAttribute('data-collapsed', '1');
+            toggle.textContent = pwOpen ? 'Hide' : 'Show';
+          }
+          return;
+        }
+        const ph = e.target.closest('.ph[data-f]');
+        if (!ph) return;
+        e.preventDefault();
+        const key = ph.dataset.f;
+        if (key.startsWith('@')) {
+          const [panelId, inputId] = key.slice(1).split(':');
+          openPanel(panelId);
+          if (inputId) document.getElementById(inputId)?.focus();
+          return;
+        }
+        openPhPop(key, e.clientX, e.clientY);
+      });
+
+      document.addEventListener('mousedown', e => {
+        if (!phPop.hidden && !phPop.contains(e.target) && !e.target.closest('.ph[data-f]')) closePhPop();
+      });
+
+      // The placeholder-count chip jumps to the first unfilled one.
+      document.getElementById('phWarn').addEventListener('click', () => {
+        const first = document.querySelector('#body-main .ph');
+        if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+
+      // ── Overflow for the rare actions ──────────────────────────────────
+      const moreMenu = document.getElementById('moreMenu');
+      document.getElementById('moreBtn').addEventListener('click', e => {
+        e.stopPropagation();
+        moreMenu.hidden = !moreMenu.hidden;
+      });
+      document.addEventListener('click', e => {
+        if (!moreMenu.hidden && !e.target.closest('.more-wrap')) moreMenu.hidden = true;
+      });
+      moreMenu.addEventListener('click', () => { moreMenu.hidden = true; });
       document.getElementById('taskTypeSelect').addEventListener('change', buildSubject);
 
       // Links feeding the body → recompose, keeping any hand edits
@@ -3676,5 +3805,10 @@
       if (e.target === snConfigModal) snConfigModal.classList.remove('open');
     });
   </script>
+<div id="phPop" class="ph-pop" hidden>
+  <label id="phPopLabel"></label>
+  <div id="phPopField"></div>
+  <p class="ph-pop-hint">Enter to apply &middot; Esc to close</p>
+</div>
 </body>
 </html>
