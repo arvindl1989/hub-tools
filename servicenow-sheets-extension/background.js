@@ -1,197 +1,140 @@
-// ─── CONFIG — fill these in ──────────────────────────────────────────────────
-const SHEET_ID  = 'YOUR_GOOGLE_SHEET_ID';   // from the sheet URL
-const SHEET_TAB = 'Sheet1';                 // exact tab name (case-sensitive)
+// ─── ServiceNow → Digital Marketing Hub ──────────────────────────────────────
+// Pulls a ServiceNow list view as CSV using the signed-in user's own session
+// and posts it straight to the hub backend.
+//
+// This deliberately does NOT use the ServiceNow REST API — `?CSV` on a list
+// view is the same export the UI's Export menu produces, so it needs no API
+// access and no admin rights, only a logged-in session.
+//
+// It also no longer writes to Google Sheets. That hop needed an OAuth client,
+// a Cloud project and the Sheets API, purely to stage data the hub read back
+// out again moments later. One POST replaces all of it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SHEETS_BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
+const DEFAULT_HUB = 'https://hub-tools-production.up.railway.app';
 
-// ── OAuth token ───────────────────────────────────────────────────────────────
-
-async function getToken(interactive = true) {
-  return new Promise((resolve, reject) => {
-    chrome.identity.getAuthToken({ interactive }, (token) => {
-      if (chrome.runtime.lastError || !token) {
-        reject(new Error(chrome.runtime.lastError?.message || 'Auth failed'));
-      } else {
-        resolve(token);
-      }
-    });
-  });
+async function getConfig() {
+  const { hubUrl, snUrl } = await chrome.storage.local.get(['hubUrl', 'snUrl']);
+  return {
+    hubUrl: (hubUrl || DEFAULT_HUB).replace(/\/+$/, ''),
+    snUrl: snUrl || '',
+  };
 }
 
-// Revoke the cached token and get a fresh one (used after 401s).
-async function refreshToken() {
-  return new Promise((resolve, reject) => {
-    chrome.identity.getAuthToken({ interactive: false }, (staleToken) => {
-      if (staleToken) {
-        chrome.identity.removeCachedAuthToken({ token: staleToken }, async () => {
-          try { resolve(await getToken(true)); }
-          catch (e) { reject(e); }
-        });
-      } else {
-        resolve(getToken(true));
-      }
-    });
-  });
-}
+// ── URL handling ─────────────────────────────────────────────────────────────
 
-// ── Sheets API helpers ────────────────────────────────────────────────────────
+/**
+ * Turn whatever the user pasted into a real CSV export URL.
+ *
+ * Copying from the address bar in the classic UI gives a navigation wrapper:
+ *   /now/nav/ui/classic/params/target/<double-encoded real target>
+ * Appending &CSV to that fetches the navigation shell and returns HTML, so the
+ * target has to be unwrapped and decoded first. Newer workspace URLs use the
+ * same /params/target/ shape.
+ */
+function toCsvUrl(rawUrl) {
+  let url = String(rawUrl || '').trim();
+  if (!url) throw new Error('No ServiceNow list URL configured');
 
-async function sheetsRequest(url, options, retried = false) {
-  const token = retried ? await refreshToken() : await getToken();
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-  });
-  if (res.status === 401 && !retried) {
-    return sheetsRequest(url, options, true);
+  const marker = '/params/target/';
+  const at = url.indexOf(marker);
+  if (at !== -1) {
+    const origin = new URL(url).origin;
+    let target = url.slice(at + marker.length);
+    // Decode exactly once. The wrapper stores the target double-encoded, so one
+    // pass yields `...?sysparm_query=u_category%3DMarketing%20Hub` — still
+    // properly escaped. Decoding until stable would strip that second layer too
+    // and hand ServiceNow a raw space and a bare `=` inside the query value.
+    target = decodeURIComponent(target);
+    // Rare instances encode only once; if the query separator is still escaped,
+    // one more pass gets there.
+    if (!target.includes('?') && target.includes('%3F')) target = decodeURIComponent(target);
+    url = `${origin}/${target.replace(/^\/+/, '')}`;
   }
+
+  if (/[?&]CSV(&|=|$)/i.test(url)) return url;
+  return url + (url.includes('?') ? '&CSV' : '?CSV');
+}
+
+// ── Fetch ────────────────────────────────────────────────────────────────────
+
+/**
+ * Run the fetch inside a ServiceNow tab so the request carries that tab's
+ * session cookies. Fetching from the service worker is possible but subject to
+ * SameSite rules that vary by instance; borrowing the tab is what actually
+ * works everywhere.
+ */
+async function fetchCsv(csvUrl) {
+  const tabs = await chrome.tabs.query({ url: 'https://*.service-now.com/*' });
+  if (!tabs.length) {
+    throw new Error('No ServiceNow tab is open. Open ServiceNow and sign in, then sync again.');
+  }
+  const [{ result, error }] = await chrome.scripting.executeScript({
+    target: { tabId: tabs[0].id },
+    func: async (url) => {
+      try {
+        const res = await fetch(url, {
+          credentials: 'include',
+          headers: { Accept: 'text/csv,text/plain,*/*' },
+        });
+        if (!res.ok) return { error: `ServiceNow returned HTTP ${res.status}` };
+        const text = await res.text();
+        if (!text.trim()) return { error: 'ServiceNow returned an empty export' };
+        return { result: text };
+      } catch (e) {
+        return { error: e.message || 'Fetch failed inside the ServiceNow tab' };
+      }
+    },
+    args: [csvUrl],
+  }).then(r => r[0].result);
+  if (error) throw new Error(error);
+  return result;
+}
+
+async function pushToHub(hubUrl, csv) {
+  const res = await fetch(`${hubUrl}/api/upload-csv`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csv, source_label: 'ServiceNow' }),
+  });
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Sheets API ${res.status}: ${body}`);
+    let detail = `HTTP ${res.status}`;
+    try { detail = (await res.json()).detail || detail; } catch {}
+    throw new Error(detail);
   }
   return res.json();
 }
 
-async function clearSheet() {
-  const url = `${SHEETS_BASE}/${SHEET_ID}/values/${encodeURIComponent(SHEET_TAB)}:clear`;
-  return sheetsRequest(url, { method: 'POST', body: '{}' });
-}
+// ── Sync ─────────────────────────────────────────────────────────────────────
 
-async function writeRows(rows) {
-  const url = `${SHEETS_BASE}/${SHEET_ID}/values/${encodeURIComponent(SHEET_TAB)}?valueInputOption=RAW`;
-  return sheetsRequest(url, {
-    method: 'PUT',
-    body: JSON.stringify({
-      range: SHEET_TAB,
-      majorDimension: 'ROWS',
-      values: rows,
-    }),
+async function runSync({ snUrl, csvText } = {}) {
+  const cfg = await getConfig();
+  // The in-page button on a ServiceNow list already holds the export, so use it
+  // rather than fetching the same rows a second time.
+  const csv = csvText || await fetchCsv(toCsvUrl(snUrl || cfg.snUrl));
+  const result = await pushToHub(cfg.hubUrl, csv);
+  await chrome.storage.local.set({
+    lastSyncedAt: new Date().toISOString(),
+    lastRowCount: result.total_rows ?? 0,
+    lastSessionId: result.session_id || '',
   });
+  return result;
 }
 
-// ── CSV → 2-D array ───────────────────────────────────────────────────────────
-
-function parseCSV(text) {
-  const rows = [];
-  // Simple but robust RFC 4180 parser
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const next = text[i + 1];
-
-    if (inQuotes) {
-      if (ch === '"' && next === '"') { field += '"'; i++; }
-      else if (ch === '"') { inQuotes = false; }
-      else { field += ch; }
-    } else {
-      if (ch === '"') { inQuotes = true; }
-      else if (ch === ',') { row.push(field); field = ''; }
-      else if (ch === '\n' || (ch === '\r' && next === '\n')) {
-        if (ch === '\r') i++;
-        row.push(field);
-        field = '';
-        if (row.some(c => c !== '')) rows.push(row);
-        row = [];
-      } else {
-        field += ch;
-      }
-    }
-  }
-  // last field / last row (no trailing newline)
-  row.push(field);
-  if (row.some(c => c !== '')) rows.push(row);
-
-  return rows;
-}
-
-// ── Main sync logic ───────────────────────────────────────────────────────────
-
-async function syncToSheets(csvText) {
-  const rows = parseCSV(csvText);
-  if (rows.length === 0) throw new Error('CSV is empty — nothing to sync');
-
-  await clearSheet();
-  await writeRows(rows);
-  return rows.length;
-}
-
-// ── Message handler ───────────────────────────────────────────────────────────
-
-// ── External sync (triggered from the Email Tracker web app) ─────────────────
-
-chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
-  if (message.action !== 'externalSync') return false;
-
-  const snUrl = message.snUrl;
-  if (!snUrl) {
-    sendResponse({ ok: false, error: 'No ServiceNow URL provided' });
-    return false;
-  }
-
-  syncViaServiceNowTab(snUrl)
-    .then((rowCount) => {
-      const syncedAt = new Date().toISOString();
-      chrome.storage.local.set({ lastSyncedAt: syncedAt, lastRowCount: rowCount });
-      sendResponse({ ok: true, rowCount });
-    })
-    .catch((err) => sendResponse({ ok: false, error: err.message }));
-
-  return true;
+// From the popup
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.action !== 'sync') return false;
+  runSync({ snUrl: msg.snUrl, csvText: msg.csvText })
+    .then(result => sendResponse({ ok: true, ...result }))
+    .catch(err => sendResponse({ ok: false, error: err.message }));
+  return true;   // keep the channel open for the async reply
 });
 
-async function syncViaServiceNowTab(listUrl) {
-  // Build the CSV export URL
-  const csvUrl = listUrl.includes('?') ? listUrl + '&CSV' : listUrl + '?CSV';
-
-  // Find an open ServiceNow tab to borrow its authenticated session for the fetch
-  const tabs = await chrome.tabs.query({ url: 'https://*.service-now.com/*' });
-  if (tabs.length === 0) {
-    throw new Error('No ServiceNow tab is open. Open ServiceNow in a tab first.');
-  }
-
-  // Run fetch inside the ServiceNow tab so session cookies are included
-  const results = await chrome.scripting.executeScript({
-    target: { tabId: tabs[0].id },
-    func: async (url) => {
-      const res = await fetch(url, {
-        credentials: 'include',
-        headers: { Accept: 'text/csv,text/plain,*/*' },
-      });
-      if (!res.ok) throw new Error(`ServiceNow returned HTTP ${res.status}`);
-      const text = await res.text();
-      if (!text.trim()) throw new Error('ServiceNow returned empty CSV');
-      return text;
-    },
-    args: [csvUrl],
-  });
-
-  const csvText = results[0].result;
-  if (!csvText) throw new Error('Failed to retrieve CSV from ServiceNow tab');
-  return syncToSheets(csvText);
-}
-
-// ── Internal sync (from content script or popup) ──────────────────────────────
-
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.action !== 'sync') return false;
-
-  syncToSheets(message.csvText)
-    .then((rowCount) => {
-      const syncedAt = new Date().toISOString();
-      chrome.storage.local.set({ lastSyncedAt: syncedAt, lastRowCount: rowCount });
-      sendResponse({ ok: true, rowCount });
-    })
-    .catch((err) => {
-      sendResponse({ ok: false, error: err.message });
-    });
-
-  return true; // keep message channel open for async response
+// From the hub pages (the in-page "Sync from SN" button)
+chrome.runtime.onMessageExternal.addListener((msg, _sender, sendResponse) => {
+  if (msg?.action !== 'externalSync') return false;
+  runSync({ snUrl: msg.snUrl })
+    .then(result => sendResponse({ ok: true, rowCount: result.total_rows ?? 0, ...result }))
+    .catch(err => sendResponse({ ok: false, error: err.message }));
+  return true;
 });

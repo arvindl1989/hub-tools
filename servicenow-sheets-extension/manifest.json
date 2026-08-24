@@ -1,45 +1,42 @@
 {
   "manifest_version": 3,
-  "name": "ServiceNow → Google Sheets Sync",
+  "name": "ServiceNow \u2192 Digital Marketing Hub",
   "version": "1.0.0",
-  "description": "One-click sync of ServiceNow list views to Google Sheets",
+  "description": "One-click pull of a ServiceNow list view into the Digital Marketing Hub",
   "permissions": [
-    "identity",
     "storage",
     "tabs",
     "scripting"
   ],
   "host_permissions": [
     "https://*.service-now.com/*",
-    "https://sheets.googleapis.com/*"
+    "https://hub-tools-production.up.railway.app/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["https://*.service-now.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://*.service-now.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     }
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "ServiceNow → Sheets"
-  },
-  "oauth2": {
-    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/spreadsheets"
-    ]
+    "default_title": "Sync ServiceNow \u2192 Hub"
   },
   "externally_connectable": {
     "matches": [
-      "https://*.netlify.app/*",
+      "https://hub-tools-production.up.railway.app/*",
+      "https://*.up.railway.app/*",
       "https://*.railway.app/*",
-      "http://localhost/*",
-      "https://localhost/*"
+      "http://localhost/*"
     ]
   },
   "icons": {

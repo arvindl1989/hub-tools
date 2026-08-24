@@ -713,6 +713,58 @@ async def upload_json(body: JsonUploadBody):
         "columns_detected": list(df.columns),
     }
 
+class CsvUploadBody(BaseModel):
+    csv: str
+    source_label: str = "ServiceNow"
+
+
+@app.post("/api/upload-csv")
+async def upload_csv(body: CsvUploadBody):
+    """Take a raw CSV export and build a session from it.
+
+    The ServiceNow browser extension posts here directly rather than writing to
+    a Google Sheet first — one hop instead of three, and no Sheets OAuth. CSV is
+    parsed with pandas rather than in the extension because quoted fields,
+    embedded commas and newlines are exactly what a hand-rolled parser gets
+    wrong, and ServiceNow descriptions contain all three.
+    """
+    text = (body.csv or "").strip()
+    if not text:
+        raise HTTPException(400, "csv body is empty")
+    # An expired session gets you the login page, not an export. Catching it
+    # here means the user is told to log in rather than seeing a parse error.
+    head = text[:400].lstrip().lower()
+    if head.startswith("<!doctype") or head.startswith("<html") or "<head>" in head:
+        raise HTTPException(
+            400,
+            "ServiceNow returned a web page instead of CSV — the session has probably "
+            "expired. Open ServiceNow, sign in, then sync again.",
+        )
+    try:
+        frame = pd.read_csv(io.StringIO(text))
+    except Exception as exc:
+        raise HTTPException(400, f"Could not parse the CSV: {exc}")
+    if frame.empty:
+        raise HTTPException(400, "The export contained no rows")
+
+    print(f"[UPLOAD-CSV] {len(frame)} rows from '{body.source_label}'", flush=True)
+    df = process_dataframe(frame)
+    sid = str(uuid.uuid4())
+    _register_session(sid, df)
+    active = df[df["is_active"]]
+    return {
+        "session_id": sid,
+        "filename": body.source_label,
+        "total_rows": len(df),
+        "total_active": int(len(active)),
+        "overdue_sla": int((active["days_to_sla"].dropna() < 0).sum()),
+        "due_within_5": int(
+            ((active["days_to_sla"].dropna() >= 0) & (active["days_to_sla"].dropna() <= 5)).sum()
+        ),
+        "columns_detected": list(df.columns),
+    }
+
+
 # ── Overview ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/sessions/{sid}/overview")

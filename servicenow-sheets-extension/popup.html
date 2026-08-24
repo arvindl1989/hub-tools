@@ -1,36 +1,34 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ServiceNow → Sheets</title>
-  <link rel="stylesheet" href="popup.css" />
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+  <title>Sync ServiceNow</title>
 </head>
 <body>
-  <div class="header">
-    <span class="logo">📋</span>
-    <span class="title">SN → Sheets</span>
-  </div>
+  <header>
+    <h1>ServiceNow → Hub</h1>
+    <p class="sub">Pulls the list view as CSV using your signed-in session and sends it to the hub.</p>
+  </header>
 
-  <div class="card" id="status-card">
-    <div class="label">Last sync</div>
-    <div class="value" id="last-sync">—</div>
+  <button id="syncBtn" class="primary">Sync now</button>
+  <p id="status" class="status"></p>
 
-    <div class="label" style="margin-top:10px">Rows synced</div>
-    <div class="value" id="row-count">—</div>
-  </div>
+  <details id="cfg">
+    <summary>Settings</summary>
 
-  <div id="warning" class="warning hidden">
-    Not on a ServiceNow list view. Navigate to a list first.
-  </div>
+    <label for="snUrl">ServiceNow list URL</label>
+    <input type="text" id="snUrl" placeholder="Paste the list view URL from the address bar">
+    <p class="hint">Navigate to the list you export today and copy the address bar. The classic
+      <code>/now/nav/…</code> wrapper is fine — it gets unwrapped automatically.</p>
 
-  <button id="sync-btn" class="sync-btn" disabled>Sync current list</button>
+    <label for="hubUrl">Hub URL</label>
+    <input type="text" id="hubUrl" placeholder="https://hub-tools-production.up.railway.app">
 
-  <div id="status-msg" class="status-msg"></div>
+    <button id="saveBtn" class="secondary">Save</button>
+  </details>
 
-  <div class="footer">
-    Opens when you're on a <code>*_list.do</code> page
-  </div>
+  <p id="last" class="last"></p>
 
   <script src="popup.js"></script>
 </body>

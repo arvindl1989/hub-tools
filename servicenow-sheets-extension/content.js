@@ -36,7 +36,7 @@
 
     const btn = document.createElement('button');
     btn.id = BUTTON_ID;
-    btn.textContent = '⬆ Sync to Sheet';
+    btn.textContent = '⬆ Sync to Hub';
     Object.assign(btn.style, {
       position:     'fixed',
       top:          '12px',
