@@ -732,9 +732,43 @@ _FEEDBACK_RENAME = {
 }
 
 
+# Confirmed against a real feedback export from this instance — same class of
+# bug as tickets: ServiceNow's ?CSV returns internal/related-field names, not
+# the display labels the list view shows. "user" holds the requester's name,
+# "string_value" the answer, "source_id" the survey-template label used to
+# separate the real feedback form from an unrelated survey sharing a metric
+# name with it ("Overall Rating" exists in both).
+_FEEDBACK_RAW_FIELD_RENAME = {
+    "instance":                  "Instance",
+    "instance.task_id":          "Task",
+    "instance.sys_updated_by":   "Updated by",
+    "source_id":                 "Source",
+    "metric.category":           "Category",
+    "metric.metric_type":        "Type",
+    "metric":                    "Metric",
+    "instance_question":         "Question",
+    "user":                      "Assigned to",
+    "string_value":              "String value",
+    "sys_updated_on":            "Updated",
+    "template_definition":       "Template definition",
+}
+
+
+def normalize_feedback_csv_headers(df: pd.DataFrame) -> pd.DataFrame:
+    """Same idea as normalize_ticket_csv_headers: rename only the columns that
+    match a known raw name, so an export already using display labels (e.g. a
+    manually cleaned sheet) passes through unchanged."""
+    rename = {c: _FEEDBACK_RAW_FIELD_RENAME[c] for c in df.columns if c in _FEEDBACK_RAW_FIELD_RENAME}
+    if rename:
+        print(f"[UPLOAD-CSV] Normalized {len(rename)} raw feedback field name(s): "
+              f"{list(rename.keys())}", flush=True)
+    return df.rename(columns=rename)
+
+
 def transform_feedback_csv(text: str, allowed_specialists: list[str]) -> pd.DataFrame:
     """EAV ServiceNow export -> one row per response, specialists only."""
     raw = pd.read_csv(io.StringIO(text))
+    raw = normalize_feedback_csv_headers(raw)
     missing = {"Instance", "Metric", "String value", "Source"} - set(raw.columns)
     if missing:
         # Naming the columns actually present, not just the ones absent — the
