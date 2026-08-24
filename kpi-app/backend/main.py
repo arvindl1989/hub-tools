@@ -716,6 +716,8 @@ async def upload_json(body: JsonUploadBody):
 class CsvUploadBody(BaseModel):
     csv: str
     source_label: str = "ServiceNow"
+    dataset: str = "tickets"      # which ServiceNow table this export came from
+    synced_by: Optional[str] = None
 
 
 @app.post("/api/upload-csv")
@@ -747,12 +749,38 @@ async def upload_csv(body: CsvUploadBody):
     if frame.empty:
         raise HTTPException(400, "The export contained no rows")
 
-    print(f"[UPLOAD-CSV] {len(frame)} rows from '{body.source_label}'", flush=True)
+    print(f"[UPLOAD-CSV] {len(frame)} rows from '{body.source_label}' -> {body.dataset}", flush=True)
+
+    # Persist before parsing into a session. The session lives in memory and dies
+    # with the process; the snapshot is what makes a sync mean anything tomorrow,
+    # and what lets a colleague see this data without syncing it themselves.
+    rows = frame.astype(object).where(pd.notna(frame), None).to_dict(orient="records")
+    stored = None
+    try:
+        stored = sn_data_api.save_snapshot(body.dataset, rows, body.synced_by)
+    except HTTPException as exc:
+        # No database yet — the in-memory session still works, so the sync is
+        # useful now even if it will not survive a restart.
+        print(f"[UPLOAD-CSV] Snapshot not stored: {exc.detail}", flush=True)
+    except Exception as exc:
+        print(f"[UPLOAD-CSV] Snapshot failed: {exc}", flush=True)
+
+    # Corrections apply to what the dashboard reads, not just the stored copy.
+    if stored:
+        try:
+            merged, _ = sn_data_api.load_rows(body.dataset)
+            if merged:
+                frame = pd.DataFrame(merged)
+        except Exception:
+            pass
+
     df = process_dataframe(frame)
     sid = str(uuid.uuid4())
     _register_session(sid, df)
     active = df[df["is_active"]]
     return {
+        "persisted": bool(stored),
+        "dataset": body.dataset,
         "session_id": sid,
         "filename": body.source_label,
         "total_rows": len(df),
@@ -2939,9 +2967,27 @@ _TICKETS_CSV_URL = os.environ.get("TICKETS_CSV_URL", "").strip()
 
 
 async def _fetch_ticket_rows() -> tuple[list, str]:
-    """Return (rows, source). Tries CSV export first, then the Apps Script."""
+    """Return (rows, source).
+
+    Order of preference: the snapshot the ServiceNow extension synced, then the
+    sheet's CSV export, then the Apps Script. The snapshot wins because it comes
+    straight from ServiceNow with manual corrections applied, and because the
+    Google hops have both failed in production; they stay as a fallback so
+    nothing breaks before the first sync.
+    """
     import httpx
     attempts: list[str] = []
+
+    try:
+        rows, meta = sn_data_api.load_rows("tickets")
+        if rows:
+            print(f"[TICKETS] Serving {len(rows)} rows from the synced snapshot "
+                  f"({meta.get('synced_at')}, {meta.get('overrides_applied', 0)} corrections)", flush=True)
+            return rows, "servicenow-snapshot"
+    except HTTPException as exc:
+        attempts.append(f"snapshot: {exc.detail}")
+    except Exception as exc:
+        attempts.append(f"snapshot: {exc}")
 
     if _TICKETS_CSV_URL:
         try:
@@ -3705,12 +3751,25 @@ Rules:
 # is otherwise independent of the legacy Firebase tracker.
 import attendance_api
 import email_state_api
+import sn_data_api
 
 attendance_api.configure(get_conn=_get_conn, holidays_by_year=HOLIDAYS_BY_YEAR,
                          diagnose=db_diagnosis)
 email_state_api.configure(get_conn=_get_conn, diagnose=db_diagnosis)
+def _invalidate_sn_cache(dataset: str) -> None:
+    """A snapshot sync or a correction should be visible immediately, not after
+    the tickets/feedback cache's normal TTL — otherwise an edit looks like it
+    silently failed for up to five minutes."""
+    if dataset == "tickets":
+        _tickets_cache["ts"] = 0.0
+    elif dataset == "feedback":
+        _feedback_cache["ts"] = 0.0
+
+
+sn_data_api.configure(get_conn=_get_conn, diagnose=db_diagnosis, on_change=_invalidate_sn_cache)
 app.include_router(attendance_api.router)
 app.include_router(email_state_api.router)
+app.include_router(sn_data_api.router)
 
 
 # ── Serve KPI React app at /kpi/ and hub static tools at / ───────────────────
