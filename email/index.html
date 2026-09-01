@@ -2677,7 +2677,7 @@
     // ── Progress widget ───────────────────────────────────────────────────
     const TRACKS = {
       'Email Journey': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Journey development', 'FL testing & approval', 'Deployment scheduled', 'Request completed'],
-      'Website Content': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Page build', 'FL review', 'Published live', 'Request completed'],
+      'Website Content': ['Request raised', 'Content Validation', 'Preview link', 'FL review', 'Published live', 'Request completed'],
       'Graphic Design': ['Request raised', 'Brief validation', 'Design in progress', 'First review', 'Second review', 'Final review', 'Delivered'],
       'Generic': ['Request raised', 'In review', 'In progress', 'Preview shared', 'Approved', 'Live', 'Request completed'],
     };
@@ -2689,6 +2689,14 @@
       'Website Content': {
         'FL testing & approval': 'FL review',
         'Deployment scheduled': 'Published live',
+        // 'Stakeholder alignment' and 'Page build' were replaced by a single
+        // 'Preview link' stage. Both are mapped onto it so dates already saved
+        // against them on live tickets carry over instead of disappearing.
+        // 'Page build' is listed first because migrateStageKeys keeps the first
+        // alias that actually holds a value, and a ticket far enough along to
+        // have a build date is the better thing to show under 'Preview link'.
+        'Page build': 'Preview link',
+        'Stakeholder alignment': 'Preview link',
       },
     };
 
