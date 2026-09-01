@@ -2148,6 +2148,9 @@
     function guessTrack(ticket) {
       const s = (ticket.subCategory || '').toLowerCase();
       if (/graphic design|content production/.test(s)) return 'Graphic Design';
+      // Before the plain 'email' test below: "Email – Local" belongs here, and
+      // that test would otherwise claim it for the Email Journey track.
+      if (/demand creation|retention/.test(s) || (s.includes('email') && s.includes('local'))) return 'Demand Engagement';
       if (s.includes('email')) return 'Email Journey';
       if (s.includes('website') || s.includes('content')) return 'Website Content';
       return 'Generic';
@@ -2677,6 +2680,8 @@
       'Email Journey': ['Request raised', 'Content Validation', 'Stakeholder alignment', 'Journey development', 'FL testing & approval', 'Deployment scheduled', 'Request completed'],
       'Website Content': ['Request raised', 'Content Validation', 'Preview link', 'FL review', 'Published live', 'Request completed'],
       'Graphic Design': ['Request raised', 'Brief validation', 'Design in progress', 'First review', 'Second review', 'Final review', 'Delivered'],
+      // Demand Creation – Global, Email – Local and Retention – Activations.
+      'Demand Engagement': ['Request Raised', 'Content Validated', 'Hub Preview', 'Frontline Review', 'Development', 'Testing', 'Request Completed'],
       'Generic': ['Request raised', 'In review', 'In progress', 'Preview shared', 'Approved', 'Live', 'Request completed'],
     };
     // Tracks may word a stage differently. Templates keep naming the canonical
@@ -2684,6 +2689,19 @@
     // stage would quietly stop those templates advancing the widget, and any
     // dates already saved under the old name would vanish from the table.
     const STAGE_ALIASES = {
+      // This track renames almost every stage, so without these the templates
+      // would send correctly but silently stop advancing the widget.
+      'Demand Engagement': {
+        'Request raised': 'Request Raised',
+        'Content Validation': 'Content Validated',
+        'Stakeholder alignment': 'Hub Preview',
+        'FL testing & approval': 'Frontline Review',
+        'Journey development': 'Development',
+        // This track has no go-live stage — it ends at Testing — so the
+        // deployment templates land there rather than on nothing at all.
+        'Deployment scheduled': 'Testing',
+        'Request completed': 'Request Completed',
+      },
       'Website Content': {
         'FL testing & approval': 'FL review',
         'Deployment scheduled': 'Published live',
@@ -2735,7 +2753,10 @@
       stages.forEach(s => { dates[s] = ''; status[s] = 'pending'; });
       if (ticket.created) dates[stages[0]] = fmtFullUS(ticket.created);
       const sched = ticket.prefLive || ticket.slaDate;
-      if (sched && stages.includes('Deployment scheduled')) dates['Deployment scheduled'] = fmtFullUS(sched);
+      // Each track words its scheduled-delivery stage differently; seed whichever
+      // one this track actually has rather than only the Email Journey spelling.
+      const schedStage = ['Deployment scheduled', 'Testing'].find(x => stages.includes(x));
+      if (sched && schedStage) dates[schedStage] = fmtFullUS(sched);
       return { label: guessTrackLabel(ticket), track, dates, status };
     }
 

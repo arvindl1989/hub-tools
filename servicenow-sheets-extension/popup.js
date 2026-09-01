@@ -23,6 +23,26 @@ function showLast(stamp) {
   $('last').textContent = `Last sync: ${stamp.rowCount ?? 0} rows · ${when.toLocaleString()}`;
 }
 
+function showAutoLast(stamp) {
+  const el = $('autoLast');
+  if (!stamp?.at) { el.textContent = ''; el.className = 'last'; return; }
+  const when = new Date(stamp.at).toLocaleString();
+  el.textContent = stamp.ok
+    ? `Last automatic sync: ${stamp.rowCount ?? 0} rows · ${when}`
+    : `Last automatic sync: ${stamp.error} · ${when}`;
+  el.className = stamp.ok ? 'last' : 'last err';
+}
+
+async function saveAuto() {
+  await chrome.storage.local.set({
+    autoSync: $('autoSync').checked,
+    autoSyncMinutes: Number($('autoEvery').value),
+  });
+  $('autoEvery').disabled = !$('autoSync').checked;
+  // The alarm lives in the service worker, so it has to re-read the setting.
+  chrome.runtime.sendMessage({ action: 'applyAutoSync' }, () => void chrome.runtime.lastError);
+}
+
 function urlFieldFor(ds) { return ds === 'feedback' ? 'feedbackSnUrl' : 'snUrl'; }
 function storageKeyFor(ds) { return ds === 'feedback' ? 'feedbackSnUrl' : 'snUrl'; }
 
@@ -36,15 +56,33 @@ async function switchTab(ds) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const cfg = await chrome.storage.local.get(['snUrl', 'feedbackSnUrl', 'hubUrl']);
+  const cfg = await chrome.storage.local.get([
+    'snUrl', 'feedbackSnUrl', 'hubUrl', 'autoSync', 'autoSyncMinutes', 'autoLast',
+  ]);
   $('snUrl').value = cfg.snUrl || '';
   $('feedbackSnUrl').value = cfg.feedbackSnUrl || DEFAULT_FEEDBACK_URL;
   $('hubUrl').value = cfg.hubUrl || DEFAULT_HUB;
+  $('autoSync').checked = !!cfg.autoSync;
+  $('autoEvery').value = String(cfg.autoSyncMinutes || 60);
+  $('autoEvery').disabled = !cfg.autoSync;
+  showAutoLast(cfg.autoLast);
   await switchTab('tickets');
   if (!cfg.snUrl) $('cfg').open = true;
 
   document.querySelectorAll('.tab').forEach(b =>
     b.addEventListener('click', () => switchTab(b.dataset.ds)));
+
+  $('autoSync').addEventListener('change', async () => {
+    if ($('autoSync').checked && !$('snUrl').value.trim()) {
+      $('autoSync').checked = false;
+      $('cfg').open = true;
+      setStatus('Add the ServiceNow list URL first', 'err');
+      return;
+    }
+    await saveAuto();
+    setStatus($('autoSync').checked ? 'Automatic sync on' : 'Automatic sync off', 'ok');
+  });
+  $('autoEvery').addEventListener('change', saveAuto);
 
   $('saveBtn').addEventListener('click', async () => {
     await chrome.storage.local.set({

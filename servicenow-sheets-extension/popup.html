@@ -44,6 +44,23 @@
     <button id="saveBtn" class="secondary">Save</button>
   </details>
 
+  <div class="auto">
+    <label class="auto-row">
+      <input type="checkbox" id="autoSync">
+      <span>Sync tickets automatically</span>
+      <select id="autoEvery">
+        <option value="30">every 30 min</option>
+        <option value="60" selected>every hour</option>
+        <option value="120">every 2 hours</option>
+        <option value="240">every 4 hours</option>
+      </select>
+    </label>
+    <p class="hint">Runs only while Chrome is open and a ServiceNow tab is
+      signed in — it borrows that tab's session the same way the button does.
+      Feedback still syncs manually.</p>
+    <p id="autoLast" class="last"></p>
+  </div>
+
   <p id="last" class="last"></p>
 
   <script src="popup.js"></script>

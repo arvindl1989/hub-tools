@@ -30,3 +30,10 @@ input:focus { outline: none; border-color: #1450f5; box-shadow: 0 0 0 3px rgba(2
 }
 .tab.active { background: #1450f5; color: #fff; border-color: #1450f5; }
 .ds-panel[hidden] { display: none; }
+
+.auto { border-top: 1px solid #e6e6e6; margin-top: 12px; padding-top: 10px; }
+.auto-row { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.auto-row input[type="checkbox"] { margin: 0; }
+.auto-row select { margin-left: auto; font-size: 11.5px; padding: 3px 4px; }
+.auto-row select:disabled { opacity: .5; }
+.last.err { color: #b3261e; }

@@ -100,6 +100,13 @@ async function fetchCsv(csvUrl) {
           text = new TextDecoder('windows-1252').decode(buf);
         }
         if (!text.trim()) return { error: 'ServiceNow returned an empty export' };
+        // An expired session does not 401 — ServiceNow answers 200 with the
+        // login page, so without this the HTML is posted to the hub as if it
+        // were an export. The backend rejects it on its columns, but the error
+        // it raises describes missing columns rather than the real cause.
+        if (/^\s*<(!doctype|html|\?xml)/i.test(text.slice(0, 200))) {
+          return { error: 'ServiceNow returned a page, not an export — your session has probably expired. Open ServiceNow, sign in, then sync again.' };
+        }
         return { result: text };
       } catch (e) {
         return { error: e.message || 'Fetch failed inside the ServiceNow tab' };
@@ -138,6 +145,7 @@ async function runSync({ snUrl, csvText, dataset = 'tickets', synced_by } = {}) 
   // rather than fetching the same rows a second time.
   const csv = csvText || await fetchCsv(toCsvUrl(targetUrl));
   const result = await pushToHub(cfg.hubUrl, csv, dataset, synced_by);
+  try { await chrome.action.setBadgeText({ text: '' }); } catch {}
   const stamp = { syncedAt: new Date().toISOString(), rowCount: result.total_rows ?? 0 };
   await chrome.storage.local.set({
     [`last_${dataset}`]: stamp,
@@ -148,8 +156,70 @@ async function runSync({ snUrl, csvText, dataset = 'tickets', synced_by } = {}) 
   return result;
 }
 
+// ── Scheduled sync ───────────────────────────────────────────────────────────
+// chrome.alarms rather than setInterval: an MV3 service worker is torn down
+// when idle, which would kill any timer it held. An alarm is registered with
+// the browser and wakes the worker back up to run this.
+//
+// The export still needs the user's ServiceNow session, so this can only run
+// while Chrome is open, and it reads the session from an open ServiceNow tab
+// exactly as the button does. No tab, no sync — it records why and waits for
+// the next hour rather than opening tabs on its own.
+
+const AUTO_ALARM = 'autoSync';
+const AUTO_DEFAULT_MINUTES = 60;
+
+async function applyAutoSync() {
+  const { autoSync, autoSyncMinutes } = await chrome.storage.local.get(['autoSync', 'autoSyncMinutes']);
+  await chrome.alarms.clear(AUTO_ALARM);
+  if (!autoSync) return;
+  const period = Number(autoSyncMinutes) || AUTO_DEFAULT_MINUTES;
+  // delayInMinutes so enabling it does not fire an immediate sync on top of
+  // whatever the user is already doing.
+  chrome.alarms.create(AUTO_ALARM, { delayInMinutes: period, periodInMinutes: period });
+}
+
+async function noteAuto(stamp) {
+  await chrome.storage.local.set({ autoLast: { at: new Date().toISOString(), ...stamp } });
+  // The icon is the only surface visible without opening the popup, so a
+  // failure is worth a badge — silence would look identical to success.
+  try {
+    await chrome.action.setBadgeText({ text: stamp.ok ? '' : '!' });
+    if (!stamp.ok) await chrome.action.setBadgeBackgroundColor({ color: '#b3261e' });
+  } catch {}
+}
+
+async function runAutoSync() {
+  const { autoSync, snUrl } = await chrome.storage.local.get(['autoSync', 'snUrl']);
+  if (!autoSync) return;
+  if (!snUrl) return noteAuto({ ok: false, error: 'No ServiceNow tickets URL is configured' });
+  const tabs = await chrome.tabs.query({ url: 'https://*.service-now.com/*' });
+  if (!tabs.length) {
+    return noteAuto({ ok: false, error: 'Skipped — no ServiceNow tab was open' });
+  }
+  try {
+    const result = await runSync({ snUrl, dataset: 'tickets', synced_by: 'Scheduled sync' });
+    await noteAuto({ ok: true, rowCount: result.total_rows ?? 0 });
+  } catch (err) {
+    await noteAuto({ ok: false, error: err.message });
+  }
+}
+
+chrome.alarms.onAlarm.addListener(alarm => {
+  if (alarm.name === AUTO_ALARM) runAutoSync();
+});
+
+// Re-register on both, since alarms do not survive an update and onStartup
+// does not fire when the extension is merely reloaded.
+chrome.runtime.onInstalled.addListener(applyAutoSync);
+chrome.runtime.onStartup.addListener(applyAutoSync);
+
 // From the popup
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.action === 'applyAutoSync') {
+    applyAutoSync().then(() => sendResponse({ ok: true }));
+    return true;
+  }
   if (msg?.action !== 'sync') return false;
   runSync({ snUrl: msg.snUrl, csvText: msg.csvText, dataset: msg.dataset, synced_by: msg.synced_by })
     .then(result => sendResponse({ ok: true, ...result }))
