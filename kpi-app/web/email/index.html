@@ -2272,8 +2272,7 @@
       newDate:       { label: 'Revised completion date', type: 'date' },
     };
 
-    const SIG = ctx => `<p>Warm Regards,<br><strong>${esc(ctx.specialist)}</strong><br>`
-      + `Digital Marketing Specialist – Marketing Hub<br>KBS x Global Marketing</p>`;
+    const SIG = () => `<p>Warm Regards,</p>`;
 
     const GREET = ctx => `<p>Hi ${ctx.contact ? esc(ctx.contact) : PH("[Recipient's Name]", '@panel-people:toInput')},</p>`;
 
@@ -2408,7 +2407,7 @@
         task: 'In Progress', stage: 'FL testing & approval', stageStatus: 'current',
         body: ctx => GREET(ctx)
           + `<p>The email journey has been successfully created, and you will start receiving the emails for testing soon. Please review them once they arrive and let us know if you encounter any issues or require adjustments.</p>`
-          + `<p>Regards,<br><strong>${esc(ctx.specialist)}</strong></p>`,
+          + `<p>Regards,</p>`,
       },
       {
         id: 'dependency', label: 'Dependency Raised', group: 'Delivery',
@@ -2418,7 +2417,7 @@
           + `<p>The preview of the ${esc(ctx.f.channel || 'Email Journey')} has been shared and approved by you.</p>`
           + `<p>Next steps are with the ${esc(ctx.f.depTeam || 'IT')} team since there are ${ctx.f.reason ? esc(ctx.f.reason) : PH2('reason', '[mention issues, errors, or delays]')}, so the ticket has now been moved to “Dependency” status.</p>`
           + `<p>I've raised a JIRA ticket for this: ${ctx.f.jiraTicket ? esc(ctx.f.jiraTicket) : PH2('jiraTicket', '[IT Ticket Number/Link]')}, in case you want to check the details. I’ll continue to follow up with the team and keep you posted as things progress.</p>`
-          + `<p>Regards,<br><strong>${esc(ctx.specialist)}</strong></p>`,
+          + `<p>Regards,</p>`,
       },
       {
         id: 'deployment', label: 'Deployment Scheduled', group: 'Delivery', quick: true,
@@ -2481,7 +2480,7 @@
     // named review rounds, delivery into SharePoint rather than a live URL, and
     // a rejection that turns on Tier 1/2 scope instead of the brief template.
     // Wording is verbatim from CPGD_emails.txt.
-    const CPGD_SIGN = (ctx, word) => `<p>${word}<br><strong>${esc(ctx.specialist)}</strong></p>`;
+    const CPGD_SIGN = (ctx, word) => `<p>${word}</p>`;
 
     const CPGD_TEMPLATES = [
       {
