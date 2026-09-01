@@ -2392,14 +2392,12 @@
       {
         id: 'preview', role: 'preview', label: 'Preview Ready', group: 'Delivery', quick: true,
         task: 'Pending Confirmation', stage: 'FL testing & approval', stageStatus: 'current',
-        needs: ['goLiveTime'],
         hint: 'Uses the Preview Link from the ServiceNow Links card above.',
         body: ctx => GREET(ctx)
           + `<p>Exciting news! I've got a sneak peek of your request <strong>${esc(ctx.id)}</strong> regarding the “${esc(ctx.title)}”, ready for your review.</p>`
           + `<p>Check out the preview here: ${ctx.previewLinkHtml}</p>`
           + `<p><strong>Next step:</strong></p>`
-          + `<p>If the preview meets your expectations and doesn't require any changes, please reply to this email with your approval to proceed with the page going live. I'll then schedule it to be published on your preferred live date, ${ctx.prefLiveTxt}, at ${ctx.f.goLiveTime ? esc(ctx.f.goLiveTime) : '08:00 AM IST'}. Alternatively, if you prefer to go live at the earliest possible time, please specify the date and time.</p>`
-          + `<p>If you have any amends you want to make, or you have a change to your request to submit, please use the form at this link here to do so: <a href="#">Change Request Form</a>. Please do not reply to this email with any amends – we will only collect them from the form above.</p>`
+          + `<p>If the preview meets your expectations and doesn't require any changes, please reply to this email with your approval to proceed with the page going live. I'll then schedule the pages to live. Alternatively, if you have any suggestions or improvements, please share it with me, I will ensure to update it according to your comments.</p>`
           + SIG(ctx),
       },
       {
