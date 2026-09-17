@@ -59,6 +59,7 @@ _MAX_SITEMAP_DEPTH = 3
 _MAX_BATCH = 50
 
 SINGLE, DOUBLE, MISSING, FAILED = "Single Title", "Double Title", "Missing Title", "Unable to Verify"
+PARTIAL = "Partial Duplicate"
 
 # The separators a CMS puts between the page name and the site name.
 _SEPARATORS = "-|–—"
@@ -72,8 +73,17 @@ def _normalise(text: str) -> str:
     return re.sub(r"\s+", " ", html_mod.unescape(text)).strip()
 
 
-def count_trailing_brand(title: str, brand: str) -> int:
-    """How many times the brand is repeated at the end of the title.
+# Word characters in any alphabet — the brands this runs against include
+# "KONE Sverige" and "KONE Česká republika".
+_WORD_RE = re.compile(r"[^\W_]+", re.UNICODE)
+
+
+def _words(text: str) -> list:
+    return [w.lower() for w in _WORD_RE.findall(text or "")]
+
+
+def peel_trailing_brand(title: str, brand: str) -> tuple:
+    """(times the brand repeats at the end, what is left in front of it).
 
     Stripping one trailing "<separator> <brand>" at a time rather than splitting
     the whole title on separators, because a brand may itself contain one —
@@ -81,18 +91,23 @@ def count_trailing_brand(title: str, brand: str) -> int:
     never match.
     """
     brand = brand.strip()
+    rest = title.strip()
     if not brand:
-        return 0
+        return 0, rest
     pattern = re.compile(r"(?:[" + _SEPARATORS + r"]\s*)?" + re.escape(brand) + r"\s*$", re.I)
-    rest, seen = title.strip(), 0
+    seen = 0
     while True:
         m = pattern.search(rest)
         if not m:
-            return seen
+            return seen, rest
         rest = rest[:m.start()].rstrip()
         seen += 1
         if not rest:
-            return seen
+            return seen, rest
+
+
+def count_trailing_brand(title: str, brand: str) -> int:
+    return peel_trailing_brand(title, brand)[0]
 
 
 def classify(title: Optional[str], brand: str) -> str:
@@ -103,13 +118,24 @@ def classify(title: Optional[str], brand: str) -> str:
         return MISSING
     if not brand.strip():
         return SINGLE
-    if count_trailing_brand(title, brand) >= 2:
+    repeats, rest = peel_trailing_brand(title, brand)
+    if repeats >= 2:
         return DOUBLE
     # A brand that repeats without sitting flush at the end — "KONE Australia |
     # Lifts | KONE Australia" — is the same duplication and is still worth
     # flagging.
     if len(re.findall(re.escape(brand.strip()), title, re.I)) >= 2:
         return DOUBLE
+    # "KONE - KONE Sverige": the brand appears once, so this is not a double
+    # title, but what sits in front of it is made only of words the brand
+    # already contains. The page has no title of its own and the brand word
+    # reads twice. Requiring every word to come from the brand is what keeps
+    # "KONE Elevators | KONE Sverige" — a real page title that happens to open
+    # with the brand word — out of this bucket.
+    if repeats == 1 and rest:
+        rest_words = _words(rest)
+        if rest_words and set(rest_words) <= set(_words(brand)):
+            return PARTIAL
     return SINGLE
 
 

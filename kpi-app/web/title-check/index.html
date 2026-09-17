@@ -166,6 +166,7 @@
   }
   .tag-single  { background: #eefaf4; color: #147a50; border-color: #b6e3cd; }
   .tag-double  { background: #fff5e6; color: #a75d00; border-color: #f2d4a8; }
+  .tag-partial { background: #eaf6fb; color: #0d5a7a; border-color: #b8dced; }
   .tag-missing { background: #f4f4f4; color: #5c5c5c; border-color: #dcdcdc; }
   .tag-failed  { background: #fdecef; color: #b3261e; border-color: #f4c4cb; }
   td.tcm { white-space: nowrap; }
@@ -212,7 +213,7 @@
 
 <div class="page">
   <h1>Page title verifier</h1>
-  <p class="lede">Reads the live &lt;title&gt; and the page TCM ID from every page, flags the ones where the site name has been added twice, and links each ID straight to its CMS item.</p>
+  <p class="lede">Reads the live &lt;title&gt; and the page TCM ID from every page, flags the ones where the site name has been added twice or repeats a brand word, and links each ID straight to its CMS item.</p>
 
   <div class="card">
     <div class="tabs" id="srcTabs">
@@ -257,6 +258,7 @@
         <button type="button" data-f="all" class="active">All</button>
         <button type="button" data-f="Single Title">Single Title</button>
         <button type="button" data-f="Double Title">Double Title</button>
+        <button type="button" data-f="Partial Duplicate">Partial Duplicate</button>
         <button type="button" data-f="problem">Missing / Unable to Verify</button>
         <button type="button" data-f="no-tcm">No TCM ID</button>
       </div>
@@ -453,6 +455,7 @@ $('filters').addEventListener('click', e => {
 const TAG_CLASS = {
   'Single Title': 'tag-single',
   'Double Title': 'tag-double',
+  'Partial Duplicate': 'tag-partial',
   'Missing Title': 'tag-missing',
   'Unable to Verify': 'tag-failed',
 };
@@ -471,6 +474,7 @@ function render() {
     [rows.length, 'URLs'],
     [n('Single Title'), 'Single titles'],
     [n('Double Title'), 'Double titles'],
+    [n('Partial Duplicate'), 'Partial duplicates'],
     [n('Missing Title') + n('Unable to Verify'), 'Missing / unable to verify'],
     [rows.filter(r => r.tcm_id).length, 'TCM IDs found'],
   ].map(([v, l]) => `<div class="stat"><div class="stat-n">${v}</div><div class="stat-l">${esc(l)}</div></div>`).join('');
