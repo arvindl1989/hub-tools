@@ -53,6 +53,9 @@ _RETRY_STATUS = {408, 425, 429, 500, 502, 503, 504}
 # The title lives in <head>, so the rest of the document is never read. Pages
 # that somehow have no </head> stop at this cap instead of streaming megabytes.
 _MAX_HTML_BYTES = 250_000
+# Whole-page reads for the audit and form checks. Larger, because an H1 or a
+# form can sit well down a long page, but still bounded.
+_MAX_BODY_BYTES = 800_000
 _MAX_SITEMAP_BYTES = 30_000_000
 _MAX_URLS = 50_000
 _MAX_SITEMAP_DEPTH = 3
@@ -233,12 +236,17 @@ def _retry_after(resp: httpx.Response) -> float:
         return 1.0
 
 
-def fetch_title(client: httpx.Client, url: str) -> dict:
+def fetch_title(client: httpx.Client, url: str, want_body: bool = False) -> dict:
     """One page, with one retry for failures that are about the connection
-    rather than the page."""
+    rather than the page.
+
+    want_body keeps reading past </head>: H1s and forms are in the body, so the
+    audit and form checks cannot use the head-only shortcut the title check
+    relies on for speed.
+    """
     last = {"url": url, "title": "Failed", "tcm_id": None, "ok": False}
     for attempt in range(_ATTEMPTS):
-        last = _fetch_once(client, url)
+        last = _fetch_once(client, url, want_body)
         if last["ok"] or not last.get("retryable"):
             break
         if attempt + 1 < _ATTEMPTS:
@@ -248,7 +256,7 @@ def fetch_title(client: httpx.Client, url: str) -> dict:
     return last
 
 
-def _fetch_once(client: httpx.Client, url: str) -> dict:
+def _fetch_once(client: httpx.Client, url: str, want_body: bool = False) -> dict:
     try:
         with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as resp:
             if resp.status_code >= 400:
@@ -263,7 +271,10 @@ def _fetch_once(client: httpx.Client, url: str) -> dict:
                 buf.extend(chunk)
                 # Stop as soon as the head is complete — reading the rest of the
                 # document would multiply the time for every URL in the sitemap.
-                if b"</head" in buf.lower() or len(buf) >= _MAX_HTML_BYTES:
+                cap = _MAX_BODY_BYTES if want_body else _MAX_HTML_BYTES
+                if len(buf) >= cap:
+                    break
+                if not want_body and b"</head" in buf.lower():
                     break
             document = _decode(bytes(buf), ctype)
     except httpx.TimeoutException:
@@ -276,7 +287,8 @@ def _fetch_once(client: httpx.Client, url: str) -> dict:
     # Both come out of the one response — the TCM tool needed the page opened
     # by hand and a bookmarklet clicked; here it costs nothing extra.
     return {"url": url, "title": extract_title(document),
-            "tcm_id": extract_tcm_id(document), "ok": True}
+            "tcm_id": extract_tcm_id(document), "ok": True,
+            "document": document if want_body else ""}
 
 
 def _client() -> httpx.Client:
@@ -353,6 +365,145 @@ def collect_sitemap_urls(root: str) -> dict:
             "sitemaps_read": sitemaps_read, "problems": problems[:5]}
 
 
+
+# ── SEO audit ────────────────────────────────────────────────────────────────
+# Lengths are in characters, not words: a search result truncates on rendered
+# width, so characters are what actually decides whether a title survives.
+TITLE_MIN, TITLE_MAX = 30, 60
+DESC_MIN, DESC_MAX = 120, 160
+
+# Weighted by impact. A page with no title is far worse off than one with a
+# description a few characters long, and the score has to say so.
+PENALTY = {
+    "title_missing":     30,
+    "title_duplicate":   20,
+    "title_length":      10,
+    "desc_missing":      20,
+    "desc_length":       10,
+    "keywords_missing":   5,
+    "focus_missing":      5,
+}
+
+# The Modelsite form. Matched on the form element's own id, which is how it
+# appears in the markup.
+MODELSITE_FORM_ID = "658"
+
+_ATTR = r"""(?:"([^"]*)"|'([^']*)'|([^\s>]+))"""
+_FORM_TAG_RE = re.compile(r"<form\b[^>]*>", re.I)
+_FORM_ID_RE = re.compile(r"\bid\s*=\s*" + _ATTR, re.I)
+_H1_RE = re.compile(r"<h1[^>]*>(.*?)</h1>", re.I | re.S)
+
+
+def _attr_value(m) -> str:
+    return next((g for g in m.groups() if g is not None), "")
+
+
+def meta_content(document: str, name: str) -> Optional[str]:
+    """A named meta tag's content, both attribute orders.
+
+    The quote character is captured and back-referenced rather than excluded by
+    a character class, because a description that contains an apostrophe —
+    "KONE's lifts" — would otherwise be cut off at the apostrophe and measured
+    as far shorter than it is.
+    """
+    esc = re.escape(name)
+    pats = (
+        re.compile(r"<meta[^>]*?\bname\s*=\s*[\"']?" + esc + r"[\"']?[^>]*?\bcontent\s*=\s*([\"'])(.*?)\1", re.I | re.S),
+        re.compile(r"<meta[^>]*?\bcontent\s*=\s*([\"'])(.*?)\1[^>]*?\bname\s*=\s*[\"']?" + esc + r"[\"']?", re.I | re.S),
+    )
+    for pat in pats:
+        m = pat.search(document)
+        if m:
+            return _normalise(m.group(2))
+    return None
+
+
+def extract_h1s(document: str) -> list:
+    out = []
+    for m in _H1_RE.finditer(document):
+        text = _normalise(re.sub(r"<[^>]+>", " ", m.group(1)))
+        if text:
+            out.append(text)
+    return out
+
+
+def extract_form_ids(document: str) -> list:
+    """The id of every <form> on the page, in order."""
+    ids = []
+    for tag in _FORM_TAG_RE.findall(document):
+        m = _FORM_ID_RE.search(tag)
+        if m:
+            value = _attr_value(m).strip()
+            if value:
+                ids.append(value)
+    return ids
+
+
+def _focus_terms(raw: str) -> list:
+    """Focus keywords, split on commas and newlines so a phrase stays whole."""
+    return [t.strip().lower() for t in re.split(r"[,\n]", raw or "") if t.strip()]
+
+
+def audit_page(title: Optional[str], document: str, brand: str, focus: list) -> dict:
+    """Per-page findings and the score left after their penalties."""
+    kind = classify(title, brand)
+    title_text = _normalise(title or "")
+    desc = meta_content(document, "description")
+    keywords = meta_content(document, "keywords")
+    h1s = extract_h1s(document)
+    issues = []
+
+    if kind == MISSING:
+        issues.append(("title_missing", "No page title"))
+    else:
+        if kind in (DOUBLE, PARTIAL):
+            issues.append(("title_duplicate", f"{kind} — the site name repeats"))
+        n = len(title_text)
+        if n < TITLE_MIN:
+            issues.append(("title_length", f"Title is short ({n} characters, aim for {TITLE_MIN}-{TITLE_MAX})"))
+        elif n > TITLE_MAX:
+            issues.append(("title_length", f"Title is long ({n} characters, aim for {TITLE_MIN}-{TITLE_MAX}) and will be cut off"))
+
+    if not desc:
+        issues.append(("desc_missing", "No meta description"))
+    else:
+        n = len(desc)
+        if n < DESC_MIN:
+            issues.append(("desc_length", f"Description is short ({n} characters, aim for {DESC_MIN}-{DESC_MAX})"))
+        elif n > DESC_MAX:
+            issues.append(("desc_length", f"Description is long ({n} characters, aim for {DESC_MIN}-{DESC_MAX}) and will be cut off"))
+
+    if not keywords:
+        issues.append(("keywords_missing", "No meta keywords tag"))
+
+    # Only scored when focus keywords were actually supplied — penalising a
+    # page for a check the user never configured would make the score depend
+    # on an empty input box.
+    focus_hit = None
+    if focus:
+        haystack = " ".join([title_text, desc or "", " ".join(h1s)]).lower()
+        hits = [t for t in focus if t in haystack]
+        focus_hit = bool(hits)
+        if not hits:
+            issues.append(("focus_missing", "None of the focus keywords appear in the title, description or H1"))
+
+    lost = sum(PENALTY[key] for key, _ in issues)
+    return {
+        "type": kind,
+        "title": title_text,
+        "title_chars": len(title_text),
+        "title_words": len(title_text.split()) if title_text else 0,
+        "description": desc or "",
+        "desc_chars": len(desc or ""),
+        "keywords": keywords or "",
+        "h1": h1s[0] if h1s else "",
+        "h1_count": len(h1s),
+        "focus_hit": focus_hit,
+        "issues": [text for _, text in issues],
+        "issue_keys": [key for key, _ in issues],
+        "score": max(0, 100 - lost),
+    }
+
 # ── API ──────────────────────────────────────────────────────────────────────
 
 class SitemapRequest(BaseModel):
@@ -371,8 +522,22 @@ class ExportRow(BaseModel):
     tcm_id: str = ""
 
 
+class ExportColumn(BaseModel):
+    key: str
+    label: str
+    width: float = 22
+    link: str = ""          # "cms" turns the cell into its CMS item link
+
+
 class ExportRequest(BaseModel):
     rows: list[ExportRow] = Field(default_factory=list)
+    # When columns are given the sheet is built from them and from `data`,
+    # which is how the audit and form tabs export their own shapes. Without
+    # them the original four-column title sheet is produced unchanged.
+    columns: list[ExportColumn] = Field(default_factory=list)
+    data: list[dict] = Field(default_factory=list)
+    sheet: str = "Page titles"
+    filename: str = "page-titles.xlsx"
 
 
 @router.post("/sitemap")
@@ -408,17 +573,98 @@ async def verify_titles(req: TitleRequest):
     return {"results": results}
 
 
+
+class AuditRequest(BaseModel):
+    urls: list = Field(default_factory=list)
+    brand: str = ""
+    focus: str = ""
+
+
+def _crawl(urls: list) -> list:
+    with _client() as client:
+        with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
+            return list(pool.map(lambda u: fetch_title(client, u, want_body=True), urls))
+
+
+@router.post("/audit")
+async def audit(req: AuditRequest):
+    urls = [u.strip() for u in req.urls if u and u.strip()][:_MAX_BATCH]
+    if not urls:
+        return {"results": []}
+    focus = _focus_terms(req.focus)
+    results = []
+    for item in _crawl(urls):
+        tcm = item.get("tcm_id") or ""
+        base = {"url": item["url"], "tcm_id": tcm, "cms_url": cms_url(tcm)}
+        if not item["ok"]:
+            # Not scored: a page that could not be read has no findings, and
+            # folding a zero into the average would make an unreachable page
+            # look like a badly optimised one.
+            results.append({**base, "type": FAILED, "title": item["title"], "score": None,
+                            "description": "", "keywords": "", "h1": "",
+                            "title_chars": 0, "desc_chars": 0, "issues": ["Could not be read"],
+                            "issue_keys": [], "focus_hit": None})
+            continue
+        results.append({**base, **audit_page(item["title"], item.get("document") or "", req.brand, focus)})
+    return {"results": results}
+
+
+@router.post("/forms")
+async def forms(req: TitleRequest):
+    """Which pages still carry the Modelsite form."""
+    urls = [u.strip() for u in req.urls if u and u.strip()][:_MAX_BATCH]
+    if not urls:
+        return {"results": []}
+    results = []
+    for item in _crawl(urls):
+        tcm = item.get("tcm_id") or ""
+        base = {"url": item["url"], "tcm_id": tcm, "cms_url": cms_url(tcm)}
+        if not item["ok"]:
+            results.append({**base, "title": item["title"], "form_ids": [], "form_count": 0,
+                            "modelsite": False, "status": FAILED})
+            continue
+        ids = extract_form_ids(item.get("document") or "")
+        modelsite = MODELSITE_FORM_ID in ids
+        results.append({**base, "title": item["title"] or "", "form_ids": ids, "form_count": len(ids),
+                        "modelsite": modelsite,
+                        "status": "Modelsite form" if modelsite else ("Other form" if ids else "No form")})
+    return {"results": results}
+
 @router.post("/export")
 async def export_xlsx(req: ExportRequest):
     buf = io.BytesIO()
     wb = xlsxwriter.Workbook(buf, {"in_memory": True})
-    ws = wb.add_worksheet("Page titles")
+    ws = wb.add_worksheet((req.sheet or "Export")[:31])
     hdr = wb.add_format({"bold": True, "bg_color": "#1450f5", "font_color": "#ffffff", "border": 1})
     cell = wb.add_format({"valign": "top"})
     # The ID itself is the link, rather than a fifth column repeating the URL.
     link = wb.add_format({"valign": "top", "font_color": "#1450f5", "underline": 1})
     # No per-row highlighting: the Title Type column already carries the result,
     # and colour-coding was explicitly not wanted.
+    if req.columns:
+        ws.write_row(0, 0, [c.label for c in req.columns], hdr)
+        for i, row in enumerate(req.data, start=1):
+            for j, col in enumerate(req.columns):
+                value = row.get(col.key, "")
+                text = "" if value is None else str(value)
+                target = cms_url(text) if col.link == "cms" else ""
+                if target:
+                    ws.write_url(i, j, target, link, text)
+                elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                    ws.write_number(i, j, value, cell)
+                else:
+                    ws.write_string(i, j, text, cell)
+        for j, col in enumerate(req.columns):
+            ws.set_column(j, j, col.width)
+        ws.freeze_panes(1, 0)
+        wb.close()
+        buf.seek(0)
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{req.filename or "export.xlsx"}"'},
+        )
+
     ws.write_row(0, 0, ["URL", "Current Page Title", "Title Type", "TCM ID"], hdr)
     for i, row in enumerate(req.rows, start=1):
         ws.write_string(i, 0, row.url or "", cell)

@@ -133,6 +133,35 @@
     font-size: 0.63rem; color: var(--muted); margin-top: 3px;
   }
 
+  .modes { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .modes button {
+    border: 1px solid var(--border-strong); background: #fff; color: var(--muted);
+    border-radius: var(--radius); padding: 9px 16px; font-size: 0.84rem;
+    font-family: inherit; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .modes button:hover { border-color: var(--primary); color: var(--primary); }
+  .modes button.active { background: #141414; border-color: #141414; color: #fff; }
+
+  .stat.score .stat-n { font-size: 1.9rem; }
+  .score-cell { font-weight: 700; white-space: nowrap; }
+  .score-good { color: #147a50; }
+  .score-mid  { color: #a75d00; }
+  .score-bad  { color: #b3261e; }
+  .issues { color: var(--muted); font-size: 0.76rem; line-height: 1.5; }
+  .issues li { margin-left: 14px; }
+
+  .insight {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius); padding: 14px 18px; margin-bottom: 14px;
+  }
+  .insight h2 {
+    font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 0.68rem; color: var(--muted); font-weight: 400; margin: 0 0 9px;
+  }
+  .insight ol { margin: 0; padding-left: 18px; font-size: 0.85rem; line-height: 1.75; }
+  .insight .gain { color: var(--primary); font-weight: 600; }
   .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
   .filters { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; }
   .filters button {
@@ -155,7 +184,10 @@
     font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.04em;
     font-size: 0.65rem; color: var(--muted); font-weight: 400; white-space: nowrap;
   }
-  td.u { max-width: 420px; word-break: break-all; }
+  /* The audit table has eight columns; without a floor the URL is squeezed to
+     a few characters a line. The box already scrolls, so let it. */
+  table.wide { min-width: 1560px; }
+  td.u { max-width: 420px; min-width: 230px; word-break: break-word; }
   td.u a { color: var(--primary); text-decoration: none; }
   td.u a:hover { text-decoration: underline; }
   td.t { max-width: 520px; }
@@ -212,8 +244,14 @@
 </nav>
 
 <div class="page">
-  <h1>Page title verifier</h1>
-  <p class="lede">Reads the live &lt;title&gt; and the page TCM ID from every page, flags the ones where the site name has been added twice or repeats a brand word, and links each ID straight to its CMS item.</p>
+  <h1 id="pageTitle">Page title verifier</h1>
+  <p class="lede" id="pageLede">Reads the live &lt;title&gt; and the page TCM ID from every page, flags the ones where the site name has been added twice or repeats a brand word, and links each ID straight to its CMS item.</p>
+
+  <div class="modes" id="modeTabs">
+    <button type="button" data-mode="title" class="active"><i class="fa-solid fa-heading"></i> Title check</button>
+    <button type="button" data-mode="audit"><i class="fa-solid fa-gauge-high"></i> SEO audit</button>
+    <button type="button" data-mode="forms"><i class="fa-solid fa-clipboard-list"></i> Form check</button>
+  </div>
 
   <div class="card">
     <div class="tabs" id="srcTabs">
@@ -231,14 +269,20 @@
       <textarea id="urlList" placeholder="https://www.kone.com.au/elevators&#10;https://www.kone.com.au/escalators"></textarea>
     </div>
 
-    <div class="field">
-      <label class="lbl" for="brand">Website / brand title</label>
-      <input type="text" id="brand" placeholder="KONE Australia" autocomplete="off">
+    <div class="row">
+      <div class="field" id="brandField">
+        <label class="lbl" for="brand">Website / brand title</label>
+        <input type="text" id="brand" placeholder="KONE Australia" autocomplete="off">
+      </div>
+      <div class="field" id="focusField" hidden>
+        <label class="lbl" for="focus">Focus keywords — optional, comma separated</label>
+        <input type="text" id="focus" placeholder="elevators, escalators, lifts" autocomplete="off">
+      </div>
     </div>
 
     <div class="actions">
       <button class="btn" id="findBtn" type="button"><i class="fa-solid fa-sitemap"></i> Find URLs</button>
-      <button class="btn btn-primary" id="verifyBtn" type="button" disabled><i class="fa-solid fa-check-double"></i> Verify titles</button>
+      <button class="btn btn-primary" id="verifyBtn" type="button" disabled><i class="fa-solid fa-check-double"></i> <span id="verifyLabel">Verify titles</span></button>
       <button class="btn" id="stopBtn" type="button" hidden><i class="fa-solid fa-stop"></i> Stop</button>
     </div>
 
@@ -253,15 +297,10 @@
   <div id="resultsArea" hidden>
     <div class="summary" id="summary"></div>
 
+    <div id="insights" hidden></div>
+
     <div class="toolbar">
-      <div class="filters" id="filters">
-        <button type="button" data-f="all" class="active">All</button>
-        <button type="button" data-f="Single Title">Single Title</button>
-        <button type="button" data-f="Double Title">Double Title</button>
-        <button type="button" data-f="Partial Duplicate">Partial Duplicate</button>
-        <button type="button" data-f="problem">Missing / Unable to Verify</button>
-        <button type="button" data-f="no-tcm">No TCM ID</button>
-      </div>
+      <div class="filters" id="filters"></div>
       <button class="btn" id="exportBtn" type="button"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
     </div>
 
@@ -289,6 +328,32 @@ const BATCH = 12;          // One round of backend workers per request, so a
                            // timeout and take its whole slice down with it.
 const BRAND_KEY = 'ptv_brand', SRC_KEY = 'ptv_sitemap';
 
+// Each tab is the same crawl with a different question asked of the markup,
+// so they share the source input, the run loop and the export.
+const MODES = {
+  title: {
+    title: 'Page title verifier',
+    lede: 'Reads the live &lt;title&gt; and the page TCM ID from every page, flags the ones where the site name has been added twice or repeats a brand word, and links each ID straight to its CMS item.',
+    button: 'Verify titles', endpoint: '/api/title-check/titles', batch: 12, focus: false,
+    filters: [['all','All'],['Single Title','Single Title'],['Double Title','Double Title'],
+              ['Partial Duplicate','Partial Duplicate'],['problem','Missing / Unable to Verify'],['no-tcm','No TCM ID']],
+  },
+  audit: {
+    title: 'SEO audit',
+    lede: 'Scores every page out of 100 on its title, meta description and keywords, then totals up what the site is leaving on the table.',
+    button: 'Run audit', endpoint: '/api/title-check/audit', batch: 8, focus: true,
+    filters: [['all','All'],['issues','Has issues'],['perfect','Full score'],
+              ['no-desc','No description'],['title-issue','Title problems'],['problem','Unable to verify']],
+  },
+  forms: {
+    title: 'Form check',
+    lede: 'Finds the pages still using the Modelsite form (id 658), so the teams that own them can be told.',
+    button: 'Check forms', endpoint: '/api/title-check/forms', batch: 8, focus: false,
+    filters: [['all','All'],['modelsite','Modelsite form'],['other','Other form'],['none','No form']],
+  },
+};
+let mode = 'title';
+
 let urls = [];             // what will be verified
 let rows = [];             // {url, title, type}
 let filter = 'all';
@@ -302,6 +367,34 @@ function note(msg, kind = '') {
   el.textContent = msg;
   el.className = 'note' + (kind ? ' ' + kind : '');
 }
+
+// ── Mode tabs ──────────────────────────────────────────────────────────────
+function applyMode(next) {
+  mode = next;
+  const cfg = MODES[mode];
+  [...$('modeTabs').children].forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  $('pageTitle').textContent = cfg.title;
+  $('pageLede').innerHTML = cfg.lede;
+  $('verifyLabel').textContent = cfg.button;
+  $('focusField').hidden = !cfg.focus;
+  // The brand is what a duplicate title is measured against, so the two tabs
+  // that judge titles need it; the form check does not.
+  $('brandField').hidden = (mode === 'forms');
+  filter = 'all';
+  $('filters').innerHTML = cfg.filters
+    .map(([f, label], i) => `<button type="button" data-f="${f}"${i === 0 ? ' class="active"' : ''}>${label}</button>`).join('');
+  // Results belong to the run that produced them, not to the tab.
+  rows = [];
+  $('resultsArea').hidden = true;
+  $('insights').hidden = true;
+  $('prog').hidden = true;
+  note('');
+}
+
+$('modeTabs').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b && b.dataset.mode !== mode) applyMode(b.dataset.mode);
+});
 
 // ── Source toggle ──────────────────────────────────────────────────────────
 let source = 'sitemap';
@@ -340,6 +433,7 @@ $('urlList').addEventListener('input', () => {
 });
 
 // Remember the two values that get retyped on every run.
+applyMode('title');
 $('brand').value = localStorage.getItem(BRAND_KEY) || '';
 $('sitemapUrl').value = localStorage.getItem(SRC_KEY) || '';
 $('brand').addEventListener('change', () => localStorage.setItem(BRAND_KEY, $('brand').value.trim()));
@@ -380,7 +474,11 @@ $('verifyBtn').addEventListener('click', async () => {
   // Without a brand nothing can be classified as doubled, so every page would
   // come back "Single Title" — a clean bill of health that means nothing. Stop
   // rather than hand back a silently empty result.
-  if (!brand) { $('brand').focus(); note('Enter the website / brand title first — it is what a double title is measured against', 'err'); return; }
+  if (!brand && mode !== 'forms') {
+    $('brand').focus();
+    note('Enter the website / brand title first — it is what a duplicate title is measured against', 'err');
+    return;
+  }
   localStorage.setItem(BRAND_KEY, brand);
 
   running = true; stopped = false;
@@ -393,8 +491,9 @@ $('verifyBtn').addEventListener('click', async () => {
   setProgress(0, urls.length);
   render();
 
-  for (let i = 0; i < urls.length && !stopped; i += BATCH) {
-    const slice = urls.slice(i, i + BATCH);
+  const batch = MODES[mode].batch;
+  for (let i = 0; i < urls.length && !stopped; i += batch) {
+    const slice = urls.slice(i, i + batch);
     rows.push(...await verifySlice(slice, brand));
     setProgress(rows.length, urls.length);
     render();
@@ -411,9 +510,9 @@ $('verifyBtn').addEventListener('click', async () => {
 // once, then halve and recurse: a genuinely bad URL is isolated to itself and
 // everything around it still gets verified.
 async function postTitles(slice, brand) {
-  const res = await fetch('/api/title-check/titles', {
+  const res = await fetch(MODES[mode].endpoint, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls: slice, brand }),
+    body: JSON.stringify({ urls: slice, brand, focus: $('focus').value.trim() }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
@@ -429,7 +528,9 @@ async function verifySlice(slice, brand, retried = false) {
       return verifySlice(slice, brand, true);
     }
     if (slice.length === 1) {
-      return [{ url: slice[0], title: e.message || 'Request failed', type: 'Unable to Verify', tcm_id: '', cms_url: '' }];
+      return [{ url: slice[0], title: e.message || 'Request failed', type: 'Unable to Verify',
+                status: 'Unable to Verify', score: null, issues: ['Could not be read'],
+                tcm_id: '', cms_url: '' }];
     }
     const mid = Math.ceil(slice.length / 2);
     const left = await verifySlice(slice.slice(0, mid), brand);
@@ -465,35 +566,165 @@ function visibleRows() {
   if (filter === 'problem') return rows.filter(r => r.type === 'Missing Title' || r.type === 'Unable to Verify');
   // A page with no pagetcmid meta is what the TCM tool calls unpublished.
   if (filter === 'no-tcm') return rows.filter(r => !r.tcm_id);
+  if (filter === 'issues') return rows.filter(r => (r.issues || []).length);
+  if (filter === 'perfect') return rows.filter(r => r.score === 100);
+  if (filter === 'no-desc') return rows.filter(r => (r.issue_keys || []).includes('desc_missing'));
+  if (filter === 'title-issue') return rows.filter(r =>
+    (r.issue_keys || []).some(k => k.startsWith('title_')));
+  if (filter === 'modelsite') return rows.filter(r => r.modelsite);
+  if (filter === 'other') return rows.filter(r => !r.modelsite && r.form_count > 0);
+  if (filter === 'none') return rows.filter(r => !r.modelsite && !r.form_count);
   return rows.filter(r => r.type === filter);
 }
 
-function render() {
-  const n = t => rows.filter(r => r.type === t).length;
-  $('summary').innerHTML = [
-    [rows.length, 'URLs'],
-    [n('Single Title'), 'Single titles'],
-    [n('Double Title'), 'Double titles'],
-    [n('Partial Duplicate'), 'Partial duplicates'],
-    [n('Missing Title') + n('Unable to Verify'), 'Missing / unable to verify'],
-    [rows.filter(r => r.tcm_id).length, 'TCM IDs found'],
-  ].map(([v, l]) => `<div class="stat"><div class="stat-n">${v}</div><div class="stat-l">${esc(l)}</div></div>`).join('');
+const ISSUE_LABEL = {
+  title_missing:   'Pages with no title',
+  title_duplicate: 'Pages whose title repeats the site name',
+  title_length:    'Titles too short or too long',
+  desc_missing:    'Pages with no meta description',
+  desc_length:     'Descriptions too short or too long',
+  keywords_missing:'Pages with no meta keywords tag',
+  focus_missing:   'Pages missing every focus keyword',
+};
+const ISSUE_FIX = {
+  title_missing:   'Give these pages a title',
+  title_duplicate: 'Remove the repeated site name from these titles',
+  title_length:    'Bring these titles into 30-60 characters',
+  desc_missing:    'Write a meta description for these pages',
+  desc_length:     'Bring these descriptions into 120-160 characters',
+  keywords_missing:'Add a meta keywords tag to these pages',
+  focus_missing:   'Work a focus keyword into the title or description',
+};
+const PENALTY = { title_missing:30, title_duplicate:20, title_length:10,
+                  desc_missing:20, desc_length:10, keywords_missing:5, focus_missing:5 };
 
-  const list = visibleRows();
-  if (!list.length) {
-    $('wrap').innerHTML = `<div class="empty">${running ? 'Verifying…' : 'No rows to show'}</div>`;
+function tcmCell(r) {
+  return r.tcm_id
+    ? (r.cms_url
+        ? `<a class="tcm-id" href="${esc(r.cms_url)}" target="_blank" rel="noopener noreferrer" title="Open in the CMS">${esc(r.tcm_id)}</a>`
+          + `<button class="tcm-copy" type="button" data-id="${esc(r.tcm_id)}" title="Copy the ID"><i class="fa-regular fa-copy"></i></button>`
+        : `<span class="tcm-id">${esc(r.tcm_id)}</span>`)
+    : '<span class="tcm-none">Not found</span>';
+}
+const urlCell = r => `<td class="u"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.url)}</a></td>`;
+const scoreClass = n => n >= 90 ? 'score-good' : n >= 70 ? 'score-mid' : 'score-bad';
+const stat = (v, l, cls = '') => `<div class="stat ${cls}"><div class="stat-n">${v}</div><div class="stat-l">${esc(l)}</div></div>`;
+
+function renderSummary() {
+  const n = t => rows.filter(r => r.type === t).length;
+  if (mode === 'title') {
+    $('summary').innerHTML = [
+      stat(rows.length, 'URLs'),
+      stat(n('Single Title'), 'Single titles'),
+      stat(n('Double Title'), 'Double titles'),
+      stat(n('Partial Duplicate'), 'Partial duplicates'),
+      stat(n('Missing Title') + n('Unable to Verify'), 'Missing / unable to verify'),
+      stat(rows.filter(r => r.tcm_id).length, 'TCM IDs found'),
+    ].join('');
+    $('insights').hidden = true;
     return;
   }
+  if (mode === 'forms') {
+    const ms = rows.filter(r => r.modelsite).length;
+    $('summary').innerHTML = [
+      stat(rows.length, 'Pages checked'),
+      stat(ms, 'Modelsite forms'),
+      stat(rows.filter(r => !r.modelsite && r.form_count > 0).length, 'Other forms'),
+      stat(rows.filter(r => !r.form_count).length, 'No form'),
+    ].join('');
+    $('insights').hidden = !ms;
+    if (ms) {
+      $('insights').innerHTML = `<div class="insight"><h2>What to tell the teams</h2>`
+        + `<ol><li><span class="gain">${ms} page${ms === 1 ? '' : 's'}</span> still use the Modelsite form (id ${esc('658')}). `
+        + `Filter to Modelsite form, export, and send the list on — each row carries the CMS link to the page.</li></ol></div>`;
+    }
+    return;
+  }
+
+  // ── SEO audit ──
+  const scored = rows.filter(r => typeof r.score === 'number');
+  const site = scored.length ? Math.round(scored.reduce((a, r) => a + r.score, 0) / scored.length) : 0;
+  const perfect = scored.filter(r => r.score === 100).length;
+  // Points lost per issue, which is the honest answer to "how much are we
+  // leaving out" — a count alone hides that one missing title costs six times
+  // what one long description does.
+  const lost = {};
+  scored.forEach(r => (r.issue_keys || []).forEach(k => {
+    lost[k] = lost[k] || { count: 0, points: 0 };
+    lost[k].count += 1;
+    lost[k].points += (PENALTY[k] || 0);
+  }));
+  const totalLost = Object.values(lost).reduce((a, v) => a + v.points, 0);
+  const possible = scored.length * 100;
+
+  $('summary').innerHTML = [
+    stat(site, 'Site score', 'score'),
+    stat(rows.length, 'Pages audited'),
+    stat(perfect, 'Full score'),
+    stat(scored.length - perfect, 'With issues'),
+    stat(possible ? Math.round((totalLost / possible) * 100) + '%' : '0%', 'SEO left on the table'),
+    stat(rows.filter(r => r.type === 'Unable to Verify').length, 'Unable to verify'),
+  ].join('');
+
+  const ranked = Object.entries(lost).sort((a, b) => b[1].points - a[1].points).slice(0, 3);
+  if (ranked.length) {
+    $('insights').hidden = false;
+    $('insights').innerHTML = `<div class="insight"><h2>Do these first</h2><ol>`
+      + ranked.map(([k, v]) =>
+          `<li>${esc(ISSUE_FIX[k] || k)} — <span class="gain">${v.count} page${v.count === 1 ? '' : 's'}</span>, `
+          + `worth <span class="gain">${possible ? (v.points / possible * 100).toFixed(1) : 0} points</span> of the site score.</li>`).join('')
+      + `</ol></div>`;
+  } else {
+    $('insights').hidden = true;
+  }
+}
+
+function render() {
+  renderSummary();
+  const list = visibleRows();
+  if (!list.length) {
+    $('wrap').innerHTML = `<div class="empty">${running ? 'Working…' : 'No rows to show'}</div>`;
+    return;
+  }
+
+  if (mode === 'forms') {
+    $('wrap').innerHTML = '<table class="wide"><thead><tr><th>URL</th><th>Page title</th><th>Forms</th><th>Result</th><th>TCM ID</th></tr></thead><tbody>'
+      + list.map(r => `<tr>
+          ${urlCell(r)}
+          <td class="t">${esc(r.title || '')}</td>
+          <td>${r.form_count ? esc((r.form_ids || []).join(', ')) : '<span class="tcm-none">None</span>'}</td>
+          <td><span class="tag ${r.modelsite ? 'tag-double' : r.form_count ? 'tag-partial' : 'tag-missing'}">${esc(r.status || '')}</span></td>
+          <td class="tcm">${tcmCell(r)}</td>
+        </tr>`).join('')
+      + '</tbody></table>';
+    return;
+  }
+
+  if (mode === 'audit') {
+    $('wrap').innerHTML = '<table class="wide"><thead><tr><th>URL</th><th>Score</th><th>Page title</th><th>Chars</th>'
+      + '<th>Meta description</th><th>Chars</th><th>What to fix</th><th>TCM ID</th></tr></thead><tbody>'
+      + list.map(r => `<tr>
+          ${urlCell(r)}
+          <td class="score-cell ${typeof r.score === 'number' ? scoreClass(r.score) : ''}">${typeof r.score === 'number' ? r.score : '—'}</td>
+          <td class="t">${esc(r.title || '')}</td>
+          <td>${r.title_chars || 0}</td>
+          <td class="t">${r.description ? esc(r.description) : '<span class="tcm-none">None</span>'}</td>
+          <td>${r.desc_chars || 0}</td>
+          <td class="issues">${(r.issues || []).length
+              ? '<ul>' + r.issues.map(i => `<li>${esc(i)}</li>`).join('') + '</ul>'
+              : '<span class="tcm-none">Nothing</span>'}</td>
+          <td class="tcm">${tcmCell(r)}</td>
+        </tr>`).join('')
+      + '</tbody></table>';
+    return;
+  }
+
   $('wrap').innerHTML = '<table><thead><tr><th>URL</th><th>Current page title</th><th>Title type</th><th>TCM ID</th></tr></thead><tbody>'
     + list.map(r => `<tr>
-        <td class="u"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.url)}</a></td>
+        ${urlCell(r)}
         <td class="t">${esc(r.title || '')}</td>
         <td><span class="tag ${TAG_CLASS[r.type] || 'tag-missing'}">${esc(r.type)}</span></td>
-        <td class="tcm">${r.tcm_id ? (r.cms_url
-            ? `<a class="tcm-id" href="${esc(r.cms_url)}" target="_blank" rel="noopener noreferrer" title="Open in the CMS">${esc(r.tcm_id)}</a>`
-                + `<button class="tcm-copy" type="button" data-id="${esc(r.tcm_id)}" title="Copy the ID"><i class="fa-regular fa-copy"></i></button>`
-            : `<span class="tcm-id">${esc(r.tcm_id)}</span>`)
-            : '<span class="tcm-none">Not found</span>'}</td>
+        <td class="tcm">${tcmCell(r)}</td>
       </tr>`).join('')
     + '</tbody></table>';
 }
@@ -509,6 +740,58 @@ $('wrap').addEventListener('click', e => {
 });
 
 // ── Export ─────────────────────────────────────────────────────────────────
+// Each tab exports the columns it shows. The TCM ID column is written as its
+// CMS link so a row can be opened straight from the sheet.
+const EXPORTS = {
+  title: {
+    sheet: 'Page titles', filename: 'page-titles.xlsx',
+    columns: [
+      { key: 'url', label: 'URL', width: 60 },
+      { key: 'title', label: 'Current Page Title', width: 70 },
+      { key: 'type', label: 'Title Type', width: 18 },
+      { key: 'tcm_id', label: 'TCM ID', width: 26, link: 'cms' },
+    ],
+  },
+  audit: {
+    sheet: 'SEO audit', filename: 'seo-audit.xlsx',
+    columns: [
+      { key: 'url', label: 'URL', width: 60 },
+      { key: 'score', label: 'Score', width: 8 },
+      { key: 'title', label: 'Page Title', width: 60 },
+      { key: 'title_chars', label: 'Title Chars', width: 12 },
+      { key: 'type', label: 'Title Type', width: 18 },
+      { key: 'description', label: 'Meta Description', width: 70 },
+      { key: 'desc_chars', label: 'Description Chars', width: 17 },
+      { key: 'keywords', label: 'Meta Keywords', width: 40 },
+      { key: 'h1', label: 'H1', width: 40 },
+      { key: 'issue_text', label: 'What To Fix', width: 70 },
+      { key: 'tcm_id', label: 'TCM ID', width: 26, link: 'cms' },
+    ],
+  },
+  forms: {
+    sheet: 'Form check', filename: 'form-check.xlsx',
+    columns: [
+      { key: 'url', label: 'URL', width: 60 },
+      { key: 'title', label: 'Page Title', width: 60 },
+      { key: 'form_id_text', label: 'Form IDs', width: 24 },
+      { key: 'status', label: 'Result', width: 20 },
+      { key: 'tcm_id', label: 'TCM ID', width: 26, link: 'cms' },
+    ],
+  },
+};
+
+function exportPayload(list) {
+  const cfg = EXPORTS[mode];
+  const data = list.map(r => ({
+    ...r,
+    // Flattened here rather than in the sheet writer, which has no idea these
+    // are lists.
+    issue_text: (r.issues || []).join('; '),
+    form_id_text: (r.form_ids || []).join(', '),
+  }));
+  return { sheet: cfg.sheet, filename: cfg.filename, columns: cfg.columns, data };
+}
+
 $('exportBtn').addEventListener('click', async () => {
   // Exports what is on screen, so a filtered view exports that filter.
   const list = visibleRows();
@@ -517,13 +800,13 @@ $('exportBtn').addEventListener('click', async () => {
   try {
     const res = await fetch('/api/title-check/export', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rows: list.map(r => ({ url: r.url, title: r.title || '', type: r.type, tcm_id: r.tcm_id || '' })) }),
+      body: JSON.stringify(exportPayload(list)),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'page-titles.xlsx';
+    a.download = EXPORTS[mode].filename;
     document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   } catch (e) {
