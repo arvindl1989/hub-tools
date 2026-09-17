@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page Title Verifier — Digital Marketing Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  @font-face {
+    font-family: 'KONE Information';
+    src: url('/assets/fonts/KONE-Information.ttf') format('truetype');
+    font-weight: 400 600; font-style: normal; font-display: swap;
+  }
+  :root {
+    --primary: #1450f5; --primary-dark: #0d3fd4;
+    --bg: #f3eee6; --surface: #ffffff;
+    --border: #e6e6e6; --border-strong: #d0d0d0;
+    --text: #141414; --muted: #727272;
+    --radius: 8px; --radius-chip: 4px;
+    --font-kone: 'KONE Information', 'Inter', Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  /* .btn and .tabs set an explicit display, which outranks the UA rule behind
+     the hidden attribute — without this, [hidden] buttons stay on screen. */
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; font-family: 'Inter', sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+
+  /* ── Hub nav (shared with the other tools) ── */
+  .hub-nav {
+    position: sticky; top: 0; z-index: 300;
+    height: 52px; background: #0f172a; border-bottom: 1px solid #1e293b;
+    display: flex; align-items: center; padding: 0 1.5rem; gap: 4px; flex-shrink: 0;
+  }
+  .nav-brand { display: flex; align-items: center; gap: 9px; text-decoration: none; flex-shrink: 0; margin-right: 4px; }
+  .nav-brand-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, #1450f5, #3b70f7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.82rem; color: white; box-shadow: 0 2px 6px rgba(20,80,245,0.35);
+  }
+  .nav-brand-name { font-size: 0.85rem; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; }
+  .nav-sep { width: 1px; height: 18px; background: #1e293b; margin: 0 8px; flex-shrink: 0; }
+  .nav-link {
+    display: flex; align-items: center; gap: 6px; text-decoration: none; color: #64748b;
+    font-size: 0.77rem; font-weight: 600; padding: 5px 10px; border-radius: 7px;
+    border: 1px solid transparent; transition: all 0.15s; white-space: nowrap;
+  }
+  .nav-link i { font-size: 0.7rem; }
+  .nav-link:hover { color: #f1f5f9; background: #1e293b; border-color: #334155; }
+  .nav-link.active { color: #93b4fd; background: rgba(20,80,245,0.12); border-color: rgba(20,80,245,0.25); }
+  .nav-spacer { flex: 1; min-width: 8px; }
+  .nav-signout {
+    background: none; border: 1px solid #334155; color: #64748b;
+    padding: 5px 10px; border-radius: 7px; font-size: 0.77rem;
+    font-family: 'Inter', sans-serif; cursor: pointer; display: flex;
+    align-items: center; gap: 5px; transition: all 0.15s; font-weight: 600; flex-shrink: 0;
+  }
+  .nav-signout:hover { border-color: #ef4444; color: #ef4444; }
+
+  .page { flex: 1; max-width: 1240px; width: 100%; margin: 0 auto; padding: 22px 20px 30px; }
+  h1 { font-size: 1.32rem; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.3px; }
+  .lede { font-size: 0.85rem; color: var(--muted); margin: 0 0 18px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px;
+  }
+  .lbl {
+    display: block; font-family: var(--font-kone); text-transform: uppercase;
+    letter-spacing: 0.05em; font-size: 0.66rem; color: var(--muted); margin-bottom: 6px;
+  }
+
+  .tabs { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; margin-bottom: 14px; }
+  .tabs button {
+    border: none; background: #fff; color: var(--muted); cursor: pointer;
+    padding: 7px 15px; font-size: 0.82rem; font-family: inherit; font-weight: 500;
+  }
+  .tabs button.active { background: var(--primary); color: #fff; }
+
+  input[type="text"], textarea {
+    width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius);
+    padding: 9px 11px; font-size: 0.84rem; font-family: inherit; color: var(--text); background: #fff;
+  }
+  textarea { resize: vertical; min-height: 120px; line-height: 1.5; }
+  input[type="text"]:focus, textarea:focus {
+    outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,80,245,0.18);
+  }
+  .field { margin-bottom: 14px; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .row > .field { flex: 1; min-width: 240px; }
+
+  .btn {
+    border: 1px solid var(--border-strong); background: #fff; color: var(--text);
+    border-radius: var(--radius); padding: 9px 16px; font-size: 0.83rem;
+    font-weight: 600; cursor: pointer; font-family: inherit;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  .note { font-size: 0.78rem; color: var(--muted); margin: 10px 0 0; }
+  .note.err { color: #b3261e; }
+  .note.ok { color: #147a50; }
+
+  /* ── Progress ── */
+  .prog { margin-top: 14px; }
+  .prog-bar { height: 5px; background: #e8e2d8; border-radius: 999px; overflow: hidden; }
+  .prog-fill { height: 100%; width: 0; background: var(--primary); transition: width .2s; }
+  .prog-text {
+    font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 0.68rem; color: var(--muted); margin-top: 7px;
+  }
+
+  /* ── Summary ── */
+  .summary { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0 12px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 11px 16px; min-width: 132px;
+  }
+  .stat-n { font-size: 1.32rem; font-weight: 700; line-height: 1.1; }
+  .stat-l {
+    font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 0.63rem; color: var(--muted); margin-top: 3px;
+  }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .filters { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; }
+  .filters button {
+    border: none; background: #fff; color: var(--muted); cursor: pointer;
+    padding: 6px 13px; font-size: 0.79rem; font-family: inherit; font-weight: 500;
+    border-right: 1px solid var(--border);
+  }
+  .filters button:last-child { border-right: none; }
+  .filters button.active { background: var(--primary); color: #fff; }
+
+  /* ── Results table ── */
+  .wrap {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: auto; max-height: 62vh; background: var(--surface);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.81rem; }
+  th, td { border-bottom: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th {
+    position: sticky; top: 0; background: #faf8f3; z-index: 5;
+    font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.04em;
+    font-size: 0.65rem; color: var(--muted); font-weight: 400; white-space: nowrap;
+  }
+  td.u { max-width: 420px; word-break: break-all; }
+  td.u a { color: var(--primary); text-decoration: none; }
+  td.u a:hover { text-decoration: underline; }
+  td.t { max-width: 520px; }
+  .tag {
+    display: inline-block; font-family: var(--font-kone); text-transform: uppercase;
+    letter-spacing: 0.05em; font-size: 0.62rem; padding: 3px 8px;
+    border-radius: var(--radius-chip); white-space: nowrap; border: 1px solid;
+  }
+  .tag-single  { background: #eefaf4; color: #147a50; border-color: #b6e3cd; }
+  .tag-double  { background: #fff5e6; color: #a75d00; border-color: #f2d4a8; }
+  .tag-missing { background: #f4f4f4; color: #5c5c5c; border-color: #dcdcdc; }
+  .tag-failed  { background: #fdecef; color: #b3261e; border-color: #f4c4cb; }
+  .empty { padding: 34px; text-align: center; color: var(--muted); font-size: 0.85rem; }
+
+  .hub-footer {
+    background: #0f172a; border-top: 1px solid #1e293b; padding: 0 1.5rem; height: 36px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-size: 0.7rem; color: #475569; flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<nav class="hub-nav">
+  <a href="../index.html" class="nav-brand">
+    <div class="nav-brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+    <span class="nav-brand-name">Digital Marketing Hub</span>
+  </a>
+  <div class="nav-sep"></div>
+  <a href="../email/index.html" class="nav-link"><i class="fa-solid fa-envelope-open-text"></i> Email Tracker</a>
+  <a href="../attendance/index.html" class="nav-link"><i class="fa-solid fa-calendar-check"></i> Attendance</a>
+  <a href="/kpi/" class="nav-link"><i class="fa-solid fa-chart-line"></i> KPI Tracker</a>
+  <a href="../chat/index.html" class="nav-link"><i class="fa-solid fa-comments"></i> AI Assistant</a>
+  <a href="index.html" class="nav-link active"><i class="fa-solid fa-heading"></i> Title Verifier</a>
+  <div class="nav-spacer"></div>
+  <button class="nav-signout" id="signOutBtn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
+</nav>
+
+<div class="page">
+  <h1>Page title verifier</h1>
+  <p class="lede">Reads the live &lt;title&gt; from every page and flags the ones where the site name has been added twice.</p>
+
+  <div class="card">
+    <div class="tabs" id="srcTabs">
+      <button type="button" data-src="sitemap" class="active">Sitemap URL</button>
+      <button type="button" data-src="list">Paste URLs</button>
+    </div>
+
+    <div class="field" id="srcSitemap">
+      <label class="lbl" for="sitemapUrl">Sitemap URL</label>
+      <input type="text" id="sitemapUrl" placeholder="https://www.kone.com.au/sitemap.xml" autocomplete="off">
+    </div>
+
+    <div class="field" id="srcList" hidden>
+      <label class="lbl" for="urlList">URLs — one per line</label>
+      <textarea id="urlList" placeholder="https://www.kone.com.au/elevators&#10;https://www.kone.com.au/escalators"></textarea>
+    </div>
+
+    <div class="field">
+      <label class="lbl" for="brand">Website / brand title</label>
+      <input type="text" id="brand" placeholder="KONE Australia" autocomplete="off">
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="findBtn" type="button"><i class="fa-solid fa-sitemap"></i> Find URLs</button>
+      <button class="btn btn-primary" id="verifyBtn" type="button" disabled><i class="fa-solid fa-check-double"></i> Verify titles</button>
+      <button class="btn" id="stopBtn" type="button" hidden><i class="fa-solid fa-stop"></i> Stop</button>
+    </div>
+
+    <p class="note" id="note"></p>
+
+    <div class="prog" id="prog" hidden>
+      <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+      <p class="prog-text" id="progText"></p>
+    </div>
+  </div>
+
+  <div id="resultsArea" hidden>
+    <div class="summary" id="summary"></div>
+
+    <div class="toolbar">
+      <div class="filters" id="filters">
+        <button type="button" data-f="all" class="active">All</button>
+        <button type="button" data-f="Single Title">Single Title</button>
+        <button type="button" data-f="Double Title">Double Title</button>
+        <button type="button" data-f="problem">Missing / Unable to Verify</button>
+      </div>
+      <button class="btn" id="exportBtn" type="button"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
+    </div>
+
+    <div class="wrap" id="wrap"></div>
+  </div>
+</div>
+
+<footer class="hub-footer">
+  <span>Digital Marketing Hub</span> · <span>KONE</span> · <span>Internal Use Only</span>
+</footer>
+
+<script>
+// ── Auth: same gate as every other hub tool page ────────────────────────────
+if (sessionStorage.getItem('aegis_auth') !== 'true') {
+  window.location.replace('../login.html');
+}
+document.getElementById('signOutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem('aegis_auth');
+  window.location.replace('../login.html');
+});
+
+const $ = id => document.getElementById(id);
+const BATCH = 25;          // URLs per request — small enough to keep the
+                           // progress count moving, large enough to stay fast.
+const BRAND_KEY = 'ptv_brand', SRC_KEY = 'ptv_sitemap';
+
+let urls = [];             // what will be verified
+let rows = [];             // {url, title, type}
+let filter = 'all';
+let running = false, stopped = false;
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function note(msg, kind = '') {
+  const el = $('note');
+  el.textContent = msg;
+  el.className = 'note' + (kind ? ' ' + kind : '');
+}
+
+// ── Source toggle ──────────────────────────────────────────────────────────
+let source = 'sitemap';
+$('srcTabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  source = b.dataset.src;
+  [...$('srcTabs').children].forEach(x => x.classList.toggle('active', x === b));
+  $('srcSitemap').hidden = source !== 'sitemap';
+  $('srcList').hidden = source !== 'list';
+  $('findBtn').hidden = source !== 'sitemap';
+  note('');
+  if (source === 'list') {
+    urls = readPastedUrls();
+    $('verifyBtn').disabled = !urls.length;
+    if (urls.length) note(`${urls.length} URL${urls.length === 1 ? '' : 's'} ready`);
+  } else {
+    $('verifyBtn').disabled = !urls.length;
+  }
+});
+
+function readPastedUrls() {
+  const seen = new Set(), out = [];
+  $('urlList').value.split('\n').forEach(line => {
+    let u = line.trim();
+    if (!u) return;
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    if (!seen.has(u)) { seen.add(u); out.push(u); }
+  });
+  return out;
+}
+
+$('urlList').addEventListener('input', () => {
+  urls = readPastedUrls();
+  $('verifyBtn').disabled = !urls.length;
+  note(urls.length ? `${urls.length} URL${urls.length === 1 ? '' : 's'} ready` : '');
+});
+
+// Remember the two values that get retyped on every run.
+$('brand').value = localStorage.getItem(BRAND_KEY) || '';
+$('sitemapUrl').value = localStorage.getItem(SRC_KEY) || '';
+$('brand').addEventListener('change', () => localStorage.setItem(BRAND_KEY, $('brand').value.trim()));
+$('sitemapUrl').addEventListener('change', () => localStorage.setItem(SRC_KEY, $('sitemapUrl').value.trim()));
+
+// ── Read the sitemap ───────────────────────────────────────────────────────
+$('findBtn').addEventListener('click', async () => {
+  const url = $('sitemapUrl').value.trim();
+  if (!url) { $('sitemapUrl').focus(); note('Enter a sitemap URL', 'err'); return; }
+  $('findBtn').disabled = true;
+  note('Reading sitemap…');
+  try {
+    const res = await fetch('/api/title-check/sitemap', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    urls = data.urls || [];
+    const many = data.sitemaps_read > 1 ? ` from ${data.sitemaps_read} sitemaps` : '';
+    note(`${data.count} URL${data.count === 1 ? '' : 's'} found${many}`, 'ok');
+    $('verifyBtn').disabled = !urls.length;
+  } catch (e) {
+    note(e.message || 'Could not read the sitemap', 'err');
+    $('verifyBtn').disabled = true;
+  } finally {
+    $('findBtn').disabled = false;
+  }
+});
+
+// ── Verify ─────────────────────────────────────────────────────────────────
+$('stopBtn').addEventListener('click', () => { stopped = true; $('stopBtn').disabled = true; });
+
+$('verifyBtn').addEventListener('click', async () => {
+  if (source === 'list') urls = readPastedUrls();
+  if (!urls.length) { note('No URLs to verify', 'err'); return; }
+  const brand = $('brand').value.trim();
+  // Without a brand nothing can be classified as doubled, so every page would
+  // come back "Single Title" — a clean bill of health that means nothing. Stop
+  // rather than hand back a silently empty result.
+  if (!brand) { $('brand').focus(); note('Enter the website / brand title first — it is what a double title is measured against', 'err'); return; }
+  localStorage.setItem(BRAND_KEY, brand);
+
+  running = true; stopped = false;
+  rows = [];
+  $('verifyBtn').disabled = true; $('findBtn').disabled = true;
+  $('stopBtn').hidden = false; $('stopBtn').disabled = false;
+  $('prog').hidden = false;
+  $('resultsArea').hidden = false;
+  note('');
+  setProgress(0, urls.length);
+  render();
+
+  for (let i = 0; i < urls.length && !stopped; i += BATCH) {
+    const slice = urls.slice(i, i + BATCH);
+    try {
+      const res = await fetch('/api/title-check/titles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: slice, brand }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+      rows.push(...(data.results || []));
+    } catch (e) {
+      // One failed batch must not lose the run: record the URLs as unverified
+      // and carry on with the rest.
+      slice.forEach(u => rows.push({ url: u, title: e.message || 'Request failed', type: 'Unable to Verify' }));
+    }
+    setProgress(rows.length, urls.length);
+    render();
+  }
+
+  running = false;
+  $('stopBtn').hidden = true;
+  $('verifyBtn').disabled = false; $('findBtn').disabled = false;
+  if (stopped) note(`Stopped after ${rows.length} of ${urls.length}`, 'err');
+});
+
+function setProgress(done, total) {
+  $('progFill').style.width = total ? `${(done / total) * 100}%` : '0';
+  $('progText').textContent = `${done} / ${total} verified`;
+}
+
+// ── Results ────────────────────────────────────────────────────────────────
+$('filters').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  filter = b.dataset.f;
+  [...$('filters').children].forEach(x => x.classList.toggle('active', x === b));
+  render();
+});
+
+const TAG_CLASS = {
+  'Single Title': 'tag-single',
+  'Double Title': 'tag-double',
+  'Missing Title': 'tag-missing',
+  'Unable to Verify': 'tag-failed',
+};
+
+function visibleRows() {
+  if (filter === 'all') return rows;
+  if (filter === 'problem') return rows.filter(r => r.type === 'Missing Title' || r.type === 'Unable to Verify');
+  return rows.filter(r => r.type === filter);
+}
+
+function render() {
+  const n = t => rows.filter(r => r.type === t).length;
+  $('summary').innerHTML = [
+    [rows.length, 'URLs'],
+    [n('Single Title'), 'Single titles'],
+    [n('Double Title'), 'Double titles'],
+    [n('Missing Title') + n('Unable to Verify'), 'Missing / unable to verify'],
+  ].map(([v, l]) => `<div class="stat"><div class="stat-n">${v}</div><div class="stat-l">${esc(l)}</div></div>`).join('');
+
+  const list = visibleRows();
+  if (!list.length) {
+    $('wrap').innerHTML = `<div class="empty">${running ? 'Verifying…' : 'No rows to show'}</div>`;
+    return;
+  }
+  $('wrap').innerHTML = '<table><thead><tr><th>URL</th><th>Current page title</th><th>Title type</th></tr></thead><tbody>'
+    + list.map(r => `<tr>
+        <td class="u"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.url)}</a></td>
+        <td class="t">${esc(r.title || '')}</td>
+        <td><span class="tag ${TAG_CLASS[r.type] || 'tag-missing'}">${esc(r.type)}</span></td>
+      </tr>`).join('')
+    + '</tbody></table>';
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+$('exportBtn').addEventListener('click', async () => {
+  // Exports what is on screen, so a filtered view exports that filter.
+  const list = visibleRows();
+  if (!list.length) { note('Nothing to export yet', 'err'); return; }
+  $('exportBtn').disabled = true;
+  try {
+    const res = await fetch('/api/title-check/export', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows: list.map(r => ({ url: r.url, title: r.title || '', type: r.type })) }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'page-titles.xlsx';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  } catch (e) {
+    note(e.message || 'Export failed', 'err');
+  } finally {
+    $('exportBtn').disabled = false;
+  }
+});
+</script>
+</body>
+</html>
