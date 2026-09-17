@@ -168,6 +168,22 @@
   .tag-double  { background: #fff5e6; color: #a75d00; border-color: #f2d4a8; }
   .tag-missing { background: #f4f4f4; color: #5c5c5c; border-color: #dcdcdc; }
   .tag-failed  { background: #fdecef; color: #b3261e; border-color: #f4c4cb; }
+  td.tcm { white-space: nowrap; }
+  .tcm-id {
+    font-family: var(--font-kone); font-size: 0.7rem; color: var(--primary);
+    background: #eef3fe; border: 1px solid #ccdcfd; border-radius: var(--radius-chip);
+    padding: 2px 7px; cursor: pointer;
+  }
+  .tcm-id { text-decoration: none; display: inline-block; }
+  .tcm-id:hover { background: #dfe9fd; text-decoration: underline; }
+  .tcm-copy {
+    border: 1px solid var(--border); background: #fff; color: var(--muted);
+    border-radius: var(--radius-chip); cursor: pointer; margin-left: 5px;
+    padding: 2px 6px; font-size: 0.68rem; line-height: 1.4;
+  }
+  .tcm-copy:hover { border-color: var(--primary); color: var(--primary); }
+  .tcm-copy.copied { border-color: #147a50; color: #147a50; }
+  .tcm-none { font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.62rem; color: var(--muted); }
   .empty { padding: 34px; text-align: center; color: var(--muted); font-size: 0.85rem; }
 
   .hub-footer {
@@ -196,7 +212,7 @@
 
 <div class="page">
   <h1>Page title verifier</h1>
-  <p class="lede">Reads the live &lt;title&gt; from every page and flags the ones where the site name has been added twice.</p>
+  <p class="lede">Reads the live &lt;title&gt; and the page TCM ID from every page, flags the ones where the site name has been added twice, and links each ID straight to its CMS item.</p>
 
   <div class="card">
     <div class="tabs" id="srcTabs">
@@ -242,6 +258,7 @@
         <button type="button" data-f="Single Title">Single Title</button>
         <button type="button" data-f="Double Title">Double Title</button>
         <button type="button" data-f="problem">Missing / Unable to Verify</button>
+        <button type="button" data-f="no-tcm">No TCM ID</button>
       </div>
       <button class="btn" id="exportBtn" type="button"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
     </div>
@@ -421,6 +438,8 @@ const TAG_CLASS = {
 function visibleRows() {
   if (filter === 'all') return rows;
   if (filter === 'problem') return rows.filter(r => r.type === 'Missing Title' || r.type === 'Unable to Verify');
+  // A page with no pagetcmid meta is what the TCM tool calls unpublished.
+  if (filter === 'no-tcm') return rows.filter(r => !r.tcm_id);
   return rows.filter(r => r.type === filter);
 }
 
@@ -431,6 +450,7 @@ function render() {
     [n('Single Title'), 'Single titles'],
     [n('Double Title'), 'Double titles'],
     [n('Missing Title') + n('Unable to Verify'), 'Missing / unable to verify'],
+    [rows.filter(r => r.tcm_id).length, 'TCM IDs found'],
   ].map(([v, l]) => `<div class="stat"><div class="stat-n">${v}</div><div class="stat-l">${esc(l)}</div></div>`).join('');
 
   const list = visibleRows();
@@ -438,14 +458,29 @@ function render() {
     $('wrap').innerHTML = `<div class="empty">${running ? 'Verifying…' : 'No rows to show'}</div>`;
     return;
   }
-  $('wrap').innerHTML = '<table><thead><tr><th>URL</th><th>Current page title</th><th>Title type</th></tr></thead><tbody>'
+  $('wrap').innerHTML = '<table><thead><tr><th>URL</th><th>Current page title</th><th>Title type</th><th>TCM ID</th></tr></thead><tbody>'
     + list.map(r => `<tr>
         <td class="u"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.url)}</a></td>
         <td class="t">${esc(r.title || '')}</td>
         <td><span class="tag ${TAG_CLASS[r.type] || 'tag-missing'}">${esc(r.type)}</span></td>
+        <td class="tcm">${r.tcm_id ? (r.cms_url
+            ? `<a class="tcm-id" href="${esc(r.cms_url)}" target="_blank" rel="noopener noreferrer" title="Open in the CMS">${esc(r.tcm_id)}</a>`
+                + `<button class="tcm-copy" type="button" data-id="${esc(r.tcm_id)}" title="Copy the ID"><i class="fa-regular fa-copy"></i></button>`
+            : `<span class="tcm-id">${esc(r.tcm_id)}</span>`)
+            : '<span class="tcm-none">Not found</span>'}</td>
       </tr>`).join('')
     + '</tbody></table>';
 }
+
+// The ID opens the CMS item; the button beside it copies the ID itself.
+$('wrap').addEventListener('click', e => {
+  const btn = e.target.closest('.tcm-copy');
+  if (!btn) return;
+  navigator.clipboard.writeText(btn.dataset.id).then(() => {
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 900);
+  }).catch(() => note('Could not copy', 'err'));
+});
 
 // ── Export ─────────────────────────────────────────────────────────────────
 $('exportBtn').addEventListener('click', async () => {
@@ -456,7 +491,7 @@ $('exportBtn').addEventListener('click', async () => {
   try {
     const res = await fetch('/api/title-check/export', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rows: list.map(r => ({ url: r.url, title: r.title || '', type: r.type })) }),
+      body: JSON.stringify({ rows: list.map(r => ({ url: r.url, title: r.title || '', type: r.type, tcm_id: r.tcm_id || '' })) }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();

@@ -7,7 +7,12 @@ been appended twice.
 The fetching has to happen here rather than in the browser: the pages being
 checked are on other origins and send no CORS headers, so a fetch() from the
 tool's own page is blocked before it ever sees the markup. This is a plain
-proxy — it reads the title and nothing else.
+proxy — it reads the title and the page's TCM ID and nothing else.
+
+The TCM ID comes out of the same response. The TCM ID Extractor gets it by
+having someone open every page and click a bookmarklet, because it runs in the
+browser; reading the markup here means it costs nothing on top of the fetch
+already being made for the title.
 """
 from __future__ import annotations
 
@@ -123,6 +128,46 @@ def _decode(raw: bytes, content_type: str) -> str:
 
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
 
+# Same signal the TCM ID Extractor's bookmarklet reads: <meta name="pagetcmid"
+# content="tcm:...">. Both attribute orders, and `value` as well as `content`,
+# because that is what the bookmarklet accepts — the two tools must not
+# disagree about whether a page has an ID.
+_TCM_RES = (
+    re.compile(r"""<meta[^>]*?\bname\s*=\s*["']?pagetcmid["']?[^>]*?\b(?:content|value)\s*=\s*["']([^"']+)["']""", re.I),
+    re.compile(r"""<meta[^>]*?\b(?:content|value)\s*=\s*["']([^"']+)["'][^>]*?\bname\s*=\s*["']?pagetcmid["']?""", re.I),
+)
+
+
+def extract_tcm_id(document: str) -> Optional[str]:
+    """The page's TCM ID, or None when the meta tag is absent — which is what
+    the TCM tool reports as an unpublished page."""
+    for pattern in _TCM_RES:
+        m = pattern.search(document)
+        if m and m.group(1).strip():
+            return html_mod.unescape(m.group(1).strip())
+    return None
+
+
+# Opening the item straight in the CMS is the point of having the ID: from the
+# results you go to the page, edit and exit. The ?tcm= parameter is the item
+# type, which is the ID's own last segment (64 for a page), so it is read off
+# the ID rather than hardcoded — a non-page item would otherwise open the wrong
+# view.
+_CMS_ITEM_URL = "https://web-cms.kone.com/WebUI/item.aspx?tcm={type_id}#id={tcm_id}"
+_TCM_ID_SHAPE = re.compile(r"^tcm:\d+-\d+(?:-(\d+))?$", re.I)
+
+
+def cms_url(tcm_id: Optional[str]) -> str:
+    """The CMS edit URL for an ID, or "" when it is not a TCM ID we recognise —
+    better no link than one that lands on an error page."""
+    tcm_id = (tcm_id or "").strip()
+    if not tcm_id:
+        return ""
+    m = _TCM_ID_SHAPE.match(tcm_id)
+    if not m:
+        return ""
+    return _CMS_ITEM_URL.format(type_id=m.group(1) or "64", tcm_id=tcm_id)
+
 
 def extract_title(document: str) -> Optional[str]:
     """The <title> from <head>.
@@ -147,10 +192,10 @@ def fetch_title(client: httpx.Client, url: str) -> dict:
     try:
         with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as resp:
             if resp.status_code >= 400:
-                return {"url": url, "title": f"HTTP {resp.status_code}", "ok": False}
+                return {"url": url, "title": f"HTTP {resp.status_code}", "tcm_id": None, "ok": False}
             ctype = resp.headers.get("content-type", "")
             if ctype and "html" not in ctype.lower() and "xml" not in ctype.lower():
-                return {"url": url, "title": f"Not an HTML page ({ctype.split(';')[0]})", "ok": False}
+                return {"url": url, "title": f"Not an HTML page ({ctype.split(';')[0]})", "tcm_id": None, "ok": False}
             buf = bytearray()
             for chunk in resp.iter_bytes():
                 buf.extend(chunk)
@@ -160,12 +205,15 @@ def fetch_title(client: httpx.Client, url: str) -> dict:
                     break
             document = _decode(bytes(buf), ctype)
     except httpx.TimeoutException:
-        return {"url": url, "title": "Timed out", "ok": False}
+        return {"url": url, "title": "Timed out", "tcm_id": None, "ok": False}
     except httpx.HTTPError as exc:
-        return {"url": url, "title": type(exc).__name__, "ok": False}
+        return {"url": url, "title": type(exc).__name__, "tcm_id": None, "ok": False}
     except Exception as exc:                                   # noqa: BLE001
-        return {"url": url, "title": str(exc)[:120] or "Failed", "ok": False}
-    return {"url": url, "title": extract_title(document), "ok": True}
+        return {"url": url, "title": str(exc)[:120] or "Failed", "tcm_id": None, "ok": False}
+    # Both come out of the one response — the TCM tool needed the page opened
+    # by hand and a bookmarklet clicked; here it costs nothing extra.
+    return {"url": url, "title": extract_title(document),
+            "tcm_id": extract_tcm_id(document), "ok": True}
 
 
 def _client() -> httpx.Client:
@@ -257,6 +305,7 @@ class ExportRow(BaseModel):
     url: str
     title: str = ""
     type: str = ""
+    tcm_id: str = ""
 
 
 class ExportRequest(BaseModel):
@@ -284,12 +333,15 @@ async def verify_titles(req: TitleRequest):
 
     results = []
     for item in fetched:
+        tcm = item.get("tcm_id") or ""
         if not item["ok"]:
-            results.append({"url": item["url"], "title": item["title"], "type": FAILED})
+            results.append({"url": item["url"], "title": item["title"], "type": FAILED,
+                            "tcm_id": tcm, "cms_url": cms_url(tcm)})
             continue
         title = item["title"]
         kind = classify(title, req.brand)
-        results.append({"url": item["url"], "title": title or "", "type": kind})
+        results.append({"url": item["url"], "title": title or "", "type": kind,
+                        "tcm_id": tcm, "cms_url": cms_url(tcm)})
     return {"results": results}
 
 
@@ -300,16 +352,24 @@ async def export_xlsx(req: ExportRequest):
     ws = wb.add_worksheet("Page titles")
     hdr = wb.add_format({"bold": True, "bg_color": "#1450f5", "font_color": "#ffffff", "border": 1})
     cell = wb.add_format({"valign": "top"})
+    # The ID itself is the link, rather than a fifth column repeating the URL.
+    link = wb.add_format({"valign": "top", "font_color": "#1450f5", "underline": 1})
     # No per-row highlighting: the Title Type column already carries the result,
     # and colour-coding was explicitly not wanted.
-    ws.write_row(0, 0, ["URL", "Current Page Title", "Title Type"], hdr)
+    ws.write_row(0, 0, ["URL", "Current Page Title", "Title Type", "TCM ID"], hdr)
     for i, row in enumerate(req.rows, start=1):
         ws.write_string(i, 0, row.url or "", cell)
         ws.write_string(i, 1, row.title or "", cell)
         ws.write_string(i, 2, row.type or "", cell)
+        target = cms_url(row.tcm_id)
+        if target:
+            ws.write_url(i, 3, target, link, row.tcm_id)
+        else:
+            ws.write_string(i, 3, row.tcm_id or "", cell)
     ws.set_column(0, 0, 60)
     ws.set_column(1, 1, 70)
     ws.set_column(2, 2, 18)
+    ws.set_column(3, 3, 26)
     ws.freeze_panes(1, 0)
     wb.close()
     buf.seek(0)
