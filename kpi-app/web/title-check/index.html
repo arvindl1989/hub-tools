@@ -282,8 +282,9 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 });
 
 const $ = id => document.getElementById(id);
-const BATCH = 25;          // URLs per request — small enough to keep the
-                           // progress count moving, large enough to stay fast.
+const BATCH = 12;          // One round of backend workers per request, so a
+                           // batch cannot sit long enough to hit a gateway
+                           // timeout and take its whole slice down with it.
 const BRAND_KEY = 'ptv_brand', SRC_KEY = 'ptv_sitemap';
 
 let urls = [];             // what will be verified
@@ -392,19 +393,7 @@ $('verifyBtn').addEventListener('click', async () => {
 
   for (let i = 0; i < urls.length && !stopped; i += BATCH) {
     const slice = urls.slice(i, i + BATCH);
-    try {
-      const res = await fetch('/api/title-check/titles', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: slice, brand }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
-      rows.push(...(data.results || []));
-    } catch (e) {
-      // One failed batch must not lose the run: record the URLs as unverified
-      // and carry on with the rest.
-      slice.forEach(u => rows.push({ url: u, title: e.message || 'Request failed', type: 'Unable to Verify' }));
-    }
+    rows.push(...await verifySlice(slice, brand));
     setProgress(rows.length, urls.length);
     render();
   }
@@ -414,6 +403,39 @@ $('verifyBtn').addEventListener('click', async () => {
   $('verifyBtn').disabled = false; $('findBtn').disabled = false;
   if (stopped) note(`Stopped after ${rows.length} of ${urls.length}`, 'err');
 });
+
+// A failed request says nothing about the pages in it, so condemning the whole
+// slice turned one timeout into a dozen phantom "Unable to Verify" rows. Retry
+// once, then halve and recurse: a genuinely bad URL is isolated to itself and
+// everything around it still gets verified.
+async function postTitles(slice, brand) {
+  const res = await fetch('/api/title-check/titles', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ urls: slice, brand }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  return data.results || [];
+}
+
+async function verifySlice(slice, brand, retried = false) {
+  try {
+    return await postTitles(slice, brand);
+  } catch (e) {
+    if (!retried) {
+      await new Promise(r => setTimeout(r, 1200));
+      return verifySlice(slice, brand, true);
+    }
+    if (slice.length === 1) {
+      return [{ url: slice[0], title: e.message || 'Request failed', type: 'Unable to Verify', tcm_id: '', cms_url: '' }];
+    }
+    const mid = Math.ceil(slice.length / 2);
+    const left = await verifySlice(slice.slice(0, mid), brand);
+    setProgress(rows.length + left.length, urls.length);
+    const right = await verifySlice(slice.slice(mid), brand);
+    return [...left, ...right];
+  }
+}
 
 function setProgress(done, total) {
   $('progFill').style.width = total ? `${(done / total) * 100}%` : '0';

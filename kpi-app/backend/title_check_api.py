@@ -20,6 +20,7 @@ import gzip
 import html as html_mod
 import io
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
@@ -39,7 +40,16 @@ _HEADERS = {"User-Agent": _UA, "Accept": "text/html,application/xhtml+xml,applic
 
 _CONNECT_TIMEOUT = 8.0
 _READ_TIMEOUT = 15.0
-_WORKERS = 10
+# Six rather than ten: a site's CDN sees a few hundred requests from one server
+# address in a burst, and rate-limiting or a bot challenge comes back as 403 or
+# 429 on a run that worked the first time. Slightly slower, far fewer false
+# failures.
+_WORKERS = 6
+_ATTEMPTS = 2
+_MAX_RETRY_WAIT = 5.0
+# Statuses worth trying again — a timeout, a throttle, or a gateway hiccup says
+# nothing about the page, unlike a 404.
+_RETRY_STATUS = {408, 425, 429, 500, 502, 503, 504}
 # The title lives in <head>, so the rest of the document is never read. Pages
 # that somehow have no </head> stop at this cap instead of streaming megabytes.
 _MAX_HTML_BYTES = 250_000
@@ -187,12 +197,38 @@ def extract_title(document: str) -> Optional[str]:
     return _normalise(re.sub(r"<[^>]+>", "", m.group(1)))
 
 
+def _retry_after(resp: httpx.Response) -> float:
+    """Wait the server asked for, capped — an hour-long Retry-After would stall
+    the whole run."""
+    raw = (resp.headers.get("retry-after") or "").strip()
+    try:
+        return min(float(raw), _MAX_RETRY_WAIT) if raw else 1.0
+    except ValueError:
+        return 1.0
+
+
 def fetch_title(client: httpx.Client, url: str) -> dict:
-    """One page. Returns the title, or why it could not be read."""
+    """One page, with one retry for failures that are about the connection
+    rather than the page."""
+    last = {"url": url, "title": "Failed", "tcm_id": None, "ok": False}
+    for attempt in range(_ATTEMPTS):
+        last = _fetch_once(client, url)
+        if last["ok"] or not last.get("retryable"):
+            break
+        if attempt + 1 < _ATTEMPTS:
+            time.sleep(last.get("wait", 1.0))
+    last.pop("retryable", None)
+    last.pop("wait", None)
+    return last
+
+
+def _fetch_once(client: httpx.Client, url: str) -> dict:
     try:
         with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as resp:
             if resp.status_code >= 400:
-                return {"url": url, "title": f"HTTP {resp.status_code}", "tcm_id": None, "ok": False}
+                return {"url": url, "title": f"HTTP {resp.status_code}", "tcm_id": None, "ok": False,
+                        "retryable": resp.status_code in _RETRY_STATUS,
+                        "wait": _retry_after(resp) if resp.status_code in (429, 503) else 1.0}
             ctype = resp.headers.get("content-type", "")
             if ctype and "html" not in ctype.lower() and "xml" not in ctype.lower():
                 return {"url": url, "title": f"Not an HTML page ({ctype.split(';')[0]})", "tcm_id": None, "ok": False}
@@ -205,9 +241,10 @@ def fetch_title(client: httpx.Client, url: str) -> dict:
                     break
             document = _decode(bytes(buf), ctype)
     except httpx.TimeoutException:
-        return {"url": url, "title": "Timed out", "tcm_id": None, "ok": False}
+        return {"url": url, "title": "Timed out", "tcm_id": None, "ok": False, "retryable": True, "wait": 1.0}
     except httpx.HTTPError as exc:
-        return {"url": url, "title": type(exc).__name__, "tcm_id": None, "ok": False}
+        return {"url": url, "title": type(exc).__name__, "tcm_id": None, "ok": False,
+                "retryable": True, "wait": 1.0}
     except Exception as exc:                                   # noqa: BLE001
         return {"url": url, "title": str(exc)[:120] or "Failed", "tcm_id": None, "ok": False}
     # Both come out of the one response — the TCM tool needed the page opened
