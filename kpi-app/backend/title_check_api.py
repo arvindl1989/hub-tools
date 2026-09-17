@@ -20,8 +20,10 @@ import gzip
 import html as html_mod
 import io
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urldefrag, urljoin, urlparse
 from typing import Optional
 
 import httpx
@@ -113,6 +115,16 @@ def count_trailing_brand(title: str, brand: str) -> int:
     return peel_trailing_brand(title, brand)[0]
 
 
+# Titles are built by joining parts with a pipe, a dash, or an en/em dash. A
+# bare hyphen only splits when it has whitespace around it, so a hyphenated
+# word like "e-handel" stays in one piece.
+_SEGMENT_SPLIT_RE = re.compile(r"\s*[|\u2013\u2014]\s*|\s+-\s+")
+
+
+def _title_segments(text: str) -> list:
+    return [part.strip() for part in _SEGMENT_SPLIT_RE.split(text or "") if part.strip()]
+
+
 def classify(title: Optional[str], brand: str) -> str:
     if title is None:
         return MISSING
@@ -129,15 +141,19 @@ def classify(title: Optional[str], brand: str) -> str:
     # flagging.
     if len(re.findall(re.escape(brand.strip()), title, re.I)) >= 2:
         return DOUBLE
-    # "KONE - KONE Sverige": the brand appears once, so this is not a double
-    # title, but what sits in front of it is made only of words the brand
-    # already contains. The page has no title of its own and the brand word
-    # reads twice. Requiring every word to come from the brand is what keeps
-    # "KONE Elevators | KONE Sverige" — a real page title that happens to open
-    # with the brand word — out of this bucket.
+    # "KONE - KONE Sverige", and equally "Handbok för hissplanering | KONE -
+    # KONE Sverige": the brand appears once, so this is not a double title, but
+    # the segment sitting immediately in front of it adds nothing the brand
+    # does not already say, and the brand word reads twice.
+    #
+    # Only that last segment is tested, not everything before the brand. An
+    # earlier version required the whole remainder to be brand words, which
+    # meant a title with real content in front of the redundant part — exactly
+    # the case above — was passed as a normal title.
     if repeats == 1 and rest:
-        rest_words = _words(rest)
-        if rest_words and set(rest_words) <= set(_words(brand)):
+        tail = _title_segments(rest)[-1] if _title_segments(rest) else ""
+        tail_words = _words(tail)
+        if tail_words and set(tail_words) <= set(_words(brand)):
             return PARTIAL
     return SINGLE
 
@@ -366,6 +382,101 @@ def collect_sitemap_urls(root: str) -> dict:
 
 
 
+
+# ── Links ────────────────────────────────────────────────────────────────────
+# A dead link costs crawl budget, strands the reader and wastes the link equity
+# pointing at it, so a page carrying one is scored down alongside its title and
+# description problems.
+
+_A_HREF_RE = re.compile(r"""<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", re.I)
+_SKIP_HREF = re.compile(r"^\s*(?:mailto:|tel:|javascript:|data:|sms:|#)", re.I)
+
+# Statuses live for half an hour. Nav and footer links repeat on every page of
+# a site, so without this a 448-page run would check the same forty links 448
+# times; with it they are checked once and every later page is a dict lookup.
+_LINK_TTL = 1800.0
+_link_cache: dict = {}
+_link_lock = threading.Lock()
+# Bounded so one page with a thousand links cannot dominate a run.
+_MAX_LINKS_PER_PAGE = 80
+
+
+def extract_links(document: str, base_url: str, internal_only: bool = True) -> list:
+    """Absolute http(s) link targets on the page, deduplicated, in order.
+
+    Fragments are dropped: /page and /page#section are the same document, and
+    checking both would double the work and report the same break twice.
+    """
+    base_host = urlparse(base_url).netloc.lower()
+    out, seen = [], set()
+    for m in _A_HREF_RE.finditer(document):
+        raw = next((g for g in m.groups() if g is not None), "")
+        raw = html_mod.unescape(raw).strip()
+        if not raw or _SKIP_HREF.match(raw):
+            continue
+        try:
+            absolute = urldefrag(urljoin(base_url, raw))[0]
+        except ValueError:
+            continue
+        parts = urlparse(absolute)
+        if parts.scheme not in ("http", "https") or not parts.netloc:
+            continue
+        if internal_only and parts.netloc.lower() != base_host:
+            continue
+        if absolute not in seen:
+            seen.add(absolute)
+            out.append(absolute)
+        if len(out) >= _MAX_LINKS_PER_PAGE:
+            break
+    return out
+
+
+def _probe(client: httpx.Client, url: str):
+    """The status of one link: an int, or a short reason it could not be got."""
+    try:
+        resp = client.head(url, headers=_HEADERS, follow_redirects=True)
+        # Plenty of servers refuse HEAD outright or answer it wrongly, so a
+        # failing HEAD is confirmed with a GET before a link is called broken —
+        # reporting a working page as a 404 would send someone building a
+        # redirect that is not needed.
+        if resp.status_code >= 400:
+            with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as r:
+                return r.status_code
+        return resp.status_code
+    except httpx.TimeoutException:
+        return "Timed out"
+    except httpx.HTTPError:
+        return "Unreachable"
+    except Exception:                                           # noqa: BLE001
+        return "Unreachable"
+
+
+def link_status(client: httpx.Client, url: str):
+    now = time.time()
+    with _link_lock:
+        hit = _link_cache.get(url)
+        if hit and now - hit[1] < _LINK_TTL:
+            return hit[0]
+    status = _probe(client, url)
+    with _link_lock:
+        _link_cache[url] = (status, time.time())
+    return status
+
+
+def is_broken(status) -> bool:
+    """A redirect is not broken — the client follows it and reports where it
+    landed, which is the status that matters."""
+    return not isinstance(status, int) or status >= 400
+
+
+def check_links(links: list) -> dict:
+    if not links:
+        return {}
+    with _client() as client:
+        with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
+            statuses = list(pool.map(lambda u: link_status(client, u), links))
+    return dict(zip(links, statuses))
+
 # ── SEO audit ────────────────────────────────────────────────────────────────
 # Lengths are in characters, not words: a search result truncates on rendered
 # width, so characters are what actually decides whether a title survives.
@@ -382,6 +493,7 @@ PENALTY = {
     "desc_length":       10,
     "keywords_missing":   5,
     "focus_missing":      5,
+    "broken_links":      15,
 }
 
 # The Modelsite form. Matched on the form element's own id, which is how it
@@ -444,7 +556,8 @@ def _focus_terms(raw: str) -> list:
     return [t.strip().lower() for t in re.split(r"[,\n]", raw or "") if t.strip()]
 
 
-def audit_page(title: Optional[str], document: str, brand: str, focus: list) -> dict:
+def audit_page(title: Optional[str], document: str, brand: str, focus: list,
+               broken: Optional[list] = None) -> dict:
     """Per-page findings and the score left after their penalties."""
     kind = classify(title, brand)
     title_text = _normalise(title or "")
@@ -487,8 +600,16 @@ def audit_page(title: Optional[str], document: str, brand: str, focus: list) -> 
         if not hits:
             issues.append(("focus_missing", "None of the focus keywords appear in the title, description or H1"))
 
+    broken = broken or []
+    if broken:
+        shown = ", ".join(broken[:3]) + ("…" if len(broken) > 3 else "")
+        issues.append(("broken_links",
+                       f"{len(broken)} broken link{'s' if len(broken) != 1 else ''} on the page ({shown})"))
+
     lost = sum(PENALTY[key] for key, _ in issues)
     return {
+        "broken_links": broken,
+        "broken_count": len(broken),
         "type": kind,
         "title": title_text,
         "title_chars": len(title_text),
@@ -578,6 +699,13 @@ class AuditRequest(BaseModel):
     urls: list = Field(default_factory=list)
     brand: str = ""
     focus: str = ""
+    check_links: bool = True
+    internal_only: bool = True
+
+
+class LinkRequest(BaseModel):
+    urls: list = Field(default_factory=list)
+    internal_only: bool = True
 
 
 def _crawl(urls: list) -> list:
@@ -592,8 +720,20 @@ async def audit(req: AuditRequest):
     if not urls:
         return {"results": []}
     focus = _focus_terms(req.focus)
+    fetched = _crawl(urls)
+
+    # Links are gathered across the whole batch and checked once, so a nav link
+    # shared by every page costs one request rather than one per page.
+    page_links, statuses = {}, {}
+    if req.check_links:
+        for item in fetched:
+            if item["ok"]:
+                page_links[item["url"]] = extract_links(
+                    item.get("document") or "", item["url"], req.internal_only)
+        statuses = check_links(sorted({l for ls in page_links.values() for l in ls}))
+
     results = []
-    for item in _crawl(urls):
+    for item in fetched:
         tcm = item.get("tcm_id") or ""
         base = {"url": item["url"], "tcm_id": tcm, "cms_url": cms_url(tcm)}
         if not item["ok"]:
@@ -603,11 +743,47 @@ async def audit(req: AuditRequest):
             results.append({**base, "type": FAILED, "title": item["title"], "score": None,
                             "description": "", "keywords": "", "h1": "",
                             "title_chars": 0, "desc_chars": 0, "issues": ["Could not be read"],
-                            "issue_keys": [], "focus_hit": None})
+                            "issue_keys": [], "focus_hit": None,
+                            "broken_links": [], "broken_count": 0, "links_checked": 0})
             continue
-        results.append({**base, **audit_page(item["title"], item.get("document") or "", req.brand, focus)})
+        links = page_links.get(item["url"], [])
+        broken = [l for l in links if is_broken(statuses.get(l, 200))]
+        results.append({**base, "links_checked": len(links),
+                        **audit_page(item["title"], item.get("document") or "",
+                                     req.brand, focus, broken)})
     return {"results": results}
 
+
+
+@router.post("/links")
+async def page_links(req: LinkRequest):
+    """Every link on each page. The tab checks the union of them separately, so
+    a target linked from two hundred pages is requested once rather than two
+    hundred times."""
+    urls = [u.strip() for u in req.urls if u and u.strip()][:_MAX_BATCH]
+    if not urls:
+        return {"results": []}
+    results = []
+    for item in _crawl(urls):
+        if not item["ok"]:
+            results.append({"url": item["url"], "links": [], "error": item["title"]})
+            continue
+        results.append({"url": item["url"],
+                        "links": extract_links(item.get("document") or "", item["url"], req.internal_only),
+                        "error": ""})
+    return {"results": results}
+
+
+@router.post("/link-status")
+async def link_status_batch(req: LinkRequest):
+    links = [u.strip() for u in req.urls if u and u.strip()][:_MAX_BATCH * 4]
+    if not links:
+        return {"results": []}
+    statuses = check_links(links)
+    return {"results": [
+        {"url": u, "status": statuses.get(u), "broken": is_broken(statuses.get(u, 200))}
+        for u in links
+    ]}
 
 @router.post("/forms")
 async def forms(req: TitleRequest):

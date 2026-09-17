@@ -106,6 +106,11 @@
   .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
   .btn-primary:hover:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); color: #fff; }
   .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .opt { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; margin: 0 0 14px; }
+  .opt input { margin: 0; }
+  .src-list { color: var(--muted); font-size: 0.74rem; line-height: 1.6; }
+  .src-list a { color: var(--primary); text-decoration: none; }
+  .src-list a:hover { text-decoration: underline; }
   .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
   .note { font-size: 0.78rem; color: var(--muted); margin: 10px 0 0; }
@@ -250,6 +255,7 @@
   <div class="modes" id="modeTabs">
     <button type="button" data-mode="title" class="active"><i class="fa-solid fa-heading"></i> Title check</button>
     <button type="button" data-mode="audit"><i class="fa-solid fa-gauge-high"></i> SEO audit</button>
+    <button type="button" data-mode="links"><i class="fa-solid fa-link-slash"></i> Link check</button>
     <button type="button" data-mode="forms"><i class="fa-solid fa-clipboard-list"></i> Form check</button>
   </div>
 
@@ -279,6 +285,15 @@
         <input type="text" id="focus" placeholder="elevators, escalators, lifts" autocomplete="off">
       </div>
     </div>
+
+    <label class="opt" id="scanOpt" hidden>
+      <input type="checkbox" id="scanPages">
+      <span>Also scan each page for broken links sitting on it — slower, a second pass over every page</span>
+    </label>
+    <label class="opt" id="internalOpt" hidden>
+      <input type="checkbox" id="internalOnly" checked>
+      <span>Only links to this site — what redirects can actually fix</span>
+    </label>
 
     <div class="actions">
       <button class="btn" id="findBtn" type="button"><i class="fa-solid fa-sitemap"></i> Find URLs</button>
@@ -345,6 +360,13 @@ const MODES = {
     filters: [['all','All'],['issues','Has issues'],['perfect','Full score'],
               ['no-desc','No description'],['title-issue','Title problems'],['problem','Unable to verify']],
   },
+  links: {
+    title: 'Link check',
+    lede: 'Opens every URL in the sitemap and reports the ones that do not load — the redirect worklist. Optionally also scans each page for broken links sitting on it.',
+    button: 'Check links', endpoint: '', batch: 40, focus: false,
+    filters: [['all','All broken'],['sitemap','Sitemap pages'],['onpage','Links on pages'],
+              ['404','404 Not found'],['5xx','Server errors'],['dead','Unreachable / timed out']],
+  },
   forms: {
     title: 'Form check',
     lede: 'Finds the pages still using the Modelsite form (id 658), so the teams that own them can be told.',
@@ -379,7 +401,9 @@ function applyMode(next) {
   $('focusField').hidden = !cfg.focus;
   // The brand is what a duplicate title is measured against, so the two tabs
   // that judge titles need it; the form check does not.
-  $('brandField').hidden = (mode === 'forms');
+  $('brandField').hidden = (mode === 'forms' || mode === 'links');
+  $('internalOpt').hidden = !(mode === 'links' || mode === 'audit');
+  $('scanOpt').hidden = (mode !== 'links');
   filter = 'all';
   $('filters').innerHTML = cfg.filters
     .map(([f, label], i) => `<button type="button" data-f="${f}"${i === 0 ? ' class="active"' : ''}>${label}</button>`).join('');
@@ -474,7 +498,7 @@ $('verifyBtn').addEventListener('click', async () => {
   // Without a brand nothing can be classified as doubled, so every page would
   // come back "Single Title" — a clean bill of health that means nothing. Stop
   // rather than hand back a silently empty result.
-  if (!brand && mode !== 'forms') {
+  if (!brand && mode !== 'forms' && mode !== 'links') {
     $('brand').focus();
     note('Enter the website / brand title first — it is what a duplicate title is measured against', 'err');
     return;
@@ -483,6 +507,7 @@ $('verifyBtn').addEventListener('click', async () => {
 
   running = true; stopped = false;
   rows = [];
+  linkTotals = { pages: 0, okPages: 0, links: 0, okLinks: 0 };
   $('verifyBtn').disabled = true; $('findBtn').disabled = true;
   $('stopBtn').hidden = false; $('stopBtn').disabled = false;
   $('prog').hidden = false;
@@ -491,12 +516,16 @@ $('verifyBtn').addEventListener('click', async () => {
   setProgress(0, urls.length);
   render();
 
-  const batch = MODES[mode].batch;
-  for (let i = 0; i < urls.length && !stopped; i += batch) {
-    const slice = urls.slice(i, i + batch);
-    rows.push(...await verifySlice(slice, brand));
-    setProgress(rows.length, urls.length);
-    render();
+  if (mode === 'links') {
+    await runLinkCheck();
+  } else {
+    const batch = MODES[mode].batch;
+    for (let i = 0; i < urls.length && !stopped; i += batch) {
+      const slice = urls.slice(i, i + batch);
+      rows.push(...await verifySlice(slice, brand));
+      setProgress(rows.length, urls.length);
+      render();
+    }
   }
 
   running = false;
@@ -512,7 +541,8 @@ $('verifyBtn').addEventListener('click', async () => {
 async function postTitles(slice, brand) {
   const res = await fetch(MODES[mode].endpoint, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls: slice, brand, focus: $('focus').value.trim() }),
+    body: JSON.stringify({ urls: slice, brand, focus: $('focus').value.trim(),
+                           internal_only: $('internalOnly').checked }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
@@ -540,9 +570,101 @@ async function verifySlice(slice, brand, retried = false) {
   }
 }
 
-function setProgress(done, total) {
+// The link check runs in two passes on purpose. Collecting every link first
+// and checking the deduplicated set second means a target linked from two
+// hundred pages is requested once; checking as each page is scanned would
+// re-request the whole navigation for every page on the site.
+let linkTotals = { pages: 0, okPages: 0, links: 0, okLinks: 0 };
+
+async function runLinkCheck() {
+  const batch = MODES.links.batch;
+
+  // Pass one, and the point of the tab: every URL the sitemap lists, opened to
+  // see whether it loads at all. A page in the sitemap that answers 404 or 500
+  // is the thing a redirect has to be built for.
+  let checked = 0;
+  for (let i = 0; i < urls.length && !stopped; i += batch) {
+    const slice = urls.slice(i, i + batch);
+    let results = [];
+    try {
+      const res = await fetch('/api/title-check/link-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: slice }),
+      });
+      results = (await res.json()).results || [];
+    } catch (e) {
+      results = slice.map(u => ({ url: u, status: 'Unreachable', broken: true }));
+    }
+    results.forEach(r => {
+      if (r.broken) rows.push({ url: r.url, status: r.status, origin: 'sitemap', occurrences: 1, sources: [] });
+      else linkTotals.okPages += 1;
+    });
+    checked += slice.length;
+    linkTotals.pages = checked;
+    setProgress(checked, urls.length, 'sitemap pages checked');
+    render();
+  }
+
+  if (!$('scanPages').checked || stopped) { render(); return; }
+
+  // Pass two, optional: the links sitting on each page. Collected across all
+  // pages first and checked as a deduplicated set, so a target linked from two
+  // hundred pages is requested once rather than two hundred times.
+  const sources = new Map();
+  const internal = $('internalOnly').checked;
+  const PB = MODES.audit.batch;
+  let scanned = 0;
+  for (let i = 0; i < urls.length && !stopped; i += PB) {
+    const slice = urls.slice(i, i + PB);
+    let results = [];
+    try {
+      const res = await fetch('/api/title-check/links', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: slice, internal_only: internal }),
+      });
+      results = (await res.json()).results || [];
+    } catch (e) { /* a page that cannot be scanned contributes no links */ }
+    results.forEach(r => (r.links || []).forEach(l => {
+      if (!sources.has(l)) sources.set(l, []);
+      sources.get(l).push(r.url);
+    }));
+    scanned += slice.length;
+    setProgress(scanned, urls.length, 'pages scanned for links');
+  }
+
+  const links = [...sources.keys()];
+  linkTotals.links = links.length;
+  let done = 0;
+  for (let i = 0; i < links.length && !stopped; i += batch) {
+    const slice = links.slice(i, i + batch);
+    let results = [];
+    try {
+      const res = await fetch('/api/title-check/link-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: slice }),
+      });
+      results = (await res.json()).results || [];
+    } catch (e) {
+      results = slice.map(u => ({ url: u, status: 'Unreachable', broken: true }));
+    }
+    results.forEach(r => {
+      if (!r.broken) { linkTotals.okLinks += 1; return; }
+      const pages = sources.get(r.url) || [];
+      // Only broken links become rows: this table is the redirect worklist,
+      // and the site's working links would bury it under thousands of rows.
+      rows.push({ url: r.url, status: r.status, origin: 'onpage',
+                  occurrences: pages.length, sources: pages });
+    });
+    done += slice.length;
+    setProgress(done, links.length, 'links checked');
+    render();
+  }
+  render();
+}
+
+function setProgress(done, total, noun = 'verified') {
   $('progFill').style.width = total ? `${(done / total) * 100}%` : '0';
-  $('progText').textContent = `${done} / ${total} verified`;
+  $('progText').textContent = `${done} / ${total} ${noun}`;
 }
 
 // ── Results ────────────────────────────────────────────────────────────────
@@ -571,6 +693,11 @@ function visibleRows() {
   if (filter === 'no-desc') return rows.filter(r => (r.issue_keys || []).includes('desc_missing'));
   if (filter === 'title-issue') return rows.filter(r =>
     (r.issue_keys || []).some(k => k.startsWith('title_')));
+  if (filter === 'sitemap') return rows.filter(r => r.origin === 'sitemap');
+  if (filter === 'onpage') return rows.filter(r => r.origin === 'onpage');
+  if (filter === '404') return rows.filter(r => r.status === 404);
+  if (filter === '5xx') return rows.filter(r => typeof r.status === 'number' && r.status >= 500);
+  if (filter === 'dead') return rows.filter(r => typeof r.status !== 'number');
   if (filter === 'modelsite') return rows.filter(r => r.modelsite);
   if (filter === 'other') return rows.filter(r => !r.modelsite && r.form_count > 0);
   if (filter === 'none') return rows.filter(r => !r.modelsite && !r.form_count);
@@ -624,6 +751,29 @@ function renderSummary() {
     $('insights').hidden = true;
     return;
   }
+  if (mode === 'links') {
+    const dead = rows.filter(r => r.origin === 'sitemap');
+    const onpage = rows.filter(r => r.origin === 'onpage');
+    $('summary').innerHTML = [
+      stat(linkTotals.pages, 'Sitemap pages checked'),
+      stat(dead.length, 'Pages that do not load'),
+      stat(dead.filter(r => r.status === 404).length, '404'),
+      stat(dead.filter(r => typeof r.status === 'number' && r.status >= 500).length, 'Server errors'),
+      stat(linkTotals.links, 'Links on pages checked'),
+      stat(onpage.length, 'Broken links on pages'),
+    ].join('');
+    $('insights').hidden = !(dead.length || onpage.length);
+    if (!$('insights').hidden) {
+      const bits = [];
+      if (dead.length) bits.push(`<li>Build redirects for the <span class="gain">${dead.length} sitemap page${dead.length === 1 ? '' : 's'}</span> that do not load. `
+        + `Filter to Sitemap pages and export — these are live URLs people and search engines are already following.</li>`);
+      if (onpage.length) bits.push(`<li>Fix or repoint the <span class="gain">${onpage.length} broken link${onpage.length === 1 ? '' : 's'}</span> found on pages. `
+        + `The Found on column names the pages to edit.</li>`);
+      $('insights').innerHTML = `<div class="insight"><h2>Do these first</h2><ol>${bits.join('')}</ol></div>`;
+    }
+    return;
+  }
+
   if (mode === 'forms') {
     const ms = rows.filter(r => r.modelsite).length;
     $('summary').innerHTML = [
@@ -684,6 +834,21 @@ function render() {
   const list = visibleRows();
   if (!list.length) {
     $('wrap').innerHTML = `<div class="empty">${running ? 'Working…' : 'No rows to show'}</div>`;
+    return;
+  }
+
+  if (mode === 'links') {
+    $('wrap').innerHTML = '<table class="wide"><thead><tr><th>URL that fails</th><th>Status</th><th>Where</th><th>Found on</th></tr></thead><tbody>'
+      + list.map(r => `<tr>
+          ${urlCell(r)}
+          <td><span class="tag ${typeof r.status === 'number' && r.status === 404 ? 'tag-double' : 'tag-failed'}">${esc(String(r.status))}</span></td>
+          <td><span class="tag ${r.origin === 'sitemap' ? 'tag-partial' : 'tag-missing'}">${r.origin === 'sitemap' ? 'In sitemap' : 'Link on page'}</span></td>
+          <td class="src-list">${r.origin === 'sitemap'
+              ? 'Listed in the sitemap'
+              : (r.sources || []).slice(0, 3).map(u => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>`).join('<br>')
+                + ((r.sources || []).length > 3 ? `<br>+ ${r.sources.length - 3} more` : '')}</td>
+        </tr>`).join('')
+      + '</tbody></table>';
     return;
   }
 
@@ -768,6 +933,16 @@ const EXPORTS = {
       { key: 'tcm_id', label: 'TCM ID', width: 26, link: 'cms' },
     ],
   },
+  links: {
+    sheet: 'Broken links', filename: 'broken-links.xlsx',
+    columns: [
+      { key: 'url', label: 'URL That Fails', width: 70 },
+      { key: 'status', label: 'Status', width: 12 },
+      { key: 'origin_text', label: 'Where', width: 16 },
+      { key: 'occurrences', label: 'Times Linked', width: 14 },
+      { key: 'source_text', label: 'Found On', width: 90 },
+    ],
+  },
   forms: {
     sheet: 'Form check', filename: 'form-check.xlsx',
     columns: [
@@ -788,6 +963,8 @@ function exportPayload(list) {
     // are lists.
     issue_text: (r.issues || []).join('; '),
     form_id_text: (r.form_ids || []).join(', '),
+    origin_text: r.origin === 'sitemap' ? 'In sitemap' : r.origin === 'onpage' ? 'Link on page' : '',
+    source_text: r.origin === 'sitemap' ? 'Listed in the sitemap' : (r.sources || []).join(' ; '),
   }));
   return { sheet: cfg.sheet, filename: cfg.filename, columns: cfg.columns, data };
 }
