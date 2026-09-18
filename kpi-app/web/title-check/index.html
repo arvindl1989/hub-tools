@@ -599,7 +599,7 @@ async function runLinkCheck() {
       });
       results = (await res.json()).results || [];
     } catch (e) {
-      results = slice.map(u => ({ url: u, status: 'Unreachable', kind: 'unchecked', broken: false, unverified: true }));
+      results = slice.map(u => ({ url: u, status: 'Check did not run', kind: 'unchecked', broken: false, unverified: true }));
     }
     results.forEach(r => {
       if (r.broken || r.unverified) {
@@ -653,7 +653,7 @@ async function runLinkCheck() {
       });
       results = (await res.json()).results || [];
     } catch (e) {
-      results = slice.map(u => ({ url: u, status: 'Unreachable', kind: 'unchecked', broken: false, unverified: true }));
+      results = slice.map(u => ({ url: u, status: 'Check did not run', kind: 'unchecked', broken: false, unverified: true }));
     }
     results.forEach(r => {
       if (!r.broken && !r.unverified) { linkTotals.okLinks += 1; return; }

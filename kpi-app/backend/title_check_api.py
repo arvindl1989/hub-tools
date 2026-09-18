@@ -289,7 +289,13 @@ def fetch_title(client: httpx.Client, url: str, want_body: bool = False) -> dict
     pacer = _pacer(url)
     for attempt in range(_ATTEMPTS):
         pacer.wait()
-        last = _fetch_once(client, url, want_body)
+        active = _h1_client() if _prefers_h1(url) else client
+        last = _fetch_once(active, url, want_body)
+        if last.get("http_status") == "Protocol error" and not _prefers_h1(url):
+            retry = _fetch_once(_h1_client(), url, want_body)
+            if retry["ok"]:
+                _remember_h1(url)
+                last = retry
         _note_status(url, last.get("http_status", 200 if last["ok"] else "Unreachable"))
         if last["ok"] or not last.get("retryable"):
             break
@@ -324,14 +330,10 @@ def _fetch_once(client: httpx.Client, url: str, want_body: bool = False) -> dict
                 if not want_body and b"</head" in buf.lower():
                     break
             document = _decode(bytes(buf), ctype)
-    except httpx.TimeoutException:
-        return {"url": url, "title": "Timed out", "tcm_id": None, "ok": False,
-                "http_status": "Timed out", "retryable": True, "wait": 1.0}
-    except httpx.HTTPError as exc:
-        return {"url": url, "title": type(exc).__name__, "tcm_id": None, "ok": False,
-                "retryable": True, "wait": 1.0}
     except Exception as exc:                                   # noqa: BLE001
-        return {"url": url, "title": str(exc)[:120] or "Failed", "tcm_id": None, "ok": False}
+        label = describe_error(exc)
+        return {"url": url, "title": label, "tcm_id": None, "ok": False,
+                "http_status": label, "retryable": label in _RETRYABLE_ERRORS, "wait": 1.0}
     # Both come out of the one response — the TCM tool needed the page opened
     # by hand and a bookmarklet clicked; here it costs nothing extra.
     return {"url": url, "title": extract_title(document),
@@ -340,24 +342,73 @@ def _fetch_once(client: httpx.Client, url: str, want_body: bool = False) -> dict
 
 
 _shared_client: Optional[httpx.Client] = None
+_shared_client_h1: Optional[httpx.Client] = None
 _client_lock = threading.Lock()
 
 
-def _new_client() -> httpx.Client:
-    # HTTP/2 when the dependency is there. Bot protection fingerprints the
-    # protocol too, and a browser UA arriving over HTTP/1.1 is another tell.
+# Naming the failure instead of calling everything "Unreachable". A connection
+# the server reset, a protocol the client and server disagreed about, and a
+# hostname that does not resolve are three different problems with three
+# different fixes, and collapsing them into one word made the tool impossible
+# to diagnose from its own output.
+def describe_error(exc: BaseException) -> str:
+    if isinstance(exc, httpx.TooManyRedirects):
+        return "Redirect loop"
+    if isinstance(exc, (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout)):
+        return "Timed out"
+    if isinstance(exc, httpx.RemoteProtocolError):
+        return "Protocol error"
+    if isinstance(exc, (httpx.ReadError, httpx.WriteError)):
+        return "Connection reset"
+    if isinstance(exc, httpx.ConnectError):
+        text = str(exc).lower()
+        if "ssl" in text or "certificate" in text or "tls" in text:
+            return "TLS error"
+        if "name or service" in text or "nodename" in text or "resolve" in text:
+            return "DNS failure"
+        return "Connection failed"
+    if isinstance(exc, (httpx.UnsupportedProtocol, httpx.InvalidURL)):
+        return "Bad URL"
+    return type(exc).__name__
+
+
+# A protocol error is the one failure worth changing approach over rather than
+# merely repeating: it usually means this host and HTTP/2 do not get along, and
+# every later request to it would fail the same way. Such hosts are remembered
+# and served over HTTP/1.1 for the rest of the run.
+_RETRYABLE_ERRORS = ("Protocol error", "Connection reset", "Connection failed", "Timed out")
+_h1_hosts: set = set()
+
+
+def _prefers_h1(url: str) -> bool:
+    with _client_lock:
+        return urlparse(url).netloc.lower() in _h1_hosts
+
+
+def _remember_h1(url: str) -> None:
+    with _client_lock:
+        _h1_hosts.add(urlparse(url).netloc.lower())
+
+
+def _build(http2: bool) -> httpx.Client:
+    limits = httpx.Limits(max_connections=_WORKERS + 2, max_keepalive_connections=_WORKERS + 2)
+    # retries covers connection-level failures, which matters far more now the
+    # client is long-lived: a keepalive connection the server has quietly closed
+    # fails on next use, and httpx does not retry that by default. That alone
+    # produces intermittent unreachable results on pages that are perfectly
+    # fine.
+    kwargs = dict(
+        timeout=httpx.Timeout(_READ_TIMEOUT, connect=_CONNECT_TIMEOUT),
+        limits=limits, follow_redirects=True, headers=_HEADERS,
+    )
     try:
-        return httpx.Client(
-            timeout=httpx.Timeout(_READ_TIMEOUT, connect=_CONNECT_TIMEOUT),
-            limits=httpx.Limits(max_connections=_WORKERS + 2, max_keepalive_connections=_WORKERS + 2),
-            follow_redirects=True, headers=_HEADERS, http2=True,
-        )
+        return httpx.Client(transport=httpx.HTTPTransport(retries=2, http2=http2), **kwargs)
     except ImportError:
-        return httpx.Client(
-            timeout=httpx.Timeout(_READ_TIMEOUT, connect=_CONNECT_TIMEOUT),
-            limits=httpx.Limits(max_connections=_WORKERS + 2, max_keepalive_connections=_WORKERS + 2),
-            follow_redirects=True, headers=_HEADERS,
-        )
+        return httpx.Client(transport=httpx.HTTPTransport(retries=2), **kwargs)
+
+
+def _new_client() -> httpx.Client:
+    return _build(http2=True)
 
 
 class _SharedClient:
@@ -384,6 +435,24 @@ class _SharedClient:
 
 def _client() -> "_SharedClient":
     return _SharedClient()
+
+
+def _h1_client() -> httpx.Client:
+    global _shared_client_h1
+    with _client_lock:
+        if _shared_client_h1 is None or _shared_client_h1.is_closed:
+            _shared_client_h1 = _build(http2=False)
+        return _shared_client_h1
+
+
+def _request_status(client: httpx.Client, url: str):
+    """One GET, returning a status code or a named failure. The body is
+    streamed and dropped — only the response line is needed."""
+    try:
+        with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as r:
+            return r.status_code
+    except Exception as exc:                                    # noqa: BLE001
+        return describe_error(exc)
 
 
 # ── Sitemaps ─────────────────────────────────────────────────────────────────
@@ -593,16 +662,21 @@ def _probe(client: httpx.Client, url: str):
     # treats it as a scraper and answers 403; the body is streamed and dropped
     # without being read, so the cost is a header round trip either way.
     pacer = _pacer(url)
-    status = "Unreachable"
+    status = "Connection failed"
     for attempt in range(_BLOCK_ATTEMPTS):
         pacer.wait()
-        try:
-            with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as r:
-                status = r.status_code
-        except httpx.TimeoutException:
-            status = "Timed out"
-        except Exception:                                       # noqa: BLE001
-            status = "Unreachable"
+        active = _h1_client() if _prefers_h1(url) else client
+        status = _request_status(active, url)
+
+        # A protocol error says this host and HTTP/2 disagree, so the same
+        # request is tried once over HTTP/1.1 before the attempt is written
+        # off. If that works, the host is served over HTTP/1.1 from here on.
+        if status == "Protocol error" and not _prefers_h1(url):
+            retry = _request_status(_h1_client(), url)
+            if not isinstance(retry, str) or retry not in _RETRYABLE_ERRORS:
+                _remember_h1(url)
+                status = retry
+
         _note_status(url, status)
         if not is_unverified(status):
             return status
