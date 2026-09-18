@@ -102,7 +102,6 @@ export default function Service2Page() {
   const m = data
   const hm = m.heatmap || { journeys: [], frontlines: [], grid: [], max: 0 }
   const slip = m.slippage || {}
-  const landed = (slip.on_plan || 0) + (slip.later || 0) + (slip.earlier || 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -114,8 +113,14 @@ export default function Service2Page() {
           sub={`${m.utilised} done or in progress`} />
         <MetricCard label="Not taken up" value={m.not_utilised}
           sub="rejected or unassigned" />
-        <MetricCard label="Delivered on plan" value={landed ? pct((slip.on_plan / landed) * 100) : '—'}
-          sub={`${slip.on_plan || 0} of ${landed} that landed`} />
+        {/* The one card that points somewhere rather than totalling something.
+            Recomputed on every upload, so it always names whoever is currently
+            worst instead of freezing today's answer into the page. */}
+        {m.attention
+          ? <MetricCard label="Needs attention" value={m.attention.name}
+              sub={`${pct(m.attention.dropped_pct)} of its plan dropped — ${m.attention.dropped} of ${m.attention.total}`} />
+          : <MetricCard label="Needs attention" value="None"
+              sub="no frontline of a meaningful size is dropping planned work" />}
       </div>
 
       {/* ── Leadership narrative ── */}

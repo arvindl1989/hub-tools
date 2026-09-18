@@ -239,6 +239,13 @@ def parse_sheet(frame: pd.DataFrame) -> list:
 
 # ── Metrics ──────────────────────────────────────────────────────────────────
 
+# A frontline with one planned journey that was rejected is at 100% dropped and
+# would outrank a frontline that dropped six of seven, which is the one actually
+# worth a conversation. Four is the smallest sample that keeps the single-row
+# frontlines out without hiding anything real on this sheet.
+MIN_SAMPLE = 4
+
+
 def _pct(part: int, whole: int) -> float:
     return round(part / whole * 100, 1) if whole else 0.0
 
@@ -339,9 +346,24 @@ def compute_metrics(rows: list) -> dict:
         if r["Status"] not in UTILISED and (r.get("Completed In") or "") not in ("", "-")
     ]
 
+    sizeable = [f for f in _bucket(rows, "Frontline") if f["total"] >= MIN_SAMPLE]
+    attention = None
+    if sizeable:
+        worst = max(sizeable, key=lambda f: (f["rejected_pct"], f["total"]))
+        # Only worth calling out if something is actually being dropped.
+        if worst["rejected_pct"] > 0:
+            attention = {
+                "name": worst["name"],
+                "dropped_pct": worst["rejected_pct"],
+                "dropped": worst["rejected"] + worst["unassigned"],
+                "total": worst["total"],
+                "min_sample": MIN_SAMPLE,
+            }
+
     return {
         "total": total,
         "status_counts": counts,
+        "attention": attention,
         "utilised": used,
         "not_utilised": total - used,
         "util_pct": _pct(used, total),
@@ -377,7 +399,7 @@ def headline_report(m: dict) -> list:
             f"{low['quarter']} is the weakest quarter for plan utilisation at "
             f"{low['util_pct']}% — {low['planned']} planned, {low['not_utilised']} not taken up.")
 
-    fl = [f for f in m["by_frontline"] if f["total"] >= 4]
+    fl = [f for f in m["by_frontline"] if f["total"] >= MIN_SAMPLE]
     if fl:
         top = max(fl, key=lambda f: f["done_pct"])
         bottom = max(fl, key=lambda f: f["rejected_pct"])
