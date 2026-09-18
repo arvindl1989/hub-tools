@@ -177,6 +177,31 @@
   .filters button:last-child { border-right: none; }
   .filters button.active { background: var(--primary); color: #fff; }
 
+  /* ── Capability picker ── */
+  .caps { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 8px; margin: 0 0 16px; }
+  .cap {
+    display: flex; gap: 9px; align-items: flex-start; cursor: pointer;
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: #fff;
+  }
+  .cap:hover { border-color: var(--border-strong); }
+  .cap input { margin: 2px 0 0; }
+  .cap input:disabled { cursor: default; }
+  .cap span { display: flex; flex-direction: column; gap: 2px; }
+  .cap b { font-size: 0.82rem; font-weight: 600; }
+  .cap em { font-style: normal; font-size: 0.72rem; color: var(--muted); line-height: 1.45; }
+  .cap:has(input:checked) { border-color: var(--primary); background: #f7f9ff; }
+  .hint { font-size: 0.72rem; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
+  .sel {
+    border: 1px solid var(--border-strong); border-radius: var(--radius); background: #fff;
+    padding: 6px 9px; font-size: 0.79rem; font-family: inherit; color: var(--text);
+  }
+  /* ── Per-domain rollup ── */
+  .rollup { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: auto; margin-bottom: 14px; }
+  .rollup table { width: 100%; }
+  .rollup td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .bad { color: #b3261e; font-weight: 600; }
+  .warn { color: #a75d00; font-weight: 600; }
+  .good { color: #147a50; font-weight: 600; }
   /* ── Results table ── */
   .wrap {
     border: 1px solid var(--border); border-radius: var(--radius);
@@ -195,7 +220,15 @@
   td.u { max-width: 420px; min-width: 230px; word-break: break-word; }
   td.u a { color: var(--primary); text-decoration: none; }
   td.u a:hover { text-decoration: underline; }
-  td.t { max-width: 520px; }
+  /* An unbroken run of characters — which a meta description can be — has no
+     wrap opportunity and forces its column wide enough to push the later ones
+     off screen, so cells that carry prose break anywhere and are clamped. */
+  td.t { max-width: 330px; word-break: break-word; }
+  td.desc { max-width: 360px; word-break: break-word; }
+  td.desc > span.clamp {
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
   .tag {
     display: inline-block; font-family: var(--font-kone); text-transform: uppercase;
     letter-spacing: 0.05em; font-size: 0.62rem; padding: 3px 8px;
@@ -249,23 +282,24 @@
 </nav>
 
 <div class="page">
-  <h1 id="pageTitle">Page title verifier</h1>
-  <p class="lede" id="pageLede">Reads the live &lt;title&gt; and the page TCM ID from every page, flags the ones where the site name has been added twice or repeats a brand word, and links each ID straight to its CMS item.</p>
-
-  <div class="modes" id="modeTabs">
-    <button type="button" data-mode="title" class="active"><i class="fa-solid fa-heading"></i> Title check</button>
-    <button type="button" data-mode="audit"><i class="fa-solid fa-gauge-high"></i> SEO audit</button>
-    <button type="button" data-mode="links"><i class="fa-solid fa-link-slash"></i> Link check</button>
-    <button type="button" data-mode="forms"><i class="fa-solid fa-clipboard-list"></i> Form check</button>
-  </div>
+  <h1>Site auditor</h1>
+  <p class="lede">One pass over a site — or every site — reading page titles, meta descriptions, TCM IDs, forms and links from the same fetch. Pick the checks you need.</p>
 
   <div class="card">
     <div class="tabs" id="srcTabs">
-      <button type="button" data-src="sitemap" class="active">Sitemap URL</button>
+      <button type="button" data-src="domains" class="active">Domain list</button>
+      <button type="button" data-src="sitemap">One sitemap</button>
       <button type="button" data-src="list">Paste URLs</button>
     </div>
 
-    <div class="field" id="srcSitemap">
+    <div class="field" id="srcDomains">
+      <label class="lbl" for="domainList">Domains — one per line, optionally followed by Area and Frontline</label>
+      <textarea id="domainList" placeholder="www.kone.com.au, APM, KANZ&#10;www.kone.bg, EU, EEM&#10;www.kone.se&#9;EU&#9;NORDICS"></textarea>
+      <p class="hint">Comma, tab or pipe separated, so a block of cells pasted from Excel works as-is.
+        The sitemap is found from each domain's robots.txt, or the usual paths.</p>
+    </div>
+
+    <div class="field" id="srcSitemap" hidden>
       <label class="lbl" for="sitemapUrl">Sitemap URL</label>
       <input type="text" id="sitemapUrl" placeholder="https://www.kone.com.au/sitemap.xml" autocomplete="off">
     </div>
@@ -275,10 +309,28 @@
       <textarea id="urlList" placeholder="https://www.kone.com.au/elevators&#10;https://www.kone.com.au/escalators"></textarea>
     </div>
 
+    <label class="lbl">Checks to run</label>
+    <div class="caps" id="caps">
+      <label class="cap"><input type="checkbox" data-cap="titles" checked disabled>
+        <span><b>Page titles</b><em>Double, partial and missing titles. Free — it comes with the fetch.</em></span></label>
+      <label class="cap"><input type="checkbox" data-cap="dead" checked disabled>
+        <span><b>Pages that do not load</b><em>Also free: every page's own status comes from the same request.</em></span></label>
+      <label class="cap"><input type="checkbox" data-cap="tcm" checked>
+        <span><b>TCM IDs</b><em>The pagetcmid meta, linked to its CMS item.</em></span></label>
+      <label class="cap"><input type="checkbox" data-cap="seo">
+        <span><b>SEO score</b><em>Meta description, lengths and keywords. Reads the whole page.</em></span></label>
+      <label class="cap"><input type="checkbox" data-cap="forms">
+        <span><b>Modelsite forms</b><em>Pages still carrying form 658. Reads the whole page.</em></span></label>
+      <label class="cap"><input type="checkbox" data-cap="links">
+        <span><b>Links on pages</b><em>Broken links found on each page. Slowest — adds a second pass.</em></span></label>
+    </div>
+
     <div class="row">
       <div class="field" id="brandField">
         <label class="lbl" for="brand">Website / brand title</label>
         <input type="text" id="brand" placeholder="KONE Australia" autocomplete="off">
+        <p class="hint">What a duplicate title is measured against. With a domain list, leave blank to
+          derive one per site from its own pages.</p>
       </div>
       <div class="field" id="focusField" hidden>
         <label class="lbl" for="focus">Focus keywords — optional, comma separated</label>
@@ -286,18 +338,13 @@
       </div>
     </div>
 
-    <label class="opt" id="scanOpt" hidden>
-      <input type="checkbox" id="scanPages">
-      <span>Also scan each page for broken links sitting on it — slower, a second pass over every page</span>
-    </label>
     <label class="opt" id="internalOpt" hidden>
       <input type="checkbox" id="internalOnly" checked>
-      <span>Only links to this site — what redirects can actually fix</span>
+      <span>Only links to the site being audited — what redirects can actually fix</span>
     </label>
 
     <div class="actions">
-      <button class="btn" id="findBtn" type="button"><i class="fa-solid fa-sitemap"></i> Find URLs</button>
-      <button class="btn btn-primary" id="verifyBtn" type="button" disabled><i class="fa-solid fa-check-double"></i> <span id="verifyLabel">Verify titles</span></button>
+      <button class="btn btn-primary" id="runBtn" type="button"><i class="fa-solid fa-play"></i> <span id="runLabel">Run the audit</span></button>
       <button class="btn" id="stopBtn" type="button" hidden><i class="fa-solid fa-stop"></i> Stop</button>
     </div>
 
@@ -311,16 +358,20 @@
 
   <div id="resultsArea" hidden>
     <div class="summary" id="summary"></div>
-
     <div id="insights" hidden></div>
+    <div id="rollupArea" hidden></div>
 
     <div class="toolbar">
       <div class="filters" id="filters"></div>
+      <select id="areaFilter" class="sel" hidden></select>
+      <select id="flFilter" class="sel" hidden></select>
+      <select id="domainFilter" class="sel" hidden></select>
       <button class="btn" id="recheckBtn" type="button" hidden><i class="fa-solid fa-rotate"></i> <span id="recheckLabel">Recheck blocked</span></button>
       <button class="btn" id="exportBtn" type="button"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
     </div>
 
     <div class="wrap" id="wrap"></div>
+    <div id="brokenArea" hidden></div>
   </div>
 </div>
 
@@ -339,391 +390,14 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 });
 
 const $ = id => document.getElementById(id);
-const BATCH = 12;          // One round of backend workers per request, so a
-                           // batch cannot sit long enough to hit a gateway
-                           // timeout and take its whole slice down with it.
-const BRAND_KEY = 'ptv_brand', SRC_KEY = 'ptv_sitemap';
+const PAGE_BATCH = 10;     // pages per scan request — one round of backend workers
+const LINK_BATCH = 40;     // link statuses per request
+const BRAND_KEY = 'sa_brand', DOM_KEY = 'sa_domains', SM_KEY = 'sa_sitemap', CAP_KEY = 'sa_caps';
 
-// Each tab is the same crawl with a different question asked of the markup,
-// so they share the source input, the run loop and the export.
-const MODES = {
-  title: {
-    title: 'Page title verifier',
-    lede: 'Reads the live &lt;title&gt; and the page TCM ID from every page, flags the ones where the site name has been added twice or repeats a brand word, and links each ID straight to its CMS item.',
-    button: 'Verify titles', endpoint: '/api/title-check/titles', batch: 12, focus: false,
-    filters: [['all','All'],['Single Title','Single Title'],['Double Title','Double Title'],
-              ['Partial Duplicate','Partial Duplicate'],['problem','Missing / Unable to Verify'],['no-tcm','No TCM ID']],
-  },
-  audit: {
-    title: 'SEO audit',
-    lede: 'Scores every page out of 100 on its title, meta description and keywords, then totals up what the site is leaving on the table.',
-    button: 'Run audit', endpoint: '/api/title-check/audit', batch: 8, focus: true,
-    filters: [['all','All'],['issues','Has issues'],['perfect','Full score'],
-              ['no-desc','No description'],['title-issue','Title problems'],['problem','Unable to verify']],
-  },
-  links: {
-    title: 'Link check',
-    lede: 'Opens every URL in the sitemap and reports the ones that do not load — the redirect worklist. Optionally also scans each page for broken links sitting on it.',
-    button: 'Check links', endpoint: '', batch: 40, focus: false,
-    filters: [['all','Everything'],['broken','Genuinely broken'],['sitemap','Sitemap pages'],
-              ['onpage','Links on pages'],['404','404 Not found'],['5xx','Server errors'],
-              ['unverified','Could not check']],
-  },
-  forms: {
-    title: 'Form check',
-    lede: 'Finds the pages still using the Modelsite form (id 658), so the teams that own them can be told.',
-    button: 'Check forms', endpoint: '/api/title-check/forms', batch: 8, focus: false,
-    filters: [['all','All'],['modelsite','Modelsite form'],['other','Other form'],['none','No form']],
-  },
-};
-let mode = 'title';
-
-let urls = [];             // what will be verified
-let rows = [];             // {url, title, type}
-let filter = 'all';
-let running = false, stopped = false;
-
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-function note(msg, kind = '') {
-  const el = $('note');
-  el.textContent = msg;
-  el.className = 'note' + (kind ? ' ' + kind : '');
-}
-
-// ── Mode tabs ──────────────────────────────────────────────────────────────
-function applyMode(next) {
-  mode = next;
-  const cfg = MODES[mode];
-  [...$('modeTabs').children].forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-  $('pageTitle').textContent = cfg.title;
-  $('pageLede').innerHTML = cfg.lede;
-  $('verifyLabel').textContent = cfg.button;
-  $('focusField').hidden = !cfg.focus;
-  // The brand is what a duplicate title is measured against, so the two tabs
-  // that judge titles need it; the form check does not.
-  $('brandField').hidden = (mode === 'forms' || mode === 'links');
-  $('internalOpt').hidden = !(mode === 'links' || mode === 'audit');
-  $('scanOpt').hidden = (mode !== 'links');
-  filter = 'all';
-  $('filters').innerHTML = cfg.filters
-    .map(([f, label], i) => `<button type="button" data-f="${f}"${i === 0 ? ' class="active"' : ''}>${label}</button>`).join('');
-  // Results belong to the run that produced them, not to the tab.
-  rows = [];
-  $('resultsArea').hidden = true;
-  $('insights').hidden = true;
-  $('prog').hidden = true;
-  note('');
-}
-
-$('modeTabs').addEventListener('click', e => {
-  const b = e.target.closest('button');
-  if (b && b.dataset.mode !== mode) applyMode(b.dataset.mode);
-});
-
-// ── Source toggle ──────────────────────────────────────────────────────────
-let source = 'sitemap';
-$('srcTabs').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  source = b.dataset.src;
-  [...$('srcTabs').children].forEach(x => x.classList.toggle('active', x === b));
-  $('srcSitemap').hidden = source !== 'sitemap';
-  $('srcList').hidden = source !== 'list';
-  $('findBtn').hidden = source !== 'sitemap';
-  note('');
-  if (source === 'list') {
-    urls = readPastedUrls();
-    $('verifyBtn').disabled = !urls.length;
-    if (urls.length) note(`${urls.length} URL${urls.length === 1 ? '' : 's'} ready`);
-  } else {
-    $('verifyBtn').disabled = !urls.length;
-  }
-});
-
-function readPastedUrls() {
-  const seen = new Set(), out = [];
-  $('urlList').value.split('\n').forEach(line => {
-    let u = line.trim();
-    if (!u) return;
-    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
-    if (!seen.has(u)) { seen.add(u); out.push(u); }
-  });
-  return out;
-}
-
-$('urlList').addEventListener('input', () => {
-  urls = readPastedUrls();
-  $('verifyBtn').disabled = !urls.length;
-  note(urls.length ? `${urls.length} URL${urls.length === 1 ? '' : 's'} ready` : '');
-});
-
-// Remember the two values that get retyped on every run.
-applyMode('title');
-$('brand').value = localStorage.getItem(BRAND_KEY) || '';
-$('sitemapUrl').value = localStorage.getItem(SRC_KEY) || '';
-$('brand').addEventListener('change', () => localStorage.setItem(BRAND_KEY, $('brand').value.trim()));
-$('sitemapUrl').addEventListener('change', () => localStorage.setItem(SRC_KEY, $('sitemapUrl').value.trim()));
-
-// ── Read the sitemap ───────────────────────────────────────────────────────
-$('findBtn').addEventListener('click', async () => {
-  const url = $('sitemapUrl').value.trim();
-  if (!url) { $('sitemapUrl').focus(); note('Enter a sitemap URL', 'err'); return; }
-  $('findBtn').disabled = true;
-  note('Reading sitemap…');
-  try {
-    const res = await fetch('/api/title-check/sitemap', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
-    urls = data.urls || [];
-    const many = data.sitemaps_read > 1 ? ` from ${data.sitemaps_read} sitemaps` : '';
-    note(`${data.count} URL${data.count === 1 ? '' : 's'} found${many}`, 'ok');
-    $('verifyBtn').disabled = !urls.length;
-  } catch (e) {
-    note(e.message || 'Could not read the sitemap', 'err');
-    $('verifyBtn').disabled = true;
-  } finally {
-    $('findBtn').disabled = false;
-  }
-});
-
-// ── Verify ─────────────────────────────────────────────────────────────────
-$('stopBtn').addEventListener('click', () => { stopped = true; $('stopBtn').disabled = true; });
-
-$('verifyBtn').addEventListener('click', async () => {
-  if (source === 'list') urls = readPastedUrls();
-  if (!urls.length) { note('No URLs to verify', 'err'); return; }
-  const brand = $('brand').value.trim();
-  // Without a brand nothing can be classified as doubled, so every page would
-  // come back "Single Title" — a clean bill of health that means nothing. Stop
-  // rather than hand back a silently empty result.
-  if (!brand && mode !== 'forms' && mode !== 'links') {
-    $('brand').focus();
-    note('Enter the website / brand title first — it is what a duplicate title is measured against', 'err');
-    return;
-  }
-  localStorage.setItem(BRAND_KEY, brand);
-
-  running = true; stopped = false;
-  rows = [];
-  linkTotals = { pages: 0, okPages: 0, links: 0, okLinks: 0 };
-  $('verifyBtn').disabled = true; $('findBtn').disabled = true;
-  $('stopBtn').hidden = false; $('stopBtn').disabled = false;
-  $('prog').hidden = false;
-  $('resultsArea').hidden = false;
-  note('');
-  setProgress(0, urls.length);
-  render();
-
-  if (mode === 'links') {
-    await runLinkCheck();
-  } else {
-    const batch = MODES[mode].batch;
-    for (let i = 0; i < urls.length && !stopped; i += batch) {
-      const slice = urls.slice(i, i + batch);
-      rows.push(...await verifySlice(slice, brand));
-      setProgress(rows.length, urls.length);
-      render();
-    }
-  }
-
-  running = false;
-  $('stopBtn').hidden = true;
-  $('verifyBtn').disabled = false; $('findBtn').disabled = false;
-  if (stopped) note(`Stopped after ${rows.length} of ${urls.length}`, 'err');
-  // The last render inside the run happened while `running` was still true,
-  // which is what hides the recheck button — so render once more now that the
-  // run is actually over.
-  render();
-});
-
-// A failed request says nothing about the pages in it, so condemning the whole
-// slice turned one timeout into a dozen phantom "Unable to Verify" rows. Retry
-// once, then halve and recurse: a genuinely bad URL is isolated to itself and
-// everything around it still gets verified.
-async function postTitles(slice, brand) {
-  const res = await fetch(MODES[mode].endpoint, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls: slice, brand, focus: $('focus').value.trim(),
-                           internal_only: $('internalOnly').checked }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
-  return data.results || [];
-}
-
-async function verifySlice(slice, brand, retried = false) {
-  try {
-    return await postTitles(slice, brand);
-  } catch (e) {
-    if (!retried) {
-      await new Promise(r => setTimeout(r, 1200));
-      return verifySlice(slice, brand, true);
-    }
-    if (slice.length === 1) {
-      return [{ url: slice[0], title: e.message || 'Request failed', type: 'Unable to Verify',
-                status: 'Unable to Verify', score: null, issues: ['Could not be read'],
-                tcm_id: '', cms_url: '' }];
-    }
-    const mid = Math.ceil(slice.length / 2);
-    const left = await verifySlice(slice.slice(0, mid), brand);
-    setProgress(rows.length + left.length, urls.length);
-    const right = await verifySlice(slice.slice(mid), brand);
-    return [...left, ...right];
-  }
-}
-
-// The link check runs in two passes on purpose. Collecting every link first
-// and checking the deduplicated set second means a target linked from two
-// hundred pages is requested once; checking as each page is scanned would
-// re-request the whole navigation for every page on the site.
-let linkTotals = { pages: 0, okPages: 0, links: 0, okLinks: 0 };
-
-async function runLinkCheck() {
-  const batch = MODES.links.batch;
-
-  // Pass one, and the point of the tab: every URL the sitemap lists, opened to
-  // see whether it loads at all. A page in the sitemap that answers 404 or 500
-  // is the thing a redirect has to be built for.
-  let checked = 0;
-  for (let i = 0; i < urls.length && !stopped; i += batch) {
-    const slice = urls.slice(i, i + batch);
-    let results = [];
-    try {
-      const res = await fetch('/api/title-check/link-status', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: slice }),
-      });
-      results = (await res.json()).results || [];
-    } catch (e) {
-      results = slice.map(u => ({ url: u, status: 'Check did not run', kind: 'unchecked', broken: false, unverified: true }));
-    }
-    results.forEach(r => {
-      if (r.broken || r.unverified) {
-        rows.push({ url: r.url, status: r.status, kind: r.kind, unverified: !!r.unverified,
-                    origin: 'sitemap', occurrences: 1, sources: [] });
-      } else { linkTotals.okPages += 1; }
-    });
-    checked += slice.length;
-    linkTotals.pages = checked;
-    setProgress(checked, urls.length, 'sitemap pages checked');
-    render();
-  }
-
-  if (!$('scanPages').checked || stopped) { render(); return; }
-
-  // Pass two, optional: the links sitting on each page. Collected across all
-  // pages first and checked as a deduplicated set, so a target linked from two
-  // hundred pages is requested once rather than two hundred times.
-  const sources = new Map();
-  const internal = $('internalOnly').checked;
-  const PB = MODES.audit.batch;
-  let scanned = 0;
-  for (let i = 0; i < urls.length && !stopped; i += PB) {
-    const slice = urls.slice(i, i + PB);
-    let results = [];
-    try {
-      const res = await fetch('/api/title-check/links', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: slice, internal_only: internal }),
-      });
-      results = (await res.json()).results || [];
-    } catch (e) { /* a page that cannot be scanned contributes no links */ }
-    results.forEach(r => (r.links || []).forEach(l => {
-      if (!sources.has(l)) sources.set(l, []);
-      sources.get(l).push(r.url);
-    }));
-    scanned += slice.length;
-    setProgress(scanned, urls.length, 'pages scanned for links');
-  }
-
-  const links = [...sources.keys()];
-  linkTotals.links = links.length;
-  let done = 0;
-  for (let i = 0; i < links.length && !stopped; i += batch) {
-    const slice = links.slice(i, i + batch);
-    let results = [];
-    try {
-      const res = await fetch('/api/title-check/link-status', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: slice }),
-      });
-      results = (await res.json()).results || [];
-    } catch (e) {
-      results = slice.map(u => ({ url: u, status: 'Check did not run', kind: 'unchecked', broken: false, unverified: true }));
-    }
-    results.forEach(r => {
-      if (!r.broken && !r.unverified) { linkTotals.okLinks += 1; return; }
-      const pages = sources.get(r.url) || [];
-      // Only links that failed become rows: this table is the worklist, and
-      // the site's working links would bury it under thousands of rows.
-      rows.push({ url: r.url, status: r.status, kind: r.kind, unverified: !!r.unverified,
-                  origin: 'onpage', occurrences: pages.length, sources: pages });
-    });
-    done += slice.length;
-    setProgress(done, links.length, 'links checked');
-    render();
-  }
-  render();
-}
-
-function setProgress(done, total, noun = 'verified') {
-  $('progFill').style.width = total ? `${(done / total) * 100}%` : '0';
-  $('progText').textContent = `${done} / ${total} ${noun}`;
-}
-
-// ── Results ────────────────────────────────────────────────────────────────
-$('filters').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  filter = b.dataset.f;
-  [...$('filters').children].forEach(x => x.classList.toggle('active', x === b));
-  render();
-});
-
-const TAG_CLASS = {
-  'Single Title': 'tag-single',
-  'Double Title': 'tag-double',
-  'Partial Duplicate': 'tag-partial',
-  'Missing Title': 'tag-missing',
-  'Unable to Verify': 'tag-failed',
-};
-
-function visibleRows() {
-  if (filter === 'all') return rows;
-  if (filter === 'problem') return rows.filter(r => r.type === 'Missing Title' || r.type === 'Unable to Verify');
-  // A page with no pagetcmid meta is what the TCM tool calls unpublished.
-  if (filter === 'no-tcm') return rows.filter(r => !r.tcm_id);
-  if (filter === 'issues') return rows.filter(r => (r.issues || []).length);
-  if (filter === 'perfect') return rows.filter(r => r.score === 100);
-  if (filter === 'no-desc') return rows.filter(r => (r.issue_keys || []).includes('desc_missing'));
-  if (filter === 'title-issue') return rows.filter(r =>
-    (r.issue_keys || []).some(k => k.startsWith('title_')));
-  if (filter === 'broken') return rows.filter(r => !r.unverified);
-  if (filter === 'unverified') return rows.filter(r => r.unverified);
-  if (filter === 'sitemap') return rows.filter(r => r.origin === 'sitemap');
-  if (filter === 'onpage') return rows.filter(r => r.origin === 'onpage');
-  if (filter === '404') return rows.filter(r => r.kind === 'missing');
-  if (filter === '5xx') return rows.filter(r => r.kind === 'server_error');
-  if (filter === 'dead') return rows.filter(r => typeof r.status !== 'number');
-  if (filter === 'modelsite') return rows.filter(r => r.modelsite);
-  if (filter === 'other') return rows.filter(r => !r.modelsite && r.form_count > 0);
-  if (filter === 'none') return rows.filter(r => !r.modelsite && !r.form_count);
-  return rows.filter(r => r.type === filter);
-}
-
-const ISSUE_LABEL = {
-  title_missing:   'Pages with no title',
-  title_duplicate: 'Pages whose title repeats the site name',
-  title_length:    'Titles too short or too long',
-  desc_missing:    'Pages with no meta description',
-  desc_length:     'Descriptions too short or too long',
-  keywords_missing:'Pages with no meta keywords tag',
-  focus_missing:   'Pages missing every focus keyword',
-};
-const ISSUE_FIX = {
+const PENALTY = { title_missing:30, title_duplicate:20, title_length:10,
+                  desc_missing:20, desc_length:10, keywords_missing:5,
+                  focus_missing:5, broken_links:15 };
+const FIX = {
   title_missing:   'Give these pages a title',
   title_duplicate: 'Remove the repeated site name from these titles',
   title_length:    'Bring these titles into 30-60 characters',
@@ -731,186 +405,439 @@ const ISSUE_FIX = {
   desc_length:     'Bring these descriptions into 120-160 characters',
   keywords_missing:'Add a meta keywords tag to these pages',
   focus_missing:   'Work a focus keyword into the title or description',
+  broken_links:    'Fix or repoint the broken links on these pages',
 };
-const PENALTY = { title_missing:30, title_duplicate:20, title_length:10,
-                  desc_missing:20, desc_length:10, keywords_missing:5, focus_missing:5 };
+
+let work = [];        // {url, domain, area, frontline} — the scan worklist
+let rows = [];        // one row per page
+let broken = [];      // {url, status, kind, unverified, sources[]} — link targets that failed
+let filter = 'all', areaSel = '', flSel = '', domainSel = '';
+let running = false, stopped = false;
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const pct = (a, b) => b ? `${(a / b * 100).toFixed(1)}%` : '—';
+
+function note(msg, kind = '') {
+  $('note').textContent = msg;
+  $('note').className = 'note' + (kind ? ' ' + kind : '');
+}
+function setProgress(done, total, noun) {
+  $('progFill').style.width = total ? `${(done / total) * 100}%` : '0';
+  $('progText').textContent = `${done} / ${total} ${noun}`;
+}
+
+// ── Capabilities ───────────────────────────────────────────────────────────
+const caps = () => {
+  const out = {};
+  document.querySelectorAll('#caps input[data-cap]').forEach(i => { out[i.dataset.cap] = i.checked; });
+  return out;
+};
+function syncCapUi() {
+  const c = caps();
+  $('focusField').hidden = !c.seo;
+  $('internalOpt').hidden = !c.links;
+  try { localStorage.setItem(CAP_KEY, JSON.stringify(c)); } catch {}
+}
+$('caps').addEventListener('change', syncCapUi);
+try {
+  const saved = JSON.parse(localStorage.getItem(CAP_KEY) || '{}');
+  document.querySelectorAll('#caps input[data-cap]').forEach(i => {
+    if (!i.disabled && typeof saved[i.dataset.cap] === 'boolean') i.checked = saved[i.dataset.cap];
+  });
+} catch {}
+
+// ── Source ─────────────────────────────────────────────────────────────────
+let source = 'domains';
+$('srcTabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  source = b.dataset.src;
+  [...$('srcTabs').children].forEach(x => x.classList.toggle('active', x === b));
+  $('srcDomains').hidden = source !== 'domains';
+  $('srcSitemap').hidden = source !== 'sitemap';
+  $('srcList').hidden = source !== 'list';
+  note('');
+});
+
+$('brand').value = localStorage.getItem(BRAND_KEY) || '';
+$('domainList').value = localStorage.getItem(DOM_KEY) || '';
+$('sitemapUrl').value = localStorage.getItem(SM_KEY) || '';
+$('brand').addEventListener('change', () => localStorage.setItem(BRAND_KEY, $('brand').value.trim()));
+$('domainList').addEventListener('change', () => localStorage.setItem(DOM_KEY, $('domainList').value));
+$('sitemapUrl').addEventListener('change', () => localStorage.setItem(SM_KEY, $('sitemapUrl').value.trim()));
+
+// A pasted block of spreadsheet cells arrives tab separated; typed lines are
+// more likely comma separated. Accepting both, plus pipes, means no one has to
+// reformat a list before using it.
+function parseDomainLines(text) {
+  return text.split('\n').map(line => {
+    const parts = line.split(/[\t|,;]/).map(p => p.trim()).filter((p, i) => i === 0 || p);
+    if (!parts[0]) return null;
+    return { domain: parts[0], area: parts[1] || '', frontline: parts[2] || '' };
+  }).filter(Boolean);
+}
+
+function hostOf(url) {
+  try { return new URL(url).host; } catch { return ''; }
+}
+
+// ── Building the worklist ──────────────────────────────────────────────────
+async function buildWork() {
+  if (source === 'list') {
+    const seen = new Set();
+    return $('urlList').value.split('\n').map(l => l.trim()).filter(Boolean)
+      .map(u => /^https?:\/\//i.test(u) ? u : 'https://' + u)
+      .filter(u => !seen.has(u) && seen.add(u))
+      .map(u => ({ url: u, domain: hostOf(u), area: '', frontline: '' }));
+  }
+
+  if (source === 'sitemap') {
+    const url = $('sitemapUrl').value.trim();
+    if (!url) { $('sitemapUrl').focus(); throw new Error('Enter a sitemap URL'); }
+    const res = await fetch('/api/title-check/sitemap', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    note(`${data.count} URLs found`, 'ok');
+    return (data.urls || []).map(u => ({ url: u, domain: hostOf(u), area: '', frontline: '' }));
+  }
+
+  const domains = parseDomainLines($('domainList').value);
+  if (!domains.length) { $('domainList').focus(); throw new Error('Add at least one domain'); }
+  note(`Finding sitemaps for ${domains.length} domain${domains.length === 1 ? '' : 's'}…`);
+  const res = await fetch('/api/title-check/discover', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ domains }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+
+  const out = [];
+  const failed = [];
+  (data.results || []).forEach(r => {
+    if (r.error && !r.count) { failed.push(`${r.domain || '?'} — ${r.error}`); return; }
+    const host = hostOf(r.domain) || r.domain;
+    r.urls.forEach(u => out.push({ url: u, domain: host, area: r.area, frontline: r.frontline }));
+  });
+  const ok = (data.results || []).filter(r => r.count).length;
+  note(`${out.length} URLs across ${ok} site${ok === 1 ? '' : 's'}`
+       + (failed.length ? ` · no sitemap for ${failed.length}: ${failed.slice(0, 3).join('; ')}` : ''),
+       failed.length ? 'err' : 'ok');
+  return out;
+}
+
+// ── The run ────────────────────────────────────────────────────────────────
+$('stopBtn').addEventListener('click', () => { stopped = true; $('stopBtn').disabled = true; });
+
+$('runBtn').addEventListener('click', async () => {
+  if (running) return;
+  const c = caps();
+  const brand = $('brand').value.trim();
+  localStorage.setItem(BRAND_KEY, brand);
+
+  running = true; stopped = false;
+  rows = []; broken = []; filter = 'all'; areaSel = flSel = domainSel = '';
+  $('runBtn').disabled = true;
+  $('stopBtn').hidden = false; $('stopBtn').disabled = false;
+  $('prog').hidden = false; $('resultsArea').hidden = false;
+  $('brokenArea').hidden = true;
+  setProgress(0, 1, 'starting');
+  render();
+
+  try {
+    work = await buildWork();
+    if (!work.length) throw new Error('Nothing to audit');
+
+    // ── Pass one: every selected check, one fetch per page ──
+    for (let i = 0; i < work.length && !stopped; i += PAGE_BATCH) {
+      const slice = work.slice(i, i + PAGE_BATCH);
+      const byUrl = new Map(slice.map(w => [w.url, w]));
+      let results = [];
+      try {
+        const res = await fetch('/api/title-check/scan', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            urls: slice.map(w => w.url), brand, focus: $('focus').value.trim(),
+            seo: !!c.seo, forms: !!c.forms, links: !!c.links,
+            internal_only: $('internalOnly').checked,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+        results = data.results || [];
+      } catch (e) {
+        results = slice.map(w => ({ url: w.url, title: e.message || 'Scan failed',
+          type: 'Unable to Verify', http_status: null, ok: false, score: null,
+          issues: ['Could not be read'], issue_keys: [], links: [], form_ids: [] }));
+      }
+      results.forEach(r => {
+        const w = byUrl.get(r.url) || {};
+        rows.push({ ...r, domain: w.domain || hostOf(r.url), area: w.area || '', frontline: w.frontline || '' });
+      });
+      setProgress(rows.length, work.length, 'pages scanned');
+      render();
+    }
+
+    // ── Pass two: the links found, checked once across the whole run ──
+    if (c.links && !stopped) {
+      const sources = new Map();
+      rows.forEach(r => (r.links || []).forEach(l => {
+        if (!sources.has(l)) sources.set(l, []);
+        sources.get(l).push(r.url);
+      }));
+      const targets = [...sources.keys()];
+      let done = 0;
+      const statuses = new Map();
+      for (let i = 0; i < targets.length && !stopped; i += LINK_BATCH) {
+        const slice = targets.slice(i, i + LINK_BATCH);
+        let results = [];
+        try {
+          const res = await fetch('/api/title-check/link-status', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: slice }),
+          });
+          results = (await res.json()).results || [];
+        } catch (e) {
+          results = slice.map(u => ({ url: u, status: 'Check did not run', kind: 'unchecked',
+                                      broken: false, unverified: true }));
+        }
+        results.forEach(r => {
+          statuses.set(r.url, r);
+          if (r.broken || r.unverified) {
+            broken.push({ ...r, sources: sources.get(r.url) || [] });
+          }
+        });
+        done += slice.length;
+        setProgress(done, targets.length, 'links checked');
+        render();
+      }
+
+      // Scores are recomputed now that the link statuses are known, rather
+      // than each page guessing about its own links mid-crawl.
+      if (c.seo) {
+        const brokenUrls = broken.filter(b => b.broken).map(b => b.url);
+        for (let i = 0; i < rows.length; i += 40) {
+          const chunk = rows.slice(i, i + 40).filter(r => (r.links || []).length);
+          if (!chunk.length) continue;
+          try {
+            const res = await fetch('/api/title-check/rescore', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rows: chunk, broken: brokenUrls }),
+            });
+            ((await res.json()).results || []).forEach(u => {
+              const row = rows.find(r => r.url === u.url);
+              if (row) Object.assign(row, u);
+            });
+          } catch {}
+        }
+      }
+      // Counted per page too, so the table can show it without the list.
+      const brokenSet = new Set(broken.filter(b => b.broken).map(b => b.url));
+      rows.forEach(r => { r.broken_count = (r.links || []).filter(l => brokenSet.has(l)).length; });
+    }
+  } catch (e) {
+    note(e.message || 'The audit could not start', 'err');
+  } finally {
+    running = false;
+    $('stopBtn').hidden = true;
+    $('runBtn').disabled = false;
+    if (stopped) note(`Stopped after ${rows.length} of ${work.length}`, 'err');
+    render();
+  }
+});
+
+// ── Filtering ──────────────────────────────────────────────────────────────
+const isDead = r => r.http_status && typeof r.http_status === 'number'
+  && (r.http_status === 404 || r.http_status === 410 || r.http_status >= 500);
+const isUnverified = r => !r.ok && !isDead(r);
+const titleProblem = r => ['Double Title', 'Partial Duplicate', 'Missing Title'].includes(r.type);
+
+function visibleRows() {
+  let list = rows;
+  if (areaSel) list = list.filter(r => (r.area || '') === areaSel);
+  if (flSel) list = list.filter(r => (r.frontline || '') === flSel);
+  if (domainSel) list = list.filter(r => (r.domain || '') === domainSel);
+  const f = {
+    all: () => list,
+    titles: () => list.filter(titleProblem),
+    dead: () => list.filter(isDead),
+    unverified: () => list.filter(isUnverified),
+    seo: () => list.filter(r => (r.issues || []).length),
+    perfect: () => list.filter(r => r.score === 100),
+    modelsite: () => list.filter(r => r.modelsite),
+    'no-tcm': () => list.filter(r => !r.tcm_id),
+    'broken-links': () => list.filter(r => (r.broken_count || 0) > 0),
+  }[filter];
+  return f ? f() : list;
+}
+
+function buildFilters() {
+  const c = caps();
+  const opts = [['all', 'All pages'], ['titles', 'Title problems'], ['dead', 'Does not load'],
+                ['unverified', 'Could not check']];
+  if (c.seo) opts.push(['seo', 'Has SEO issues'], ['perfect', 'Full score']);
+  if (c.forms) opts.push(['modelsite', 'Modelsite form']);
+  if (c.tcm) opts.push(['no-tcm', 'No TCM ID']);
+  if (c.links) opts.push(['broken-links', 'Has broken links']);
+  $('filters').innerHTML = opts.map(([f, label], i) =>
+    `<button type="button" data-f="${f}"${f === filter || (i === 0 && !opts.some(o => o[0] === filter)) ? ' class="active"' : ''}>${label}</button>`).join('');
+
+  const fill = (el, values, label, current) => {
+    const list = [...new Set(values.filter(Boolean))].sort();
+    el.hidden = list.length < 2;
+    el.innerHTML = `<option value="">${label}</option>`
+      + list.map(v => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(v)}</option>`).join('');
+  };
+  fill($('areaFilter'), rows.map(r => r.area), 'All areas', areaSel);
+  fill($('flFilter'), rows.map(r => r.frontline), 'All frontlines', flSel);
+  fill($('domainFilter'), rows.map(r => r.domain), 'All sites', domainSel);
+}
+
+$('filters').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  filter = b.dataset.f; render();
+});
+$('areaFilter').addEventListener('change', e => { areaSel = e.target.value; render(); });
+$('flFilter').addEventListener('change', e => { flSel = e.target.value; render(); });
+$('domainFilter').addEventListener('change', e => { domainSel = e.target.value; render(); });
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+const TAG = { 'Single Title':'tag-single', 'Double Title':'tag-double',
+              'Partial Duplicate':'tag-partial', 'Missing Title':'tag-missing',
+              'Unable to Verify':'tag-failed' };
+const stat = (v, l) => `<div class="stat"><div class="stat-n">${v}</div><div class="stat-l">${esc(l)}</div></div>`;
+const scoreClass = n => n >= 90 ? 'good' : n >= 70 ? 'warn' : 'bad';
 
 function tcmCell(r) {
-  return r.tcm_id
-    ? (r.cms_url
-        ? `<a class="tcm-id" href="${esc(r.cms_url)}" target="_blank" rel="noopener noreferrer" title="Open in the CMS">${esc(r.tcm_id)}</a>`
-          + `<button class="tcm-copy" type="button" data-id="${esc(r.tcm_id)}" title="Copy the ID"><i class="fa-regular fa-copy"></i></button>`
-        : `<span class="tcm-id">${esc(r.tcm_id)}</span>`)
-    : '<span class="tcm-none">Not found</span>';
+  if (!r.tcm_id) return '<span class="tcm-none">Not found</span>';
+  if (!r.cms_url) return `<span class="tcm-id">${esc(r.tcm_id)}</span>`;
+  return `<a class="tcm-id" href="${esc(r.cms_url)}" target="_blank" rel="noopener noreferrer" title="Open in the CMS">${esc(r.tcm_id)}</a>`
+       + `<button class="tcm-copy" type="button" data-id="${esc(r.tcm_id)}" title="Copy the ID"><i class="fa-regular fa-copy"></i></button>`;
 }
-const urlCell = r => `<td class="u"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.url)}</a></td>`;
-const scoreClass = n => n >= 90 ? 'score-good' : n >= 70 ? 'score-mid' : 'score-bad';
-const stat = (v, l, cls = '') => `<div class="stat ${cls}"><div class="stat-n">${v}</div><div class="stat-l">${esc(l)}</div></div>`;
 
 function renderSummary() {
-  const n = t => rows.filter(r => r.type === t).length;
-  if (mode === 'title') {
-    $('summary').innerHTML = [
-      stat(rows.length, 'URLs'),
-      stat(n('Single Title'), 'Single titles'),
-      stat(n('Double Title'), 'Double titles'),
-      stat(n('Partial Duplicate'), 'Partial duplicates'),
-      stat(n('Missing Title') + n('Unable to Verify'), 'Missing / unable to verify'),
-      stat(rows.filter(r => r.tcm_id).length, 'TCM IDs found'),
-    ].join('');
-    $('insights').hidden = true;
-    return;
-  }
-  if (mode === 'links') {
-    const real = rows.filter(r => !r.unverified);
-    const unver = rows.filter(r => r.unverified);
-    const deadPages = real.filter(r => r.origin === 'sitemap');
-    $('summary').innerHTML = [
-      stat(linkTotals.pages, 'Sitemap pages checked'),
-      stat(deadPages.length, 'Pages that do not load'),
-      stat(real.filter(r => r.kind === 'missing').length, '404 / gone'),
-      stat(real.filter(r => r.kind === 'server_error').length, 'Server errors'),
-      stat(real.filter(r => r.origin === 'onpage').length, 'Broken links on pages'),
-      stat(unver.length, 'Could not check'),
-    ].join('');
-
-    const bits = [];
-    if (deadPages.length) bits.push(`<li>Build redirects for the <span class="gain">${deadPages.length} sitemap page${deadPages.length === 1 ? '' : 's'}</span> that genuinely ${deadPages.length === 1 ? 'does' : 'do'} not load. `
-      + `Filter to Genuinely broken and export.</li>`);
-    const onpage = real.filter(r => r.origin === 'onpage');
-    if (onpage.length) bits.push(`<li>Fix or repoint the <span class="gain">${onpage.length} broken link${onpage.length === 1 ? '' : 's'}</span> found on pages. `
-      + `The Found on column names the pages to edit.</li>`);
-    if (unver.length) bits.push(`<li><span class="gain">${unver.length} URL${unver.length === 1 ? '' : 's'} could not be checked</span> — the site answered 403 or dropped the connection, `
-      + `which is its bot protection refusing an automated request, not evidence the page is broken. `
-      + `Open a few in a browser before treating any of them as work.</li>`);
-    $('insights').hidden = !bits.length;
-    if (bits.length) $('insights').innerHTML = `<div class="insight"><h2>Do these first</h2><ol>${bits.join('')}</ol></div>`;
-    return;
-  }
-
-  if (mode === 'forms') {
-    const ms = rows.filter(r => r.modelsite).length;
-    $('summary').innerHTML = [
-      stat(rows.length, 'Pages checked'),
-      stat(ms, 'Modelsite forms'),
-      stat(rows.filter(r => !r.modelsite && r.form_count > 0).length, 'Other forms'),
-      stat(rows.filter(r => !r.form_count).length, 'No form'),
-    ].join('');
-    $('insights').hidden = !ms;
-    if (ms) {
-      $('insights').innerHTML = `<div class="insight"><h2>What to tell the teams</h2>`
-        + `<ol><li><span class="gain">${ms} page${ms === 1 ? '' : 's'}</span> still use the Modelsite form (id ${esc('658')}). `
-        + `Filter to Modelsite form, export, and send the list on — each row carries the CMS link to the page.</li></ol></div>`;
-    }
-    return;
-  }
-
-  // ── SEO audit ──
+  const c = caps();
   const scored = rows.filter(r => typeof r.score === 'number');
-  const site = scored.length ? Math.round(scored.reduce((a, r) => a + r.score, 0) / scored.length) : 0;
-  const perfect = scored.filter(r => r.score === 100).length;
-  // Points lost per issue, which is the honest answer to "how much are we
-  // leaving out" — a count alone hides that one missing title costs six times
-  // what one long description does.
+  const cards = [
+    stat(rows.length, 'Pages scanned'),
+    stat(rows.filter(isDead).length, 'Do not load'),
+    stat(rows.filter(titleProblem).length, 'Title problems'),
+  ];
+  if (c.seo && scored.length) {
+    cards.push(stat(Math.round(scored.reduce((a, r) => a + r.score, 0) / scored.length), 'Average SEO score'));
+  }
+  if (c.forms) cards.push(stat(rows.filter(r => r.modelsite).length, 'Modelsite forms'));
+  if (c.links) cards.push(stat(broken.filter(b => b.broken).length, 'Broken link targets'));
+  cards.push(stat(rows.filter(isUnverified).length, 'Could not check'));
+  $('summary').innerHTML = cards.join('');
+
+  // ── What to do first ──
+  const bits = [];
+  const dead = rows.filter(isDead).length;
+  if (dead) bits.push(`<li>Build redirects for the <span class="gain">${dead} page${dead === 1 ? '' : 's'}</span> that do not load — they are in the sitemap, so they are being followed.</li>`);
   const lost = {};
   scored.forEach(r => (r.issue_keys || []).forEach(k => {
-    lost[k] = lost[k] || { count: 0, points: 0 };
-    lost[k].count += 1;
-    lost[k].points += (PENALTY[k] || 0);
+    lost[k] = lost[k] || { n: 0, p: 0 };
+    lost[k].n += 1; lost[k].p += (PENALTY[k] || 0);
   }));
-  const totalLost = Object.values(lost).reduce((a, v) => a + v.points, 0);
-  const possible = scored.length * 100;
+  Object.entries(lost).sort((a, b) => b[1].p - a[1].p).slice(0, 2).forEach(([k, v]) => {
+    bits.push(`<li>${esc(FIX[k] || k)} — <span class="gain">${v.n} page${v.n === 1 ? '' : 's'}</span>.</li>`);
+  });
+  const ms = rows.filter(r => r.modelsite).length;
+  if (ms) bits.push(`<li><span class="gain">${ms} page${ms === 1 ? '' : 's'}</span> still use the Modelsite form — filter and export to tell the owning teams.</li>`);
+  const unv = rows.filter(isUnverified).length;
+  if (unv) bits.push(`<li><span class="gain">${unv}</span> could not be checked — the site refused or dropped the request, which is not evidence the page is broken.</li>`);
+  $('insights').hidden = !bits.length;
+  if (bits.length) $('insights').innerHTML = `<div class="insight"><h2>Do these first</h2><ol>${bits.join('')}</ol></div>`;
+}
 
-  $('summary').innerHTML = [
-    stat(site, 'Site score', 'score'),
-    stat(rows.length, 'Pages audited'),
-    stat(perfect, 'Full score'),
-    stat(scored.length - perfect, 'With issues'),
-    stat(possible ? Math.round((totalLost / possible) * 100) + '%' : '0%', 'SEO left on the table'),
-    stat(rows.filter(r => r.type === 'Unable to Verify').length, 'Unable to verify'),
-  ].join('');
+function renderRollup() {
+  const c = caps();
+  const groups = {};
+  rows.forEach(r => {
+    const key = r.domain || '(unknown)';
+    const g = groups[key] = groups[key] || { domain: key, area: r.area, frontline: r.frontline,
+      n: 0, dead: 0, titles: 0, ms: 0, score: 0, scored: 0, unv: 0 };
+    g.n += 1;
+    if (isDead(r)) g.dead += 1;
+    if (titleProblem(r)) g.titles += 1;
+    if (r.modelsite) g.ms += 1;
+    if (isUnverified(r)) g.unv += 1;
+    if (typeof r.score === 'number') { g.score += r.score; g.scored += 1; }
+  });
+  const list = Object.values(groups).sort((a, b) => b.n - a.n);
+  // With one site there is nothing to compare, and the cards already say it.
+  if (list.length < 2) { $('rollupArea').hidden = true; return; }
+  $('rollupArea').hidden = false;
+  const head = ['Site', 'Area', 'Frontline', 'Pages', 'Do not load', 'Title problems']
+    .concat(c.seo ? ['Avg score'] : []).concat(c.forms ? ['Modelsite'] : []).concat(['Could not check']);
+  $('rollupArea').innerHTML = '<div class="rollup"><table><thead><tr>'
+    + head.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'
+    + list.map(g => `<tr>
+        <td><b>${esc(g.domain)}</b></td>
+        <td>${esc(g.area || '—')}</td>
+        <td>${esc(g.frontline || '—')}</td>
+        <td class="num">${g.n}</td>
+        <td class="num ${g.dead ? 'bad' : ''}">${g.dead}</td>
+        <td class="num ${g.titles ? 'warn' : ''}">${g.titles}</td>
+        ${c.seo ? `<td class="num ${g.scored ? scoreClass(Math.round(g.score / g.scored)) : ''}">${g.scored ? Math.round(g.score / g.scored) : '—'}</td>` : ''}
+        ${c.forms ? `<td class="num ${g.ms ? 'bad' : ''}">${g.ms}</td>` : ''}
+        <td class="num">${g.unv}</td>
+      </tr>`).join('')
+    + '</tbody></table></div>';
+}
 
-  const ranked = Object.entries(lost).sort((a, b) => b[1].points - a[1].points).slice(0, 3);
-  if (ranked.length) {
-    $('insights').hidden = false;
-    $('insights').innerHTML = `<div class="insight"><h2>Do these first</h2><ol>`
-      + ranked.map(([k, v]) =>
-          `<li>${esc(ISSUE_FIX[k] || k)} — <span class="gain">${v.count} page${v.count === 1 ? '' : 's'}</span>, `
-          + `worth <span class="gain">${possible ? (v.points / possible * 100).toFixed(1) : 0} points</span> of the site score.</li>`).join('')
-      + `</ol></div>`;
-  } else {
-    $('insights').hidden = true;
-  }
+function renderBroken() {
+  if (!caps().links || !broken.length) { $('brokenArea').hidden = true; return; }
+  const real = broken.filter(b => b.broken);
+  $('brokenArea').hidden = false;
+  $('brokenArea').innerHTML = `<div class="rollup" style="margin-top:14px;">
+    <table><thead><tr><th>Broken link target</th><th>Status</th><th>Times linked</th><th>Found on</th></tr></thead><tbody>`
+    + (real.length ? real.slice(0, 200).map(b => `<tr>
+        <td class="u"><a href="${esc(b.url)}" target="_blank" rel="noopener noreferrer">${esc(b.url)}</a></td>
+        <td><span class="tag tag-failed">${esc(String(b.status))}</span></td>
+        <td class="num">${b.sources.length}</td>
+        <td class="src-list">${b.sources.slice(0, 2).map(u => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>`).join('<br>')}${b.sources.length > 2 ? `<br>+ ${b.sources.length - 2} more` : ''}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="4" class="empty">No broken links on any page</td></tr>')
+    + '</tbody></table></div>';
 }
 
 function render() {
+  buildFilters();
   renderSummary();
-  // Re-running only the refusals is the useful next move: by the time a run
-  // ends the pacer has learned how slowly this host wants to be approached,
-  // so a second pass at that speed gets many of them.
-  const blockedRows = mode === 'links' ? rows.filter(r => r.unverified) : [];
-  $('recheckBtn').hidden = !(mode === 'links' && blockedRows.length && !running);
-  $('recheckLabel').textContent = `Recheck the ${blockedRows.length} that could not be checked`;
+  renderRollup();
+  renderBroken();
+
+  const c = caps();
   const list = visibleRows();
   if (!list.length) {
-    $('wrap').innerHTML = `<div class="empty">${running ? 'Working…' : 'No rows to show'}</div>`;
+    $('wrap').innerHTML = `<div class="empty">${running ? 'Working…' : 'No pages match this filter'}</div>`;
     return;
   }
+  const showAF = rows.some(r => r.area || r.frontline);
+  const head = ['URL'].concat(showAF ? ['Area', 'FL'] : []).concat(['Status', 'Page title', 'Title type'])
+    .concat(c.seo ? ['Score', 'Meta description', 'What to fix'] : [])
+    .concat(c.forms ? ['Forms'] : [])
+    .concat(c.links ? ['Broken links'] : [])
+    .concat(c.tcm ? ['TCM ID'] : []);
 
-  if (mode === 'links') {
-    $('wrap').innerHTML = '<table class="wide"><thead><tr><th>URL</th><th>Status</th><th>Verdict</th><th>Where</th><th>Found on</th></tr></thead><tbody>'
-      + list.map(r => `<tr>
-          ${urlCell(r)}
-          <td><span class="tag ${r.unverified ? 'tag-missing' : r.kind === 'missing' ? 'tag-double' : 'tag-failed'}">${esc(String(r.status))}</span></td>
-          <td><span class="tag ${r.unverified ? 'tag-missing' : 'tag-failed'}">${r.unverified ? 'Could not check' : 'Broken'}</span></td>
-          <td><span class="tag ${r.origin === 'sitemap' ? 'tag-partial' : 'tag-missing'}">${r.origin === 'sitemap' ? 'In sitemap' : 'Link on page'}</span></td>
-          <td class="src-list">${r.origin === 'sitemap'
-              ? 'Listed in the sitemap'
-              : (r.sources || []).slice(0, 3).map(u => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>`).join('<br>')
-                + ((r.sources || []).length > 3 ? `<br>+ ${r.sources.length - 3} more` : '')}</td>
-        </tr>`).join('')
-      + '</tbody></table>';
-    return;
-  }
-
-  if (mode === 'forms') {
-    $('wrap').innerHTML = '<table class="wide"><thead><tr><th>URL</th><th>Page title</th><th>Forms</th><th>Result</th><th>TCM ID</th></tr></thead><tbody>'
-      + list.map(r => `<tr>
-          ${urlCell(r)}
-          <td class="t">${esc(r.title || '')}</td>
-          <td>${r.form_count ? esc((r.form_ids || []).join(', ')) : '<span class="tcm-none">None</span>'}</td>
-          <td><span class="tag ${r.modelsite ? 'tag-double' : r.form_count ? 'tag-partial' : 'tag-missing'}">${esc(r.status || '')}</span></td>
-          <td class="tcm">${tcmCell(r)}</td>
-        </tr>`).join('')
-      + '</tbody></table>';
-    return;
-  }
-
-  if (mode === 'audit') {
-    $('wrap').innerHTML = '<table class="wide"><thead><tr><th>URL</th><th>Score</th><th>Page title</th><th>Chars</th>'
-      + '<th>Meta description</th><th>Chars</th><th>What to fix</th><th>TCM ID</th></tr></thead><tbody>'
-      + list.map(r => `<tr>
-          ${urlCell(r)}
-          <td class="score-cell ${typeof r.score === 'number' ? scoreClass(r.score) : ''}">${typeof r.score === 'number' ? r.score : '—'}</td>
-          <td class="t">${esc(r.title || '')}</td>
-          <td>${r.title_chars || 0}</td>
-          <td class="t">${r.description ? esc(r.description) : '<span class="tcm-none">None</span>'}</td>
-          <td>${r.desc_chars || 0}</td>
-          <td class="issues">${(r.issues || []).length
-              ? '<ul>' + r.issues.map(i => `<li>${esc(i)}</li>`).join('') + '</ul>'
-              : '<span class="tcm-none">Nothing</span>'}</td>
-          <td class="tcm">${tcmCell(r)}</td>
-        </tr>`).join('')
-      + '</tbody></table>';
-    return;
-  }
-
-  $('wrap').innerHTML = '<table><thead><tr><th>URL</th><th>Current page title</th><th>Title type</th><th>TCM ID</th></tr></thead><tbody>'
+  $('wrap').innerHTML = `<table class="wide"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>`
     + list.map(r => `<tr>
-        ${urlCell(r)}
+        <td class="u"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.url)}</a></td>
+        ${showAF ? `<td>${esc(r.area || '—')}</td><td>${esc(r.frontline || '—')}</td>` : ''}
+        <td>${r.ok ? '<span class="tag tag-single">OK</span>'
+                   : `<span class="tag ${isDead(r) ? 'tag-double' : 'tag-missing'}">${esc(String(r.http_status ?? r.title ?? '—'))}</span>`}</td>
         <td class="t">${esc(r.title || '')}</td>
-        <td><span class="tag ${TAG_CLASS[r.type] || 'tag-missing'}">${esc(r.type)}</span></td>
-        <td class="tcm">${tcmCell(r)}</td>
+        <td><span class="tag ${TAG[r.type] || 'tag-missing'}">${esc(r.type || '')}</span></td>
+        ${c.seo ? `<td class="${typeof r.score === 'number' ? scoreClass(r.score) : ''}">${typeof r.score === 'number' ? r.score : '—'}</td>
+                   <td class="desc">${r.description ? `<span class="clamp" title="${esc(r.description)}">${esc(r.description)}</span>` : '<span class="tcm-none">None</span>'}</td>
+                   <td class="issues">${(r.issues || []).length ? '<ul>' + r.issues.map(i => `<li>${esc(i)}</li>`).join('') + '</ul>' : '<span class="tcm-none">Nothing</span>'}</td>` : ''}
+        ${c.forms ? `<td><span class="tag ${r.modelsite ? 'tag-double' : r.form_count ? 'tag-partial' : 'tag-missing'}">${esc(r.form_status || 'No form')}</span></td>` : ''}
+        ${c.links ? `<td class="num ${r.broken_count ? 'bad' : ''}">${r.broken_count || 0}</td>` : ''}
+        ${c.tcm ? `<td class="tcm">${tcmCell(r)}</td>` : ''}
       </tr>`).join('')
     + '</tbody></table>';
 }
@@ -925,134 +852,77 @@ $('wrap').addEventListener('click', e => {
   }).catch(() => note('Could not copy', 'err'));
 });
 
-// ── Recheck ────────────────────────────────────────────────────────────────
+// ── Recheck what the site refused ──────────────────────────────────────────
 $('recheckBtn').addEventListener('click', async () => {
-  const targets = rows.filter(r => r.unverified);
+  const targets = rows.filter(isUnverified);
   if (!targets.length) return;
-  running = true; stopped = false;
-  $('recheckBtn').disabled = true;
-  $('stopBtn').hidden = false; $('stopBtn').disabled = false;
-  $('prog').hidden = false;
+  running = true; $('recheckBtn').disabled = true; $('prog').hidden = false;
   note('Going back over the refusals more slowly…');
-
-  const byUrl = new Map(rows.map(r => [r.url, r]));
   let done = 0;
   for (let i = 0; i < targets.length && !stopped; i += 20) {
-    const slice = targets.slice(i, i + 20).map(r => r.url);
-    let results = [];
+    const slice = targets.slice(i, i + 20);
     try {
-      const res = await fetch('/api/title-check/link-status', {
+      const res = await fetch('/api/title-check/scan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: slice }),
+        body: JSON.stringify({ urls: slice.map(r => r.url), brand: $('brand').value.trim(),
+                               focus: $('focus').value.trim(), ...caps(),
+                               internal_only: $('internalOnly').checked }),
       });
-      results = (await res.json()).results || [];
-    } catch (e) { /* leave these rows as they were */ }
-    results.forEach(r => {
-      const row = byUrl.get(r.url);
-      if (!row) return;
-      if (!r.broken && !r.unverified) {
-        // It answers after all, so it was never a problem — drop the row.
-        rows = rows.filter(x => x !== row);
-        linkTotals.okPages += 1;
-      } else {
-        row.status = r.status; row.kind = r.kind; row.unverified = !!r.unverified;
-      }
-    });
+      ((await res.json()).results || []).forEach(u => {
+        const row = rows.find(r => r.url === u.url);
+        if (row) Object.assign(row, u);
+      });
+    } catch {}
     done += slice.length;
     setProgress(done, targets.length, 'rechecked');
     render();
   }
-  running = false;
-  $('stopBtn').hidden = true;
-  $('recheckBtn').disabled = false;
-  const left = rows.filter(r => r.unverified).length;
+  running = false; $('recheckBtn').disabled = false;
+  const left = rows.filter(isUnverified).length;
   note(left ? `${targets.length - left} of ${targets.length} answered on the second pass — ${left} still refusing`
             : `All ${targets.length} answered on the second pass`, left ? '' : 'ok');
   render();
 });
 
 // ── Export ─────────────────────────────────────────────────────────────────
-// Each tab exports the columns it shows. The TCM ID column is written as its
-// CMS link so a row can be opened straight from the sheet.
-const EXPORTS = {
-  title: {
-    sheet: 'Page titles', filename: 'page-titles.xlsx',
-    columns: [
-      { key: 'url', label: 'URL', width: 60 },
-      { key: 'title', label: 'Current Page Title', width: 70 },
-      { key: 'type', label: 'Title Type', width: 18 },
-      { key: 'tcm_id', label: 'TCM ID', width: 26, link: 'cms' },
-    ],
-  },
-  audit: {
-    sheet: 'SEO audit', filename: 'seo-audit.xlsx',
-    columns: [
-      { key: 'url', label: 'URL', width: 60 },
-      { key: 'score', label: 'Score', width: 8 },
-      { key: 'title', label: 'Page Title', width: 60 },
-      { key: 'title_chars', label: 'Title Chars', width: 12 },
-      { key: 'type', label: 'Title Type', width: 18 },
-      { key: 'description', label: 'Meta Description', width: 70 },
-      { key: 'desc_chars', label: 'Description Chars', width: 17 },
-      { key: 'keywords', label: 'Meta Keywords', width: 40 },
-      { key: 'h1', label: 'H1', width: 40 },
-      { key: 'issue_text', label: 'What To Fix', width: 70 },
-      { key: 'tcm_id', label: 'TCM ID', width: 26, link: 'cms' },
-    ],
-  },
-  links: {
-    sheet: 'Broken links', filename: 'broken-links.xlsx',
-    columns: [
-      { key: 'url', label: 'URL', width: 70 },
-      { key: 'status', label: 'Status', width: 12 },
-      { key: 'verdict_text', label: 'Verdict', width: 18 },
-      { key: 'origin_text', label: 'Where', width: 16 },
-      { key: 'occurrences', label: 'Times Linked', width: 14 },
-      { key: 'source_text', label: 'Found On', width: 90 },
-    ],
-  },
-  forms: {
-    sheet: 'Form check', filename: 'form-check.xlsx',
-    columns: [
-      { key: 'url', label: 'URL', width: 60 },
-      { key: 'title', label: 'Page Title', width: 60 },
-      { key: 'form_id_text', label: 'Form IDs', width: 24 },
-      { key: 'status', label: 'Result', width: 20 },
-      { key: 'tcm_id', label: 'TCM ID', width: 26, link: 'cms' },
-    ],
-  },
-};
-
-function exportPayload(list) {
-  const cfg = EXPORTS[mode];
-  const data = list.map(r => ({
-    ...r,
-    // Flattened here rather than in the sheet writer, which has no idea these
-    // are lists.
-    issue_text: (r.issues || []).join('; '),
-    form_id_text: (r.form_ids || []).join(', '),
-    origin_text: r.origin === 'sitemap' ? 'In sitemap' : r.origin === 'onpage' ? 'Link on page' : '',
-    verdict_text: r.unverified ? 'Could not check' : 'Broken',
-    source_text: r.origin === 'sitemap' ? 'Listed in the sitemap' : (r.sources || []).join(' ; '),
-  }));
-  return { sheet: cfg.sheet, filename: cfg.filename, columns: cfg.columns, data };
-}
-
 $('exportBtn').addEventListener('click', async () => {
-  // Exports what is on screen, so a filtered view exports that filter.
   const list = visibleRows();
   if (!list.length) { note('Nothing to export yet', 'err'); return; }
+  const c = caps();
+  const columns = [{ key: 'url', label: 'URL', width: 66 }];
+  if (rows.some(r => r.area || r.frontline)) {
+    columns.push({ key: 'area', label: 'Area', width: 12 }, { key: 'frontline', label: 'Frontline', width: 16 });
+  }
+  columns.push({ key: 'domain', label: 'Site', width: 26 },
+               { key: 'status_text', label: 'Status', width: 14 },
+               { key: 'title', label: 'Page Title', width: 62 },
+               { key: 'type', label: 'Title Type', width: 18 });
+  if (c.seo) columns.push({ key: 'score', label: 'SEO Score', width: 11 },
+                          { key: 'description', label: 'Meta Description', width: 66 },
+                          { key: 'desc_chars', label: 'Description Chars', width: 17 },
+                          { key: 'issue_text', label: 'What To Fix', width: 66 });
+  if (c.forms) columns.push({ key: 'form_id_text', label: 'Form IDs', width: 20 },
+                            { key: 'form_status', label: 'Form Result', width: 18 });
+  if (c.links) columns.push({ key: 'broken_count', label: 'Broken Links', width: 14 });
+  if (c.tcm) columns.push({ key: 'tcm_id', label: 'TCM ID', width: 26, link: 'cms' });
+
+  const data = list.map(r => ({
+    ...r,
+    status_text: r.ok ? 'OK' : String(r.http_status ?? r.title ?? ''),
+    issue_text: (r.issues || []).join('; '),
+    form_id_text: (r.form_ids || []).join(', '),
+  }));
   $('exportBtn').disabled = true;
   try {
     const res = await fetch('/api/title-check/export', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(exportPayload(list)),
+      body: JSON.stringify({ sheet: 'Site audit', filename: 'site-audit.xlsx', columns, data }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = EXPORTS[mode].filename;
+    a.download = 'site-audit.xlsx';
     document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   } catch (e) {
@@ -1061,6 +931,8 @@ $('exportBtn').addEventListener('click', async () => {
     $('exportBtn').disabled = false;
   }
 });
+
+syncCapUi();
 </script>
 </body>
 </html>

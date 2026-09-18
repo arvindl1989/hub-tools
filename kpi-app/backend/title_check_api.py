@@ -304,7 +304,9 @@ def fetch_title(client: httpx.Client, url: str, want_body: bool = False) -> dict
             time.sleep(max(last.get("wait", 1.0), 3.0 if blocked else 1.0))
     last.pop("retryable", None)
     last.pop("wait", None)
-    last.pop("http_status", None)
+    # http_status is deliberately kept: the scan needs it to tell a page that is
+    # genuinely gone (404, 500) from one the site refused to serve us, and
+    # stripping it here collapsed the two back together.
     return last
 
 
@@ -1079,6 +1081,228 @@ async def forms(req: TitleRequest):
                         "modelsite": modelsite,
                         "status": "Modelsite form" if modelsite else ("Other form" if ids else "No form")})
     return {"results": results}
+
+
+# ── One scan, every capability ───────────────────────────────────────────────
+# Four separate endpoints meant four separate crawls of the same site: the
+# title tab fetched every page, then the audit tab fetched them all again for
+# its descriptions, then the form tab again, then the link tab again. Every
+# signal comes out of the same markup, so one fetch yields all of them and a
+# run costs a quarter of what it did.
+#
+# The head-only shortcut still applies when nothing below the head was asked
+# for: titles and TCM IDs live in <head>, while H1s, forms and links do not.
+
+class ScanRequest(BaseModel):
+    urls: list = Field(default_factory=list)
+    brand: str = ""
+    focus: str = ""
+    # Which checks to run. Titles are free once the page is fetched, so they
+    # are always returned; the rest decide whether the body is read at all.
+    seo: bool = False
+    forms: bool = False
+    links: bool = False
+    internal_only: bool = True
+
+
+
+# ── Finding a sitemap from a bare domain ─────────────────────────────────────
+# A list of domains is the natural way to ask for a whole-estate audit, but a
+# domain is not a sitemap. robots.txt is asked first because it is where a site
+# declares its own sitemap — including ones at paths no guess would find — and
+# only then the conventional locations.
+_SITEMAP_GUESSES = ("/sitemap.xml", "/sitemap_index.xml", "/sitemap-index.xml",
+                    "/sitemap/sitemap.xml", "/sitemap.xml.gz")
+_ROBOTS_SITEMAP_RE = re.compile(r"^\s*sitemap\s*:\s*(\S+)", re.I | re.M)
+
+
+# A hostname: labels of letters, digits and hyphens, at least one dot, and a
+# final label that is alphabetic. Pasted cells arrive wrapped in stray commas
+# and spaces, and a line of prose must not be turned into a URL and requested.
+_HOST_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$", re.I)
+# A bare address is a legitimate target — an internal host, or a staging box —
+# and the hostname pattern above would reject it for having no alphabetic TLD.
+_IPV4_RE = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
+
+
+def normalise_domain(raw: str) -> str:
+    text = (raw or "").strip().strip(",;|\t ").strip()
+    if not text:
+        return ""
+    if not text.lower().startswith(("http://", "https://")):
+        text = "https://" + text
+    parts = urlparse(text)
+    netloc = (parts.netloc or "").strip().rstrip(".").split("@")[-1]
+    # Validate the hostname alone, but keep a non-standard port: dropping it
+    # would quietly audit a different service than the one asked for.
+    host, _, port = netloc.partition(":")
+    host = host.rstrip(".").lower()
+    if not host or not (_HOST_RE.match(host) or _IPV4_RE.match(host) or host == "localhost"):
+        return ""
+    scheme = parts.scheme if parts.scheme in ("http", "https") else "https"
+    return f"{scheme}://{host}" + (f":{port}" if port.isdigit() else "")
+
+
+def find_sitemaps(origin: str) -> list:
+    """Sitemap URLs for a domain, best source first."""
+    found, seen = [], set()
+    with _client() as client:
+        try:
+            resp = client.get(origin.rstrip("/") + "/robots.txt", headers=_HEADERS,
+                              follow_redirects=True)
+            if resp.status_code < 400:
+                for m in _ROBOTS_SITEMAP_RE.finditer(resp.text[:200_000]):
+                    candidate = m.group(1).strip()
+                    if candidate and candidate not in seen:
+                        seen.add(candidate)
+                        found.append(candidate)
+        except Exception:                                       # noqa: BLE001
+            pass
+
+        if not found:
+            for guess in _SITEMAP_GUESSES:
+                url = origin.rstrip("/") + guess
+                try:
+                    r = client.get(url, headers=_HEADERS, follow_redirects=True)
+                    # A site that answers its 404 with an HTML page would
+                    # otherwise be taken as having a sitemap, so the body has
+                    # to look like one.
+                    if r.status_code < 400 and "<loc" in r.text[:40_000].lower():
+                        found.append(url)
+                        break
+                except Exception:                               # noqa: BLE001
+                    continue
+    return found
+
+
+class DiscoverRequest(BaseModel):
+    domains: list = Field(default_factory=list)
+
+
+@router.post("/discover")
+async def discover(req: DiscoverRequest):
+    """For each domain, its sitemap and every URL in it.
+
+    One call per domain rather than per sitemap, so the caller hands over a
+    list and gets back a worklist — which is what makes the whole estate one
+    click rather than one run per site.
+    """
+    out = []
+    for entry in req.domains[:80]:
+        domain = normalise_domain(entry.get("domain") if isinstance(entry, dict) else entry)
+        area = (entry.get("area") or "") if isinstance(entry, dict) else ""
+        frontline = (entry.get("frontline") or "") if isinstance(entry, dict) else ""
+        if not domain:
+            out.append({"domain": str(entry), "area": area, "frontline": frontline,
+                        "sitemap": "", "urls": [], "count": 0, "error": "Not a usable domain"})
+            continue
+        sitemaps = find_sitemaps(domain)
+        if not sitemaps:
+            out.append({"domain": domain, "area": area, "frontline": frontline,
+                        "sitemap": "", "urls": [], "count": 0,
+                        "error": "No sitemap found in robots.txt or the usual paths"})
+            continue
+        urls, seen, problems = [], set(), []
+        for sitemap in sitemaps[:5]:
+            try:
+                got = collect_sitemap_urls(sitemap)
+            except HTTPException as exc:
+                problems.append(str(exc.detail))
+                continue
+            for u in got["urls"]:
+                if u not in seen:
+                    seen.add(u)
+                    urls.append(u)
+        out.append({"domain": domain, "area": area, "frontline": frontline,
+                    "sitemap": sitemaps[0], "sitemaps": sitemaps[:5],
+                    "urls": urls[:_MAX_URLS], "count": len(urls),
+                    "error": "" if urls else (problems[0] if problems else "Sitemap had no URLs")})
+    return {"results": out}
+
+@router.post("/scan")
+async def scan(req: ScanRequest):
+    urls = [u.strip() for u in req.urls if u and u.strip()][:_MAX_BATCH]
+    if not urls:
+        return {"results": []}
+
+    want_body = bool(req.seo or req.forms or req.links)
+    focus = _focus_terms(req.focus)
+
+    with _client() as client:
+        with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
+            fetched = list(pool.map(lambda u: fetch_title(client, u, want_body=want_body), urls))
+
+    results = []
+    for item in fetched:
+        tcm = item.get("tcm_id") or ""
+        row = {
+            "url": item["url"],
+            "tcm_id": tcm,
+            "cms_url": cms_url(tcm),
+            # The page's own status, which is what makes a dead sitemap entry
+            # fall out of the same pass rather than needing a crawl of its own.
+            "http_status": item.get("http_status", 200 if item["ok"] else None),
+            "ok": item["ok"],
+        }
+        if not item["ok"]:
+            row.update({"title": item["title"], "type": FAILED, "score": None,
+                        "issues": ["Could not be read"], "issue_keys": [],
+                        "description": "", "desc_chars": 0, "keywords": "", "h1": "",
+                        "title_chars": 0, "form_ids": [], "form_count": 0,
+                        "modelsite": False, "form_status": FAILED, "links": []})
+            results.append(row)
+            continue
+
+        document = item.get("document") or ""
+        title = item["title"]
+        row.update({"title": title or "", "type": classify(title, req.brand),
+                    "title_chars": len(_normalise(title or "")),
+                    "score": None, "issues": [], "issue_keys": [],
+                    "description": "", "desc_chars": 0, "keywords": "", "h1": "",
+                    "form_ids": [], "form_count": 0, "modelsite": False,
+                    "form_status": "", "links": []})
+
+        if req.forms:
+            ids = extract_form_ids(document)
+            row["form_ids"] = ids
+            row["form_count"] = len(ids)
+            row["modelsite"] = MODELSITE_FORM_ID in ids
+            row["form_status"] = ("Modelsite form" if row["modelsite"]
+                                  else ("Other form" if ids else "No form"))
+        if req.links:
+            row["links"] = extract_links(document, item["url"], req.internal_only)
+        if req.seo:
+            # Broken links are scored in a second step by the caller, which by
+            # then knows the status of every link on every page; scoring here
+            # would mean checking this page's links before the next page has
+            # even been read.
+            row.update(audit_page(title, document, req.brand, focus))
+        results.append(row)
+    return {"results": results}
+
+
+class ScoreRequest(BaseModel):
+    """Re-score rows once link statuses are known, without refetching."""
+    rows: list = Field(default_factory=list)
+    broken: list = Field(default_factory=list)
+
+
+@router.post("/rescore")
+async def rescore(req: ScoreRequest):
+    broken = set(req.broken)
+    out = []
+    for row in req.rows:
+        bad = [l for l in (row.get("links") or []) if l in broken]
+        keys = [k for k in (row.get("issue_keys") or []) if k != "broken_links"]
+        issues = [i for i in (row.get("issues") or []) if "broken link" not in i]
+        if bad:
+            shown = ", ".join(bad[:3]) + ("…" if len(bad) > 3 else "")
+            keys.append("broken_links")
+            issues.append(f"{len(bad)} broken link{'s' if len(bad) != 1 else ''} on the page ({shown})")
+        lost = sum(PENALTY.get(k, 0) for k in keys)
+        out.append({"url": row.get("url"), "issue_keys": keys, "issues": issues,
+                    "broken_count": len(bad), "score": max(0, 100 - lost)})
+    return {"results": out}
 
 @router.post("/export")
 async def export_xlsx(req: ExportRequest):
