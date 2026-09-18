@@ -1083,6 +1083,70 @@ async def forms(req: TitleRequest):
     return {"results": results}
 
 
+
+# ── Working out a site's own name ────────────────────────────────────────────
+# Eighty sites cannot each be told their brand by hand, and the brand is
+# already written on every page: it is the segment at the end of the title that
+# the whole site shares. Taking the most common last segment finds it without
+# being told, and it survives the very faults being looked for — the last
+# segment of "Lifts | KONE AU - KONE AU" and of "KONE - KONE AU" is "KONE AU"
+# either way.
+
+_MIN_BRAND_SHARE = 0.35
+
+
+def infer_brand(titles: list) -> str:
+    """The site name shared by these page titles, or "" if they do not agree.
+
+    Requiring a share of the titles rather than just taking the commonest guards
+    against a handful of pages inventing a brand for a site whose titles have no
+    common ending at all.
+    """
+    tails: dict = {}
+    counted = 0
+    for raw in titles:
+        text = _normalise(raw or "")
+        if not text:
+            continue
+        counted += 1
+        segments = _title_segments(text)
+        if not segments:
+            continue
+        tail = segments[-1]
+        tails[tail] = tails.get(tail, 0) + 1
+    if not counted or not tails:
+        return ""
+    tail, hits = max(tails.items(), key=lambda kv: (kv[1], -len(kv[0])))
+    if hits / counted < _MIN_BRAND_SHARE:
+        return ""
+    return tail
+
+
+class ClassifyRequest(BaseModel):
+    """Titles grouped by site, classified against each site's own brand.
+
+    Runs after the scan and fetches nothing: the titles are already in hand, so
+    inferring the brand and re-reading the classification costs one request for
+    the whole run rather than a crawl per site.
+    """
+    rows: list = Field(default_factory=list)      # [{url, title, site}]
+    brand: str = ""                               # when given, used for every site
+
+
+@router.post("/classify")
+async def classify_titles(req: ClassifyRequest):
+    by_site: dict = {}
+    for row in req.rows:
+        by_site.setdefault(row.get("site") or "", []).append(row)
+
+    brands, types = {}, {}
+    for site, rows in by_site.items():
+        brand = req.brand.strip() or infer_brand([r.get("title") for r in rows])
+        brands[site] = brand
+        for r in rows:
+            types[r.get("url")] = classify(r.get("title"), brand)
+    return {"brands": brands, "types": types}
+
 # ── One scan, every capability ───────────────────────────────────────────────
 # Four separate endpoints meant four separate crawls of the same site: the
 # title tab fetched every page, then the audit tab fetched them all again for
@@ -1175,49 +1239,106 @@ def find_sitemaps(origin: str) -> list:
     return found
 
 
+def split_target(raw: str) -> tuple:
+    """(origin, path prefix) for one listed target.
+
+    The estate list carries the language in the path — www.kone.bg/en/ and
+    www.kone.bg/bg/ are two entries on one host — so the path cannot be
+    discarded. It becomes a filter over that host's sitemap, which keeps the two
+    entries apart with their own Area, frontline and results while the sitemap
+    itself is still only read once for the host.
+    """
+    text = (raw or "").strip().strip(",;|\t ").strip()
+    if not text:
+        return "", ""
+    if not text.lower().startswith(("http://", "https://")):
+        text = "https://" + text
+    origin = normalise_domain(text)
+    if not origin:
+        return "", ""
+    prefix = urlparse(text).path or ""
+    if prefix in ("", "/"):
+        return origin, ""
+    return origin, prefix if prefix.startswith("/") else "/" + prefix
+
+
+def _under_prefix(url: str, prefix: str) -> bool:
+    if not prefix:
+        return True
+    path = urlparse(url).path or "/"
+    # The trailing slash is trimmed before comparing so /en matches /en and
+    # /en/lifts but not /energy.
+    trimmed = prefix.rstrip("/")
+    return path == trimmed or path.startswith(trimmed + "/")
+
+
 class DiscoverRequest(BaseModel):
     domains: list = Field(default_factory=list)
+    # A first sweep across eighty sites wants breadth rather than every page of
+    # each; 0 takes everything the sitemap lists.
+    per_site_limit: int = 0
 
 
 @router.post("/discover")
 async def discover(req: DiscoverRequest):
-    """For each domain, its sitemap and every URL in it.
+    """For each listed target, its sitemap and the URLs that belong to it.
 
-    One call per domain rather than per sitemap, so the caller hands over a
-    list and gets back a worklist — which is what makes the whole estate one
-    click rather than one run per site.
+    One call for the whole list rather than one per site, so the caller hands
+    over the list and gets back a worklist — which is what makes an estate one
+    click instead of eighty runs.
     """
     out = []
-    for entry in req.domains[:80]:
-        domain = normalise_domain(entry.get("domain") if isinstance(entry, dict) else entry)
-        area = (entry.get("area") or "") if isinstance(entry, dict) else ""
-        frontline = (entry.get("frontline") or "") if isinstance(entry, dict) else ""
-        if not domain:
-            out.append({"domain": str(entry), "area": area, "frontline": frontline,
-                        "sitemap": "", "urls": [], "count": 0, "error": "Not a usable domain"})
+    # Entries share hosts, one per language, so each host's sitemap is read once
+    # and reused rather than fetched again for every language on it.
+    by_host: dict = {}
+    for entry in req.domains[:400]:
+        raw = entry.get("domain") if isinstance(entry, dict) else entry
+        extras = entry if isinstance(entry, dict) else {}
+        origin, prefix = split_target(raw)
+        row = {"target": str(raw), "domain": origin, "path": prefix,
+               "area": extras.get("area", "") or "",
+               "frontline": extras.get("frontline", "") or "",
+               "country": extras.get("country", "") or "",
+               "language": extras.get("language", "") or ""}
+        if not origin:
+            out.append({**row, "sitemap": "", "urls": [], "count": 0, "available": 0,
+                        "error": "Not a usable domain"})
             continue
-        sitemaps = find_sitemaps(domain)
-        if not sitemaps:
-            out.append({"domain": domain, "area": area, "frontline": frontline,
-                        "sitemap": "", "urls": [], "count": 0,
+
+        if origin not in by_host:
+            sitemaps = find_sitemaps(origin)
+            urls, seen, problems = [], set(), []
+            for sitemap in sitemaps[:5]:
+                try:
+                    got = collect_sitemap_urls(sitemap)
+                except HTTPException as exc:
+                    problems.append(str(exc.detail))
+                    continue
+                for u in got["urls"]:
+                    if u not in seen:
+                        seen.add(u)
+                        urls.append(u)
+            by_host[origin] = {"sitemaps": sitemaps, "urls": urls, "problems": problems}
+
+        host = by_host[origin]
+        if not host["sitemaps"]:
+            out.append({**row, "sitemap": "", "urls": [], "count": 0, "available": 0,
                         "error": "No sitemap found in robots.txt or the usual paths"})
             continue
-        urls, seen, problems = [], set(), []
-        for sitemap in sitemaps[:5]:
-            try:
-                got = collect_sitemap_urls(sitemap)
-            except HTTPException as exc:
-                problems.append(str(exc.detail))
-                continue
-            for u in got["urls"]:
-                if u not in seen:
-                    seen.add(u)
-                    urls.append(u)
-        out.append({"domain": domain, "area": area, "frontline": frontline,
-                    "sitemap": sitemaps[0], "sitemaps": sitemaps[:5],
-                    "urls": urls[:_MAX_URLS], "count": len(urls),
-                    "error": "" if urls else (problems[0] if problems else "Sitemap had no URLs")})
+
+        mine = [u for u in host["urls"] if _under_prefix(u, prefix)]
+        available = len(mine)
+        if req.per_site_limit and req.per_site_limit > 0:
+            mine = mine[:req.per_site_limit]
+        error = ""
+        if not available:
+            error = (f"Sitemap has no URLs under {prefix}" if prefix
+                     else (host["problems"][0] if host["problems"] else "Sitemap had no URLs"))
+        out.append({**row, "sitemap": host["sitemaps"][0], "sitemaps": host["sitemaps"][:5],
+                    "urls": mine[:_MAX_URLS], "count": len(mine[:_MAX_URLS]),
+                    "available": available, "error": error})
     return {"results": out}
+
 
 @router.post("/scan")
 async def scan(req: ScanRequest):

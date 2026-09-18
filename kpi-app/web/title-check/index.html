@@ -202,6 +202,20 @@
   .bad { color: #b3261e; font-weight: 600; }
   .warn { color: #a75d00; font-weight: 600; }
   .good { color: #147a50; font-weight: 600; }
+  /* ── Area / FL pickers ── */
+  .groups { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+  .groups .gh {
+    width: 100%; font-family: var(--font-kone); text-transform: uppercase;
+    letter-spacing: 0.05em; font-size: 0.62rem; color: var(--muted); margin: 4px 0 0;
+  }
+  .groups button {
+    border: 1px solid var(--border-strong); background: #fff; color: var(--text);
+    border-radius: var(--radius); padding: 7px 13px; font-size: 0.8rem;
+    font-family: inherit; font-weight: 600; cursor: pointer;
+  }
+  .groups button:hover { border-color: var(--primary); color: var(--primary); }
+  .groups button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .groups button span { font-weight: 400; opacity: 0.75; margin-left: 5px; }
   /* ── Results table ── */
   .wrap {
     border: 1px solid var(--border); border-radius: var(--radius);
@@ -295,8 +309,19 @@
     <div class="field" id="srcDomains">
       <label class="lbl" for="domainList">Domains — one per line, optionally followed by Area and Frontline</label>
       <textarea id="domainList" placeholder="www.kone.com.au, APM, KANZ&#10;www.kone.bg, EU, EEM&#10;www.kone.se&#9;EU&#9;NORDICS"></textarea>
-      <p class="hint">Comma, tab or pipe separated, so a block of cells pasted from Excel works as-is.
-        The sitemap is found from each domain's robots.txt, or the usual paths.</p>
+      <p class="hint">Paste the estate list straight from Excel — with its header row, the
+        Domain, Area, FL, Country and Language columns are picked out by name and the rest
+        ignored. Without a header, each line is read as domain, area, frontline. A language
+        path such as <code>www.kone.bg/en/</code> is kept and limits that entry to pages
+        under it, so two languages on one host stay separate.</p>
+      <div class="actions" style="margin-bottom:12px;">
+        <button class="btn" id="loadListBtn" type="button"><i class="fa-solid fa-list-check"></i> Load the list</button>
+        <span class="hint" id="listNote" style="margin:0;align-self:center;"></span>
+      </div>
+      <div id="groupPicker" hidden>
+        <label class="lbl">Audit which sites</label>
+        <div class="groups" id="groups"></div>
+      </div>
     </div>
 
     <div class="field" id="srcSitemap" hidden>
@@ -336,6 +361,13 @@
         <label class="lbl" for="focus">Focus keywords — optional, comma separated</label>
         <input type="text" id="focus" placeholder="elevators, escalators, lifts" autocomplete="off">
       </div>
+    </div>
+
+    <div class="field" id="limitField">
+      <label class="lbl" for="perSite">Pages per site</label>
+      <input type="text" id="perSite" value="25" style="max-width:120px;" autocomplete="off">
+      <p class="hint">A whole-estate sweep is thousands of pages. 25 per site finds systemic
+        problems quickly; set 0 to take every page a sitemap lists.</p>
     </div>
 
     <label class="opt" id="internalOpt" hidden>
@@ -412,6 +444,7 @@ let work = [];        // {url, domain, area, frontline} — the scan worklist
 let rows = [];        // one row per page
 let broken = [];      // {url, status, kind, unverified, sources[]} — link targets that failed
 let filter = 'all', areaSel = '', flSel = '', domainSel = '';
+let siteBrands = {};   // site -> the name inferred from its own page titles
 let running = false, stopped = false;
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
@@ -466,15 +499,110 @@ $('brand').addEventListener('change', () => localStorage.setItem(BRAND_KEY, $('b
 $('domainList').addEventListener('change', () => localStorage.setItem(DOM_KEY, $('domainList').value));
 $('sitemapUrl').addEventListener('change', () => localStorage.setItem(SM_KEY, $('sitemapUrl').value.trim()));
 
-// A pasted block of spreadsheet cells arrives tab separated; typed lines are
-// more likely comma separated. Accepting both, plus pipes, means no one has to
-// reformat a list before using it.
+// The estate list is six columns wide with a header row, and the domain is the
+// fourth of them — so reading position 0 as the domain turns "1" into a domain.
+// When a header is present the columns are found by name and everything else is
+// ignored; without one, the simple domain/area/frontline form still works.
+const HEADER_ALIASES = {
+  domain: ['domain', 'url', 'website', 'site'],
+  area: ['area', 'region'],
+  frontline: ['fl', 'frontline', 'front line'],
+  country: ['country', 'market'],
+  language: ['language', 'lang'],
+};
+
+function splitCells(line) {
+  return line.split(/\t|\||;|,/).map(c => c.trim());
+}
+
+// A pasted cell may arrive as a markdown link, which is how a linked spreadsheet
+// cell copies: [www.kone.se](https://www.kone.se).
+function cleanCell(value) {
+  const md = String(value || '').match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+  return (md ? md[2] || md[1] : value || '').trim();
+}
+
 function parseDomainLines(text) {
-  return text.split('\n').map(line => {
-    const parts = line.split(/[\t|,;]/).map(p => p.trim()).filter((p, i) => i === 0 || p);
-    if (!parts[0]) return null;
-    return { domain: parts[0], area: parts[1] || '', frontline: parts[2] || '' };
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return [];
+
+  const first = splitCells(lines[0]).map(c => c.toLowerCase());
+  const map = {};
+  Object.entries(HEADER_ALIASES).forEach(([key, names]) => {
+    const i = first.findIndex(c => names.includes(c));
+    if (i !== -1) map[key] = i;
+  });
+  const hasHeader = map.domain !== undefined;
+
+  return lines.slice(hasHeader ? 1 : 0).map(line => {
+    const cells = splitCells(line);
+    if (hasHeader) {
+      const domain = cleanCell(cells[map.domain]);
+      if (!domain) return null;
+      return {
+        domain,
+        area: cleanCell(cells[map.area]) || '',
+        frontline: cleanCell(cells[map.frontline]) || '',
+        country: cleanCell(cells[map.country]) || '',
+        language: cleanCell(cells[map.language]) || '',
+      };
+    }
+    const parts = cells.filter((c, i) => i === 0 || c);
+    const domain = cleanCell(parts[0]);
+    if (!domain) return null;
+    return { domain, area: cleanCell(parts[1]) || '', frontline: cleanCell(parts[2]) || '',
+             country: '', language: '' };
   }).filter(Boolean);
+}
+
+// ── The list, and the Area / FL buttons over it ────────────────────────────
+let targets = [];       // everything parsed from the list
+let groupPick = null;   // {kind:'area'|'frontline'|'all', value} — what to audit
+
+$('loadListBtn').addEventListener('click', () => {
+  targets = parseDomainLines($('domainList').value);
+  localStorage.setItem(DOM_KEY, $('domainList').value);
+  if (!targets.length) {
+    $('groupPicker').hidden = true;
+    $('listNote').textContent = 'Nothing recognised as a domain in that list';
+    return;
+  }
+  const withAF = targets.filter(t => t.area || t.frontline).length;
+  $('listNote').textContent = `${targets.length} entries`
+    + (withAF ? `, ${withAF} with an Area or FL` : ', no Area or FL columns found');
+  groupPick = { kind: 'all' };
+  renderGroups();
+  $('groupPicker').hidden = false;
+});
+
+function renderGroups() {
+  const count = (kind, value) => targets.filter(t => (t[kind] || '') === value).length;
+  const uniq = kind => [...new Set(targets.map(t => (t[kind] || '').trim()).filter(Boolean))].sort();
+  const btn = (kind, value, label, n) => {
+    const on = groupPick && groupPick.kind === kind && (kind === 'all' || groupPick.value === value);
+    return `<button type="button" data-kind="${kind}" data-value="${esc(value)}"${on ? ' class="active"' : ''}>${esc(label)}<span>${n}</span></button>`;
+  };
+  let html = btn('all', '', 'All sites', targets.length);
+  const areas = uniq('area');
+  if (areas.length) {
+    html += '<div class="gh">By area</div>' + areas.map(a => btn('area', a, a, count('area', a))).join('');
+  }
+  const fls = uniq('frontline');
+  if (fls.length) {
+    html += '<div class="gh">By frontline</div>' + fls.map(f => btn('frontline', f, f, count('frontline', f))).join('');
+  }
+  $('groups').innerHTML = html;
+}
+
+$('groups').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  groupPick = { kind: b.dataset.kind, value: b.dataset.value };
+  renderGroups();
+});
+
+function pickedTargets() {
+  if (!groupPick || groupPick.kind === 'all') return targets;
+  return targets.filter(t => (t[groupPick.kind] || '') === groupPick.value);
 }
 
 function hostOf(url) {
@@ -504,26 +632,36 @@ async function buildWork() {
     return (data.urls || []).map(u => ({ url: u, domain: hostOf(u), area: '', frontline: '' }));
   }
 
-  const domains = parseDomainLines($('domainList').value);
+  if (!targets.length) targets = parseDomainLines($('domainList').value);
+  const domains = pickedTargets();
   if (!domains.length) { $('domainList').focus(); throw new Error('Add at least one domain'); }
-  note(`Finding sitemaps for ${domains.length} domain${domains.length === 1 ? '' : 's'}…`);
+  const limit = Math.max(0, parseInt($('perSite').value, 10) || 0);
+  const label = groupPick && groupPick.kind !== 'all' ? ` in ${groupPick.value}` : '';
+  note(`Finding sitemaps for ${domains.length} site${domains.length === 1 ? '' : 's'}${label}…`);
   const res = await fetch('/api/title-check/discover', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ domains }),
+    body: JSON.stringify({ domains, per_site_limit: limit }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
 
   const out = [];
   const failed = [];
+  let available = 0;
   (data.results || []).forEach(r => {
-    if (r.error && !r.count) { failed.push(`${r.domain || '?'} — ${r.error}`); return; }
-    const host = hostOf(r.domain) || r.domain;
-    r.urls.forEach(u => out.push({ url: u, domain: host, area: r.area, frontline: r.frontline }));
+    available += (r.available || 0);
+    if (r.error && !r.count) { failed.push(`${r.target || r.domain || '?'} — ${r.error}`); return; }
+    // The site key is host plus language path, so two languages on one host are
+    // reported, rolled up and brand-inferred separately.
+    const site = (hostOf(r.domain) || r.domain) + (r.path || '');
+    r.urls.forEach(u => out.push({ url: u, domain: site, area: r.area, frontline: r.frontline,
+                                   country: r.country, language: r.language }));
   });
   const ok = (data.results || []).filter(r => r.count).length;
-  note(`${out.length} URLs across ${ok} site${ok === 1 ? '' : 's'}`
-       + (failed.length ? ` · no sitemap for ${failed.length}: ${failed.slice(0, 3).join('; ')}` : ''),
+  const capped = limit && available > out.length
+    ? ` · capped at ${limit} per site, ${available} available` : '';
+  note(`${out.length} URLs across ${ok} site${ok === 1 ? '' : 's'}${capped}`
+       + (failed.length ? ` · no sitemap for ${failed.length}: ${failed.slice(0, 2).join('; ')}` : ''),
        failed.length ? 'err' : 'ok');
   return out;
 }
@@ -538,7 +676,7 @@ $('runBtn').addEventListener('click', async () => {
   localStorage.setItem(BRAND_KEY, brand);
 
   running = true; stopped = false;
-  rows = []; broken = []; filter = 'all'; areaSel = flSel = domainSel = '';
+  rows = []; broken = []; siteBrands = {}; filter = 'all'; areaSel = flSel = domainSel = '';
   $('runBtn').disabled = true;
   $('stopBtn').hidden = false; $('stopBtn').disabled = false;
   $('prog').hidden = false; $('resultsArea').hidden = false;
@@ -578,6 +716,34 @@ $('runBtn').addEventListener('click', async () => {
       });
       setProgress(rows.length, work.length, 'pages scanned');
       render();
+    }
+
+    // ── Each site's own name, then titles judged against it ──
+    // The brand is not typed for eighty sites, and it is already written on
+    // every page as the shared tail of the title. Inference happens after the
+    // scan because it needs the titles, and costs no extra fetching.
+    if (!stopped && rows.length) {
+      try {
+        const res = await fetch('/api/title-check/classify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            brand,
+            rows: rows.filter(r => r.ok).map(r => ({ url: r.url, title: r.title, site: r.domain })),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        siteBrands = data.brands || {};
+        Object.entries(data.types || {}).forEach(([url, type]) => {
+          const row = rows.find(r => r.url === url);
+          if (row) row.type = type;
+        });
+        const unnamed = Object.entries(siteBrands).filter(([, b]) => !b).map(([k]) => k);
+        if (!brand && unnamed.length) {
+          note(`Could not work out a site name for ${unnamed.length} site${unnamed.length === 1 ? '' : 's'}`
+               + ` — their titles share no common ending, so duplicates cannot be judged there: ${unnamed.slice(0, 3).join(', ')}`, 'err');
+        }
+        render();
+      } catch {}
     }
 
     // ── Pass two: the links found, checked once across the whole run ──
@@ -759,6 +925,7 @@ function renderRollup() {
   rows.forEach(r => {
     const key = r.domain || '(unknown)';
     const g = groups[key] = groups[key] || { domain: key, area: r.area, frontline: r.frontline,
+      country: r.country, language: r.language,
       n: 0, dead: 0, titles: 0, ms: 0, score: 0, scored: 0, unv: 0 };
     g.n += 1;
     if (isDead(r)) g.dead += 1;
@@ -768,15 +935,17 @@ function renderRollup() {
     if (typeof r.score === 'number') { g.score += r.score; g.scored += 1; }
   });
   const list = Object.values(groups).sort((a, b) => b.n - a.n);
-  // With one site there is nothing to compare, and the cards already say it.
-  if (list.length < 2) { $('rollupArea').hidden = true; return; }
+  // With a single site and no list there is nothing to compare and the cards
+  // already say it; with a list, the per-site row is the point of the run.
+  if (list.length < 2 && !targets.length) { $('rollupArea').hidden = true; return; }
   $('rollupArea').hidden = false;
-  const head = ['Site', 'Area', 'Frontline', 'Pages', 'Do not load', 'Title problems']
+  const head = ['Site', 'Site name found', 'Area', 'Frontline', 'Pages', 'Do not load', 'Title problems']
     .concat(c.seo ? ['Avg score'] : []).concat(c.forms ? ['Modelsite'] : []).concat(['Could not check']);
   $('rollupArea').innerHTML = '<div class="rollup"><table><thead><tr>'
     + head.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'
     + list.map(g => `<tr>
-        <td><b>${esc(g.domain)}</b></td>
+        <td><b>${esc(g.domain)}</b>${g.country ? `<br><span class="tcm-none">${esc(g.country)}${g.language ? ' · ' + esc(g.language) : ''}</span>` : ''}</td>
+        <td>${siteBrands[g.domain] ? esc(siteBrands[g.domain]) : '<span class="bad">not found</span>'}</td>
         <td>${esc(g.area || '—')}</td>
         <td>${esc(g.frontline || '—')}</td>
         <td class="num">${g.n}</td>
@@ -893,6 +1062,10 @@ $('exportBtn').addEventListener('click', async () => {
   if (rows.some(r => r.area || r.frontline)) {
     columns.push({ key: 'area', label: 'Area', width: 12 }, { key: 'frontline', label: 'Frontline', width: 16 });
   }
+  if (rows.some(r => r.country || r.language)) {
+    columns.push({ key: 'country', label: 'Country', width: 20 }, { key: 'language', label: 'Language', width: 14 });
+  }
+  columns.push({ key: 'site_brand', label: 'Site Name Found', width: 24 });
   columns.push({ key: 'domain', label: 'Site', width: 26 },
                { key: 'status_text', label: 'Status', width: 14 },
                { key: 'title', label: 'Page Title', width: 62 },
@@ -909,6 +1082,7 @@ $('exportBtn').addEventListener('click', async () => {
   const data = list.map(r => ({
     ...r,
     status_text: r.ok ? 'OK' : String(r.http_status ?? r.title ?? ''),
+    site_brand: siteBrands[r.domain] || '',
     issue_text: (r.issues || []).join('; '),
     form_id_text: (r.form_ids || []).join(', '),
   }));
