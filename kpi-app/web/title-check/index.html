@@ -316,6 +316,7 @@
 
     <div class="toolbar">
       <div class="filters" id="filters"></div>
+      <button class="btn" id="recheckBtn" type="button" hidden><i class="fa-solid fa-rotate"></i> <span id="recheckLabel">Recheck blocked</span></button>
       <button class="btn" id="exportBtn" type="button"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
     </div>
 
@@ -533,6 +534,10 @@ $('verifyBtn').addEventListener('click', async () => {
   $('stopBtn').hidden = true;
   $('verifyBtn').disabled = false; $('findBtn').disabled = false;
   if (stopped) note(`Stopped after ${rows.length} of ${urls.length}`, 'err');
+  // The last render inside the run happened while `running` was still true,
+  // which is what hides the recheck button — so render once more now that the
+  // run is actually over.
+  render();
 });
 
 // A failed request says nothing about the pages in it, so condemning the whole
@@ -840,6 +845,12 @@ function renderSummary() {
 
 function render() {
   renderSummary();
+  // Re-running only the refusals is the useful next move: by the time a run
+  // ends the pacer has learned how slowly this host wants to be approached,
+  // so a second pass at that speed gets many of them.
+  const blockedRows = mode === 'links' ? rows.filter(r => r.unverified) : [];
+  $('recheckBtn').hidden = !(mode === 'links' && blockedRows.length && !running);
+  $('recheckLabel').textContent = `Recheck the ${blockedRows.length} that could not be checked`;
   const list = visibleRows();
   if (!list.length) {
     $('wrap').innerHTML = `<div class="empty">${running ? 'Working…' : 'No rows to show'}</div>`;
@@ -912,6 +923,52 @@ $('wrap').addEventListener('click', e => {
     btn.classList.add('copied');
     setTimeout(() => btn.classList.remove('copied'), 900);
   }).catch(() => note('Could not copy', 'err'));
+});
+
+// ── Recheck ────────────────────────────────────────────────────────────────
+$('recheckBtn').addEventListener('click', async () => {
+  const targets = rows.filter(r => r.unverified);
+  if (!targets.length) return;
+  running = true; stopped = false;
+  $('recheckBtn').disabled = true;
+  $('stopBtn').hidden = false; $('stopBtn').disabled = false;
+  $('prog').hidden = false;
+  note('Going back over the refusals more slowly…');
+
+  const byUrl = new Map(rows.map(r => [r.url, r]));
+  let done = 0;
+  for (let i = 0; i < targets.length && !stopped; i += 20) {
+    const slice = targets.slice(i, i + 20).map(r => r.url);
+    let results = [];
+    try {
+      const res = await fetch('/api/title-check/link-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: slice }),
+      });
+      results = (await res.json()).results || [];
+    } catch (e) { /* leave these rows as they were */ }
+    results.forEach(r => {
+      const row = byUrl.get(r.url);
+      if (!row) return;
+      if (!r.broken && !r.unverified) {
+        // It answers after all, so it was never a problem — drop the row.
+        rows = rows.filter(x => x !== row);
+        linkTotals.okPages += 1;
+      } else {
+        row.status = r.status; row.kind = r.kind; row.unverified = !!r.unverified;
+      }
+    });
+    done += slice.length;
+    setProgress(done, targets.length, 'rechecked');
+    render();
+  }
+  running = false;
+  $('stopBtn').hidden = true;
+  $('recheckBtn').disabled = false;
+  const left = rows.filter(r => r.unverified).length;
+  note(left ? `${targets.length - left} of ${targets.length} answered on the second pass — ${left} still refusing`
+            : `All ${targets.length} answered on the second pass`, left ? '' : 'ok');
+  render();
 });
 
 // ── Export ─────────────────────────────────────────────────────────────────

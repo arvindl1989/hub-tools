@@ -67,6 +67,11 @@ _READ_TIMEOUT = 15.0
 _WORKERS = 6
 _ATTEMPTS = 2
 _MAX_RETRY_WAIT = 5.0
+# A blocked request gets more tries than a merely failed one, with real waits
+# between them: bot protection relents on a slower second or third approach far
+# more often than it does on an immediate retry.
+_BLOCK_ATTEMPTS = 3
+_BLOCK_BACKOFF = (2.0, 6.0)
 # Statuses worth trying again — a timeout, a throttle, or a gateway hiccup says
 # nothing about the page, unlike a 404.
 # 403 is included: bot protection often challenges the first request and
@@ -281,14 +286,19 @@ def fetch_title(client: httpx.Client, url: str, want_body: bool = False) -> dict
     relies on for speed.
     """
     last = {"url": url, "title": "Failed", "tcm_id": None, "ok": False}
+    pacer = _pacer(url)
     for attempt in range(_ATTEMPTS):
+        pacer.wait()
         last = _fetch_once(client, url, want_body)
+        _note_status(url, last.get("http_status", 200 if last["ok"] else "Unreachable"))
         if last["ok"] or not last.get("retryable"):
             break
         if attempt + 1 < _ATTEMPTS:
-            time.sleep(last.get("wait", 1.0))
+            blocked = last.get("http_status") in (401, 403, 407, 429)
+            time.sleep(max(last.get("wait", 1.0), 3.0 if blocked else 1.0))
     last.pop("retryable", None)
     last.pop("wait", None)
+    last.pop("http_status", None)
     return last
 
 
@@ -297,6 +307,7 @@ def _fetch_once(client: httpx.Client, url: str, want_body: bool = False) -> dict
         with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as resp:
             if resp.status_code >= 400:
                 return {"url": url, "title": f"HTTP {resp.status_code}", "tcm_id": None, "ok": False,
+                        "http_status": resp.status_code,
                         "retryable": resp.status_code in _RETRY_STATUS,
                         "wait": _retry_after(resp) if resp.status_code in (429, 503) else 1.0}
             ctype = resp.headers.get("content-type", "")
@@ -314,7 +325,8 @@ def _fetch_once(client: httpx.Client, url: str, want_body: bool = False) -> dict
                     break
             document = _decode(bytes(buf), ctype)
     except httpx.TimeoutException:
-        return {"url": url, "title": "Timed out", "tcm_id": None, "ok": False, "retryable": True, "wait": 1.0}
+        return {"url": url, "title": "Timed out", "tcm_id": None, "ok": False,
+                "http_status": "Timed out", "retryable": True, "wait": 1.0}
     except httpx.HTTPError as exc:
         return {"url": url, "title": type(exc).__name__, "tcm_id": None, "ok": False,
                 "retryable": True, "wait": 1.0}
@@ -442,6 +454,91 @@ def collect_sitemap_urls(root: str) -> dict:
 
 
 
+
+# ── Pacing ───────────────────────────────────────────────────────────────────
+# Fingerprinting was only half the story. When most of a run comes back 403 but
+# a first slice succeeded, the site is not rejecting what the requests look
+# like — it is rejecting how fast they arrive. A fixed delay would be the wrong
+# answer both ways: too slow for sites that do not care, too fast for the ones
+# that do.
+#
+# So the delay is learned per host. It starts at zero, doubles each time the
+# host refuses, and decays back down after a run of successes. A site that
+# never blocks is never slowed; one that does is backed off from until it stops.
+
+_PACE_START = 0.4
+_PACE_MAX = 4.0
+# Low on purpose. The delay has to climb fast to stop a block, but if it only
+# came back down after a long clean run it would sit at the ceiling for the
+# rest of the crawl — correct, but far slower than the host actually requires.
+# Recovering after a short streak lets it settle near the real limit.
+_PACE_RECOVER_AFTER = 8
+
+
+class _HostPacer:
+    def __init__(self) -> None:
+        self.interval = 0.0
+        self.next_at = 0.0
+        self.ok_streak = 0
+        self.lock = threading.Lock()
+
+    def wait(self) -> None:
+        """Claim the next slot for this host, then sleep until it arrives.
+
+        The slot is reserved inside the lock but slept on outside it, so six
+        workers queue up in order instead of all sleeping the same interval and
+        then firing together — which would rebuild the burst being avoided.
+        """
+        with self.lock:
+            if self.interval <= 0:
+                return
+            now = time.monotonic()
+            start = max(now, self.next_at)
+            self.next_at = start + self.interval
+        delay = start - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
+
+    def blocked(self) -> None:
+        with self.lock:
+            self.ok_streak = 0
+            self.interval = min(_PACE_MAX, self.interval * 2 if self.interval else _PACE_START)
+
+    def succeeded(self) -> None:
+        with self.lock:
+            if self.interval <= 0:
+                return
+            self.ok_streak += 1
+            if self.ok_streak >= _PACE_RECOVER_AFTER:
+                self.ok_streak = 0
+                self.interval = 0.0 if self.interval <= _PACE_START else self.interval / 2
+
+
+_pacers: dict = {}
+_pacer_lock = threading.Lock()
+
+
+def _pacer(url: str) -> _HostPacer:
+    host = urlparse(url).netloc.lower()
+    with _pacer_lock:
+        pacer = _pacers.get(host)
+        if pacer is None:
+            pacer = _pacers[host] = _HostPacer()
+        return pacer
+
+
+def _note_status(url: str, status) -> None:
+    pacer = _pacer(url)
+    if status_kind(status) == KIND_BLOCKED or status_kind(status) == KIND_UNCHECKED:
+        pacer.blocked()
+    else:
+        pacer.succeeded()
+
+
+def pacing_report() -> dict:
+    with _pacer_lock:
+        return {host: round(p.interval, 2) for host, p in _pacers.items() if p.interval > 0}
+
 # ── Links ────────────────────────────────────────────────────────────────────
 # A dead link costs crawl budget, strands the reader and wastes the link equity
 # pointing at it, so a page carrying one is scored down alongside its title and
@@ -495,15 +592,25 @@ def _probe(client: httpx.Client, url: str):
     # GET, never HEAD. A browser never sends HEAD for a page, so bot protection
     # treats it as a scraper and answers 403; the body is streamed and dropped
     # without being read, so the cost is a header round trip either way.
-    try:
-        with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as r:
-            return r.status_code
-    except httpx.TimeoutException:
-        return "Timed out"
-    except httpx.HTTPError:
-        return "Unreachable"
-    except Exception:                                           # noqa: BLE001
-        return "Unreachable"
+    pacer = _pacer(url)
+    status = "Unreachable"
+    for attempt in range(_BLOCK_ATTEMPTS):
+        pacer.wait()
+        try:
+            with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as r:
+                status = r.status_code
+        except httpx.TimeoutException:
+            status = "Timed out"
+        except Exception:                                       # noqa: BLE001
+            status = "Unreachable"
+        _note_status(url, status)
+        if not is_unverified(status):
+            return status
+        # A refusal is worth trying again, more slowly each time — the host has
+        # just been backed off from, so the next attempt arrives later.
+        if attempt + 1 < _BLOCK_ATTEMPTS:
+            time.sleep(_BLOCK_BACKOFF[min(attempt, len(_BLOCK_BACKOFF) - 1)])
+    return status
 
 
 def link_status(client: httpx.Client, url: str):
