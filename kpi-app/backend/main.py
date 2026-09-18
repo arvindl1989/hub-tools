@@ -4135,6 +4135,7 @@ Rules:
 import attendance_api
 import email_state_api
 import sn_data_api
+import journey_api
 import title_check_api
 
 attendance_api.configure(get_conn=_get_conn, holidays_by_year=HOLIDAYS_BY_YEAR,
@@ -4155,6 +4156,8 @@ app.include_router(attendance_api.router)
 app.include_router(email_state_api.router)
 app.include_router(sn_data_api.router)
 app.include_router(title_check_api.router)
+journey_api.configure(get_conn=_get_conn, diagnose=db_diagnosis)
+app.include_router(journey_api.router)
 
 
 # ── Serve KPI React app at /kpi/ and hub static tools at / ───────────────────
