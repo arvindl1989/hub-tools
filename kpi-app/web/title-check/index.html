@@ -364,8 +364,9 @@ const MODES = {
     title: 'Link check',
     lede: 'Opens every URL in the sitemap and reports the ones that do not load — the redirect worklist. Optionally also scans each page for broken links sitting on it.',
     button: 'Check links', endpoint: '', batch: 40, focus: false,
-    filters: [['all','All broken'],['sitemap','Sitemap pages'],['onpage','Links on pages'],
-              ['404','404 Not found'],['5xx','Server errors'],['dead','Unreachable / timed out']],
+    filters: [['all','Everything'],['broken','Genuinely broken'],['sitemap','Sitemap pages'],
+              ['onpage','Links on pages'],['404','404 Not found'],['5xx','Server errors'],
+              ['unverified','Could not check']],
   },
   forms: {
     title: 'Form check',
@@ -593,11 +594,13 @@ async function runLinkCheck() {
       });
       results = (await res.json()).results || [];
     } catch (e) {
-      results = slice.map(u => ({ url: u, status: 'Unreachable', broken: true }));
+      results = slice.map(u => ({ url: u, status: 'Unreachable', kind: 'unchecked', broken: false, unverified: true }));
     }
     results.forEach(r => {
-      if (r.broken) rows.push({ url: r.url, status: r.status, origin: 'sitemap', occurrences: 1, sources: [] });
-      else linkTotals.okPages += 1;
+      if (r.broken || r.unverified) {
+        rows.push({ url: r.url, status: r.status, kind: r.kind, unverified: !!r.unverified,
+                    origin: 'sitemap', occurrences: 1, sources: [] });
+      } else { linkTotals.okPages += 1; }
     });
     checked += slice.length;
     linkTotals.pages = checked;
@@ -645,15 +648,15 @@ async function runLinkCheck() {
       });
       results = (await res.json()).results || [];
     } catch (e) {
-      results = slice.map(u => ({ url: u, status: 'Unreachable', broken: true }));
+      results = slice.map(u => ({ url: u, status: 'Unreachable', kind: 'unchecked', broken: false, unverified: true }));
     }
     results.forEach(r => {
-      if (!r.broken) { linkTotals.okLinks += 1; return; }
+      if (!r.broken && !r.unverified) { linkTotals.okLinks += 1; return; }
       const pages = sources.get(r.url) || [];
-      // Only broken links become rows: this table is the redirect worklist,
-      // and the site's working links would bury it under thousands of rows.
-      rows.push({ url: r.url, status: r.status, origin: 'onpage',
-                  occurrences: pages.length, sources: pages });
+      // Only links that failed become rows: this table is the worklist, and
+      // the site's working links would bury it under thousands of rows.
+      rows.push({ url: r.url, status: r.status, kind: r.kind, unverified: !!r.unverified,
+                  origin: 'onpage', occurrences: pages.length, sources: pages });
     });
     done += slice.length;
     setProgress(done, links.length, 'links checked');
@@ -693,10 +696,12 @@ function visibleRows() {
   if (filter === 'no-desc') return rows.filter(r => (r.issue_keys || []).includes('desc_missing'));
   if (filter === 'title-issue') return rows.filter(r =>
     (r.issue_keys || []).some(k => k.startsWith('title_')));
+  if (filter === 'broken') return rows.filter(r => !r.unverified);
+  if (filter === 'unverified') return rows.filter(r => r.unverified);
   if (filter === 'sitemap') return rows.filter(r => r.origin === 'sitemap');
   if (filter === 'onpage') return rows.filter(r => r.origin === 'onpage');
-  if (filter === '404') return rows.filter(r => r.status === 404);
-  if (filter === '5xx') return rows.filter(r => typeof r.status === 'number' && r.status >= 500);
+  if (filter === '404') return rows.filter(r => r.kind === 'missing');
+  if (filter === '5xx') return rows.filter(r => r.kind === 'server_error');
   if (filter === 'dead') return rows.filter(r => typeof r.status !== 'number');
   if (filter === 'modelsite') return rows.filter(r => r.modelsite);
   if (filter === 'other') return rows.filter(r => !r.modelsite && r.form_count > 0);
@@ -752,25 +757,29 @@ function renderSummary() {
     return;
   }
   if (mode === 'links') {
-    const dead = rows.filter(r => r.origin === 'sitemap');
-    const onpage = rows.filter(r => r.origin === 'onpage');
+    const real = rows.filter(r => !r.unverified);
+    const unver = rows.filter(r => r.unverified);
+    const deadPages = real.filter(r => r.origin === 'sitemap');
     $('summary').innerHTML = [
       stat(linkTotals.pages, 'Sitemap pages checked'),
-      stat(dead.length, 'Pages that do not load'),
-      stat(dead.filter(r => r.status === 404).length, '404'),
-      stat(dead.filter(r => typeof r.status === 'number' && r.status >= 500).length, 'Server errors'),
-      stat(linkTotals.links, 'Links on pages checked'),
-      stat(onpage.length, 'Broken links on pages'),
+      stat(deadPages.length, 'Pages that do not load'),
+      stat(real.filter(r => r.kind === 'missing').length, '404 / gone'),
+      stat(real.filter(r => r.kind === 'server_error').length, 'Server errors'),
+      stat(real.filter(r => r.origin === 'onpage').length, 'Broken links on pages'),
+      stat(unver.length, 'Could not check'),
     ].join('');
-    $('insights').hidden = !(dead.length || onpage.length);
-    if (!$('insights').hidden) {
-      const bits = [];
-      if (dead.length) bits.push(`<li>Build redirects for the <span class="gain">${dead.length} sitemap page${dead.length === 1 ? '' : 's'}</span> that do not load. `
-        + `Filter to Sitemap pages and export — these are live URLs people and search engines are already following.</li>`);
-      if (onpage.length) bits.push(`<li>Fix or repoint the <span class="gain">${onpage.length} broken link${onpage.length === 1 ? '' : 's'}</span> found on pages. `
-        + `The Found on column names the pages to edit.</li>`);
-      $('insights').innerHTML = `<div class="insight"><h2>Do these first</h2><ol>${bits.join('')}</ol></div>`;
-    }
+
+    const bits = [];
+    if (deadPages.length) bits.push(`<li>Build redirects for the <span class="gain">${deadPages.length} sitemap page${deadPages.length === 1 ? '' : 's'}</span> that genuinely ${deadPages.length === 1 ? 'does' : 'do'} not load. `
+      + `Filter to Genuinely broken and export.</li>`);
+    const onpage = real.filter(r => r.origin === 'onpage');
+    if (onpage.length) bits.push(`<li>Fix or repoint the <span class="gain">${onpage.length} broken link${onpage.length === 1 ? '' : 's'}</span> found on pages. `
+      + `The Found on column names the pages to edit.</li>`);
+    if (unver.length) bits.push(`<li><span class="gain">${unver.length} URL${unver.length === 1 ? '' : 's'} could not be checked</span> — the site answered 403 or dropped the connection, `
+      + `which is its bot protection refusing an automated request, not evidence the page is broken. `
+      + `Open a few in a browser before treating any of them as work.</li>`);
+    $('insights').hidden = !bits.length;
+    if (bits.length) $('insights').innerHTML = `<div class="insight"><h2>Do these first</h2><ol>${bits.join('')}</ol></div>`;
     return;
   }
 
@@ -838,10 +847,11 @@ function render() {
   }
 
   if (mode === 'links') {
-    $('wrap').innerHTML = '<table class="wide"><thead><tr><th>URL that fails</th><th>Status</th><th>Where</th><th>Found on</th></tr></thead><tbody>'
+    $('wrap').innerHTML = '<table class="wide"><thead><tr><th>URL</th><th>Status</th><th>Verdict</th><th>Where</th><th>Found on</th></tr></thead><tbody>'
       + list.map(r => `<tr>
           ${urlCell(r)}
-          <td><span class="tag ${typeof r.status === 'number' && r.status === 404 ? 'tag-double' : 'tag-failed'}">${esc(String(r.status))}</span></td>
+          <td><span class="tag ${r.unverified ? 'tag-missing' : r.kind === 'missing' ? 'tag-double' : 'tag-failed'}">${esc(String(r.status))}</span></td>
+          <td><span class="tag ${r.unverified ? 'tag-missing' : 'tag-failed'}">${r.unverified ? 'Could not check' : 'Broken'}</span></td>
           <td><span class="tag ${r.origin === 'sitemap' ? 'tag-partial' : 'tag-missing'}">${r.origin === 'sitemap' ? 'In sitemap' : 'Link on page'}</span></td>
           <td class="src-list">${r.origin === 'sitemap'
               ? 'Listed in the sitemap'
@@ -936,8 +946,9 @@ const EXPORTS = {
   links: {
     sheet: 'Broken links', filename: 'broken-links.xlsx',
     columns: [
-      { key: 'url', label: 'URL That Fails', width: 70 },
+      { key: 'url', label: 'URL', width: 70 },
       { key: 'status', label: 'Status', width: 12 },
+      { key: 'verdict_text', label: 'Verdict', width: 18 },
       { key: 'origin_text', label: 'Where', width: 16 },
       { key: 'occurrences', label: 'Times Linked', width: 14 },
       { key: 'source_text', label: 'Found On', width: 90 },
@@ -964,6 +975,7 @@ function exportPayload(list) {
     issue_text: (r.issues || []).join('; '),
     form_id_text: (r.form_ids || []).join(', '),
     origin_text: r.origin === 'sitemap' ? 'In sitemap' : r.origin === 'onpage' ? 'Link on page' : '',
+    verdict_text: r.unverified ? 'Could not check' : 'Broken',
     source_text: r.origin === 'sitemap' ? 'Listed in the sitemap' : (r.sources || []).join(' ; '),
   }));
   return { sheet: cfg.sheet, filename: cfg.filename, columns: cfg.columns, data };

@@ -38,7 +38,25 @@ router = APIRouter(prefix="/api/title-check", tags=["title-check"])
 # and the title of that page is not the title being checked.
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-_HEADERS = {"User-Agent": _UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
+# A user-agent string on its own is not a browser. A CDN's bot protection looks
+# at the whole request, and one carrying a Chrome UA but none of the headers
+# Chrome always sends is exactly what it is built to reject — which is how real,
+# working pages came back 403. Accept-Encoding is deliberately absent: httpx
+# sets it from the decoders actually installed, and overriding it to advertise
+# brotli we cannot decode would break every response.
+_HEADERS = {
+    "User-Agent": _UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Sec-CH-UA": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    "Sec-CH-UA-Mobile": "?0",
+    "Sec-CH-UA-Platform": '"Windows"',
+}
 
 _CONNECT_TIMEOUT = 8.0
 _READ_TIMEOUT = 15.0
@@ -51,7 +69,9 @@ _ATTEMPTS = 2
 _MAX_RETRY_WAIT = 5.0
 # Statuses worth trying again — a timeout, a throttle, or a gateway hiccup says
 # nothing about the page, unlike a 404.
-_RETRY_STATUS = {408, 425, 429, 500, 502, 503, 504}
+# 403 is included: bot protection often challenges the first request and
+# lets the second through now that the session cookie is kept.
+_RETRY_STATUS = {403, 408, 425, 429, 500, 502, 503, 504}
 # The title lives in <head>, so the rest of the document is never read. Pages
 # that somehow have no </head> stop at this cap instead of streaming megabytes.
 _MAX_HTML_BYTES = 250_000
@@ -307,12 +327,51 @@ def _fetch_once(client: httpx.Client, url: str, want_body: bool = False) -> dict
             "document": document if want_body else ""}
 
 
-def _client() -> httpx.Client:
-    return httpx.Client(
-        timeout=httpx.Timeout(_READ_TIMEOUT, connect=_CONNECT_TIMEOUT),
-        limits=httpx.Limits(max_connections=_WORKERS + 2),
-        follow_redirects=True,
-    )
+_shared_client: Optional[httpx.Client] = None
+_client_lock = threading.Lock()
+
+
+def _new_client() -> httpx.Client:
+    # HTTP/2 when the dependency is there. Bot protection fingerprints the
+    # protocol too, and a browser UA arriving over HTTP/1.1 is another tell.
+    try:
+        return httpx.Client(
+            timeout=httpx.Timeout(_READ_TIMEOUT, connect=_CONNECT_TIMEOUT),
+            limits=httpx.Limits(max_connections=_WORKERS + 2, max_keepalive_connections=_WORKERS + 2),
+            follow_redirects=True, headers=_HEADERS, http2=True,
+        )
+    except ImportError:
+        return httpx.Client(
+            timeout=httpx.Timeout(_READ_TIMEOUT, connect=_CONNECT_TIMEOUT),
+            limits=httpx.Limits(max_connections=_WORKERS + 2, max_keepalive_connections=_WORKERS + 2),
+            follow_redirects=True, headers=_HEADERS,
+        )
+
+
+class _SharedClient:
+    """Hands out one long-lived client instead of a fresh one per batch.
+
+    The old code built a client per request batch and closed it, which threw
+    away the cookie jar every twelve URLs. Bot protection hands out a clearance
+    cookie on first contact and expects it back; discarding it meant every
+    batch arrived as a brand-new unidentified visitor and got challenged again.
+    Keeping one client also keeps the TLS connections open instead of
+    renegotiating constantly.
+    """
+
+    def __enter__(self) -> httpx.Client:
+        global _shared_client
+        with _client_lock:
+            if _shared_client is None or _shared_client.is_closed:
+                _shared_client = _new_client()
+            return _shared_client
+
+    def __exit__(self, *exc) -> None:
+        return None          # deliberately kept open between batches
+
+
+def _client() -> "_SharedClient":
+    return _SharedClient()
 
 
 # ── Sitemaps ─────────────────────────────────────────────────────────────────
@@ -433,16 +492,12 @@ def extract_links(document: str, base_url: str, internal_only: bool = True) -> l
 
 def _probe(client: httpx.Client, url: str):
     """The status of one link: an int, or a short reason it could not be got."""
+    # GET, never HEAD. A browser never sends HEAD for a page, so bot protection
+    # treats it as a scraper and answers 403; the body is streamed and dropped
+    # without being read, so the cost is a header round trip either way.
     try:
-        resp = client.head(url, headers=_HEADERS, follow_redirects=True)
-        # Plenty of servers refuse HEAD outright or answer it wrongly, so a
-        # failing HEAD is confirmed with a GET before a link is called broken —
-        # reporting a working page as a 404 would send someone building a
-        # redirect that is not needed.
-        if resp.status_code >= 400:
-            with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as r:
-                return r.status_code
-        return resp.status_code
+        with client.stream("GET", url, headers=_HEADERS, follow_redirects=True) as r:
+            return r.status_code
     except httpx.TimeoutException:
         return "Timed out"
     except httpx.HTTPError:
@@ -463,10 +518,44 @@ def link_status(client: httpx.Client, url: str):
     return status
 
 
+# Telling these apart is the difference between a redirect worklist and a
+# wild goose chase. A 403 from a CDN's bot protection, or a connection the
+# server dropped, says the tool could not see the page — not that the page is
+# gone. Reporting those as broken sends someone building redirects for pages
+# that work perfectly in a browser.
+KIND_OK, KIND_MISSING, KIND_SERVER = "ok", "missing", "server_error"
+KIND_CLIENT, KIND_BLOCKED, KIND_UNCHECKED = "client_error", "blocked", "unchecked"
+
+_BLOCKED_STATUS = {401, 403, 407, 429}
+
+
+def status_kind(status) -> str:
+    if not isinstance(status, int):
+        return KIND_UNCHECKED
+    if status in _BLOCKED_STATUS:
+        return KIND_BLOCKED
+    if status in (404, 410):
+        return KIND_MISSING
+    if status >= 500:
+        return KIND_SERVER
+    if status >= 400:
+        return KIND_CLIENT
+    return KIND_OK
+
+
 def is_broken(status) -> bool:
-    """A redirect is not broken — the client follows it and reports where it
-    landed, which is the status that matters."""
-    return not isinstance(status, int) or status >= 400
+    """Broken means the page is genuinely not there or is erroring — something
+    a redirect or a fix can address.
+
+    A redirect is not broken: the client follows it and reports where it
+    landed. Nor is a block or a dropped connection, which are reported
+    separately as unverified rather than counted here.
+    """
+    return status_kind(status) in (KIND_MISSING, KIND_SERVER, KIND_CLIENT)
+
+
+def is_unverified(status) -> bool:
+    return status_kind(status) in (KIND_BLOCKED, KIND_UNCHECKED)
 
 
 def check_links(links: list) -> dict:
@@ -747,6 +836,8 @@ async def audit(req: AuditRequest):
                             "broken_links": [], "broken_count": 0, "links_checked": 0})
             continue
         links = page_links.get(item["url"], [])
+        # Only definitely-broken links are scored. A link the tool was blocked
+        # from checking is not evidence of a problem on this page.
         broken = [l for l in links if is_broken(statuses.get(l, 200))]
         results.append({**base, "links_checked": len(links),
                         **audit_page(item["title"], item.get("document") or "",
@@ -781,7 +872,9 @@ async def link_status_batch(req: LinkRequest):
         return {"results": []}
     statuses = check_links(links)
     return {"results": [
-        {"url": u, "status": statuses.get(u), "broken": is_broken(statuses.get(u, 200))}
+        {"url": u, "status": statuses.get(u), "kind": status_kind(statuses.get(u, 200)),
+         "broken": is_broken(statuses.get(u, 200)),
+         "unverified": is_unverified(statuses.get(u, 200))}
         for u in links
     ]}
 
