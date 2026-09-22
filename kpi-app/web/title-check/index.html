@@ -181,7 +181,7 @@
   /* One compact row rather than six description cards. The wording lives in
      each chip's tooltip and one line beneath, which keeps the card short
      without dropping the explanation entirely. */
-  .caps { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 8px; }
+  .caps { display: flex; flex-wrap: wrap; gap: 6px; }
   .cap {
     display: inline-flex; gap: 7px; align-items: center; cursor: pointer;
     border: 1px solid var(--border-strong); border-radius: var(--radius);
@@ -227,20 +227,35 @@
   .bad { color: #b3261e; font-weight: 600; }
   .warn { color: #a75d00; font-weight: 600; }
   .good { color: #147a50; font-weight: 600; }
-  /* ── Area / FL pickers ── */
-  .groups { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
-  .groups .gh {
-    width: 100%; font-family: var(--font-kone); text-transform: uppercase;
-    letter-spacing: 0.05em; font-size: 0.62rem; color: var(--muted); margin: 4px 0 0;
+  /* ── One label gutter for every row of options ────────────────────────────
+     Each row used to carry its own heading on a line of its own, which stacked
+     four extra lines and left the controls starting at four different places.
+     A two-column grid puts every label in the same gutter and every control on
+     the same left edge. */
+  .optgrid {
+    display: grid; grid-template-columns: 88px minmax(0, 1fr);
+    align-items: start; gap: 10px 14px; margin-bottom: 14px;
   }
-  .groups button {
+  .ogl {
+    font-family: var(--font-kone); text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 0.62rem; color: var(--muted); padding-top: 9px;
+  }
+  .grow { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* Sixteen frontlines wrap raggedly as flex and leave an orphan on its own
+     line; equal columns keep them in tidy rows that line up. */
+  .gcols { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+  .gcols button { width: 100%; justify-content: center; }
+  .optgrid .hint { margin: 5px 0 0; }
+  .optgrid input[type="text"] { width: 100%; }
+
+  .groups button, .grow button, .gcols button {
     border: 1px solid var(--border-strong); background: #fff; color: var(--text);
     border-radius: var(--radius); padding: 7px 13px; font-size: 0.8rem;
     font-family: inherit; font-weight: 600; cursor: pointer;
   }
-  .groups button:hover { border-color: var(--primary); color: var(--primary); }
-  .groups button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
-  .groups button span { font-weight: 400; opacity: 0.75; margin-left: 5px; }
+  .grow button:hover, .gcols button:hover { border-color: var(--primary); color: var(--primary); }
+  .grow button.active, .gcols button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .grow button span, .gcols button span { font-weight: 400; opacity: 0.75; margin-left: 5px; }
   /* ── Results table ── */
   .wrap {
     border: 1px solid var(--border); border-radius: var(--radius);
@@ -333,9 +348,14 @@
     </div>
 
     <div id="srcDomains">
-      <p class="hint" style="margin:0 0 12px;">The KONE estate, already classified by Area and
-        frontline. Pick a group and the audit starts — no list to paste.</p>
-      <div class="groups" id="groups"><span class="hint">Loading the site list…</span></div>
+      <div class="optgrid">
+        <span class="ogl">Scope</span>
+        <div class="grow" id="scopeRow"></div>
+        <span class="ogl">Area</span>
+        <div class="grow" id="areaRow"></div>
+        <span class="ogl">Frontline</span>
+        <div class="gcols" id="flRow"></div>
+      </div>
     </div>
 
     <div class="field" id="srcSitemap" hidden>
@@ -348,50 +368,52 @@
       <textarea id="urlList" placeholder="https://www.kone.com.au/elevators&#10;https://www.kone.com.au/escalators"></textarea>
     </div>
 
-    <label class="lbl">Checks</label>
-    <div class="caps" id="caps">
-      <label class="cap" title="Double, partial and missing titles. Always on — it comes free with the fetch.">
-        <input type="checkbox" data-cap="titles" checked disabled><b>Titles</b></label>
-      <label class="cap" title="Pages that answer 404 or 500. Always on — every page's status comes from the same request.">
-        <input type="checkbox" data-cap="dead" checked disabled><b>Dead pages</b></label>
-      <label class="cap" title="The pagetcmid meta, linked straight to its CMS item.">
-        <input type="checkbox" data-cap="tcm" checked><b>TCM IDs</b></label>
-      <label class="cap" title="Meta description, title and description lengths, keywords. Reads the whole page.">
-        <input type="checkbox" data-cap="seo"><b>SEO score</b></label>
-      <label class="cap" title="Pages still carrying Modelsite form 658. Reads the whole page.">
-        <input type="checkbox" data-cap="forms"><b>Modelsite forms</b></label>
-      <label class="cap" title="Broken links sitting on each page. Slowest — adds a second pass over the links found.">
-        <input type="checkbox" data-cap="links"><b>Links</b></label>
+    <div class="optgrid">
+      <span class="ogl">Checks</span>
+      <div class="grow" id="caps">
+        <label class="cap" title="Double, partial and missing titles. Always on — it comes free with the fetch.">
+          <input type="checkbox" data-cap="titles" checked disabled><b>Titles</b></label>
+        <label class="cap" title="Pages that answer 404 or 500. Always on — every page's status comes from the same request.">
+          <input type="checkbox" data-cap="dead" checked disabled><b>Dead pages</b></label>
+        <label class="cap" title="The pagetcmid meta, linked straight to its CMS item.">
+          <input type="checkbox" data-cap="tcm" checked><b>TCM IDs</b></label>
+        <label class="cap" title="Meta description, title and description lengths, keywords. Reads the whole page.">
+          <input type="checkbox" data-cap="seo"><b>SEO score</b></label>
+        <label class="cap" title="Pages still carrying Modelsite form 658. Reads the whole page.">
+          <input type="checkbox" data-cap="forms"><b>Modelsite forms</b></label>
+        <label class="cap" title="Broken links sitting on each page. Slowest — adds a second pass over the links found.">
+          <input type="checkbox" data-cap="links"><b>Links</b></label>
+      </div>
     </div>
-    <p class="hint" style="margin:0 0 4px;">Titles and dead pages always run. SEO, forms and links
-      read the whole page, so they take longer.</p>
 
     <details class="opts" id="optsBox">
       <summary><b>Options</b><span class="hint" id="optsSummary" style="margin:0;"></span></summary>
       <div class="opts-body">
-        <div class="row">
-          <div class="field" id="brandField">
-            <label class="lbl" for="brand">Site name</label>
+        <div class="optgrid">
+          <span class="ogl">Site name</span>
+          <div>
             <input type="text" id="brand" placeholder="Worked out from each site's titles" autocomplete="off">
-            <p class="hint">Leave blank and each site's own name is derived from its page titles —
-              which is what a multi-site run needs, since every country has a different one.</p>
+            <p class="hint">Blank derives it per site from that site's own page titles.</p>
           </div>
-          <div class="field" id="focusField" hidden>
-            <label class="lbl" for="focus">Focus keywords</label>
+          <span class="ogl">Pages / site</span>
+          <div>
+            <input type="text" id="perSite" value="0" style="max-width:110px;" autocomplete="off">
+            <p class="hint">0 audits every page a sitemap lists. A smaller number sweeps the whole
+              estate faster when you only need systemic problems.</p>
+          </div>
+          <span class="ogl" id="focusLabel" hidden>Keywords</span>
+          <div id="focusField" hidden>
             <input type="text" id="focus" placeholder="elevators, escalators, lifts" autocomplete="off">
             <p class="hint">Optional, comma separated. Checked against the title, description and H1.</p>
           </div>
-          <div class="field">
-            <label class="lbl" for="perSite">Pages per site</label>
-            <input type="text" id="perSite" value="25" autocomplete="off">
-            <p class="hint">A whole-estate sweep is thousands of pages. 25 finds systemic problems
-              fast; 0 takes every page a sitemap lists.</p>
+          <span class="ogl" id="internalLabel" hidden>Links</span>
+          <div id="internalOpt" hidden>
+            <label class="opt" style="margin:0;">
+              <input type="checkbox" id="internalOnly" checked>
+              <span>Only links to the site being audited — what redirects can actually fix</span>
+            </label>
           </div>
         </div>
-        <label class="opt" id="internalOpt" hidden>
-          <input type="checkbox" id="internalOnly" checked>
-          <span>Only links to the site being audited — what redirects can actually fix</span>
-        </label>
       </div>
     </details>
 
@@ -489,7 +511,9 @@ const caps = () => {
 function syncCapUi() {
   const c = caps();
   $('focusField').hidden = !c.seo;
+  $('focusLabel').hidden = !c.seo;
   $('internalOpt').hidden = !c.links;
+  $('internalLabel').hidden = !c.links;
   // Collapsed, the line still says what the run will use, so nothing is
   // hidden that changes the result without being visible.
   const limit = parseInt($('perSite').value, 10);
@@ -545,7 +569,7 @@ async function loadSites() {
     groupPick = { kind: 'all' };
     renderGroups();
   } catch (e) {
-    $('groups').innerHTML = `<span class="hint">Could not load the site list — ${esc(e.message || '')}</span>`;
+    $('scopeRow').innerHTML = `<span class="hint">Could not load the site list — ${esc(e.message || '')}</span>`;
   }
 }
 
@@ -555,22 +579,16 @@ function renderGroups() {
     return `<button type="button" data-kind="${kind}" data-value="${esc(value)}"${on ? ' class="active"' : ''}>`
          + `${esc(label)}<span>${n}</span></button>`;
   };
-  let html = btn('all', '', 'Every site', groupMeta.total || targets.length);
-  if (groupMeta.areas.length) {
-    html += '<div class="gh">By area</div>'
-      + groupMeta.areas.map(a => btn('area', a.name, a.name, a.count)).join('');
-  }
-  if (groupMeta.frontlines.length) {
-    html += '<div class="gh">By frontline</div>'
-      + groupMeta.frontlines.map(f => btn('frontline', f.name, f.name, f.count)).join('');
-  }
-  $('groups').innerHTML = html;
+  $('scopeRow').innerHTML = btn('all', '', 'Every site', groupMeta.total || targets.length);
+  $('areaRow').innerHTML = groupMeta.areas.map(a => btn('area', a.name, a.name, a.count)).join('');
+  $('flRow').innerHTML = groupMeta.frontlines.map(f => btn('frontline', f.name, f.name, f.count)).join('');
 }
 
 // Clicking a group is the whole interaction: it selects and starts, because
 // having to then find a Run button is the step being removed.
-$('groups').addEventListener('click', e => {
-  const b = e.target.closest('button');
+// One handler over the whole picker, so scope, area and frontline rows share it.
+$('srcDomains').addEventListener('click', e => {
+  const b = e.target.closest('button[data-kind]');
   if (!b || running) return;
   groupPick = { kind: b.dataset.kind, value: b.dataset.value };
   renderGroups();
