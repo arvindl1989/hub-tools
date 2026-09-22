@@ -28,6 +28,8 @@ from typing import Optional
 
 import httpx
 import xlsxwriter
+
+import kone_sites
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -1278,6 +1280,16 @@ class DiscoverRequest(BaseModel):
     # each; 0 takes everything the sitemap lists.
     per_site_limit: int = 0
 
+
+
+@router.get("/sites")
+async def sites():
+    """The built-in KONE estate, and the Area and frontline groups over it.
+
+    Served rather than embedded in the page so the list has one home: editing
+    kone_sites.py changes the buttons without touching the tool.
+    """
+    return {"sites": kone_sites.as_records(), **kone_sites.groups()}
 
 @router.post("/discover")
 async def discover(req: DiscoverRequest):

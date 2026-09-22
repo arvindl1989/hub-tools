@@ -301,27 +301,15 @@
 
   <div class="card">
     <div class="tabs" id="srcTabs">
-      <button type="button" data-src="domains" class="active">Domain list</button>
+      <button type="button" data-src="domains" class="active">KONE sites</button>
       <button type="button" data-src="sitemap">One sitemap</button>
       <button type="button" data-src="list">Paste URLs</button>
     </div>
 
-    <div class="field" id="srcDomains">
-      <label class="lbl" for="domainList">Domains — one per line, optionally followed by Area and Frontline</label>
-      <textarea id="domainList" placeholder="www.kone.com.au, APM, KANZ&#10;www.kone.bg, EU, EEM&#10;www.kone.se&#9;EU&#9;NORDICS"></textarea>
-      <p class="hint">Paste the estate list straight from Excel — with its header row, the
-        Domain, Area, FL, Country and Language columns are picked out by name and the rest
-        ignored. Without a header, each line is read as domain, area, frontline. A language
-        path such as <code>www.kone.bg/en/</code> is kept and limits that entry to pages
-        under it, so two languages on one host stay separate.</p>
-      <div class="actions" style="margin-bottom:12px;">
-        <button class="btn" id="loadListBtn" type="button"><i class="fa-solid fa-list-check"></i> Load the list</button>
-        <span class="hint" id="listNote" style="margin:0;align-self:center;"></span>
-      </div>
-      <div id="groupPicker" hidden>
-        <label class="lbl">Audit which sites</label>
-        <div class="groups" id="groups"></div>
-      </div>
+    <div id="srcDomains">
+      <p class="hint" style="margin:0 0 12px;">The KONE estate, already classified by Area and
+        frontline. Pick a group and the audit starts — no list to paste.</p>
+      <div class="groups" id="groups"><span class="hint">Loading the site list…</span></div>
     </div>
 
     <div class="field" id="srcSitemap" hidden>
@@ -354,8 +342,9 @@
       <div class="field" id="brandField">
         <label class="lbl" for="brand">Website / brand title</label>
         <input type="text" id="brand" placeholder="KONE Australia" autocomplete="off">
-        <p class="hint">What a duplicate title is measured against. With a domain list, leave blank to
-          derive one per site from its own pages.</p>
+        <p class="hint">What a duplicate title is measured against. Leave blank and each site's
+          own name is worked out from its page titles — which is what a multi-site run needs,
+          since every country has a different one.</p>
       </div>
       <div class="field" id="focusField" hidden>
         <label class="lbl" for="focus">Focus keywords — optional, comma separated</label>
@@ -424,7 +413,7 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 const $ = id => document.getElementById(id);
 const PAGE_BATCH = 10;     // pages per scan request — one round of backend workers
 const LINK_BATCH = 40;     // link statuses per request
-const BRAND_KEY = 'sa_brand', DOM_KEY = 'sa_domains', SM_KEY = 'sa_sitemap', CAP_KEY = 'sa_caps';
+const BRAND_KEY = 'sa_brand', SM_KEY = 'sa_sitemap', CAP_KEY = 'sa_caps';
 
 const PENALTY = { title_missing:30, title_duplicate:20, title_length:10,
                   desc_missing:20, desc_length:10, keywords_missing:5,
@@ -493,111 +482,57 @@ $('srcTabs').addEventListener('click', e => {
 });
 
 $('brand').value = localStorage.getItem(BRAND_KEY) || '';
-$('domainList').value = localStorage.getItem(DOM_KEY) || '';
 $('sitemapUrl').value = localStorage.getItem(SM_KEY) || '';
 $('brand').addEventListener('change', () => localStorage.setItem(BRAND_KEY, $('brand').value.trim()));
-$('domainList').addEventListener('change', () => localStorage.setItem(DOM_KEY, $('domainList').value));
 $('sitemapUrl').addEventListener('change', () => localStorage.setItem(SM_KEY, $('sitemapUrl').value.trim()));
 
-// The estate list is six columns wide with a header row, and the domain is the
-// fourth of them — so reading position 0 as the domain turns "1" into a domain.
-// When a header is present the columns are found by name and everything else is
-// ignored; without one, the simple domain/area/frontline form still works.
-const HEADER_ALIASES = {
-  domain: ['domain', 'url', 'website', 'site'],
-  area: ['area', 'region'],
-  frontline: ['fl', 'frontline', 'front line'],
-  country: ['country', 'market'],
-  language: ['language', 'lang'],
-};
+// ── The built-in estate ────────────────────────────────────────────────────
+// The list lives in the backend, so the buttons are whatever it currently
+// holds and there is nothing to paste or keep in step by hand.
+let targets = [];       // every site in the estate
+let groupPick = null;   // {kind:'area'|'frontline'|'all', value}
+let groupMeta = { areas: [], frontlines: [], total: 0 };
 
-function splitCells(line) {
-  return line.split(/\t|\||;|,/).map(c => c.trim());
-}
-
-// A pasted cell may arrive as a markdown link, which is how a linked spreadsheet
-// cell copies: [www.kone.se](https://www.kone.se).
-function cleanCell(value) {
-  const md = String(value || '').match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-  return (md ? md[2] || md[1] : value || '').trim();
-}
-
-function parseDomainLines(text) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  if (!lines.length) return [];
-
-  const first = splitCells(lines[0]).map(c => c.toLowerCase());
-  const map = {};
-  Object.entries(HEADER_ALIASES).forEach(([key, names]) => {
-    const i = first.findIndex(c => names.includes(c));
-    if (i !== -1) map[key] = i;
-  });
-  const hasHeader = map.domain !== undefined;
-
-  return lines.slice(hasHeader ? 1 : 0).map(line => {
-    const cells = splitCells(line);
-    if (hasHeader) {
-      const domain = cleanCell(cells[map.domain]);
-      if (!domain) return null;
-      return {
-        domain,
-        area: cleanCell(cells[map.area]) || '',
-        frontline: cleanCell(cells[map.frontline]) || '',
-        country: cleanCell(cells[map.country]) || '',
-        language: cleanCell(cells[map.language]) || '',
-      };
-    }
-    const parts = cells.filter((c, i) => i === 0 || c);
-    const domain = cleanCell(parts[0]);
-    if (!domain) return null;
-    return { domain, area: cleanCell(parts[1]) || '', frontline: cleanCell(parts[2]) || '',
-             country: '', language: '' };
-  }).filter(Boolean);
-}
-
-// ── The list, and the Area / FL buttons over it ────────────────────────────
-let targets = [];       // everything parsed from the list
-let groupPick = null;   // {kind:'area'|'frontline'|'all', value} — what to audit
-
-$('loadListBtn').addEventListener('click', () => {
-  targets = parseDomainLines($('domainList').value);
-  localStorage.setItem(DOM_KEY, $('domainList').value);
-  if (!targets.length) {
-    $('groupPicker').hidden = true;
-    $('listNote').textContent = 'Nothing recognised as a domain in that list';
-    return;
+async function loadSites() {
+  try {
+    const res = await fetch('/api/title-check/sites');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    targets = data.sites || [];
+    groupMeta = { areas: data.areas || [], frontlines: data.frontlines || [], total: data.total || 0 };
+    groupPick = { kind: 'all' };
+    renderGroups();
+  } catch (e) {
+    $('groups').innerHTML = `<span class="hint">Could not load the site list — ${esc(e.message || '')}</span>`;
   }
-  const withAF = targets.filter(t => t.area || t.frontline).length;
-  $('listNote').textContent = `${targets.length} entries`
-    + (withAF ? `, ${withAF} with an Area or FL` : ', no Area or FL columns found');
-  groupPick = { kind: 'all' };
-  renderGroups();
-  $('groupPicker').hidden = false;
-});
+}
 
 function renderGroups() {
-  const count = (kind, value) => targets.filter(t => (t[kind] || '') === value).length;
-  const uniq = kind => [...new Set(targets.map(t => (t[kind] || '').trim()).filter(Boolean))].sort();
   const btn = (kind, value, label, n) => {
     const on = groupPick && groupPick.kind === kind && (kind === 'all' || groupPick.value === value);
-    return `<button type="button" data-kind="${kind}" data-value="${esc(value)}"${on ? ' class="active"' : ''}>${esc(label)}<span>${n}</span></button>`;
+    return `<button type="button" data-kind="${kind}" data-value="${esc(value)}"${on ? ' class="active"' : ''}>`
+         + `${esc(label)}<span>${n}</span></button>`;
   };
-  let html = btn('all', '', 'All sites', targets.length);
-  const areas = uniq('area');
-  if (areas.length) {
-    html += '<div class="gh">By area</div>' + areas.map(a => btn('area', a, a, count('area', a))).join('');
+  let html = btn('all', '', 'Every site', groupMeta.total || targets.length);
+  if (groupMeta.areas.length) {
+    html += '<div class="gh">By area</div>'
+      + groupMeta.areas.map(a => btn('area', a.name, a.name, a.count)).join('');
   }
-  const fls = uniq('frontline');
-  if (fls.length) {
-    html += '<div class="gh">By frontline</div>' + fls.map(f => btn('frontline', f, f, count('frontline', f))).join('');
+  if (groupMeta.frontlines.length) {
+    html += '<div class="gh">By frontline</div>'
+      + groupMeta.frontlines.map(f => btn('frontline', f.name, f.name, f.count)).join('');
   }
   $('groups').innerHTML = html;
 }
 
+// Clicking a group is the whole interaction: it selects and starts, because
+// having to then find a Run button is the step being removed.
 $('groups').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
+  const b = e.target.closest('button');
+  if (!b || running) return;
   groupPick = { kind: b.dataset.kind, value: b.dataset.value };
   renderGroups();
+  startRun();
 });
 
 function pickedTargets() {
@@ -632,9 +567,8 @@ async function buildWork() {
     return (data.urls || []).map(u => ({ url: u, domain: hostOf(u), area: '', frontline: '' }));
   }
 
-  if (!targets.length) targets = parseDomainLines($('domainList').value);
   const domains = pickedTargets();
-  if (!domains.length) { $('domainList').focus(); throw new Error('Add at least one domain'); }
+  if (!domains.length) throw new Error('No sites in that group');
   const limit = Math.max(0, parseInt($('perSite').value, 10) || 0);
   const label = groupPick && groupPick.kind !== 'all' ? ` in ${groupPick.value}` : '';
   note(`Finding sitemaps for ${domains.length} site${domains.length === 1 ? '' : 's'}${label}…`);
@@ -660,6 +594,12 @@ async function buildWork() {
   const ok = (data.results || []).filter(r => r.count).length;
   const capped = limit && available > out.length
     ? ` · capped at ${limit} per site, ${available} available` : '';
+  // When nothing came back, the reason is in `failed` — throwing a bare
+  // "nothing to audit" would replace the only explanation there is.
+  if (!out.length && failed.length) {
+    throw new Error(`No sitemap could be read for any of the ${failed.length} site`
+      + `${failed.length === 1 ? '' : 's'} in that group. First: ${failed[0]}`);
+  }
   note(`${out.length} URLs across ${ok} site${ok === 1 ? '' : 's'}${capped}`
        + (failed.length ? ` · no sitemap for ${failed.length}: ${failed.slice(0, 2).join('; ')}` : ''),
        failed.length ? 'err' : 'ok');
@@ -669,7 +609,9 @@ async function buildWork() {
 // ── The run ────────────────────────────────────────────────────────────────
 $('stopBtn').addEventListener('click', () => { stopped = true; $('stopBtn').disabled = true; });
 
-$('runBtn').addEventListener('click', async () => {
+$('runBtn').addEventListener('click', () => startRun());
+
+async function startRun() {
   if (running) return;
   const c = caps();
   const brand = $('brand').value.trim();
@@ -811,8 +753,10 @@ $('runBtn').addEventListener('click', async () => {
     $('runBtn').disabled = false;
     if (stopped) note(`Stopped after ${rows.length} of ${work.length}`, 'err');
     render();
+    // Re-rendering the groups clears the disabled look once a run finishes.
+    if (targets.length) renderGroups();
   }
-});
+}
 
 // ── Filtering ──────────────────────────────────────────────────────────────
 const isDead = r => r.http_status && typeof r.http_status === 'number'
@@ -1107,6 +1051,7 @@ $('exportBtn').addEventListener('click', async () => {
 });
 
 syncCapUi();
+loadSites();
 </script>
 </body>
 </html>
