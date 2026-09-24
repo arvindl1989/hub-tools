@@ -114,6 +114,9 @@ export default function SlaPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [dim, setDim] = useState('by_area')
+  // The saving is asked about by frontline, so that is where it opens, while
+  // still answering the same question of an Area or a service.
+  const [savedDim, setSavedDim] = useState('by_team')
   const [unit, setUnit] = useState('hours')
   const [selected, setSelected] = useState({ area: '', team: '', service: '' })
 
@@ -178,6 +181,29 @@ export default function SlaPage() {
       }))
       .sort((a, b) => b['Waiting on others'] - a['Waiting on others'])
   ), [dimData])
+
+  // Recorded time split into the part that was real effort and the parts that
+  // were not. The segments sum to the recorded figure, so the bar is the whole
+  // charge and the blue part is the only bit of it anyone was working.
+  const savedData = useMemo(() => (
+    (data?.[savedDim] || [])
+      .filter((g) => g.recorded_seconds > 0)
+      .map((g) => ({
+        name: g.name,
+        'Work in progress': cal(g.wip_seconds),
+        'Assigned & Open': cal((g.worked_seconds || 0) - (g.wip_seconds || 0)),
+        'Waiting on others': cal(g.waiting_stage_seconds),
+        'After close': cal(g.after_close_seconds),
+        'Off the clock': cal(g.off_the_clock_seconds),
+        saved: cal(g.saved_seconds),
+        savedShare: g.saved_share,
+        worked: cal(g.worked_seconds),
+        recorded: cal(g.recorded_seconds),
+        tickets: g.timed,
+        perTicket: wrk(g.avg_saved_seconds),
+      }))
+      .sort((a, b) => (b.saved ?? 0) - (a.saved ?? 0))
+  ), [data, savedDim, cal, wrk])
 
   const stageData = useMemo(() => (
     (data?.by_stage || [])
@@ -291,6 +317,11 @@ export default function SlaPage() {
         <MetricCard label="Off the clock" value={num(cal(m.off_hours_seconds), 0)}
           suffix={` ${U.short}`}
           sub={`${m.off_hours_share}% of the recorded time was outside working hours`} />
+        {/* The charge the team should not be carrying: everything ServiceNow
+            timed that was not the team holding the ticket in working time. */}
+        <MetricCard label="Hours saved" value={num(cal(m.saved_seconds), 0)}
+          suffix={` ${U.short}`}
+          sub={`${m.saved_share}% of the recorded time — only ${num(cal(m.worked_seconds), 0)} ${U.short} were worked, ${num(cal(m.wip_seconds), 0)} ${U.short} of it in progress`} />
       </div>
 
       {/* ── Leadership narrative ── */}
@@ -361,6 +392,84 @@ export default function SlaPage() {
             </BarChart>
           </ResponsiveContainer>
         )}
+      </Card>
+
+      {/* ── Hours saved ── */}
+      <Card
+        title="Hours saved"
+        subtitle={`What ServiceNow charges against what was actually worked, by ${(DIMS.find(([id]) => id === savedDim)?.[1] || 'By Frontline').replace('By ', '').toLowerCase()}`}
+        controls={<Toggle options={DIMS} value={savedDim} onChange={setSavedDim} />}
+      >
+        <SectionNote>
+          The whole bar is what ServiceNow recorded end to end. Only the two blue segments are hours
+          the team held the ticket inside working time, and Work in progress is the sharpest reading
+          of that — hands on the ticket. Everything to their right is the saving: the ticket waiting
+          on someone else, sitting closed, or the clock running overnight and at weekends. It is
+          time the team is charged for and could not have been working.
+        </SectionNote>
+        {!savedData.length ? <Empty /> : (
+          <ResponsiveContainer width="100%" height={Math.max(280, savedData.length * 40 + 70)}>
+            <BarChart data={savedData} layout="vertical" margin={{ top: 4, right: 130, left: 8, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.line} horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} stroke={C.muted} />
+              <YAxis type="category" dataKey="name" width={130}
+                     tick={{ fontSize: 11, fontFamily: KONE_FONT }} stroke={C.muted} />
+              <Tooltip
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${C.line}` }}
+                formatter={(v, n) => [`${num(v, 1)} ${U.short}`, n]}
+                labelFormatter={(name) => {
+                  const row = savedData.find((r) => r.name === name)
+                  return `${name} — ${num(row?.recorded, 0)} ${U.short} recorded, ${num(row?.worked, 0)} ${U.short} worked, ${num(row?.saved, 0)} ${U.short} saved across ${row?.tickets ?? 0} tickets`
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 11 }} formatter={legendLabel} />
+              <Bar isAnimationActive={false} dataKey="Work in progress" stackId="s"
+                   fill={C.working} maxBarSize={34} />
+              <Bar isAnimationActive={false} dataKey="Assigned & Open" stackId="s"
+                   fill="#8fb0fb" maxBarSize={34} />
+              <Bar isAnimationActive={false} dataKey="Waiting on others" stackId="s"
+                   fill={C.waiting} maxBarSize={34} />
+              <Bar isAnimationActive={false} dataKey="After close" stackId="s"
+                   fill={C.terminal} maxBarSize={34} />
+              <Bar isAnimationActive={false} dataKey="Off the clock" stackId="s"
+                   fill={C.calendar} radius={[0, 4, 4, 0]} maxBarSize={34}>
+                <LabelList dataKey="saved" position="right"
+                           formatter={(v) => (v ? `${num(v, 0)} ${U.short} saved` : '')}
+                           style={{ fontSize: 10, fill: C.saved, fontFamily: KONE_FONT }} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+        <div style={{ overflowX: 'auto', marginTop: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr>
+                {['Frontline', `Recorded (${U.short})`, `Worked (${U.short})`,
+                  `Work in progress (${U.short})`, `Saved (${U.short})`, 'Saved',
+                  `Saved per ticket (${U.short})`].map((h, i) => (
+                  <th key={h} style={i === 0
+                    ? { ...th, textTransform: 'uppercase' }
+                    : { ...th, textAlign: 'right' }}>
+                    {i === 0 ? (DIMS.find(([id]) => id === savedDim)?.[1] || '').replace('By ', '') : h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {savedData.map((r) => (
+                <tr key={r.name}>
+                  <td style={td}>{r.name}</td>
+                  <td style={{ ...td, textAlign: 'right', color: C.muted }}>{num(r.recorded, 0)}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>{num(r.worked, 0)}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>{num(r['Work in progress'], 0)}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.saved }}>{num(r.saved, 0)}</td>
+                  <td style={{ ...td, textAlign: 'right', color: C.muted }}>{num(r.savedShare, 1)}%</td>
+                  <td style={{ ...td, textAlign: 'right' }}>{num(r.perTicket, 1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       {/* ── Ours against waiting ── */}

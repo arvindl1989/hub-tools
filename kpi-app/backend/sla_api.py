@@ -412,8 +412,55 @@ def _group(rows: list, field: str) -> list:
             "avg_ours_seconds": _avg([r["ours_working_seconds"] for r in items]),
             "avg_waiting_seconds": _avg([r["waiting_working_seconds"] for r in items]),
             "off_hours_seconds": sum((r["off_hours_seconds"] or 0) for r in items),
+            **saving(items),
         })
     return sorted(out, key=lambda g: (-g["tickets"], g["name"]))
+
+
+def _stage_seconds(rows: list, stages) -> float:
+    """Working time across a set of stages, summed over these tickets."""
+    return sum(seconds
+               for r in rows
+               for stage, seconds in r["stage_working"].items()
+               if stage in stages)
+
+
+def saving(rows: list) -> dict:
+    """Hours the team is charged for that it was not working the ticket.
+
+    ServiceNow bills a ticket from creation to close. Of that, only the states
+    where the team holds the ticket — Assigned, Work in progress, Open — are
+    hours anyone could have spent on it. What is left is the saving: the ticket
+    sitting with someone else, the hours after it was closed, and the nights,
+    weekends and holidays the tracker counted anyway.
+
+        recorded = worked + waiting + after close + off the clock
+        saved    = recorded - worked
+
+    Work in progress is called out inside `worked` because it is the sharpest
+    reading of hands-on time: Assigned and Open are the team's hours in the
+    sense that no one else is holding the ticket, not in the sense that someone
+    is at it.
+    """
+    recorded = sum((r["elapsed_seconds"] or 0) for r in rows)
+    worked = _stage_seconds(rows, OURS)
+    waiting = _stage_seconds(rows, WAITING)
+    after_close = _stage_seconds(rows, TERMINAL)
+    off_hours = sum((r["off_hours_seconds"] or 0) for r in rows)
+    saved = max(0.0, recorded - worked)
+    return {
+        "recorded_seconds": recorded,
+        "worked_seconds": worked,
+        "wip_seconds": _stage_seconds(rows, ("Work in progress",)),
+        "waiting_stage_seconds": waiting,
+        "after_close_seconds": after_close,
+        "off_the_clock_seconds": off_hours,
+        "saved_seconds": saved,
+        "saved_share": round(saved / recorded * 100, 1) if recorded else 0.0,
+        "avg_worked_seconds": (worked / len(rows)) if rows else None,
+        "avg_wip_seconds": (_stage_seconds(rows, ("Work in progress",)) / len(rows)) if rows else None,
+        "avg_saved_seconds": (saved / len(rows)) if rows else None,
+    }
 
 
 # Which field each filter narrows, and what it is called on the page.
@@ -499,6 +546,7 @@ def compute(rows: list, selected: Optional[dict] = None) -> dict:
         "avg_working_seconds": _avg([r["working_seconds"] for r in timed]),
         "ours_working_seconds": ours_working,
         "waiting_working_seconds": waiting_working,
+        **saving(timed),
         "waiting_share": round(waiting_working / (ours_working + waiting_working) * 100, 1)
                          if (ours_working + waiting_working) else 0.0,
         "by_area": _group(timed, "area"),
@@ -568,7 +616,21 @@ def headline(m: dict) -> list:
             f"A ticket that reaches Work in progress spends "
             f"{wip['avg_working_seconds'] / 3600.0:.1f} working hours there on average, across "
             f"{_tickets(wip['tickets'])}.")
+    if m["saved_seconds"]:
+        lines.append(
+            f"ServiceNow charges these tickets {m['recorded_seconds'] / 3600.0:,.0f} hours end to "
+            f"end, but only {m['worked_seconds'] / 3600.0:,.0f} of those are hours the team held "
+            f"the ticket inside working time — {m['wip_seconds'] / 3600.0:,.0f} of them in Work in "
+            f"progress. The other {m['saved_seconds'] / 3600.0:,.0f} hours "
+            f"({m['saved_share']}%) are hours saved: the ticket waiting on someone else, sitting "
+            f"closed, or the clock running overnight and at weekends.")
     if m["by_team"]:
+        best = max(m["by_team"], key=lambda t: t["saved_seconds"] or 0)
+        if best["saved_seconds"]:
+            lines.append(
+                f"{best['name']} saves the most: {best['saved_seconds'] / 3600.0:,.0f} of its "
+                f"{best['recorded_seconds'] / 3600.0:,.0f} recorded hours were not hours it could "
+                f"have been working, across {_tickets(best['timed'])}.")
         worst = max(m["by_team"], key=lambda t: t["avg_waiting_seconds"] or 0)
         if worst["avg_waiting_seconds"]:
             lines.append(
@@ -745,8 +807,16 @@ async def report_xlsx(area: str = "", team: str = "", service: str = ""):
         return out
 
     grp_keys = ["avg_elapsed_seconds", "avg_off_hours_seconds", "avg_working_seconds",
-                "avg_ours_seconds", "avg_waiting_seconds", "off_hours_seconds"]
-    grp = [("Name", "name"), ("Tickets", "tickets"), ("Avg calendar hours", "avg_elapsed_seconds"),
+                "avg_ours_seconds", "avg_waiting_seconds", "off_hours_seconds",
+                "recorded_seconds", "worked_seconds", "wip_seconds", "saved_seconds",
+                "avg_worked_seconds", "avg_wip_seconds", "avg_saved_seconds"]
+    grp = [("Name", "name"), ("Tickets", "tickets"),
+           ("Recorded hours", "recorded_seconds"), ("Worked hours", "worked_seconds"),
+           ("Work in progress hours", "wip_seconds"), ("Hours saved", "saved_seconds"),
+           ("Saved %", "saved_share"),
+           ("Avg worked (h)", "avg_worked_seconds"), ("Avg WIP (h)", "avg_wip_seconds"),
+           ("Avg saved (h)", "avg_saved_seconds"),
+           ("Avg calendar hours", "avg_elapsed_seconds"),
            ("Avg off-hours", "avg_off_hours_seconds"),
            ("Avg working hours", "avg_working_seconds"), ("Avg ours (h)", "avg_ours_seconds"),
            ("Avg waiting (h)", "avg_waiting_seconds"), ("Total off-hours", "off_hours_seconds")]
