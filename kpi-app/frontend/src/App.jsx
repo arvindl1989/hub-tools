@@ -7,6 +7,7 @@ import DashboardPage     from './pages/DashboardPage'
 import UserActivityPage  from './pages/UserActivityPage'
 import FeedbackPage      from './pages/FeedbackPage'
 import Service2Page      from './pages/Service2Page'
+import SlaPage           from './pages/SlaPage'
 import ExperimentalReportsPage from './pages/ExperimentalReportsPage'
 import SlaConfigModal    from './components/SlaConfigModal'
 import PasswordGateModal from './components/PasswordGateModal'
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'user-activity', label: 'User Activity',    icon: <UsersIcon /> },
   { id: 'feedback',      label: 'Feedback',         icon: <SmileIcon /> },
   { id: 'service2',      label: 'Service 2',        icon: <JourneyIcon /> },
+  { id: 'sla',           label: 'SLA & Time',       icon: <ClockIcon /> },
 ]
 
 const EXPERIMENTAL_PASSWORD = 'Whiteshadows'
@@ -199,6 +201,7 @@ export default function App() {
           {activeTab === 'user-activity' && <UserActivityPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'feedback'      && <FeedbackPage sessionId={sessionId} />}
           {activeTab === 'service2'      && <Service2Page />}
+          {activeTab === 'sla'           && <SlaPage />}
           {activeTab === 'experimental'  && experimentalUnlocked && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}
         </div>
       </main>
@@ -369,6 +372,10 @@ function JourneyIcon() {
       <path d="M4 19V13" /><path d="M10 19V9" /><path d="M16 19V5" /><path d="M22 19H2" />
     </svg>
   )
+}
+
+function ClockIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
 }
 
 function SmileIcon() {

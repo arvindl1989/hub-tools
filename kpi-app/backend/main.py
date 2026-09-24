@@ -4136,6 +4136,7 @@ import attendance_api
 import email_state_api
 import sn_data_api
 import journey_api
+import sla_api
 import title_check_api
 
 attendance_api.configure(get_conn=_get_conn, holidays_by_year=HOLIDAYS_BY_YEAR,
@@ -4158,6 +4159,24 @@ app.include_router(sn_data_api.router)
 app.include_router(title_check_api.router)
 journey_api.configure(get_conn=_get_conn, diagnose=db_diagnosis)
 app.include_router(journey_api.router)
+
+
+def _sla_ticket_frame() -> pd.DataFrame:
+    """The current ServiceNow ticket snapshot, normalised.
+
+    The SLA sheet carries no Area, frontline or title, and no timestamps — all
+    of that comes from here, matched on ticket number.
+    """
+    rows, _meta = sn_data_api.load_rows("tickets")
+    if not rows:
+        return pd.DataFrame()
+    return process_dataframe(pd.DataFrame(rows))
+
+
+sla_api.configure(get_conn=_get_conn, diagnose=db_diagnosis,
+                  ticket_frame=_sla_ticket_frame,
+                  business_hours=business_hours_between)
+app.include_router(sla_api.router)
 
 
 # ── Serve KPI React app at /kpi/ and hub static tools at / ───────────────────
