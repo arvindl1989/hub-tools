@@ -311,9 +311,6 @@ def _ticket_lookup() -> dict:
     return out
 
 
-HOURS_PER_WORKING_DAY = 9.0      # 09:00-18:00, matching main.py
-
-
 def enrich(rows: list) -> list:
     """Each SLA row with its ticket's fields and its working-time figures."""
     tickets = _ticket_lookup()
@@ -380,24 +377,24 @@ def enrich(rows: list) -> list:
 
 # ── Metrics ──────────────────────────────────────────────────────────────────
 
-def _days(seconds) -> Optional[float]:
-    seconds = _finite(seconds)
-    return None if seconds is None else round(seconds / 86400.0, 2)
-
-
-def _working_days(seconds) -> Optional[float]:
-    """Working days, where a day is nine hours — not twenty-four. Dividing
-    working seconds by 86400 would quietly report a fifth of the real figure."""
-    seconds = _finite(seconds)
-    return None if seconds is None else round(seconds / (HOURS_PER_WORKING_DAY * 3600.0), 2)
-
-
 def _avg(values: list) -> Optional[float]:
     real = [v for v in (_finite(v) for v in values) if v is not None]
     return round(sum(real) / len(real), 2) if real else None
 
 
+def _hours(seconds) -> Optional[float]:
+    seconds = _finite(seconds)
+    return None if seconds is None else round(seconds / 3600.0, 1)
+
+
 def _group(rows: list, field: str) -> list:
+    """One entry per Area, frontline or service.
+
+    Durations leave here as seconds and are turned into hours or days by
+    whatever is displaying them. Sending a unit over the wire is what let a
+    nine-hour working day and a twenty-four-hour calendar day end up on the
+    same axis, so the unit is now chosen once, where the figure is read.
+    """
     groups: dict = {}
     for r in rows:
         key = (r.get(field) or "").strip() or "(blank)"
@@ -409,25 +406,53 @@ def _group(rows: list, field: str) -> list:
             "name": name,
             "tickets": len(items),
             "timed": len(timed),
-            "avg_elapsed_days": _avg([_days(r["elapsed_seconds"]) for r in items]),
-            "avg_working_days": _avg([_working_days(r["working_seconds"]) for r in items]),
-            # The same working time counted in whole days rather than nine-hour
-            # ones. It reads lower, and it is the only version that can be put on
-            # an axis beside the elapsed figure: there the gap between the two
-            # bars is exactly the off-hours time, because both are days of the
-            # same length. Charting nine-hour days against calendar days would
-            # make that gap a number of nothing.
-            "avg_working_calendar_days": _avg([_days(r["working_seconds"]) for r in items]),
-            "avg_off_hours_days": _avg([_days(r["off_hours_seconds"]) for r in items]),
-            "avg_ours_days": _avg([_working_days(r["ours_working_seconds"]) for r in items]),
-            "avg_waiting_days": _avg([_working_days(r["waiting_working_seconds"]) for r in items]),
-            "off_hours_days": round(sum((r["off_hours_seconds"] or 0) for r in items) / 86400.0, 1),
+            "avg_elapsed_seconds": _avg([r["elapsed_seconds"] for r in items]),
+            "avg_working_seconds": _avg([r["working_seconds"] for r in items]),
+            "avg_off_hours_seconds": _avg([r["off_hours_seconds"] for r in items]),
+            "avg_ours_seconds": _avg([r["ours_working_seconds"] for r in items]),
+            "avg_waiting_seconds": _avg([r["waiting_working_seconds"] for r in items]),
+            "off_hours_seconds": sum((r["off_hours_seconds"] or 0) for r in items),
         })
     return sorted(out, key=lambda g: (-g["tickets"], g["name"]))
 
 
-def compute(rows: list) -> dict:
-    enriched = enrich(rows)
+# Which field each filter narrows, and what it is called on the page.
+FILTER_FIELDS = {"area": "area", "team": "team", "service": "sub_category"}
+
+
+def filter_options(rows: list) -> dict:
+    """The values each filter can take, busiest first.
+
+    Built from every row rather than from what the current filters leave, so
+    choosing an Area does not empty the frontline list and strand whoever is
+    reading it with no way back.
+    """
+    out = {}
+    for name, field in FILTER_FIELDS.items():
+        counts: dict = {}
+        for r in rows:
+            value = (r.get(field) or "").strip()
+            if value:
+                counts[value] = counts.get(value, 0) + 1
+        out[name] = [{"name": k, "count": v}
+                     for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+    return out
+
+
+def apply_filters(rows: list, selected: dict) -> list:
+    for name, field in FILTER_FIELDS.items():
+        wanted = (selected.get(name) or "").strip()
+        if wanted:
+            rows = [r for r in rows if (r.get(field) or "").strip() == wanted]
+    return rows
+
+
+def compute(rows: list, selected: Optional[dict] = None) -> dict:
+    everything = enrich(rows)
+    options = filter_options(everything)
+    selected = {k: v for k, v in (selected or {}).items() if v}
+    enriched = apply_filters(everything, selected) if selected else everything
+
     matched = [r for r in enriched if r["matched"]]
     timed = [r for r in enriched if r["working_seconds"] is not None]
 
@@ -447,8 +472,10 @@ def compute(rows: list) -> dict:
             g["working_seconds"] += r["stage_working"].get(stage, 0.0)
     by_stage = sorted(stage_totals.values(), key=lambda g: -g["tracked_seconds"])
     for g in by_stage:
-        g["tracked_days"] = round(g["tracked_seconds"] / 86400.0, 1)
-        g["working_days"] = round(g["working_seconds"] / (HOURS_PER_WORKING_DAY * 3600.0), 1)
+        # Per ticket that actually passed through the stage — the figure that
+        # says what a state costs, which a total across every ticket does not.
+        g["avg_working_seconds"] = (g["working_seconds"] / g["tickets"]) if g["tickets"] else None
+        g["avg_tracked_seconds"] = (g["tracked_seconds"] / g["tickets"]) if g["tickets"] else None
 
     ours_working = sum((r["ours_working_seconds"] or 0) for r in timed)
     waiting_working = sum((r["waiting_working_seconds"] or 0) for r in timed)
@@ -461,17 +488,17 @@ def compute(rows: list) -> dict:
         "matched": len(matched),
         "unmatched": len(enriched) - len(matched),
         "timed": len(timed),
-        "elapsed_days": round(elapsed_total / 86400.0, 1),
-        "working_days": round(working_total / (HOURS_PER_WORKING_DAY * 3600.0), 1),
-        # Recorded, working and off-hours in one unit, so the three add up on the
-        # page: elapsed_days = working_calendar_days + off_hours_days.
-        "working_calendar_days": round(working_total / 86400.0, 1),
-        "off_hours_days": round(off_total / 86400.0, 1),
+        "total_tickets": len(everything),
+        "filters": options,
+        "selected": selected,
+        "elapsed_seconds": elapsed_total,
+        "working_seconds": working_total,
+        "off_hours_seconds": off_total,
         "off_hours_share": round(off_total / elapsed_total * 100, 1) if elapsed_total else 0.0,
-        "avg_elapsed_days": _avg([_days(r["elapsed_seconds"]) for r in timed]),
-        "avg_working_days": _avg([_working_days(r["working_seconds"]) for r in timed]),
-        "ours_working_days": round(ours_working / (HOURS_PER_WORKING_DAY * 3600.0), 1),
-        "waiting_working_days": round(waiting_working / (HOURS_PER_WORKING_DAY * 3600.0), 1),
+        "avg_elapsed_seconds": _avg([r["elapsed_seconds"] for r in timed]),
+        "avg_working_seconds": _avg([r["working_seconds"] for r in timed]),
+        "ours_working_seconds": ours_working,
+        "waiting_working_seconds": waiting_working,
         "waiting_share": round(waiting_working / (ours_working + waiting_working) * 100, 1)
                          if (ours_working + waiting_working) else 0.0,
         "by_area": _group(timed, "area"),
@@ -479,43 +506,74 @@ def compute(rows: list) -> dict:
         "by_service": _group(timed, "sub_category"),
         "by_stage": by_stage,
         "worst": [{"number": r["number"], "title": r["title"], "area": r["area"], "team": r["team"],
-                   "elapsed_days": _days(r["elapsed_seconds"]),
-                   "working_days": _working_days(r["working_seconds"]),
-                   "ours_days": _working_days(r["ours_working_seconds"]),
-                   "waiting_days": _working_days(r["waiting_working_seconds"])} for r in worst],
+                   "service": r["sub_category"],
+                   "elapsed_seconds": r["elapsed_seconds"],
+                   "working_seconds": r["working_seconds"],
+                   "ours_seconds": r["ours_working_seconds"],
+                   "waiting_seconds": r["waiting_working_seconds"]} for r in worst],
         "unmatched_numbers": [r["number"] for r in enriched if not r["matched"]][:40],
         "stage_split": {"ours": list(OURS), "waiting": list(WAITING), "terminal": list(TERMINAL)},
         "rows": [{k: v for k, v in r.items() if k != "stage_working"} for r in enriched],
     }
 
 
+def _tickets(n: int) -> str:
+    return f"{n} ticket" if n == 1 else f"{n} tickets"
+
+
+def describe_scope(selected: dict) -> str:
+    """" in EU", " in EU · NORD", or nothing at all.
+
+    A filtered report reads as if it were the whole estate unless it says
+    otherwise, so the narrative and the Excel pack both carry what was chosen.
+    """
+    parts = [v for v in (selected.get("area"), selected.get("team"),
+                         selected.get("service")) if v]
+    return f" {' · '.join(parts)}" if parts else ""
+
+
 def headline(m: dict) -> list:
     lines = []
     if not m["timed"]:
         return lines
+
+    scope = describe_scope(m["selected"])
+    elapsed_days = (m["elapsed_seconds"] or 0) / 86400.0
+    working_days = (m["working_seconds"] or 0) / 86400.0
+    working_hours = (m["working_seconds"] or 0) / 3600.0
+    off_days = (m["off_hours_seconds"] or 0) / 86400.0
+
     lines.append(
-        f"{m['timed']} of {m['tickets']} tickets have both a created and a closed date, so their "
-        f"working time is exact. Between them ServiceNow recorded {m['elapsed_days']:,.0f} calendar "
-        f"days, of which {m['working_calendar_days']:,.0f} fell inside 09:00-18:00, Monday to "
-        f"Friday, holidays excluded — {m['working_days']:,.0f} working days of nine hours.")
+        f"{m['timed']} of {m['tickets']}{scope} tickets have both a created and a closed date, so "
+        f"their working time is exact. Between them ServiceNow recorded {elapsed_days:,.0f} calendar "
+        f"days, of which {working_days:,.0f} fell inside 09:00-18:00, Monday to Friday, holidays "
+        f"excluded — {working_hours:,.0f} working hours.")
     lines.append(
-        f"{m['off_hours_days']:,.0f} days — {m['off_hours_share']}% of everything the tracker "
-        f"counted — fell outside working hours. That is time no one could have been working, and it "
-        f"is counted against the team by any figure taken straight from ServiceNow.")
-    if m["avg_elapsed_days"] and m["avg_working_days"]:
+        f"{off_days:,.0f} days — {m['off_hours_share']}% of everything the tracker counted — fell "
+        f"outside working hours. That is time no one could have been working, and it is counted "
+        f"against the team by any figure taken straight from ServiceNow.")
+    if m["avg_elapsed_seconds"] and m["avg_working_seconds"]:
         lines.append(
-            f"The average ticket reads {m['avg_elapsed_days']} calendar days but "
-            f"{m['avg_working_days']} working days of actual attention.")
+            f"The average ticket reads {m['avg_elapsed_seconds'] / 86400.0:.1f} calendar days but "
+            f"{m['avg_working_seconds'] / 3600.0:.1f} working hours of actual attention.")
     if m["waiting_share"]:
         lines.append(
             f"Of that working time, {m['waiting_share']}% was spent in states waiting on someone "
             f"outside the team ({', '.join(WAITING)}) rather than being worked on.")
+    # What a ticket costs in the state the team is actually working it, which is
+    # the figure hours were wanted for: days flatten it to a number near zero.
+    wip = next((s for s in m["by_stage"] if s["stage"] == "Work in progress"), None)
+    if wip and wip.get("avg_working_seconds"):
+        lines.append(
+            f"A ticket that reaches Work in progress spends "
+            f"{wip['avg_working_seconds'] / 3600.0:.1f} working hours there on average, across "
+            f"{_tickets(wip['tickets'])}.")
     if m["by_team"]:
-        worst = max(m["by_team"], key=lambda t: t["avg_waiting_days"] or 0)
-        if worst["avg_waiting_days"]:
+        worst = max(m["by_team"], key=lambda t: t["avg_waiting_seconds"] or 0)
+        if worst["avg_waiting_seconds"]:
             lines.append(
-                f"{worst['name']} waits longest: {worst['avg_waiting_days']} working days per ticket "
-                f"on average across {worst['tickets']} tickets.")
+                f"{worst['name']} waits longest: {worst['avg_waiting_seconds'] / 3600.0:.1f} working "
+                f"hours per ticket on average across {_tickets(worst['tickets'])}.")
     if m["unmatched"]:
         one = m["unmatched"] == 1
         lines.append(
@@ -526,9 +584,11 @@ def headline(m: dict) -> list:
 
 
 
+# Hours throughout: a stage a ticket sat in for an afternoon is 0.19 days, which
+# reads as nothing, and 4.5 hours, which reads as an afternoon.
 TABLE_COLUMNS = ["Ticket", "Title", "Service", "Area", "Frontline", "Assigned To", "State",
-                 "Created", "Closed", "Calendar days", "Working days", "Off-hours days",
-                 "Ours (working days)", "Waiting (working days)"] + [f"{s} (days)" for s in STAGES]
+                 "Created", "Closed", "Calendar hours", "Working hours", "Off-hours",
+                 "Ours (working h)", "Waiting (working h)"] + [f"{s} (h)" for s in STAGES]
 
 
 def table_rows(rows: list) -> list:
@@ -544,20 +604,20 @@ def table_rows(rows: list) -> list:
             "Ticket": r["number"], "Title": r["title"], "Service": r["sub_category"],
             "Area": r["area"], "Frontline": r["team"], "Assigned To": r["assigned_to"],
             "State": r["state"], "Created": r["created"][:16], "Closed": r["closed"][:16],
-            "Calendar days": _fmt(_days(r["elapsed_seconds"])),
-            "Working days": _fmt(_working_days(r["working_seconds"])),
-            "Off-hours days": _fmt(_days(r["off_hours_seconds"])),
-            "Ours (working days)": _fmt(_working_days(r["ours_working_seconds"])),
-            "Waiting (working days)": _fmt(_working_days(r["waiting_working_seconds"])),
+            "Calendar hours": _fmt(_hours(r["elapsed_seconds"])),
+            "Working hours": _fmt(_hours(r["working_seconds"])),
+            "Off-hours": _fmt(_hours(r["off_hours_seconds"])),
+            "Ours (working h)": _fmt(_hours(r["ours_working_seconds"])),
+            "Waiting (working h)": _fmt(_hours(r["waiting_working_seconds"])),
         }
         for stage in STAGES:
-            flat[f"{stage} (days)"] = _fmt(_days(r["stages"].get(stage)))
+            flat[f"{stage} (h)"] = _fmt(_hours(r["stages"].get(stage)))
         out.append(flat)
     return out
 
 
 def _fmt(value) -> str:
-    return "" if value is None else f"{value:,.2f}"
+    return "" if value is None else f"{value:,.1f}"
 
 # ── API ──────────────────────────────────────────────────────────────────────
 
@@ -616,11 +676,11 @@ async def get_rows():
 
 
 @router.get("/metrics")
-async def metrics():
+async def metrics(area: str = "", team: str = "", service: str = ""):
     rows, meta = load_rows()
     if not rows:
         raise HTTPException(404, "No SLA sheet has been uploaded yet")
-    m = compute(rows)
+    m = compute(rows, {"area": area, "team": team, "service": service})
     return json_safe({**m, "report": headline(m), **meta})
 
 
@@ -640,11 +700,12 @@ async def clear():
 
 
 @router.get("/report.xlsx")
-async def report_xlsx():
+async def report_xlsx(area: str = "", team: str = "", service: str = ""):
     rows, _ = load_rows()
     if not rows:
         raise HTTPException(404, "No SLA sheet has been uploaded yet")
-    m = compute(rows)
+    m = compute(rows, {"area": area, "team": team, "service": service})
+    scope = describe_scope(m["selected"])
 
     buf = io.BytesIO()
     wb = xlsxwriter.Workbook(buf, {"in_memory": True})
@@ -655,7 +716,7 @@ async def report_xlsx():
 
     ws = wb.add_worksheet("Summary")
     ws.set_column(0, 0, 112)
-    ws.write(0, 0, "SLA and time tracking — 09:00-18:00, Mon-Fri, holidays excluded", bold)
+    ws.write(0, 0, f"SLA and time tracking{scope} — 09:00-18:00, Mon-Fri, holidays excluded", bold)
     for i, line in enumerate(headline(m), start=2):
         ws.write(i, 0, line, wrap)
 
@@ -672,34 +733,52 @@ async def report_xlsx():
         for j, c in enumerate(columns):
             s.set_column(j, j, 34 if j == 0 else 16)
 
-    grp = [("Name", "name"), ("Tickets", "tickets"), ("Avg calendar days", "avg_elapsed_days"),
-           ("Avg off-hours days", "avg_off_hours_days"),
-           ("Avg working days (9h)", "avg_working_days"), ("Avg ours (9h)", "avg_ours_days"),
-           ("Avg waiting (9h)", "avg_waiting_days"), ("Total off-hours days", "off_hours_days")]
-    table("By Area", grp, m["by_area"])
-    table("By Frontline", grp, m["by_team"])
-    table("By Service", grp, m["by_service"])
+    # Every duration is held in seconds and turned into hours here, once, so the
+    # pack cannot disagree with the page about what a number means.
+    def in_hours(records, keys):
+        out = []
+        for rec in records:
+            copy = dict(rec)
+            for key in keys:
+                copy[key] = _hours(rec.get(key))
+            out.append(copy)
+        return out
+
+    grp_keys = ["avg_elapsed_seconds", "avg_off_hours_seconds", "avg_working_seconds",
+                "avg_ours_seconds", "avg_waiting_seconds", "off_hours_seconds"]
+    grp = [("Name", "name"), ("Tickets", "tickets"), ("Avg calendar hours", "avg_elapsed_seconds"),
+           ("Avg off-hours", "avg_off_hours_seconds"),
+           ("Avg working hours", "avg_working_seconds"), ("Avg ours (h)", "avg_ours_seconds"),
+           ("Avg waiting (h)", "avg_waiting_seconds"), ("Total off-hours", "off_hours_seconds")]
+    table("By Area", grp, in_hours(m["by_area"], grp_keys))
+    table("By Frontline", grp, in_hours(m["by_team"], grp_keys))
+    table("By Service", grp, in_hours(m["by_service"], grp_keys))
     table("By Stage", [("Stage", "stage"), ("Side", "side"), ("Tickets", "tickets"),
-                       ("Tracked days", "tracked_days"), ("Working days", "working_days")], m["by_stage"])
+                       ("Tracked hours", "tracked_seconds"), ("Working hours", "working_seconds"),
+                       ("Avg working hours per ticket", "avg_working_seconds")],
+          in_hours(m["by_stage"], ["tracked_seconds", "working_seconds", "avg_working_seconds"]))
     table("Longest waits", [("Ticket", "number"), ("Title", "title"), ("Area", "area"),
-                            ("Frontline", "team"), ("Calendar days", "elapsed_days"),
-                            ("Working days", "working_days"), ("Ours", "ours_days"),
-                            ("Waiting", "waiting_days")], m["worst"])
+                            ("Frontline", "team"), ("Service", "service"),
+                            ("Calendar hours", "elapsed_seconds"),
+                            ("Working hours", "working_seconds"), ("Ours (h)", "ours_seconds"),
+                            ("Waiting (h)", "waiting_seconds")],
+          in_hours(m["worst"], ["elapsed_seconds", "working_seconds", "ours_seconds", "waiting_seconds"]))
 
     data = wb.add_worksheet("Tickets")
     cols = ["number", "title", "sub_category", "area", "team", "assigned_to", "state",
             "created", "closed"]
     labels = ["Ticket", "Title", "Service", "Area", "Frontline", "Assigned To", "State",
-              "Created", "Closed", "Calendar days", "Working days", "Off-hours days",
-              "Ours (working days)", "Waiting (working days)"]
+              "Created", "Closed", "Calendar hours", "Working hours", "Off-hours",
+              "Ours (working h)", "Waiting (working h)"] + [f"{stage} (h)" for stage in STAGES]
     data.write_row(0, 0, labels, hdr)
     for i, r in enumerate(m["rows"], start=1):
         for j, key in enumerate(cols):
             data.write_string(i, j, str(r.get(key, "") or ""))
-        for j, value in enumerate([_days(r["elapsed_seconds"]), _working_days(r["working_seconds"]),
-                                   _days(r["off_hours_seconds"]),
-                                   _working_days(r["ours_working_seconds"]),
-                                   _working_days(r["waiting_working_seconds"])], start=len(cols)):
+        figures = [_hours(r["elapsed_seconds"]), _hours(r["working_seconds"]),
+                   _hours(r["off_hours_seconds"]), _hours(r["ours_working_seconds"]),
+                   _hours(r["waiting_working_seconds"])]
+        figures += [_hours(r["stages"].get(stage)) for stage in STAGES]
+        for j, value in enumerate(figures, start=len(cols)):
             if value is None:
                 data.write_string(i, j, "")
             else:
