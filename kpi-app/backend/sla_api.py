@@ -28,6 +28,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import math
 import re
 from typing import Callable, Optional
 
@@ -146,7 +147,7 @@ def parse_sheet(frame: pd.DataFrame) -> list:
 
     rows = []
     for record in frame.to_dict(orient="records"):
-        number = str(record.get(columns[0], "") or "").strip()
+        number = _text(record.get(columns[0]))
         if not _looks_like_ticket(number):
             continue          # subtotal or blank row
         stages = {}
@@ -156,7 +157,7 @@ def parse_sheet(frame: pd.DataFrame) -> list:
                 stages[stage] = seconds
         rows.append({
             "number": number.upper(),
-            "service": str(record.get(service_col, "") or "").strip() if service_col else "",
+            "service": _text(record.get(service_col)) if service_col else "",
             "stages": stages,
             "tracked_seconds": sum(stages.values()),
         })
@@ -261,6 +262,34 @@ def save_rows(rows: list, filename: str, who: Optional[str]) -> None:
 
 # ── Joining to the ticket data ───────────────────────────────────────────────
 
+def _text(value) -> str:
+    """A cell as text, where pandas' idea of blank is blank.
+
+    A missing string in a DataFrame comes back as the float NaN, and `value or
+    ""` keeps it because NaN is truthy. That put a float where a title or an
+    Area belonged and broke the whole response, since JSON has no NaN.
+    """
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass                      # arrays and the like are never blank
+    return str(value).strip()
+
+
+def _finite(value):
+    """A number JSON can carry, or None. NaN and infinity are neither."""
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _ticket_lookup() -> dict:
     """Ticket number → the fields the report groups by, plus its timestamps."""
     if _ticket_frame is None:
@@ -276,7 +305,7 @@ def _ticket_lookup() -> dict:
             if c in df.columns]
     out = {}
     for rec in df[keep].to_dict(orient="records"):
-        number = str(rec.get("ticket_number", "") or "").strip().upper()
+        number = _text(rec.get("ticket_number")).upper()
         if number:
             out[number] = rec
     return out
@@ -291,18 +320,24 @@ def enrich(rows: list) -> list:
     out = []
     for row in rows:
         ticket = tickets.get(row["number"], {})
+        # A ticket that is still open has no closed date, and pandas spells that
+        # NaT — which is not None, so it has to be tested for rather than
+        # checked against None. Both figures below need two real timestamps.
         created = ticket.get("created_date")
         closed = ticket.get("closed_date")
+        if created is None or closed is None or pd.isna(created) or pd.isna(closed):
+            created = closed = None
+
         elapsed_seconds = None
-        if created is not None and closed is not None and not pd.isna(created) and not pd.isna(closed):
+        if created is not None:
             delta = (pd.Timestamp(closed) - pd.Timestamp(created)).total_seconds()
             elapsed_seconds = delta if delta > 0 else 0.0
 
         working_seconds = None
-        if _business_hours is not None and created is not None and closed is not None:
-            hours = _business_hours(created, closed)
-            if hours is not None:
-                working_seconds = float(hours) * 3600.0
+        if _business_hours is not None and created is not None:
+            working_seconds = _finite(_business_hours(created, closed))
+            if working_seconds is not None:
+                working_seconds *= 3600.0
 
         # Stage shares come from the tracked durations; the quantity being
         # shared out is the ticket's exact working time.
@@ -320,14 +355,14 @@ def enrich(rows: list) -> list:
         out.append({
             **row,
             "matched": bool(ticket),
-            "area": (ticket.get("area") or "") if ticket else "",
-            "team": (ticket.get("team") or "") if ticket else "",
-            "assigned_to": (ticket.get("assigned_to") or "") if ticket else "",
-            "title": (ticket.get("short_description") or "") if ticket else "",
-            "state": (ticket.get("state") or "") if ticket else "",
-            "sub_category": (ticket.get("sub_category") or row.get("service") or "") if ticket else row.get("service", ""),
-            "created": str(created) if created is not None and not pd.isna(created) else "",
-            "closed": str(closed) if closed is not None and not pd.isna(closed) else "",
+            "area": _text(ticket.get("area")),
+            "team": _text(ticket.get("team")),
+            "assigned_to": _text(ticket.get("assigned_to")),
+            "title": _text(ticket.get("short_description")),
+            "state": _text(ticket.get("state")),
+            "sub_category": _text(ticket.get("sub_category")) or _text(row.get("service")),
+            "created": str(created) if created is not None else "",
+            "closed": str(closed) if closed is not None else "",
             "elapsed_seconds": elapsed_seconds,
             "working_seconds": working_seconds,
             # What the round-the-clock tracker counted that nobody could have
@@ -346,17 +381,19 @@ def enrich(rows: list) -> list:
 # ── Metrics ──────────────────────────────────────────────────────────────────
 
 def _days(seconds) -> Optional[float]:
+    seconds = _finite(seconds)
     return None if seconds is None else round(seconds / 86400.0, 2)
 
 
 def _working_days(seconds) -> Optional[float]:
     """Working days, where a day is nine hours — not twenty-four. Dividing
     working seconds by 86400 would quietly report a fifth of the real figure."""
+    seconds = _finite(seconds)
     return None if seconds is None else round(seconds / (HOURS_PER_WORKING_DAY * 3600.0), 2)
 
 
 def _avg(values: list) -> Optional[float]:
-    real = [v for v in values if v is not None]
+    real = [v for v in (_finite(v) for v in values) if v is not None]
     return round(sum(real) / len(real), 2) if real else None
 
 
@@ -524,6 +561,24 @@ def _fmt(value) -> str:
 
 # ── API ──────────────────────────────────────────────────────────────────────
 
+def json_safe(value):
+    """The same structure with nothing in it that JSON cannot express.
+
+    Every figure here is already guarded at the point it is computed, but a
+    single NaN anywhere fails the whole response with a message that names no
+    field — so the responses are swept once more rather than trusting that the
+    next field added will remember. NaN becomes null, which reads on the page
+    as "no figure" rather than taking the report down.
+    """
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(v) for v in value]
+    return value
+
+
 class UploadBody(BaseModel):
     xlsx_base64: str = ""
     csv: str = ""
@@ -556,7 +611,8 @@ async def upload(body: UploadBody):
 @router.get("")
 async def get_rows():
     rows, meta = load_rows()
-    return {"rows": table_rows(rows), "columns": TABLE_COLUMNS, "stages": list(STAGES), **meta}
+    return json_safe({"rows": table_rows(rows), "columns": TABLE_COLUMNS,
+                      "stages": list(STAGES), **meta})
 
 
 @router.get("/metrics")
@@ -565,7 +621,7 @@ async def metrics():
     if not rows:
         raise HTTPException(404, "No SLA sheet has been uploaded yet")
     m = compute(rows)
-    return {**m, "report": headline(m), **meta}
+    return json_safe({**m, "report": headline(m), **meta})
 
 
 @router.delete("")
