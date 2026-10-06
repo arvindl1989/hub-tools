@@ -2652,6 +2652,22 @@ def user_activity(
 # of them rather than a service in its own right. Denominator for Service Adoption.
 CANONICAL_SERVICES = [s for s in BANDWIDTH_RATES if s != "Demand Engagement Activations"]
 
+# Short names, because a heat map column or a dropdown has no room for
+# "Content Production – Graphic Design".
+SERVICE_ABBREV = {
+    "Website Content Management":          "WCM",
+    "Demand Engagement Activations":       "DEA",
+    "Content Production – Graphic Design": "CP",
+    "Demand Creation – Global":            "Demand",
+    "Email – Local":                       "Email",
+    "Retention – Activations":             "Retention",
+}
+
+# A frontline counts as a top user of a service when it raises at least as much
+# as the frontline at this quantile of everyone still using it. The median would
+# make half of them "top", which says nothing; this names the leaders.
+TOP_FRONTLINE_QUANTILE = 0.75
+
 # Lifecycle thresholds, in days since the user's most recent request measured
 # from periodEnd. Mutually exclusive and collectively exhaustive over [0, ∞).
 LIFECYCLE_ACTIVE_MAX  = 30   # Active:  0–30
@@ -2670,6 +2686,176 @@ def _safe_div(num, den, pct: bool = False, nd: int = 1):
     if not den:
         return None
     return round(float(num) / float(den) * (100 if pct else 1), nd)
+
+
+def _service_column(src: pd.DataFrame) -> pd.Series:
+    """Each row's service as the business talks about it.
+
+    Demand Creation, Email and Retention are three sub-categories in
+    ServiceNow and one offer — Demand Engagement — everywhere else, so the
+    utility table counts them as one. The heat map keeps them apart, which is
+    why this is a mapping rather than a rename of the data.
+    """
+    return src["sub_category"].map(
+        lambda s: "Demand Engagement Activations" if s in DEMAND_ENGAGEMENT_SUBS else s
+    )
+
+
+def _service_utility(scoped: pd.DataFrame, users: list, period_end) -> list:
+    """Per service: how many of the user base have ever asked for it, and how
+    recently — plus, by name, the ones who never have.
+
+    The denominator is every user in scope, not the users of that service, so
+    the rate answers "how far has this service reached" rather than "how busy
+    is it". Active/Regular/Dormant are measured on the user's last request FOR
+    THAT SERVICE: someone raising weekly WCM tickets is not an active user of
+    Graphic Design because they tried it once a year ago.
+    """
+    if "sub_category" not in scoped.columns or not users:
+        return []
+    by_user = {u["user"]: u for u in users}
+    frame = scoped.dropna(subset=["sub_category"]).copy()
+    frame["service"] = _service_column(frame)
+
+    out = []
+    for service in BAU_SERVICES_DISPLAY:
+        rows = frame[frame["service"] == service]
+        last_by_user = (rows.groupby("ticket_creator")["created_date"].max().to_dict()
+                        if not rows.empty else {})
+        counts = (rows.groupby("ticket_creator").size().to_dict() if not rows.empty else {})
+
+        buckets = {"active": [], "regular": [], "dormant": []}
+        never = []
+        for u in users:
+            last = last_by_user.get(u["user"])
+            if last is None or pd.isna(last):
+                never.append({**u, "service_count": 0})
+                continue
+            days = int((period_end - pd.Timestamp(last).normalize()).days)
+            entry = {**u, "service_count": int(counts.get(u["user"], 0)),
+                     "days_since_service": days}
+            key = ("active" if days <= LIFECYCLE_ACTIVE_MAX
+                   else "regular" if days <= LIFECYCLE_REGULAR_MAX else "dormant")
+            buckets[key].append(entry)
+
+        used = len(users) - len(never)
+        out.append({
+            "service": service,
+            "short": SERVICE_ABBREV.get(service, service),
+            "total_users": len(users),
+            "users_used": used,
+            "utility_rate_pct": _safe_div(used, len(users), pct=True, nd=0),
+            "active": len(buckets["active"]),
+            "regular": len(buckets["regular"]),
+            "dormant": len(buckets["dormant"]),
+            "requests": int(len(rows)),
+            # Named, because "20 users have never touched this" is a list to
+            # work through rather than a number to look at.
+            "not_used": sorted(never, key=lambda u: (-u["count"], u["user"])),
+        })
+    return out
+
+
+def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
+    """Frontline against service: who is using what, and who has stopped.
+
+    A cell is one frontline's use of one service. It is Not used when the
+    frontline has never raised that request, Dormant when its last one was more
+    than ninety days before the end of the range, and otherwise Top or Regular
+    depending on whether it raises as much as the busiest quarter of the
+    frontlines still using it.
+    """
+    blank = {"services": [], "areas": [], "grid": {}, "rows": [], "totals": []}
+    if not {"sub_category", "team"} <= set(scoped.columns):
+        return blank
+    frame = scoped.dropna(subset=["sub_category", "team"]).copy()
+    frame["team"] = frame["team"].astype(str).str.strip()
+    frame = frame[frame["team"] != ""]
+    if frame.empty:
+        return blank
+
+    area_of = {}
+    if "area" in frame.columns:
+        for fl, grp in frame.groupby("team"):
+            areas = grp["area"].dropna()
+            area_of[fl] = str(areas.value_counts().index[0]) if len(areas) else UNASSIGNED
+
+    services = [s for s in CANONICAL_SERVICES if s in set(frame["sub_category"])]
+    frontlines = sorted(frame["team"].unique(), key=lambda f: (area_of.get(f, UNASSIGNED), f))
+
+    grid: dict = {}
+    totals = []
+    for service in services:
+        rows = frame[frame["sub_category"] == service]
+        counts = rows.groupby("team").size().to_dict()
+        last = rows.groupby("team")["created_date"].max().to_dict()
+        users = rows.groupby("team")["ticket_creator"].nunique().to_dict()
+
+        live = [c for fl, c in counts.items()
+                if (period_end - pd.Timestamp(last[fl]).normalize()).days <= LIFECYCLE_REGULAR_MAX]
+        cut = float(pd.Series(live).quantile(TOP_FRONTLINE_QUANTILE)) if live else None
+
+        tally = {"top": 0, "regular": 0, "dormant": 0, "none": 0}
+        for fl in frontlines:
+            count = int(counts.get(fl, 0))
+            if not count:
+                state, days = "none", None
+            else:
+                days = int((period_end - pd.Timestamp(last[fl]).normalize()).days)
+                if days > LIFECYCLE_REGULAR_MAX:
+                    state = "dormant"
+                elif cut is not None and count >= cut:
+                    state = "top"
+                else:
+                    state = "regular"
+            tally[state] += 1
+            grid[f"{service}||{fl}"] = {
+                "requests": count,
+                "users": int(users.get(fl, 0)),
+                "days_since_last": days,
+                "state": state,
+            }
+        totals.append({"service": service, "short": SERVICE_ABBREV.get(service, service),
+                       "requests": int(len(rows)), **tally})
+
+    # One row per frontline, read like the user list: totals first, then a
+    # column per service.
+    rows_out = []
+    for fl in frontlines:
+        sub = frame[frame["team"] == fl]
+        last_ts = sub["created_date"].max()
+        days = int((period_end - pd.Timestamp(last_ts).normalize()).days)
+        breakdown = {s: grid[f"{s}||{fl}"]["requests"] for s in services}
+        used = sum(1 for s in services if breakdown[s])
+        rows_out.append({
+            "frontline": fl,
+            "area": area_of.get(fl, UNASSIGNED),
+            "requests": int(len(sub)),
+            "users": int(sub["ticket_creator"].nunique()),
+            "last_request_date": pd.Timestamp(last_ts).date().isoformat() if pd.notna(last_ts) else None,
+            "days_since_last": days,
+            "services_used": used,
+            "services_offered": len(services),
+            "adoption_pct": _safe_div(used, len(services), pct=True, nd=0),
+            "service_breakdown": breakdown,
+            "service_states": {s: grid[f"{s}||{fl}"]["state"] for s in services},
+        })
+    rows_out.sort(key=lambda r: (-r["services_used"], -r["requests"]))
+
+    ordered_areas = []
+    for fl in frontlines:
+        a = area_of.get(fl, UNASSIGNED)
+        if not ordered_areas or ordered_areas[-1]["area"] != a:
+            ordered_areas.append({"area": a, "frontlines": []})
+        ordered_areas[-1]["frontlines"].append(fl)
+
+    return {
+        "services": [{"name": s, "short": SERVICE_ABBREV.get(s, s)} for s in services],
+        "areas": ordered_areas,
+        "grid": grid,
+        "rows": rows_out,
+        "totals": totals,
+    }
 
 
 @app.get("/api/sessions/{sid}/user-metrics")
@@ -2724,6 +2910,8 @@ def user_metrics(
                   "services_offered": len(CANONICAL_SERVICES)},
         "total_users": 0,
         "top_n": top_n,
+        "service_utility": [],
+        "service_adoption": {"services": [], "areas": [], "grid": {}, "rows": [], "totals": []},
     }
 
     if "ticket_creator" not in df.columns or "created_date" not in df.columns:
@@ -2882,6 +3070,8 @@ def user_metrics(
             "services_used":        services_used,
             "services_offered":     len(CANONICAL_SERVICES),
         },
+        "service_utility":  _service_utility(scoped, users, period_end),
+        "service_adoption": _service_adoption(scoped, period_end),
     }
 
 

@@ -5,6 +5,8 @@ import {
   INTER, cardHeadingStyle, selStyle, activeFilterPillStyle, fmt1,
   NPS_BUCKET_STYLES, KONE_BLUE_TONE, Card, MetricCard, SegmentCard, ScrollList, stickyFilterCard,
 } from '../components/KoneUI'
+import ServiceUtilityRate from '../components/ServiceUtilityRate'
+import ServiceAdoptionHeatmap from '../components/ServiceAdoptionHeatmap'
 
 // ── Service definitions (match BANDWIDTH_RATES keys in backend) ───────────────
 const SERVICES = [
@@ -262,20 +264,46 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           <MetricCard label="Frontlines"   value={reach.frontlines}   sub="Distinct frontlines with ≥1 request" />
         </div>
 
-        {/* Row 2 — Volume */}
+        {/* Row 2 — Volume. Total users rather than total requests: this page is
+             about who is using the hub, and the request count is in the list
+             below. Engagement rate sits here now that the rate boxes are gone. */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          <MetricCard label="Total Requests" value={volume.total_requests?.toLocaleString()} sub="Requests in the active range" />
+          <MetricCard label="Total Users" value={metrics.total_users?.toLocaleString()}
+            sub={`${volume.total_requests?.toLocaleString() ?? 0} requests in the active range`} />
           <MetricCard label="Avg Requests / User"    value={fmt1(volume.avg_per_user)}    sub="Skewed upward by heavy requestors" />
-          <MetricCard label="Median Requests / User" value={fmt1(volume.median_per_user)} sub="Half of users sit below this" />
+          <MetricCard label="Engagement Rate (%)"    value={pct(rates.engagement_pct)}    sub="Active users ÷ total users" />
         </div>
 
-        {/* Rows 3 + 4 — lifecycle segment + its scrollable roster, one card each */}
+        {/* Rows 3 + 4 — lifecycle segment + its scrollable roster, one card each.
+             Each count carries its share of the user base, so the three read as
+             a split of one number rather than three unrelated figures. */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          {LIFECYCLE.map(seg => (
-            <SegmentCard key={seg.key} label={seg.label} value={(segments[seg.key] ?? []).length} sub={seg.sub} tone={seg.tone}>
-              <ScrollList rows={segments[seg.key] ?? []} columns={BASE_COLUMNS} tone={seg.tone} />
-            </SegmentCard>
-          ))}
+          {LIFECYCLE.map(seg => {
+            const list = segments[seg.key] ?? []
+            const share = metrics.total_users
+              ? Math.round((list.length / metrics.total_users) * 100)
+              : null
+            return (
+              <SegmentCard
+                key={seg.key}
+                label={seg.label}
+                value={
+                  <span>
+                    {list.length}
+                    {share != null && (
+                      <span style={{ fontSize: 17, fontWeight: 600, opacity: 0.7, marginLeft: 7 }}>
+                        ({share}%)
+                      </span>
+                    )}
+                  </span>
+                }
+                sub={seg.sub}
+                tone={seg.tone}
+              >
+                <ScrollList rows={list} columns={BASE_COLUMNS} tone={seg.tone} />
+              </SegmentCard>
+            )
+          })}
         </div>
 
         {/* Row 5 — Growth & engagement, KONE Blue accent */}
@@ -335,17 +363,12 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           </SegmentCard>
         </div>
 
-        {/* Row 6 — Rates. Service Adoption lives here with the other rates. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          <MetricCard label="Utility Rate"     value={fmt1(rates.utility_rate)} sub="Requests per active user" />
-          <MetricCard label="Engagement Rate"  value={pct(rates.engagement_pct)} sub="Active ÷ total users" />
-          <MetricCard label="Repeat Usage"     value={pct(rates.repeat_pct)}     sub="Users with ≥2 requests" />
-          <MetricCard
-            label="Service Adoption"
-            value={pct(rates.service_adoption_pct)}
-            sub={`${rates.services_used ?? 0} of ${rates.services_offered ?? 0} services used`}
-          />
-        </div>
+        {/* ── Service Utility Rate and Service Adoption stand where the four
+             rate boxes used to: the same questions, answered per service and
+             per frontline instead of as one number for the whole hub. ─────── */}
+        <ServiceUtilityRate rows={metrics.service_utility ?? []} />
+
+        <ServiceAdoptionHeatmap data={metrics.service_adoption} />
 
         {/* ── Retained user list — page filters applied server-side; search,
              tier and column sort stay local to the table. ─────────────────── */}
