@@ -2791,6 +2791,19 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
         last = rows.groupby("team")["created_date"].max().to_dict()
         users = rows.groupby("team")["ticket_creator"].nunique().to_dict()
 
+        # Who is behind each cell. A number on a heat map invites the question
+        # "which of my people is that?", and the answer is already in hand here.
+        people: dict = {}
+        per_user = rows.groupby(["team", "ticket_creator"])["created_date"].agg(["size", "max"])
+        for (fl, person), row in per_user.iterrows():
+            people.setdefault(fl, []).append({
+                "user": str(person),
+                "count": int(row["size"]),
+                "days_since_last": int((period_end - pd.Timestamp(row["max"]).normalize()).days),
+            })
+        for fl in people:
+            people[fl].sort(key=lambda u: (-u["count"], u["user"]))
+
         live = [c for fl, c in counts.items()
                 if (period_end - pd.Timestamp(last[fl]).normalize()).days <= LIFECYCLE_REGULAR_MAX]
         cut = float(pd.Series(live).quantile(TOP_FRONTLINE_QUANTILE)) if live else None
@@ -2814,6 +2827,7 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
                 "users": int(users.get(fl, 0)),
                 "days_since_last": days,
                 "state": state,
+                "user_list": people.get(fl, []),
             }
         totals.append({"service": service, "short": SERVICE_ABBREV.get(service, service),
                        "requests": int(len(rows)), **tally})

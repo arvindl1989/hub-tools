@@ -29,6 +29,7 @@ function Count({ n, tone }) {
 
 export default function ServiceUtilityRate({ rows = [] }) {
   const [picked, setPicked] = useState('')
+  const [open, setOpen] = useState(false)
 
   // Whichever service is chosen stays chosen while the filters change, unless
   // it stops existing — then fall back to the first rather than showing an
@@ -114,10 +115,25 @@ export default function ServiceUtilityRate({ rows = [] }) {
         have used it.
       </p>
 
-      {/* ── Who has never asked for it ─────────────────────────────────────── */}
+      {/* ── Who has never asked for it ─────────────────────────────────────
+           Folded away on load: it is a list to go and work through, not
+           something to scroll past every time the page is opened. ──────── */}
       <div style={{ marginTop: 22, borderTop: '1px solid #e8e2d6', paddingTop: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-          <span style={cardHeadingStyle('#141414')}>Users who haven't used</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setOpen(o => !o)}
+            aria-expanded={open}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8, border: 'none',
+              background: 'none', cursor: 'pointer', padding: 0, fontFamily: INTER,
+            }}
+          >
+            <span style={{
+              display: 'inline-block', transform: `rotate(${open ? 90 : 0}deg)`,
+              transition: 'transform 0.15s', color: '#6e6e6e', fontSize: 11,
+            }}>▶</span>
+            <span style={cardHeadingStyle('#141414')}>Users who haven't used</span>
+          </button>
           <select value={picked} onChange={e => setPicked(e.target.value)} style={selStyle}>
             {rows.map(r => <option key={r.service} value={r.service}>{r.short} — {r.service}</option>)}
           </select>
@@ -126,15 +142,16 @@ export default function ServiceUtilityRate({ rows = [] }) {
           </span>
         </div>
 
-        {notUsed.length === 0 ? (
+        {open && (notUsed.length === 0 ? (
           <div style={{
+            marginTop: 12,
             padding: '18px 14px', textAlign: 'center', fontSize: 13, color: '#1e8a5e',
             background: '#edf8f2', border: '1px solid #aae1c8', borderRadius: 8,
           }}>
             Every user in this selection has used {current?.short}.
           </div>
         ) : (
-          <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #e8e2d6', borderRadius: 8 }}>
+          <div style={{ marginTop: 12, maxHeight: 300, overflowY: 'auto', border: '1px solid #e8e2d6', borderRadius: 8 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -158,7 +175,7 @@ export default function ServiceUtilityRate({ rows = [] }) {
               </tbody>
             </table>
           </div>
-        )}
+        ))}
       </div>
     </Card>
   )
