@@ -158,6 +158,9 @@ export default function ServiceUtilityRate({ rows = [] }) {
                   <th style={{ ...th, position: 'sticky', top: 0, zIndex: 1 }}>User</th>
                   <th style={{ ...th, position: 'sticky', top: 0, zIndex: 1 }}>Frontline</th>
                   <th style={{ ...th, position: 'sticky', top: 0, zIndex: 1 }}>Area</th>
+                  <th style={{ ...th, position: 'sticky', top: 0, zIndex: 1 }}>
+                    Where Their Requests Are
+                  </th>
                   <th style={{ ...th, position: 'sticky', top: 0, zIndex: 1, textAlign: 'right' }}>
                     Requests Elsewhere
                   </th>
@@ -169,6 +172,23 @@ export default function ServiceUtilityRate({ rows = [] }) {
                     <td style={{ ...td, fontWeight: 600, color: '#141414' }}>{u.user}</td>
                     <td style={{ ...td, color: '#404040' }}>{u.frontline}</td>
                     <td style={{ ...td, color: '#404040' }}>{u.area}</td>
+                    {/* The service they have not used leads, at zero, so the row
+                        says what is missing before it says what is there. */}
+                    <td style={td}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {(u.by_service ?? []).map(s => (
+                          <span key={s.service} title={s.service} style={{
+                            fontSize: 11, fontWeight: 700, borderRadius: 5, padding: '2px 8px',
+                            whiteSpace: 'nowrap',
+                            color: s.count ? '#1450f5' : '#b9b1a3',
+                            background: s.count ? '#eef3fe' : '#f3eee6',
+                            border: `1px solid ${s.count ? '#dbe6fd' : '#e8e2d6'}`,
+                          }}>
+                            {s.short} {s.count}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td style={{ ...td, textAlign: 'right', fontWeight: 600, color: '#1450f5' }}>{u.count}</td>
                   </tr>
                 ))}

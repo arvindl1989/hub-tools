@@ -17,8 +17,17 @@ const ORDER = ['top', 'regular', 'dormant', 'none']
 // Every cell is the same box whatever is in it, so a row reads as a row rather
 // than as a ragged line that happens to carry numbers. The four count columns
 // on the left are their own, wider size: they carry a word, not a number.
+//
+// A grid cell has no fixed width: the frontline columns are the only unsized
+// ones, so a fixed table layout divides what is left of the card between them
+// equally. That keeps every box the same as every other while the map reaches
+// the edge of the card instead of stopping short of it. CELL_W survives as the
+// floor — past about twenty frontlines the table outgrows the card and the
+// strip scrolls sideways rather than squeezing the numbers out of their boxes.
 const CELL_W = 56
 const TALLY_W = 72
+const LABEL_W = 150
+const GAP_W = 14
 
 // Long frontline names blow the column width out on their own. The map needs a
 // label that fits a box; the full name stays on the cell's tooltip and in the
@@ -46,7 +55,7 @@ const headCell = {
   letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap',
   borderBottom: '1px solid #e8e2d6', background: '#faf8f3',
 }
-const fixed = { width: CELL_W, minWidth: CELL_W, maxWidth: CELL_W, boxSizing: 'border-box' }
+const fixed = { boxSizing: 'border-box', overflow: 'hidden' }
 const tally = { width: TALLY_W, minWidth: TALLY_W, maxWidth: TALLY_W, boxSizing: 'border-box' }
 const th = {
   textAlign: 'left', padding: '9px 14px', fontSize: 11, fontWeight: 600,
@@ -204,12 +213,16 @@ export default function ServiceAdoptionHeatmap({ data }) {
     >
       {/* ── The map ───────────────────────────────────────────────────────── */}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: 11, tableLayout: 'fixed' }}>
+        <table style={{
+          borderCollapse: 'separate', borderSpacing: 0, fontSize: 11, tableLayout: 'fixed',
+          width: '100%',
+          minWidth: LABEL_W + ORDER.length * TALLY_W + GAP_W + flatFrontlines.length * CELL_W,
+        }}>
           <colgroup>
-            <col style={{ width: 150 }} />
+            <col style={{ width: LABEL_W }} />
             {ORDER.map(k => <col key={k} style={{ width: TALLY_W }} />)}
-            <col style={{ width: 14 }} />
-            {flatFrontlines.map(fl => <col key={fl} style={{ width: CELL_W }} />)}
+            <col style={{ width: GAP_W }} />
+            {flatFrontlines.map(fl => <col key={fl} />)}
           </colgroup>
           <thead>
             <tr>

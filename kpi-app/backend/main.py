@@ -2713,9 +2713,23 @@ def _service_utility(scoped: pd.DataFrame, users: list, period_end) -> list:
     """
     if "sub_category" not in scoped.columns or not users:
         return []
-    by_user = {u["user"]: u for u in users}
     frame = scoped.dropna(subset=["sub_category"]).copy()
     frame["service"] = _service_column(frame)
+
+    # Every user's requests split by service, so a user who has never asked for
+    # one service can be shown what they did ask for instead. A bare total says
+    # they are active somewhere; this says where, which is what makes the list
+    # worth acting on.
+    spread: dict = {}
+    for (person, service), n in frame.groupby(["ticket_creator", "service"]).size().items():
+        spread.setdefault(str(person), {})[service] = int(n)
+
+    def by_service(name: str, first: str) -> list:
+        """The user's counts, the service they have not used leading at zero."""
+        mine = spread.get(name, {})
+        order = [first] + [s for s in BAU_SERVICES_DISPLAY if s != first]
+        return [{"service": s, "short": SERVICE_ABBREV.get(s, s), "count": mine.get(s, 0)}
+                for s in order]
 
     out = []
     for service in BAU_SERVICES_DISPLAY:
@@ -2729,7 +2743,8 @@ def _service_utility(scoped: pd.DataFrame, users: list, period_end) -> list:
         for u in users:
             last = last_by_user.get(u["user"])
             if last is None or pd.isna(last):
-                never.append({**u, "service_count": 0})
+                never.append({**u, "service_count": 0,
+                              "by_service": by_service(u["user"], service)})
                 continue
             days = int((period_end - pd.Timestamp(last).normalize()).days)
             entry = {**u, "service_count": int(counts.get(u["user"], 0)),
