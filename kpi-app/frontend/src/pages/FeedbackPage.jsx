@@ -55,6 +55,7 @@ const ALLOWED_SPECIALISTS = [
   'Arvind Lakshminarayanan',
   'Nitish JK',
   'Ranjithkumar Ashokkumar',
+  'Jerlin Jeba',
 ]
 
 

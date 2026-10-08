@@ -1,8 +1,11 @@
-"""Page title verifier.
+"""Site Auditor.
 
 Reads a sitemap (or a pasted list of URLs), fetches each page and reports the
 title that is actually in the HTML, flagging the ones where the site name has
-been appended twice.
+been appended twice. It grew past titles — SEO, Modelsite forms, broken links
+and TCM IDs all come out of the same fetch — which is why the tool is no longer
+called the page title verifier. The module keeps its name so the API paths and
+anyone's saved /title-check/ link still work.
 
 The fetching has to happen here rather than in the browser: the pages being
 checked are on other origins and send no CORS headers, so a fetch() from the

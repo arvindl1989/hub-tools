@@ -18,6 +18,7 @@ const DEFAULT_PEOPLE = [
   'Arvind Lakshminarayanan',
   'Ranjithkumar Ashokkumar',
   'Nitish JK',
+  'Jerlin Jeba',
 ]
 
 const BAU_SERVICES = [

@@ -252,6 +252,7 @@ DEFAULT_PEOPLE: list[str] = [
     "Arvind Lakshminarayanan",
     "Ranjithkumar Ashokkumar",
     "Nitish JK",
+    "Jerlin Jeba",
 ]
 
 # Mapping from old short names → new full sheet names, used to migrate persisted settings.

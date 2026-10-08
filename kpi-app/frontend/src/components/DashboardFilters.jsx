@@ -11,6 +11,7 @@ const ALLOWED_ASSIGNEES = [
   'Nitish JK',
   'Ranjithkumar Ashokkumar',
   'Ajith A',
+  'Jerlin Jeba',
 ]
 
 export default function DashboardFilters({ overview, filters, range, onFilter, onRange }) {
