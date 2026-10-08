@@ -19,6 +19,8 @@ from typing import Callable, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+import name_repair
+
 router = APIRouter(prefix="/api/sn-data", tags=["servicenow"])
 
 # Which column identifies a row, per dataset. Overrides are keyed on it.
@@ -210,6 +212,11 @@ def load_rows(dataset: str) -> tuple[list, dict]:
 
     combined = rows + manual
     meta["overrides_applied"] = _apply_overrides(combined, overrides, key_col)
+    # Mangled names are repaired on the way out rather than on the way in, so
+    # rows synced before the repair existed read correctly too — the snapshot
+    # keeps whatever ServiceNow sent, which is what a manual correction here is
+    # compared against.
+    combined = [name_repair.repair_row(r) for r in combined]
     return combined, meta
 
 

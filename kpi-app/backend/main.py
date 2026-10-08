@@ -18,6 +18,7 @@ from datetime import datetime, date, time, timedelta
 from openai import AsyncOpenAI
 
 import traceback
+import name_repair
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -589,6 +590,14 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     for sc in str_cols:
         if sc in df.columns:
             df[sc] = df[sc].astype(str).str.strip().replace({"nan": pd.NA, "None": pd.NA, "": pd.NA})
+
+    # Names the export mangled, put back. Both person columns, because the same
+    # person shows up as a requester on one row and an assignee on another, and
+    # a name spelled two ways is two people to every groupby on this page.
+    for person_col in ("ticket_creator", "assigned_to"):
+        if person_col in df.columns:
+            df[person_col] = df[person_col].map(
+                lambda n: name_repair.repair(n) if pd.notna(n) else n)
 
     # Apply only explicit aliases (no auto prefix-match — sheet names are used as-is)
     if "assigned_to" in df.columns and ASSIGNEE_ALIASES:
@@ -3791,6 +3800,15 @@ def _load_feedback_df(force: bool = False):
 
     raw = raw.dropna(how="all").dropna(axis=1, how="all")
     raw.columns = [str(c).strip() for c in raw.columns]
+    # The feedback export carries a requester name too, and it comes through
+    # the same lossy charset. Repaired here rather than only in the snapshot
+    # path, so the sheet fallback does not disagree with the dashboards.
+    # Text columns are matched by is_string_dtype, not `== object`: pandas 3
+    # gives a column of strings the dtype `str`, and the object test quietly
+    # skipped every one of them.
+    for col in raw.columns:
+        if pd.api.types.is_string_dtype(raw[col]) or pd.api.types.is_object_dtype(raw[col]):
+            raw[col] = raw[col].map(name_repair.repair)
     mapping = _detect_feedback_columns(raw)
 
     def _to_score(series):
