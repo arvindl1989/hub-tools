@@ -6,6 +6,7 @@ import {
   NPS_BUCKET_STYLES, KONE_BLUE_TONE, Card, MetricCard, SegmentCard, ScrollList, stickyFilterCard,
 } from '../components/KoneUI'
 import ServiceUtilityRate from '../components/ServiceUtilityRate'
+import ServiceUtilityRateFL from '../components/ServiceUtilityRateFL'
 import ServiceAdoptionHeatmap from '../components/ServiceAdoptionHeatmap'
 
 // ── Service definitions (match BANDWIDTH_RATES keys in backend) ───────────────
@@ -147,6 +148,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
   const growth  = metrics?.growth  ?? {}
   const rates   = metrics?.rates   ?? {}
   const segments = metrics?.lifecycle ?? {}
+  const topFls   = metrics?.top_frontlines ?? { rows: [], leader: null, leads: 0 }
 
   // ── Retained user table: page filters are applied server-side; search, tier
   // and sort stay local to the table. ───────────────────────────────────────
@@ -271,7 +273,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           <MetricCard label="Total Users" value={metrics.total_users?.toLocaleString()}
             sub={`${volume.total_requests?.toLocaleString() ?? 0} requests in the active range`} />
           <MetricCard label="Avg Requests / User"    value={fmt1(volume.avg_per_user)}    sub="Skewed upward by heavy requestors" />
-          <MetricCard label="Engagement Rate (%)"    value={pct(rates.engagement_pct)}    sub="Active users ÷ total users" />
+          <MetricCard label="Engagement Rate (%)"    value={pct(rates.engagement_pct)}    sub="Active + Regular ÷ total users" />
         </div>
 
         {/* Rows 3 + 4 — lifecycle segment + its scrollable roster, one card each.
@@ -342,22 +344,29 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             />
           </SegmentCard>
 
+          {/* Which frontline owns each service, rather than which users are
+              slipping away — the roster question the page did not answer. One
+              row per service, because the biggest frontline overall would
+              otherwise head every line. */}
           <SegmentCard
-            label="At-Risk Users"
-            value={(growth.at_risk ?? []).length}
-            sub="≥3 lifetime requests, silent 60–90 days"
+            label="Top FLs by Service"
+            value={topFls.leader ?? '—'}
+            sub={topFls.leader
+              ? `Leads ${topFls.leads} of ${topFls.rows.length} services`
+              : 'No frontline requests in this selection'}
             tone={KONE_BLUE_TONE}
           >
             <ScrollList
-              rows={growth.at_risk ?? []}
+              rows={topFls.rows}
               tone={KONE_BLUE_TONE}
-              emptyText="No users slipping away"
+              emptyText="No requests in this range"
               columns={[
-                { key: 'user',      label: 'User',      width: '31%' },
-                { key: 'frontline', label: 'Frontline', width: '21%' },
-                { key: 'area',      label: 'Area',      width: '16%' },
-                { key: 'days_since_last', label: 'Silent', width: '17%', align: 'right', render: r => `${r.days_since_last}d` },
-                { key: 'count',     label: 'Req',       width: '15%', align: 'right' },
+                { key: 'short',     label: 'Service',   width: '26%' },
+                { key: 'frontline', label: 'Top FL',    width: '28%' },
+                { key: 'users',     label: 'Users',     width: '16%', align: 'right' },
+                { key: 'requests',  label: 'Req',       width: '14%', align: 'right' },
+                { key: 'share_pct', label: 'Share',     width: '16%', align: 'right',
+                  render: r => (r.share_pct == null ? '—' : `${r.share_pct}%`) },
               ]}
             />
           </SegmentCard>
@@ -367,6 +376,8 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
              rate boxes used to: the same questions, answered per service and
              per frontline instead of as one number for the whole hub. ─────── */}
         <ServiceUtilityRate rows={metrics.service_utility ?? []} />
+
+        <ServiceUtilityRateFL rows={metrics.service_utility_fl ?? []} />
 
         <ServiceAdoptionHeatmap data={metrics.service_adoption} />
 

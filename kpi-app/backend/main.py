@@ -2781,6 +2781,109 @@ def _service_utility(scoped: pd.DataFrame, users: list, period_end) -> list:
     return out
 
 
+def _service_utility_fl(scoped: pd.DataFrame, period_end) -> list:
+    """The same reach question asked of frontlines instead of people.
+
+    A service can look widely adopted because one busy frontline's whole team
+    uses it, and thinly adopted because many frontlines send one person each.
+    Counting frontlines rather than users separates those two, which is the
+    reason this sits beside the per-user table rather than replacing it.
+
+    Active/Regular/Dormant follow the frontline's last request for that
+    service, on the same thresholds used everywhere else on the page.
+    """
+    if not {"sub_category", "team"} <= set(scoped.columns):
+        return []
+    frame = scoped.dropna(subset=["sub_category", "team"]).copy()
+    frame["team"] = frame["team"].astype(str).str.strip()
+    frame = frame[frame["team"] != ""]
+    if frame.empty:
+        return []
+    frame["service"] = _service_column(frame)
+
+    area_of = {}
+    if "area" in frame.columns:
+        for fl, grp in frame.groupby("team"):
+            areas = grp["area"].dropna()
+            area_of[fl] = str(areas.value_counts().index[0]) if len(areas) else UNASSIGNED
+    frontlines = sorted(frame["team"].unique())
+
+    out = []
+    for service in BAU_SERVICES_DISPLAY:
+        rows = frame[frame["service"] == service]
+        last = rows.groupby("team")["created_date"].max().to_dict() if not rows.empty else {}
+        counts = rows.groupby("team").size().to_dict() if not rows.empty else {}
+        users = rows.groupby("team")["ticket_creator"].nunique().to_dict() if not rows.empty else {}
+
+        buckets = {"active": 0, "regular": 0, "dormant": 0}
+        never = []
+        for fl in frontlines:
+            if fl not in last:
+                never.append({"frontline": fl, "area": area_of.get(fl, UNASSIGNED),
+                              "requests": 0,
+                              "total_requests": int((frame["team"] == fl).sum())})
+                continue
+            days = int((period_end - pd.Timestamp(last[fl]).normalize()).days)
+            key = ("active" if days <= LIFECYCLE_ACTIVE_MAX
+                   else "regular" if days <= LIFECYCLE_REGULAR_MAX else "dormant")
+            buckets[key] += 1
+
+        used = len(frontlines) - len(never)
+        out.append({
+            "service": service,
+            "short": SERVICE_ABBREV.get(service, service),
+            "total_frontlines": len(frontlines),
+            "frontlines_used": used,
+            "utility_rate_pct": _safe_div(used, len(frontlines), pct=True, nd=0),
+            "requests": int(len(rows)),
+            "users": int(rows["ticket_creator"].nunique()) if not rows.empty else 0,
+            **buckets,
+            "not_used": sorted(never, key=lambda f: (-f["total_requests"], f["frontline"])),
+        })
+    return out
+
+
+def _top_frontlines_by_service(scoped: pd.DataFrame) -> dict:
+    """Who raises the most of each service, and how much of it they are.
+
+    One row per service rather than a single ranked list, because the biggest
+    frontline overall would otherwise head every line and the question — which
+    frontline owns this service — would go unanswered.
+    """
+    blank = {"rows": [], "leader": None, "leads": 0}
+    if not {"sub_category", "team"} <= set(scoped.columns):
+        return blank
+    frame = scoped.dropna(subset=["sub_category", "team"]).copy()
+    frame["team"] = frame["team"].astype(str).str.strip()
+    frame = frame[frame["team"] != ""]
+    if frame.empty:
+        return blank
+
+    rows = []
+    for service in [s for s in CANONICAL_SERVICES if s in set(frame["sub_category"])]:
+        sub = frame[frame["sub_category"] == service]
+        counts = sub.groupby("team").size().sort_values(ascending=False)
+        if counts.empty:
+            continue
+        fl = str(counts.index[0])
+        top = sub[sub["team"] == fl]
+        rows.append({
+            "service": service,
+            "short": SERVICE_ABBREV.get(service, service),
+            "frontline": fl,
+            "requests": int(counts.iloc[0]),
+            "users": int(top["ticket_creator"].nunique()),
+            "share_pct": _safe_div(int(counts.iloc[0]), int(len(sub)), pct=True, nd=0),
+            "contenders": int(len(counts)),
+        })
+
+    tally: dict = {}
+    for r in rows:
+        tally[r["frontline"]] = tally.get(r["frontline"], 0) + 1
+    leader = max(tally.items(), key=lambda kv: kv[1])[0] if tally else None
+    return {"rows": rows, "leader": leader, "leads": tally.get(leader, 0) if leader else 0}
+
+
 def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
     """Frontline against service: who is using what, and who has stopped.
 
@@ -2857,6 +2960,16 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
         totals.append({"service": service, "short": SERVICE_ABBREV.get(service, service),
                        "requests": int(len(rows)), **tally})
 
+    # How dark a cell is drawn. Measured against the busiest cell on the whole
+    # map rather than against its own row, so a service nobody uses stays pale
+    # across the board instead of its quietest user being promoted to full
+    # strength for want of competition.
+    busiest = max((c["requests"] for c in grid.values()), default=0)
+    for cell in grid.values():
+        cell["share_pct"] = (
+            round(cell["requests"] / busiest * 100, 1) if busiest and cell["requests"] else 0.0
+        )
+
     # One row per frontline, read like the user list: totals first, then a
     # column per service.
     rows_out = []
@@ -2878,6 +2991,7 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
             "adoption_pct": _safe_div(used, len(services), pct=True, nd=0),
             "service_breakdown": breakdown,
             "service_states": {s: grid[f"{s}||{fl}"]["state"] for s in services},
+            "service_shares": {s: grid[f"{s}||{fl}"]["share_pct"] for s in services},
         })
     rows_out.sort(key=lambda r: (-r["services_used"], -r["requests"]))
 
@@ -2950,6 +3064,8 @@ def user_metrics(
         "total_users": 0,
         "top_n": top_n,
         "service_utility": [],
+        "service_utility_fl": [],
+        "top_frontlines": {"rows": [], "leader": None, "leads": 0},
         "service_adoption": {"services": [], "areas": [], "grid": {}, "rows": [], "totals": []},
     }
 
@@ -3103,13 +3219,18 @@ def user_metrics(
         },
         "rates": {
             "utility_rate":         _safe_div(total_requests, len(active)),
-            "engagement_pct":       _safe_div(len(active), total_users, pct=True, nd=0),
+            # Engaged means still coming back, which is Active or Regular — a
+            # user who last asked for something eight weeks ago has not left.
+            # Only Dormant sits outside it.
+            "engagement_pct":       _safe_div(len(active) + len(regular), total_users, pct=True, nd=0),
             "repeat_pct":           _safe_div(repeat_users, total_users, pct=True, nd=0),
             "service_adoption_pct": _safe_div(services_used, len(CANONICAL_SERVICES), pct=True, nd=0),
             "services_used":        services_used,
             "services_offered":     len(CANONICAL_SERVICES),
         },
         "service_utility":  _service_utility(scoped, users, period_end),
+        "service_utility_fl": _service_utility_fl(scoped, period_end),
+        "top_frontlines":   _top_frontlines_by_service(scoped),
         "service_adoption": _service_adoption(scoped, period_end),
     }
 
