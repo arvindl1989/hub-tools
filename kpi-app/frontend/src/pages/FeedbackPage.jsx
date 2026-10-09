@@ -755,6 +755,41 @@ function ScoreDistributionTable({ distributions = {}, paramKeys = [], scaleMax =
 }
 
 // ── Feedback entries list ──────────────────────────────────────────────────────
+
+// The four ratings behind the overall score, on their own line between the
+// header and the comment. Always in ORDERED_PARAMS order and always all four,
+// so the same rating sits in the same position on every entry and a column of
+// them can be read down; one the sheet does not carry shows a dash rather than
+// shifting the others along. The whole line is dropped only when an entry has
+// no parameter ratings at all, which is every entry if the sheet has none.
+function ParamLine({ params, scaleMax }) {
+  if (!params) return null
+  const any = ORDERED_PARAMS.some(k => params[k] != null)
+  if (!any) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
+      {ORDERED_PARAMS.map(k => {
+        const v = params[k]
+        const t = scoreTone(v, scaleMax)
+        return (
+          <span key={k} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, fontSize: 11 }}>
+            <span style={{ color: '#9c9c9c' }}>{PARAM_LABELS[k]}</span>
+            <span style={{
+              fontWeight: 700, color: v == null ? '#d8d8d8' : t.fg,
+              background: v == null ? 'transparent' : t.bg,
+              borderRadius: 4, padding: v == null ? 0 : '1px 6px',
+            }}>
+              {/* One rating, so a whole number reads as one: "5", not "5.0".
+                  The decimal belongs on the averages above, not here. */}
+              {v == null ? '—' : Number.isInteger(v) ? v : fmt1(v)}
+            </span>
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 function RecentList({ rows = [], scaleMax }) {
   const items = rows.filter(r => r.score != null || r.comment)
   if (!items.length) return <Empty />
@@ -779,6 +814,7 @@ function RecentList({ rows = [], scaleMax }) {
               {r.ticket && <span style={{ fontSize: 11, color: '#1450f5' }}>· {r.ticket}</span>}
               <span style={{ fontSize: 11, color: '#9c9c9c', marginLeft: 'auto' }}>{r.date ?? ''}</span>
             </div>
+            <ParamLine params={r.params} scaleMax={scaleMax} />
             {r.comment && <p style={{ fontSize: 12, color: '#404040', margin: '7px 0 0', lineHeight: 1.5 }}>{r.comment}</p>}
           </div>
         )

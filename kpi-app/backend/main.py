@@ -4110,6 +4110,14 @@ def feedback_summary(
             "user": r["user"], "service": r["service"], "ticket": r["ticket"],
             "requester": r["requester"],
             "score": float(r["score"]) if pd.notna(r["score"]) else None,
+            # The four rating parameters behind the overall score, so an entry
+            # can be read without going back to the cards above: a 3 that is
+            # 5/5/5 on everything but timeliness is a different comment from a
+            # 3 that is weak throughout.
+            "params": {
+                k: (float(r[f"param_{k}"]) if pd.notna(r[f"param_{k}"]) else None)
+                for k in param_keys
+            },
             "comment": r["comment"],
         }
         for _, r in entries.iterrows()
