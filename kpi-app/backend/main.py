@@ -2893,7 +2893,7 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
     depending on whether it raises as much as the busiest quarter of the
     frontlines still using it.
     """
-    blank = {"services": [], "areas": [], "grid": {}, "rows": [], "totals": []}
+    blank = {"services": [], "areas": [], "grid": {}, "rows": [], "totals": [], "bands": []}
     if not {"sub_category", "team"} <= set(scoped.columns):
         return blank
     frame = scoped.dropna(subset=["sub_category", "team"]).copy()
@@ -2960,15 +2960,49 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
         totals.append({"service": service, "short": SERVICE_ABBREV.get(service, service),
                        "requests": int(len(rows)), **tally})
 
-    # How dark a cell is drawn. Measured against the busiest cell on the whole
-    # map rather than against its own row, so a service nobody uses stays pale
-    # across the board instead of its quietest user being promoted to full
-    # strength for want of competition.
+    # How dark a cell is drawn.
+    #
+    # Against the busiest cell, most cells landed in the palest step or two:
+    # one frontline raising far more than the rest flattens everyone else, and
+    # four fifths of the ramp went unused. Cells are banded by where they fall
+    # among the cells that have any requests at all — quartiles — so each shade
+    # carries about a quarter of them and the whole ramp is in play. A band is
+    # therefore a rank, not a ratio: band 4 is "in the busiest quarter of this
+    # map", which is the comparison the map is read for. The exact figure is
+    # still on the cell, and the share of the busiest is in its tooltip.
+    #
+    # Ties cannot straddle a band, because the test is on the value rather
+    # than on a position in the sorted list.
     busiest = max((c["requests"] for c in grid.values()), default=0)
+    used_counts = sorted(c["requests"] for c in grid.values() if c["requests"])
+    cuts = [float(np.quantile(used_counts, q)) for q in (0.25, 0.5, 0.75)] if used_counts else []
+
+    def _band(n: int) -> int:
+        """0 for never used, else 1 (quietest quarter) to 4 (busiest)."""
+        if not n:
+            return 0
+        return min(1 + sum(1 for cut in cuts if n >= cut), 4)
+
+    spread: dict = {}
     for cell in grid.values():
         cell["share_pct"] = (
             round(cell["requests"] / busiest * 100, 1) if busiest and cell["requests"] else 0.0
         )
+        cell["band"] = _band(cell["requests"])
+        if cell["requests"]:
+            spread.setdefault(cell["band"], []).append(cell["requests"])
+
+    # What each shade stands for, so the legend can say it in requests rather
+    # than leaving the reader to guess at the thresholds.
+    bands = [
+        {
+            "band": b,
+            "cells": len(spread.get(b, [])),
+            "min": min(spread[b]) if spread.get(b) else None,
+            "max": max(spread[b]) if spread.get(b) else None,
+        }
+        for b in (1, 2, 3, 4)
+    ]
 
     # One row per frontline, read like the user list: totals first, then a
     # column per service.
@@ -2992,6 +3026,7 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
             "service_breakdown": breakdown,
             "service_states": {s: grid[f"{s}||{fl}"]["state"] for s in services},
             "service_shares": {s: grid[f"{s}||{fl}"]["share_pct"] for s in services},
+            "service_bands":  {s: grid[f"{s}||{fl}"]["band"] for s in services},
         })
     rows_out.sort(key=lambda r: (-r["services_used"], -r["requests"]))
 
@@ -3008,6 +3043,7 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
         "grid": grid,
         "rows": rows_out,
         "totals": totals,
+        "bands": bands,
     }
 
 
@@ -3066,7 +3102,8 @@ def user_metrics(
         "service_utility": [],
         "service_utility_fl": [],
         "top_frontlines": {"rows": [], "leader": None, "leads": 0},
-        "service_adoption": {"services": [], "areas": [], "grid": {}, "rows": [], "totals": []},
+        "service_adoption": {"services": [], "areas": [], "grid": {}, "rows": [], "totals": [],
+                             "bands": []},
     }
 
     if "ticket_creator" not in df.columns or "created_date" not in df.columns:

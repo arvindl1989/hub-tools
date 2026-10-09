@@ -2,25 +2,24 @@ import { useEffect, useMemo, useState } from 'react'
 import { INTER, cardHeadingStyle, Card } from './KoneUI'
 
 // ── Cell shade ────────────────────────────────────────────────────────────────
-// One colour, five strengths. Depth carries how much, which is what makes a
-// heat map readable at a glance; a second hue would imply a second dimension
-// that is not there. A cell's strength is its requests against the busiest
-// cell on the map, so the whole grid is on one scale and rows can be compared
-// with each other rather than only within themselves.
-const RAMP = [
-  { floor: 80, bg: '#1450f5', fg: '#ffffff', label: '80–100%' },
-  { floor: 60, bg: '#4373f7', fg: '#ffffff', label: '60–80%' },
-  { floor: 40, bg: '#7296f9', fg: '#141414', label: '40–60%' },
-  { floor: 20, bg: '#a1b9fb', fg: '#141414', label: '20–40%' },
-  { floor: 0,  bg: '#d0dcfd', fg: '#141414', label: 'Up to 20%' },
+// One colour, five strengths, all of them blue — the palest for a service a
+// frontline has never asked for, so the map reads as one field rather than
+// being broken up by a colour that means something else.
+//
+// A cell's shade is its band: which quarter of the used cells it falls in,
+// worked out on the data by the API. Shading by share of the busiest cell
+// instead left four fifths of the ramp unused, because one heavy frontline
+// flattens everyone else; banding by rank puts about a quarter of the cells in
+// each shade, which is what makes the gradient worth having.
+const BAND = [
+  { bg: '#d0dcfd', fg: '#5b6b8c', label: 'Not used' },     // 0 — never asked
+  { bg: '#a1b9fb', fg: '#141414', label: 'Quietest quarter' },
+  { bg: '#7296f9', fg: '#141414', label: 'Lower middle' },
+  { bg: '#4373f7', fg: '#ffffff', label: 'Upper middle' },
+  { bg: '#1450f5', fg: '#ffffff', label: 'Busiest quarter' },
 ]
-// Never asked for, so outside the scale entirely rather than its faintest step.
-const EMPTY = { bg: '#f3eee6', fg: '#b9b1a3', label: 'Not used' }
 
-function shade(requests, sharePct) {
-  if (!requests) return EMPTY
-  return RAMP.find(step => (sharePct ?? 0) >= step.floor) || RAMP[RAMP.length - 1]
-}
+const shade = (band) => BAND[band ?? 0] || BAND[0]
 
 // Kept for the tooltip and the counts beside each row: the map no longer
 // colours by state, but whether a frontline has stopped is still worth saying.
@@ -79,27 +78,30 @@ const th = {
 }
 const td = { padding: '9px 14px', borderBottom: '1px solid #f3eee6', fontSize: 13 }
 
-// The scale, read left to right as the share of the busiest cell. "Not used"
-// sits apart because it is not the bottom of the scale — it is off it.
-function Legend() {
+// The scale as one continuous strip, lightest to darkest, with what each step
+// holds in requests — the thresholds are worked out on the data, so leaving the
+// reader to infer them from the colour would be asking them to guess.
+function Legend({ bands = [] }) {
+  const range = (b) => {
+    const meta = bands.find(x => x.band === b)
+    if (!meta || !meta.cells) return BAND[b].label
+    return meta.min === meta.max
+      ? `${BAND[b].label}: ${meta.min} requests`
+      : `${BAND[b].label}: ${meta.min}–${meta.max} requests`
+  }
   return (
-    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-      <span style={{ fontSize: 10, color: '#9c9c9c', fontFamily: INTER, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        Share of busiest
-      </span>
-      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-        {[...RAMP].reverse().map(step => (
-          <span key={step.floor} title={step.label} style={{
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      <span style={{ fontSize: 10, color: '#9c9c9c', fontFamily: INTER }}>Not used</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 3, overflow: 'hidden' }}>
+        {BAND.map((step, b) => (
+          <span key={b} title={b === 0 ? 'Never asked for this service' : range(b)} style={{
             width: 26, height: 14, background: step.bg,
-            borderTop: '1px solid #e8e2d6', borderBottom: '1px solid #e8e2d6',
+            border: '1px solid #e8e2d6',
+            borderLeftWidth: b === 0 ? 1 : 0,
           }} />
         ))}
       </span>
-      <span style={{ fontSize: 10, color: '#9c9c9c', fontFamily: INTER }}>low → high</span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6e6e6e', fontFamily: INTER }}>
-        <span style={{ width: 14, height: 14, borderRadius: 3, background: EMPTY.bg, border: '1px solid #e8e2d6' }} />
-        Not used
-      </span>
+      <span style={{ fontSize: 10, color: '#9c9c9c', fontFamily: INTER }}>quietest → busiest</span>
     </div>
   )
 }
@@ -114,7 +116,7 @@ function CellUsers({ cell, onClose }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const tone = shade(cell.requests, cell.share_pct)
+  const tone = shade(cell.band)
   return (
     <div
       onClick={onClose}
@@ -250,7 +252,7 @@ export default function ServiceAdoptionHeatmap({ data }) {
       subtitle="Which frontline uses which service, and which has stopped"
       controls={
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <Legend />
+          <Legend bands={data?.bands ?? []} />
           <button
             onClick={() => setShowTable(t => !t)}
             style={{
@@ -329,7 +331,7 @@ export default function ServiceAdoptionHeatmap({ data }) {
                   <td style={{ borderBottom: 'none' }} />
                   {flatFrontlines.map(fl => {
                     const cell = grid[`${s.name}||${fl}`] || { state: 'none', requests: 0, users: 0 }
-                    const tone = shade(cell.requests, cell.share_pct)
+                    const tone = shade(cell.band)
                     const open = () => cell.requests && setOpenCell({
                       ...cell, frontline: fl, service: s.name, serviceShort: s.short,
                     })
@@ -361,10 +363,10 @@ export default function ServiceAdoptionHeatmap({ data }) {
 
       <p style={{ fontSize: 11, color: '#9c9c9c', margin: '12px 0 0', lineHeight: 1.7, fontFamily: INTER }}>
         A cell is one frontline's use of one service, and the number in it is the requests they
-        raised — <b>click a number to see which users</b>. The shade is that number against the
-        busiest cell on the map, in five steps, so the whole grid is on one scale: the darkest
-        cell is the heaviest use anywhere, and sand means the frontline has never asked for that
-        service at all. The four columns on the left count the frontlines in each state for that
+        raised — <b>click a number to see which users</b>. The shade is which quarter of the used
+        cells it falls in, so each of the four blues carries about a quarter of them and the
+        darkest is the busiest quarter of the map; the palest blue is a service that frontline has
+        never asked for. The four columns on the left count the frontlines in each state for that
         service — <b>Dormant</b> is a last request over 90 days before the end of the range, and
         <b> Top users</b> are the busiest quarter of the frontlines still using it. Shade says how
         much; the state is on the cell's tooltip.
@@ -418,7 +420,7 @@ export default function ServiceAdoptionHeatmap({ data }) {
                   {services.map(s => {
                     const n = r.service_breakdown?.[s.name] ?? 0
                     const state = r.service_states?.[s.name] || 'none'
-                    const tone = shade(n, r.service_shares?.[s.name])
+                    const tone = shade(r.service_bands?.[s.name])
                     const cell = grid[`${s.name}||${r.frontline}`]
                     return (
                       <td key={s.name} style={{ ...td, textAlign: 'center' }}>
