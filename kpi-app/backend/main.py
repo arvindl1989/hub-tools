@@ -2876,35 +2876,42 @@ def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
     # rate is of the frontline's own people and not of the whole hub.
     people = frame.groupby("team")["ticket_creator"].nunique().to_dict()
 
-    rows = []
+    # One row per frontline, a column per service: the frontline is the thing
+    # being judged, so it should be read across rather than hunted for three
+    # times down a list grouped by service.
+    used_by = {}
+    requests_by = {}
     for service in BAU_SERVICES_DISPLAY:
         sub = frame[frame["service"] == service]
-        used = sub.groupby("team")["ticket_creator"].nunique().to_dict() if not sub.empty else {}
-        counts = sub.groupby("team").size().to_dict() if not sub.empty else {}
-        for fl in sorted(people):
-            rows.append({
-                "service": service,
-                "short": SERVICE_ABBREV.get(service, service),
-                "frontline": fl,
-                "area": area_of.get(fl, UNASSIGNED),
-                "users_used": int(used.get(fl, 0)),
-                "users_total": int(people[fl]),
-                "rate_pct": _safe_div(used.get(fl, 0), people[fl], pct=True, nd=0),
-                "requests": int(counts.get(fl, 0)),
-            })
+        used_by[service] = (sub.groupby("team")["ticket_creator"].nunique().to_dict()
+                            if not sub.empty else {})
+        requests_by[service] = sub.groupby("team").size().to_dict() if not sub.empty else {}
 
-    # Highest average across the services — the frontline using the most of
-    # what is on offer, rather than the one raising the most requests.
-    by_fl: dict = {}
-    for r in rows:
-        by_fl.setdefault(r["frontline"], []).append(r["rate_pct"] or 0)
-    best = max(by_fl.items(), key=lambda kv: sum(kv[1]) / len(kv[1])) if by_fl else None
-    rows.sort(key=lambda r: (BAU_SERVICES_DISPLAY.index(r["service"]), -(r["rate_pct"] or 0),
-                             r["frontline"]))
+    rows = []
+    for fl in sorted(people):
+        total = people[fl]
+        rates = {s: _safe_div(used_by[s].get(fl, 0), total, pct=True, nd=0)
+                 for s in BAU_SERVICES_DISPLAY}
+        rows.append({
+            "frontline": fl,
+            "area": area_of.get(fl, UNASSIGNED),
+            "users": int(total),
+            "requests": int((frame["team"] == fl).sum()),
+            "rates": rates,
+            "users_used": {s: int(used_by[s].get(fl, 0)) for s in BAU_SERVICES_DISPLAY},
+            "service_requests": {s: int(requests_by[s].get(fl, 0)) for s in BAU_SERVICES_DISPLAY},
+            # The frontline's own coverage across everything on offer, which is
+            # what orders the table and names the one at the top of the card.
+            "average_pct": round(sum(rates[s] or 0 for s in BAU_SERVICES_DISPLAY)
+                                 / len(BAU_SERVICES_DISPLAY)),
+        })
+
+    rows.sort(key=lambda r: (-r["average_pct"], -r["users"], r["frontline"]))
+    best = rows[0] if rows else None
     return {
         "rows": rows,
-        "leader": best[0] if best else None,
-        "leader_pct": round(sum(best[1]) / len(best[1])) if best else None,
+        "leader": best["frontline"] if best else None,
+        "leader_pct": best["average_pct"] if best else None,
         "services": [{"name": s, "short": SERVICE_ABBREV.get(s, s)} for s in BAU_SERVICES_DISPLAY],
     }
 

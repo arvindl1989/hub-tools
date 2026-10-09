@@ -148,7 +148,8 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
   const growth  = metrics?.growth  ?? {}
   const rates   = metrics?.rates   ?? {}
   const segments = metrics?.lifecycle ?? {}
-  const flUtility = metrics?.fl_utility ?? { rows: [], leader: null, leader_pct: null }
+  const flUtility = metrics?.fl_utility
+    ?? { rows: [], leader: null, leader_pct: null, services: [] }
 
   // ── Retained user table: page filters are applied server-side; search, tier
   // and sort stay local to the table. ───────────────────────────────────────
@@ -345,9 +346,10 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           </SegmentCard>
 
           {/* The utility rate asked one frontline at a time: of the people in
-              this frontline who raise anything, what share have used this
-              service. A small frontline that has taken a service up reads as
-              well-covered rather than disappearing behind a big one. */}
+              this frontline who raise anything, what share have used each
+              service. One row per frontline so it reads across, best covered
+              first — a small frontline that has taken the services up is not
+              hidden behind a big one, which a volume ranking would do. */}
           <SegmentCard
             label="Service Utility Rate by FL"
             value={flUtility.leader ?? '—'}
@@ -361,12 +363,18 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
               tone={KONE_BLUE_TONE}
               emptyText="No requests in this range"
               columns={[
-                { key: 'short',      label: 'Service',   width: '20%' },
-                { key: 'frontline',  label: 'Frontline', width: '36%' },
-                { key: 'users_used', label: 'Users',     width: '20%', align: 'right',
-                  render: r => `${r.users_used}/${r.users_total}` },
-                { key: 'rate_pct',   label: 'Utility',   width: '24%', align: 'right',
-                  render: r => (r.rate_pct == null ? '—' : `${r.rate_pct}%`) },
+                { key: 'frontline', label: 'FL',    width: '34%' },
+                { key: 'users',     label: 'Users', width: '16%', align: 'right' },
+                ...(flUtility.services ?? []).map(s => ({
+                  key: `rate:${s.name}`,
+                  label: s.short,
+                  width: `${50 / Math.max(1, (flUtility.services ?? []).length)}%`,
+                  align: 'right',
+                  render: r => {
+                    const v = r.rates?.[s.name]
+                    return v == null ? '—' : `${v}%`
+                  },
+                })),
               ]}
             />
           </SegmentCard>
