@@ -148,7 +148,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
   const growth  = metrics?.growth  ?? {}
   const rates   = metrics?.rates   ?? {}
   const segments = metrics?.lifecycle ?? {}
-  const topFls   = metrics?.top_frontlines ?? { rows: [], leader: null, leads: 0 }
+  const flUtility = metrics?.fl_utility ?? { rows: [], leader: null, leader_pct: null }
 
   // ── Retained user table: page filters are applied server-side; search, tier
   // and sort stay local to the table. ───────────────────────────────────────
@@ -344,29 +344,29 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             />
           </SegmentCard>
 
-          {/* Which frontline owns each service, rather than which users are
-              slipping away — the roster question the page did not answer. One
-              row per service, because the biggest frontline overall would
-              otherwise head every line. */}
+          {/* The utility rate asked one frontline at a time: of the people in
+              this frontline who raise anything, what share have used this
+              service. A small frontline that has taken a service up reads as
+              well-covered rather than disappearing behind a big one. */}
           <SegmentCard
-            label="Top FLs by Service"
-            value={topFls.leader ?? '—'}
-            sub={topFls.leader
-              ? `Leads ${topFls.leads} of ${topFls.rows.length} services`
+            label="Service Utility Rate by FL"
+            value={flUtility.leader ?? '—'}
+            sub={flUtility.leader
+              ? `Best covered — ${flUtility.leader_pct}% of its users across the services`
               : 'No frontline requests in this selection'}
             tone={KONE_BLUE_TONE}
           >
             <ScrollList
-              rows={topFls.rows}
+              rows={flUtility.rows}
               tone={KONE_BLUE_TONE}
               emptyText="No requests in this range"
               columns={[
-                { key: 'short',     label: 'Service',   width: '26%' },
-                { key: 'frontline', label: 'Top FL',    width: '28%' },
-                { key: 'users',     label: 'Users',     width: '16%', align: 'right' },
-                { key: 'requests',  label: 'Req',       width: '14%', align: 'right' },
-                { key: 'share_pct', label: 'Share',     width: '16%', align: 'right',
-                  render: r => (r.share_pct == null ? '—' : `${r.share_pct}%`) },
+                { key: 'short',      label: 'Service',   width: '20%' },
+                { key: 'frontline',  label: 'Frontline', width: '36%' },
+                { key: 'users_used', label: 'Users',     width: '20%', align: 'right',
+                  render: r => `${r.users_used}/${r.users_total}` },
+                { key: 'rate_pct',   label: 'Utility',   width: '24%', align: 'right',
+                  render: r => (r.rate_pct == null ? '—' : `${r.rate_pct}%`) },
               ]}
             />
           </SegmentCard>

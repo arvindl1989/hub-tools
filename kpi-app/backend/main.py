@@ -2843,45 +2843,70 @@ def _service_utility_fl(scoped: pd.DataFrame, period_end) -> list:
     return out
 
 
-def _top_frontlines_by_service(scoped: pd.DataFrame) -> dict:
-    """Who raises the most of each service, and how much of it they are.
+def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
+    """Each service's utility rate inside each frontline.
 
-    One row per service rather than a single ranked list, because the biggest
-    frontline overall would otherwise head every line and the question — which
-    frontline owns this service — would go unanswered.
+    The two tables above ask how far a service has spread across the user base
+    and across the frontlines. This asks it one frontline at a time: of the
+    people in this frontline who raise anything at all, what share have used
+    this service. A frontline of five where four use WCM is 80%, whatever its
+    request volume — so a small frontline that has taken up a service reads as
+    well-covered rather than disappearing behind a big one.
+
+    Services are the three the business offers rather than the five
+    sub-categories, matching the other two utility tables.
     """
-    blank = {"rows": [], "leader": None, "leads": 0}
-    if not {"sub_category", "team"} <= set(scoped.columns):
+    blank = {"rows": [], "leader": None, "leader_pct": None, "services": []}
+    if not {"sub_category", "team", "ticket_creator"} <= set(scoped.columns):
         return blank
-    frame = scoped.dropna(subset=["sub_category", "team"]).copy()
+    frame = scoped.dropna(subset=["sub_category", "team", "ticket_creator"]).copy()
     frame["team"] = frame["team"].astype(str).str.strip()
     frame = frame[frame["team"] != ""]
     if frame.empty:
         return blank
+    frame["service"] = _service_column(frame)
+
+    area_of = {}
+    if "area" in frame.columns:
+        for fl, grp in frame.groupby("team"):
+            areas = grp["area"].dropna()
+            area_of[fl] = str(areas.value_counts().index[0]) if len(areas) else UNASSIGNED
+
+    # Everyone in the frontline who raised anything — the denominator, so the
+    # rate is of the frontline's own people and not of the whole hub.
+    people = frame.groupby("team")["ticket_creator"].nunique().to_dict()
 
     rows = []
-    for service in [s for s in CANONICAL_SERVICES if s in set(frame["sub_category"])]:
-        sub = frame[frame["sub_category"] == service]
-        counts = sub.groupby("team").size().sort_values(ascending=False)
-        if counts.empty:
-            continue
-        fl = str(counts.index[0])
-        top = sub[sub["team"] == fl]
-        rows.append({
-            "service": service,
-            "short": SERVICE_ABBREV.get(service, service),
-            "frontline": fl,
-            "requests": int(counts.iloc[0]),
-            "users": int(top["ticket_creator"].nunique()),
-            "share_pct": _safe_div(int(counts.iloc[0]), int(len(sub)), pct=True, nd=0),
-            "contenders": int(len(counts)),
-        })
+    for service in BAU_SERVICES_DISPLAY:
+        sub = frame[frame["service"] == service]
+        used = sub.groupby("team")["ticket_creator"].nunique().to_dict() if not sub.empty else {}
+        counts = sub.groupby("team").size().to_dict() if not sub.empty else {}
+        for fl in sorted(people):
+            rows.append({
+                "service": service,
+                "short": SERVICE_ABBREV.get(service, service),
+                "frontline": fl,
+                "area": area_of.get(fl, UNASSIGNED),
+                "users_used": int(used.get(fl, 0)),
+                "users_total": int(people[fl]),
+                "rate_pct": _safe_div(used.get(fl, 0), people[fl], pct=True, nd=0),
+                "requests": int(counts.get(fl, 0)),
+            })
 
-    tally: dict = {}
+    # Highest average across the services — the frontline using the most of
+    # what is on offer, rather than the one raising the most requests.
+    by_fl: dict = {}
     for r in rows:
-        tally[r["frontline"]] = tally.get(r["frontline"], 0) + 1
-    leader = max(tally.items(), key=lambda kv: kv[1])[0] if tally else None
-    return {"rows": rows, "leader": leader, "leads": tally.get(leader, 0) if leader else 0}
+        by_fl.setdefault(r["frontline"], []).append(r["rate_pct"] or 0)
+    best = max(by_fl.items(), key=lambda kv: sum(kv[1]) / len(kv[1])) if by_fl else None
+    rows.sort(key=lambda r: (BAU_SERVICES_DISPLAY.index(r["service"]), -(r["rate_pct"] or 0),
+                             r["frontline"]))
+    return {
+        "rows": rows,
+        "leader": best[0] if best else None,
+        "leader_pct": round(sum(best[1]) / len(best[1])) if best else None,
+        "services": [{"name": s, "short": SERVICE_ABBREV.get(s, s)} for s in BAU_SERVICES_DISPLAY],
+    }
 
 
 def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
@@ -3101,7 +3126,7 @@ def user_metrics(
         "top_n": top_n,
         "service_utility": [],
         "service_utility_fl": [],
-        "top_frontlines": {"rows": [], "leader": None, "leads": 0},
+        "fl_utility": {"rows": [], "leader": None, "leader_pct": None, "services": []},
         "service_adoption": {"services": [], "areas": [], "grid": {}, "rows": [], "totals": [],
                              "bands": []},
     }
@@ -3267,7 +3292,7 @@ def user_metrics(
         },
         "service_utility":  _service_utility(scoped, users, period_end),
         "service_utility_fl": _service_utility_fl(scoped, period_end),
-        "top_frontlines":   _top_frontlines_by_service(scoped),
+        "fl_utility":       _utility_per_frontline(scoped),
         "service_adoption": _service_adoption(scoped, period_end),
     }
 
