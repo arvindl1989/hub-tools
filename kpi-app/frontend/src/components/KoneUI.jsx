@@ -50,6 +50,10 @@ export const NPS_BUCKET_STYLES = {
 // which solid #1450f5 is not.
 export const KONE_BLUE_TONE = { fg: '#1450f5', bg: '#eef3fe' }
 
+// A segment card that is a plain white panel: same shape, no tint. For the
+// cards whose job is to be read as a table rather than as a coloured status.
+export const WHITE_TONE = { fg: '#141414', bg: '#ffffff', border: '#e8e2d6' }
+
 // The tab bar is sticky at top: 0 and 46px tall, so a filter bar pinned at 46
 // starts exactly where the tabs end — no strip of page showing between them as
 // content scrolls underneath. Sits below the tab bar's z-index (20) so it
@@ -92,9 +96,26 @@ export function Empty({ text = 'No data for this filter' }) {
 // `suffix` renders the smaller trailing unit ("/ 5", "%") beside the figure.
 // `footer` is a free slot under the figure — the Dashboard puts its
 // period-comparison delta there.
-export function MetricCard({ label, value, suffix, sub, footer }) {
+// `onClick` makes the card a button: every number here counts something, and
+// the question it invites is which ones. A card without a handler keeps its
+// default cursor so the ones that open nothing do not look like they should.
+export function MetricCard({ label, value, suffix, sub, footer, onClick }) {
   return (
-    <div style={{ background: '#1450f5', borderRadius: 8, padding: '18px 20px', boxShadow: '0 1px 3px rgba(20,20,20,0.06)', minWidth: 0 }}>
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
+      title={onClick ? 'Click to see what is behind this number' : undefined}
+      style={{
+        background: '#1450f5', borderRadius: 8, padding: '18px 20px',
+        boxShadow: '0 1px 3px rgba(20,20,20,0.06)', minWidth: 0,
+        cursor: onClick ? 'pointer' : 'default',
+        position: 'relative', transition: 'box-shadow 0.12s',
+      }}
+      onMouseEnter={onClick ? (e) => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(20,80,245,0.35)' } : undefined}
+      onMouseLeave={onClick ? (e) => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(20,20,20,0.06)' } : undefined}
+    >
       <div style={cardHeadingStyle('rgba(255,255,255,0.8)')}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
         <span style={{ fontSize: 34, fontWeight: 700, color: '#fff', lineHeight: 1, letterSpacing: '-0.01em', fontFamily: KONE_FONT }}>
@@ -118,7 +139,10 @@ export function MetricCard({ label, value, suffix, sub, footer }) {
 // one card, not two stacked.
 export function SegmentCard({ label, value, sub, tone, children }) {
   return (
-    <div style={{ background: tone.bg, borderRadius: 8, minWidth: 0 }}>
+    <div style={{
+      background: tone.bg, borderRadius: 8, minWidth: 0,
+      border: tone.border ? `1px solid ${tone.border}` : undefined,
+    }}>
       <div style={{ padding: '16px 18px' }}>
         <div style={cardHeadingStyle(tone.fg)}>{label}</div>
         <div style={{ fontSize: 30, fontWeight: 700, color: tone.fg, lineHeight: 1, marginTop: 8, fontFamily: KONE_FONT }}>

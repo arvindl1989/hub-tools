@@ -3,10 +3,11 @@ import { getUserActivity, getUserMetrics } from '../api'
 import DateRangePicker, { ALL_TIME_ONLY } from '../components/DateRangePicker'
 import {
   INTER, cardHeadingStyle, selStyle, activeFilterPillStyle, fmt1,
-  NPS_BUCKET_STYLES, KONE_BLUE_TONE, Card, MetricCard, SegmentCard, ScrollList, stickyFilterCard,
+  NPS_BUCKET_STYLES, KONE_BLUE_TONE, WHITE_TONE, Card, MetricCard, SegmentCard, ScrollList,
+  stickyFilterCard,
 } from '../components/KoneUI'
 import ServiceUtilityRate from '../components/ServiceUtilityRate'
-import ServiceUtilityRateFL from '../components/ServiceUtilityRateFL'
+import ListModal from '../components/ListModal'
 import ServiceAdoptionHeatmap from '../components/ServiceAdoptionHeatmap'
 
 // ── Service definitions (match BANDWIDTH_RATES keys in backend) ───────────────
@@ -148,6 +149,64 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
   const growth  = metrics?.growth  ?? {}
   const rates   = metrics?.rates   ?? {}
   const segments = metrics?.lifecycle ?? {}
+  // ── What is behind each headline ────────────────────────────────────────
+  // A count is a question half-answered, so every card on the first two rows
+  // opens the list it counted. The two rate cards open the population their
+  // rate is of, which is the same list read for a different reason.
+  const [listKey, setListKey] = useState(null)
+  const openList = (key) => setListKey(key)
+
+  const REQ_COLS = [
+    { key: 'name', label: 'Name' },
+    { key: 'requests', label: 'Requests', align: 'right' },
+    { key: 'users', label: 'Users', align: 'right' },
+  ]
+  const USER_COLS = [
+    { key: 'name', label: 'User' },
+    { key: 'frontline', label: 'Frontline' },
+    { key: 'area', label: 'Area' },
+    { key: 'requests', label: 'Requests', align: 'right' },
+    { key: 'days_since_last', label: 'Last seen', align: 'right',
+      render: r => `${r.days_since_last}d ago` },
+  ]
+  const engaged = [...(segments.active ?? []), ...(segments.regular ?? [])]
+    .map(u => ({ name: u.user, frontline: u.frontline, area: u.area,
+                 requests: u.count, days_since_last: u.days_since_last }))
+    .sort((a, b) => b.requests - a.requests)
+
+  const LISTS = {
+    global: {
+      title: 'Global teams',
+      subtitle: 'Teams inside the Global area, busiest first',
+      columns: REQ_COLS, rows: reach.global_team_list ?? [],
+    },
+    areas: {
+      title: 'Areas',
+      subtitle: 'Areas with at least one request. Global is the hub\'s own area and is counted on its own card',
+      columns: REQ_COLS, rows: reach.area_list ?? [],
+    },
+    frontlines: {
+      title: 'Frontlines',
+      subtitle: 'Frontlines outside Global with at least one request, busiest first',
+      columns: [{ key: 'name', label: 'Frontline' }, { key: 'area', label: 'Area' },
+                { key: 'requests', label: 'Requests', align: 'right' },
+                { key: 'users', label: 'Users', align: 'right' }],
+      rows: reach.frontline_list ?? [],
+    },
+    users: {
+      title: 'Everyone who raised a request',
+      subtitle: `${metrics?.total_users ?? 0} users, most requests first`,
+      columns: USER_COLS, rows: metrics?.user_list ?? [],
+    },
+    engaged: {
+      title: 'Engaged users',
+      subtitle: `${engaged.length} of ${metrics?.total_users ?? 0} users are Active or Regular — `
+                + 'everyone who has come back inside the last 90 days',
+      columns: USER_COLS, rows: engaged,
+    },
+  }
+  const openModal = listKey ? LISTS[listKey] : null
+
   const flUtility = metrics?.fl_utility
     ?? { rows: [], leader: null, leader_pct: null, services: [] }
 
@@ -260,21 +319,31 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
 
       {metrics && (<>
 
-        {/* Row 1 — Reach */}
+        {/* Rows 1 and 2 — every card opens the list behind its number. Global
+             is the hub's own area rather than a market, so it is counted by
+             its own card and left out of the other two. */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          <MetricCard label="Global Teams" value={reach.global_teams} sub="Teams in the Global area with ≥1 request" />
-          <MetricCard label="Areas"        value={reach.areas}        sub="Distinct areas with ≥1 request" />
-          <MetricCard label="Frontlines"   value={reach.frontlines}   sub="Distinct frontlines with ≥1 request" />
+          <MetricCard label="Global Teams" value={reach.global_teams}
+            sub="Teams in the Global area with ≥1 request"
+            onClick={() => openList('global')} />
+          <MetricCard label="Areas"        value={reach.areas}
+            sub="Areas with ≥1 request, excluding Global"
+            onClick={() => openList('areas')} />
+          <MetricCard label="Frontlines"   value={reach.frontlines}
+            sub="Frontlines with ≥1 request, outside Global"
+            onClick={() => openList('frontlines')} />
         </div>
 
-        {/* Row 2 — Volume. Total users rather than total requests: this page is
-             about who is using the hub, and the request count is in the list
-             below. Engagement rate sits here now that the rate boxes are gone. */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <MetricCard label="Total Users" value={metrics.total_users?.toLocaleString()}
-            sub={`${volume.total_requests?.toLocaleString() ?? 0} requests in the active range`} />
-          <MetricCard label="Avg Requests / User"    value={fmt1(volume.avg_per_user)}    sub="Skewed upward by heavy requestors" />
-          <MetricCard label="Engagement Rate (%)"    value={pct(rates.engagement_pct)}    sub="Active + Regular ÷ total users" />
+            sub={`${volume.total_requests?.toLocaleString() ?? 0} requests in the active range`}
+            onClick={() => openList('users')} />
+          <MetricCard label="Avg Requests / User"    value={fmt1(volume.avg_per_user)}
+            sub="Skewed upward by heavy requestors"
+            onClick={() => openList('users')} />
+          <MetricCard label="Engagement Rate (%)"    value={pct(rates.engagement_pct)}
+            sub="Active + Regular ÷ total users"
+            onClick={() => openList('engaged')} />
         </div>
 
         {/* Rows 3 + 4 — lifecycle segment + its scrollable roster, one card each.
@@ -315,11 +384,11 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             label="New Users"
             value={(growth.new_users ?? []).length}
             sub="First-ever request in the last 90 days"
-            tone={KONE_BLUE_TONE}
+            tone={WHITE_TONE}
           >
             <ScrollList
               rows={growth.new_users ?? []}
-              tone={KONE_BLUE_TONE}
+              tone={WHITE_TONE}
               emptyText="No new users in this window"
               columns={[
                 { key: 'user',      label: 'User',      width: '30%' },
@@ -335,12 +404,12 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             label="Top Requestors"
             value={pct(growth.top_share_pct)}
             sub={`Share of all requests from the top ${metrics.top_n ?? 10}`}
-            tone={KONE_BLUE_TONE}
+            tone={WHITE_TONE}
           >
             <ScrollList
               rows={growth.top_requestors ?? []}
               columns={BASE_COLUMNS}
-              tone={KONE_BLUE_TONE}
+              tone={WHITE_TONE}
               emptyText="No requests in this range"
             />
           </SegmentCard>
@@ -356,23 +425,37 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             sub={flUtility.leader
               ? `Best covered — ${flUtility.leader_pct}% of its users across the services`
               : 'No frontline requests in this selection'}
-            tone={KONE_BLUE_TONE}
+            tone={WHITE_TONE}
           >
             <ScrollList
               rows={flUtility.rows}
-              tone={KONE_BLUE_TONE}
+              tone={WHITE_TONE}
               emptyText="No requests in this range"
               columns={[
                 { key: 'frontline', label: 'FL',    width: '34%' },
                 { key: 'users',     label: 'Users', width: '16%', align: 'right' },
+                // Two rates, one above the other: the share of the
+                // frontline's people who have used the service, and the share
+                // of its requests that went to it. A service half the team has
+                // touched once is not where the frontline's demand goes, and
+                // the pair says which of the two is happening.
                 ...(flUtility.services ?? []).map(s => ({
                   key: `rate:${s.name}`,
                   label: s.short,
                   width: `${50 / Math.max(1, (flUtility.services ?? []).length)}%`,
                   align: 'right',
                   render: r => {
-                    const v = r.rates?.[s.name]
-                    return v == null ? '—' : `${v}%`
+                    const byUser = r.rates?.[s.name]
+                    const byReq = r.request_rates?.[s.name]
+                    return (
+                      <span title={`${r.users_used?.[s.name] ?? 0} of ${r.users} users · `
+                                 + `${r.service_requests?.[s.name] ?? 0} of ${r.requests} requests`}>
+                        {byUser == null ? '—' : `${byUser}%`}
+                        <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9c9c9c' }}>
+                          {byReq == null ? '' : `${byReq}% req`}
+                        </span>
+                      </span>
+                    )
                   },
                 })),
               ]}
@@ -384,8 +467,6 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
              rate boxes used to: the same questions, answered per service and
              per frontline instead of as one number for the whole hub. ─────── */}
         <ServiceUtilityRate rows={metrics.service_utility ?? []} />
-
-        <ServiceUtilityRateFL rows={metrics.service_utility_fl ?? []} />
 
         <ServiceAdoptionHeatmap data={metrics.service_adoption} />
 
@@ -582,6 +663,17 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         </Card>
 
       </>)}
+
+      {openModal && (
+        <ListModal
+          title={openModal.title}
+          subtitle={openModal.subtitle}
+          columns={openModal.columns}
+          rows={openModal.rows}
+          onClose={() => setListKey(null)}
+          width={720}
+        />
+      )}
     </div>
   )
 }

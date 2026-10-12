@@ -2890,14 +2890,22 @@ def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
     rows = []
     for fl in sorted(people):
         total = people[fl]
+        total_requests = int((frame["team"] == fl).sum())
         rates = {s: _safe_div(used_by[s].get(fl, 0), total, pct=True, nd=0)
                  for s in BAU_SERVICES_DISPLAY}
+        # The same question asked of the frontline's requests rather than its
+        # people: a service half the team has touched once is not the service
+        # the frontline actually spends its demand on, and the two rates
+        # together say which it is.
+        request_rates = {s: _safe_div(requests_by[s].get(fl, 0), total_requests, pct=True, nd=0)
+                         for s in BAU_SERVICES_DISPLAY}
         rows.append({
             "frontline": fl,
             "area": area_of.get(fl, UNASSIGNED),
             "users": int(total),
-            "requests": int((frame["team"] == fl).sum()),
+            "requests": total_requests,
             "rates": rates,
+            "request_rates": request_rates,
             "users_used": {s: int(used_by[s].get(fl, 0)) for s in BAU_SERVICES_DISPLAY},
             "service_requests": {s: int(requests_by[s].get(fl, 0)) for s in BAU_SERVICES_DISPLAY},
             # The frontline's own coverage across everything on offer, which is
@@ -2914,6 +2922,48 @@ def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
         "leader_pct": best["average_pct"] if best else None,
         "services": [{"name": s, "short": SERVICE_ABBREV.get(s, s)} for s in BAU_SERVICES_DISPLAY],
     }
+
+
+def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end) -> list:
+    """One row per service, with both denominators side by side.
+
+    Reach across people and reach across frontlines are the same question
+    asked of two populations, and reading them as two tables meant looking up
+    the same service twice to compare them. They are zipped here rather than
+    computed afresh, so each half keeps the definition it already had.
+    """
+    by_user = {r["service"]: r for r in _service_utility(scoped, users, period_end)}
+    by_fl = {r["service"]: r for r in _service_utility_fl(scoped, period_end)}
+
+    out = []
+    for service in BAU_SERVICES_DISPLAY:
+        u, f = by_user.get(service), by_fl.get(service)
+        if not u and not f:
+            continue
+        out.append({
+            "service": service,
+            "short": SERVICE_ABBREV.get(service, service),
+            "requests": (u or f or {}).get("requests", 0),
+            "users": {
+                "total": u["total_users"] if u else 0,
+                "used": u["users_used"] if u else 0,
+                "rate_pct": u["utility_rate_pct"] if u else None,
+                "active": u["active"] if u else 0,
+                "regular": u["regular"] if u else 0,
+                "dormant": u["dormant"] if u else 0,
+                "not_used": u["not_used"] if u else [],
+            },
+            "frontlines": {
+                "total": f["total_frontlines"] if f else 0,
+                "used": f["frontlines_used"] if f else 0,
+                "rate_pct": f["utility_rate_pct"] if f else None,
+                "active": f["active"] if f else 0,
+                "regular": f["regular"] if f else 0,
+                "dormant": f["dormant"] if f else 0,
+                "not_used": f["not_used"] if f else [],
+            },
+        })
+    return out
 
 
 def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
@@ -2992,28 +3042,31 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
         totals.append({"service": service, "short": SERVICE_ABBREV.get(service, service),
                        "requests": int(len(rows)), **tally})
 
-    # How dark a cell is drawn.
+    # How dark a cell is drawn: five levels of equal width across the whole
+    # map, plus one for never used.
     #
-    # Against the busiest cell, most cells landed in the palest step or two:
-    # one frontline raising far more than the rest flattens everyone else, and
-    # four fifths of the ramp went unused. Cells are banded by where they fall
-    # among the cells that have any requests at all — quartiles — so each shade
-    # carries about a quarter of them and the whole ramp is in play. A band is
-    # therefore a rank, not a ratio: band 4 is "in the busiest quarter of this
-    # map", which is the comparison the map is read for. The exact figure is
-    # still on the cell, and the share of the busiest is in its tooltip.
+    # Equal width, not equal counts. A quantile split put a quarter of the
+    # cells in each shade whatever the numbers were, which made two cells of 7
+    # and 11 requests look as far apart as 11 and 29. Here the range from the
+    # quietest used cell to the busiest is cut into five, so the distance
+    # between two shades always means the same number of requests — and some
+    # bands will be sparse, because that is what the distribution is.
     #
-    # Ties cannot straddle a band, because the test is on the value rather
-    # than on a position in the sorted list.
+    # The cut is over every cell on the map rather than within each service
+    # row, so a number means the same shade wherever it appears.
+    LEVELS = 5
     busiest = max((c["requests"] for c in grid.values()), default=0)
-    used_counts = sorted(c["requests"] for c in grid.values() if c["requests"])
-    cuts = [float(np.quantile(used_counts, q)) for q in (0.25, 0.5, 0.75)] if used_counts else []
+    used_counts = [c["requests"] for c in grid.values() if c["requests"]]
+    floor = min(used_counts) if used_counts else 0
+    width = (busiest - floor) / LEVELS if used_counts and busiest > floor else 0
 
     def _band(n: int) -> int:
-        """0 for never used, else 1 (quietest quarter) to 4 (busiest)."""
+        """0 for never used, else 1 (lowest) to 5 (highest)."""
         if not n:
             return 0
-        return min(1 + sum(1 for cut in cuts if n >= cut), 4)
+        if not width:
+            return LEVELS          # every used cell carries the same number
+        return min(LEVELS, int((n - floor) / width) + 1)
 
     spread: dict = {}
     for cell in grid.values():
@@ -3025,16 +3078,27 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
             spread.setdefault(cell["band"], []).append(cell["requests"])
 
     # What each shade stands for, so the legend can say it in requests rather
-    # than leaving the reader to guess at the thresholds.
-    bands = [
-        {
+    # than leaving the reader to guess at the thresholds. A band with no cells
+    # still carries its range: an empty step in the middle of a scale is worth
+    # seeing, because it says the map is split rather than spread.
+    def _edges(b: int) -> tuple:
+        if not width:
+            return (floor or None, busiest or None)
+        lo = floor + width * (b - 1)
+        hi = busiest if b == LEVELS else floor + width * b
+        return (int(round(lo)), int(round(hi)))
+
+    bands = []
+    for b in range(1, LEVELS + 1):
+        lo, hi = _edges(b)
+        bands.append({
             "band": b,
             "cells": len(spread.get(b, [])),
+            "from": lo,
+            "to": hi,
             "min": min(spread[b]) if spread.get(b) else None,
             "max": max(spread[b]) if spread.get(b) else None,
-        }
-        for b in (1, 2, 3, 4)
-    ]
+        })
 
     # One row per frontline, read like the user list: totals first, then a
     # column per service.
@@ -3122,7 +3186,8 @@ def user_metrics(
     empty = {
         **lists,
         "period_end": None,
-        "reach": {"global_teams": 0, "areas": 0, "frontlines": 0},
+        "reach": {"global_teams": 0, "areas": 0, "frontlines": 0,
+                  "global_team_list": [], "area_list": [], "frontline_list": []},
         "volume": {"total_requests": 0, "avg_per_user": None, "median_per_user": None},
         "lifecycle": {"active": [], "regular": [], "dormant": []},
         "growth": {"new_users": [], "top_requestors": [], "at_risk": [], "top_share_pct": None},
@@ -3131,8 +3196,8 @@ def user_metrics(
                   "services_offered": len(CANONICAL_SERVICES)},
         "total_users": 0,
         "top_n": top_n,
+        "user_list": [],
         "service_utility": [],
-        "service_utility_fl": [],
         "fl_utility": {"rows": [], "leader": None, "leader_pct": None, "services": []},
         "service_adoption": {"services": [], "areas": [], "grid": {}, "rows": [], "totals": [],
                              "bands": []},
@@ -3220,21 +3285,54 @@ def user_metrics(
     )
 
     # ── Row 1: reach ─────────────────────────────────────────────────────────
-    def _distinct(col):
-        if col not in scoped.columns:
-            return set()
-        return {str(v).strip() for v in scoped[col].dropna() if str(v).strip()}
+    # Each card carries the list behind its number, so clicking it can show
+    # what was counted rather than leaving the figure to be taken on trust.
+    #
+    # Global is the hub's own area, not a market: it is counted by the Global
+    # Teams card and excluded from the other two, so Areas means the four real
+    # areas and Frontlines means the frontlines inside them.
+    # Matched without regard to case: the export has spelled it both
+    # "Global" and "GLOBAL", and a card that silently counts it as a fifth
+    # area because of a capital letter is worse than no card.
+    GLOBAL_AREA = "global"
 
-    areas_reached = _distinct("area")
-    frontlines_reached = _distinct("team")
-    if {"team", "area"} <= set(scoped.columns):
-        global_teams = {
-            str(v).strip()
-            for v in scoped.loc[scoped["area"] == "Global", "team"].dropna()
-            if str(v).strip()
-        }
-    else:
-        global_teams = set()
+    def _is_global(value) -> bool:
+        return str(value).strip().lower() == GLOBAL_AREA
+
+    def _reach_list(col: str, frame: pd.DataFrame) -> list:
+        if col not in frame.columns or frame.empty:
+            return []
+        sub = frame.dropna(subset=[col]).copy()
+        sub[col] = sub[col].astype(str).str.strip()
+        sub = sub[sub[col] != ""]
+        if sub.empty:
+            return []
+        out = []
+        for name, grp in sub.groupby(col):
+            entry = {"name": str(name), "requests": int(len(grp))}
+            if "ticket_creator" in grp.columns:
+                entry["users"] = int(grp["ticket_creator"].nunique())
+            if col == "team" and "area" in grp.columns:
+                areas = grp["area"].dropna()
+                entry["area"] = str(areas.value_counts().index[0]) if len(areas) else UNASSIGNED
+            out.append(entry)
+        return sorted(out, key=lambda r: (-r["requests"], r["name"]))
+
+    has_area = "area" in scoped.columns
+    is_global = scoped["area"].map(_is_global) if has_area else None
+    non_global = scoped[~is_global] if has_area else scoped
+    global_only = scoped[is_global] if has_area else scoped.iloc[0:0]
+
+    areas_list = [a for a in _reach_list("area", scoped) if not _is_global(a["name"])]
+    frontlines_list = _reach_list("team", non_global)
+    global_teams_list = _reach_list("team", global_only)
+
+    # ── Every user, busiest first: the list behind the Total Users card ──────
+    user_list = [
+        {"name": u["user"], "frontline": u["frontline"], "area": u["area"],
+         "requests": u["count"], "days_since_last": u["days_since_last"]}
+        for u in sorted(users, key=lambda u: (-u["count"], u["user"]))
+    ]
 
     # ── Row 5: growth ────────────────────────────────────────────────────────
     new_cutoff = period_end - pd.Timedelta(days=NEW_USER_WINDOW_DAYS)
@@ -3252,7 +3350,9 @@ def user_metrics(
     )
 
     # ── Row 6: rates ─────────────────────────────────────────────────────────
-    services_used = len(_distinct("sub_category") & set(CANONICAL_SERVICES))
+    in_scope = ({str(v).strip() for v in scoped["sub_category"].dropna() if str(v).strip()}
+                if "sub_category" in scoped.columns else set())
+    services_used = len(in_scope & set(CANONICAL_SERVICES))
     repeat_users = sum(1 for u in users if u["count"] >= 2)
 
     return {
@@ -3260,10 +3360,15 @@ def user_metrics(
         "period_end": period_end.date().isoformat(),
         "total_users": total_users,
         "top_n": top_n,
+        "user_list": user_list,
         "reach": {
-            "global_teams": len(global_teams),
-            "areas": len(areas_reached),
-            "frontlines": len(frontlines_reached),
+            "global_teams": len(global_teams_list),
+            "areas": len(areas_list),
+            "frontlines": len(frontlines_list),
+            # The lists each card opens.
+            "global_team_list": global_teams_list,
+            "area_list": areas_list,
+            "frontline_list": frontlines_list,
         },
         "volume": {
             "total_requests": total_requests,
@@ -3297,8 +3402,7 @@ def user_metrics(
             "services_used":        services_used,
             "services_offered":     len(CANONICAL_SERVICES),
         },
-        "service_utility":  _service_utility(scoped, users, period_end),
-        "service_utility_fl": _service_utility_fl(scoped, period_end),
+        "service_utility":  _service_utility_merged(scoped, users, period_end),
         "fl_utility":       _utility_per_frontline(scoped),
         "service_adoption": _service_adoption(scoped, period_end),
     }

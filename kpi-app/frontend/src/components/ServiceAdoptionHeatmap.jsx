@@ -2,22 +2,32 @@ import { useEffect, useMemo, useState } from 'react'
 import { INTER, cardHeadingStyle, Card } from './KoneUI'
 
 // ── Cell shade ────────────────────────────────────────────────────────────────
-// One colour, five strengths, all of them blue — the palest for a service a
+// One colour, six strengths, all of them blue — the palest for a service a
 // frontline has never asked for, so the map reads as one field rather than
 // being broken up by a colour that means something else.
 //
-// A cell's shade is its band: which quarter of the used cells it falls in,
-// worked out on the data by the API. Shading by share of the busiest cell
-// instead left four fifths of the ramp unused, because one heavy frontline
-// flattens everyone else; banding by rank puts about a quarter of the cells in
-// each shade, which is what makes the gradient worth having.
+// The five levels are equal-width slices of the range from the quietest used
+// cell to the busiest, worked out across the whole map rather than within each
+// service row: a number means the same shade wherever it appears, and the
+// distance between two shades always means the same number of requests. Some
+// levels will hold more cells than others — that is the distribution showing
+// through, which is the point of a uniform scale.
+//
+// Text is white throughout, as asked. On the two palest steps white is thin
+// against the background, so those carry a soft shadow to hold the number
+// legible rather than being left to disappear.
 const BAND = [
-  { bg: '#d0dcfd', fg: '#5b6b8c', label: 'Not used' },     // 0 — never asked
-  { bg: '#a1b9fb', fg: '#141414', label: 'Quietest quarter' },
-  { bg: '#7296f9', fg: '#141414', label: 'Lower middle' },
-  { bg: '#4373f7', fg: '#ffffff', label: 'Upper middle' },
-  { bg: '#1450f5', fg: '#ffffff', label: 'Busiest quarter' },
+  { bg: '#e9effe', label: 'Not used', faint: true },
+  { bg: '#d0dcfd', label: 'Lowest',   faint: true },
+  { bg: '#a1b9fb', label: 'Low',      faint: true },
+  { bg: '#7296f9', label: 'Medium' },
+  { bg: '#4373f7', label: 'High' },
+  { bg: '#1450f5', label: 'Highest' },
 ]
+const INK = '#ffffff'
+// Enough of a shadow to separate white from a pale blue, invisible on the dark
+// steps where it is not needed.
+const FAINT_SHADOW = '0 0 1px rgba(10,40,110,1), 0 0 3px rgba(10,40,110,0.85), 0 1px 2px rgba(10,40,110,0.7)'
 
 const shade = (band) => BAND[band ?? 0] || BAND[0]
 
@@ -84,24 +94,22 @@ const td = { padding: '9px 14px', borderBottom: '1px solid #f3eee6', fontSize: 1
 function Legend({ bands = [] }) {
   const range = (b) => {
     const meta = bands.find(x => x.band === b)
-    if (!meta || !meta.cells) return BAND[b].label
-    return meta.min === meta.max
-      ? `${BAND[b].label}: ${meta.min} requests`
-      : `${BAND[b].label}: ${meta.min}–${meta.max} requests`
+    if (!meta) return BAND[b].label
+    const span = meta.from === meta.to ? `${meta.from}` : `${meta.from}–${meta.to}`
+    return `${BAND[b].label}: ${span} requests · ${meta.cells} cell${meta.cells === 1 ? '' : 's'}`
   }
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-      <span style={{ fontSize: 10, color: '#9c9c9c', fontFamily: INTER }}>Not used</span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 3, overflow: 'hidden' }}>
-        {BAND.map((step, b) => (
-          <span key={b} title={b === 0 ? 'Never asked for this service' : range(b)} style={{
-            width: 26, height: 14, background: step.bg,
+      {BAND.map((step, b) => (
+        <span key={b} title={b === 0 ? 'Never asked for this service' : range(b)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <span style={{
+            width: 18, height: 14, background: step.bg, borderRadius: 3,
             border: '1px solid #e8e2d6',
-            borderLeftWidth: b === 0 ? 1 : 0,
           }} />
-        ))}
-      </span>
-      <span style={{ fontSize: 10, color: '#9c9c9c', fontFamily: INTER }}>quietest → busiest</span>
+          <span style={{ fontSize: 10, color: '#6e6e6e', fontFamily: INTER }}>{step.label}</span>
+        </span>
+      ))}
     </div>
   )
 }
@@ -153,7 +161,7 @@ function CellUsers({ cell, onClose }) {
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12, alignItems: 'center' }}>
             <span style={{
               fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-              background: tone.bg, color: tone.fg, border: '1px solid #e8e2d6',
+              background: tone.bg, color: '#141414', border: '1px solid #e8e2d6',
             }}>{STATE_LABEL[cell.state]}</span>
             <span style={{ fontSize: 12, color: '#6e6e6e', fontFamily: INTER }}>
               {cell.requests} request{cell.requests === 1 ? '' : 's'} from {cell.users} user
@@ -344,9 +352,10 @@ export default function ServiceAdoptionHeatmap({ data }) {
                                    : ': no requests')}
                           style={{
                             ...fixed, padding: '7px 2px', textAlign: 'center',
-                            background: tone.bg, color: tone.fg,
+                            background: tone.bg, color: INK,
+                            textShadow: tone.faint ? FAINT_SHADOW : undefined,
                             borderBottom: '1px solid #fff', borderRight: '1px solid #fff',
-                            fontWeight: cell.requests ? 700 : 400, fontSize: 12,
+                            fontWeight: 700, fontSize: 12,
                             cursor: cell.requests ? 'pointer' : 'default',
                             overflow: 'hidden',
                           }}>
@@ -363,13 +372,15 @@ export default function ServiceAdoptionHeatmap({ data }) {
 
       <p style={{ fontSize: 11, color: '#9c9c9c', margin: '12px 0 0', lineHeight: 1.7, fontFamily: INTER }}>
         A cell is one frontline's use of one service, and the number in it is the requests they
-        raised — <b>click a number to see which users</b>. The shade is which quarter of the used
-        cells it falls in, so each of the four blues carries about a quarter of them and the
-        darkest is the busiest quarter of the map; the palest blue is a service that frontline has
-        never asked for. The four columns on the left count the frontlines in each state for that
-        service — <b>Dormant</b> is a last request over 90 days before the end of the range, and
-        <b> Top users</b> are the busiest quarter of the frontlines still using it. Shade says how
-        much; the state is on the cell's tooltip.
+        raised — <b>click a number to see which users</b>. The five shades are equal slices of the
+        range from the quietest used cell to the busiest, cut across the whole map rather than
+        within each service, so the same number is the same shade wherever it appears and the step
+        between two shades always means the same number of requests. Some shades will hold more
+        cells than others — that is the distribution, not the scale. The palest is a service that
+        frontline has never asked for. The four columns on the left count the frontlines in each
+        state for that service — <b>Dormant</b> is a last request over 90 days before the end of
+        the range, and <b>Top users</b> are the busiest quarter of the frontlines still using it.
+        Shade says how much; the state is on the cell's tooltip.
       </p>
 
       {/* ── The same thing as a table ─────────────────────────────────────── */}
@@ -432,8 +443,9 @@ export default function ServiceAdoptionHeatmap({ data }) {
                                    : STATE_LABEL[state]}
                           style={{
                             display: 'inline-block', minWidth: 28, borderRadius: 5, padding: '2px 7px',
-                            background: tone.bg, color: tone.fg, border: '1px solid #e8e2d6',
-                            fontWeight: n ? 700 : 400, fontSize: 12,
+                            background: tone.bg, color: INK, border: '1px solid #e8e2d6',
+                            textShadow: tone.faint ? FAINT_SHADOW : undefined,
+                            fontWeight: 700, fontSize: 12,
                             cursor: n ? 'pointer' : 'default',
                           }}>{n || '·'}</span>
                       </td>
