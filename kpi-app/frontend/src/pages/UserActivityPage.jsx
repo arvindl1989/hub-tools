@@ -8,6 +8,7 @@ import {
 } from '../components/KoneUI'
 import ServiceUtilityRate from '../components/ServiceUtilityRate'
 import ListModal from '../components/ListModal'
+import ActivityBreakdown from '../components/ActivityBreakdown'
 import ServiceAdoptionHeatmap from '../components/ServiceAdoptionHeatmap'
 
 // ── Service definitions (match BANDWIDTH_RATES keys in backend) ───────────────
@@ -206,6 +207,13 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
     },
   }
   const openModal = listKey ? LISTS[listKey] : null
+
+  const groups = metrics?.activity_groups
+    ?? { services: [], areas: [], by_area: [], by_frontline: [], by_service: [], by_specialist: [] }
+  const serviceKeys = (groups.services ?? []).map(s => s.name)
+  const serviceLabels = Object.fromEntries((groups.services ?? []).map(s => [s.name, s.short]))
+  const areaKeys = groups.areas ?? []
+  const areaLabels = Object.fromEntries(areaKeys.map(a => [a, a]))
 
   const flUtility = metrics?.fl_utility
     ?? { rows: [], leader: null, leader_pct: null, services: [] }
@@ -467,6 +475,31 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
              rate boxes used to: the same questions, answered per service and
              per frontline instead of as one number for the whole hub. ─────── */}
         <ServiceUtilityRate rows={metrics.service_utility ?? []} />
+
+        {/* ── The same four cuts the Feedback page makes, asked of activity:
+             utility rate in place of the response rate, and the requests
+             behind it per service in place of the ratings. ───────────────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <ActivityBreakdown
+            title="By Area" headerLabel="Area"
+            subtitle="Utility rate and requests per area, busiest first"
+            rows={groups.by_area} keys={serviceKeys} labels={serviceLabels} />
+          <ActivityBreakdown
+            title="By Frontlines" headerLabel="Frontline"
+            subtitle="Utility rate and requests per frontline, busiest first"
+            rows={groups.by_frontline} keys={serviceKeys} labels={serviceLabels} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <ActivityBreakdown
+            title="By Service" headerLabel="Service"
+            subtitle="Reach across the whole user base, and where each service's demand comes from"
+            rows={groups.by_service} keys={areaKeys} labels={areaLabels} />
+          <ActivityBreakdown
+            title="By Specialist" headerLabel="Specialist"
+            subtitle="Utility rate and requests per specialist, busiest first"
+            rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels} />
+        </div>
 
         <ServiceAdoptionHeatmap data={metrics.service_adoption} />
 

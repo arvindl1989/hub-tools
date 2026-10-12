@@ -6,12 +6,11 @@ import { INTER, cardHeadingStyle, Card } from './KoneUI'
 // frontline has never asked for, so the map reads as one field rather than
 // being broken up by a colour that means something else.
 //
-// The five levels are equal-width slices of the range from the quietest used
-// cell to the busiest, worked out across the whole map rather than within each
-// service row: a number means the same shade wherever it appears, and the
-// distance between two shades always means the same number of requests. Some
-// levels will hold more cells than others — that is the distribution showing
-// through, which is the point of a uniform scale.
+// The five levels divide the distinct volumes on the map into five, worked out
+// across the whole map rather than within a service row: a number means the
+// same shade wherever it appears and bigger is always darker. Banding by the
+// range instead left most cells in the palest step, because one frontline on
+// several hundred flattens a map whose other cells are single digits.
 //
 // Text is white throughout, as asked. On the two palest steps white is thin
 // against the background, so those carry a soft shadow to hold the number
@@ -50,7 +49,7 @@ const ORDER = ['top', 'regular', 'dormant', 'none']
 // strip scrolls sideways rather than squeezing the numbers out of their boxes.
 const CELL_W = 56
 const TALLY_W = 72
-const LABEL_W = 150
+const LABEL_W = 230
 const GAP_W = 14
 
 // Long frontline names blow the column width out on their own. The map needs a
@@ -325,8 +324,9 @@ export default function ServiceAdoptionHeatmap({ data }) {
                     ...headCell, position: 'sticky', left: 0, zIndex: 1, textAlign: 'left',
                     color: '#141414', fontWeight: 700, textTransform: 'none', fontSize: 12,
                     background: '#fff', borderBottom: '1px solid #f3eee6',
+                    whiteSpace: 'normal', lineHeight: 1.35,
                   }} title={s.name}>
-                    {s.short}
+                    {s.name}
                   </td>
                   {ORDER.map(k => (
                     <td key={k} style={{
@@ -372,15 +372,16 @@ export default function ServiceAdoptionHeatmap({ data }) {
 
       <p style={{ fontSize: 11, color: '#9c9c9c', margin: '12px 0 0', lineHeight: 1.7, fontFamily: INTER }}>
         A cell is one frontline's use of one service, and the number in it is the requests they
-        raised — <b>click a number to see which users</b>. The five shades are equal slices of the
-        range from the quietest used cell to the busiest, cut across the whole map rather than
-        within each service, so the same number is the same shade wherever it appears and the step
-        between two shades always means the same number of requests. Some shades will hold more
-        cells than others — that is the distribution, not the scale. The palest is a service that
-        frontline has never asked for. The four columns on the left count the frontlines in each
-        state for that service — <b>Dormant</b> is a last request over 90 days before the end of
-        the range, and <b>Top users</b> are the busiest quarter of the frontlines still using it.
-        Shade says how much; the state is on the cell's tooltip.
+        raised — <b>click a number to see which users</b>. The five shades divide the distinct
+        volumes on the map into five, so each shade covers a band of request counts: the legend
+        says which. The cut is across the whole map rather than within a service, so the same
+        number is the same shade wherever it appears, and bigger is always darker. More cells will
+        land in the palest shade than in the darkest, because most frontlines raise single digits
+        and a few raise hundreds — that is the distribution, not the scale. The palest of all is a
+        service that frontline has never asked for. The four columns on the left count the
+        frontlines in each state for that service — <b>Dormant</b> is a last request over 90 days
+        before the end of the range, and <b>Top users</b> are the busiest quarter of the
+        frontlines still using it. Shade says how much; the state is on the cell's tooltip.
       </p>
 
       {/* ── The same thing as a table ─────────────────────────────────────── */}

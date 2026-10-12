@@ -2966,6 +2966,76 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end) -> li
     return out
 
 
+def _activity_groups(scoped: pd.DataFrame) -> dict:
+    """Area, frontline, service and specialist, each read the same way.
+
+    The Feedback page answers "how is this group doing" four times over, one
+    table per dimension, and the same four questions are worth asking of
+    activity. Where Feedback shows its response rate and a rating per
+    parameter, this shows the utility rate and the requests behind it, service
+    by service.
+
+    A group's utility rate is the average, across the services, of the share
+    of that group's people who have used each one — the same definition the
+    per-frontline card uses, so the two cannot disagree. A service row would
+    make that circular (everyone in it has used it by definition), so a
+    service's rate is its reach across the whole user base, and its second
+    axis is area: for a service, where the demand came from is what is worth
+    knowing.
+    """
+    blank = {"services": [], "areas": [], "by_area": [], "by_frontline": [],
+             "by_service": [], "by_specialist": []}
+    if "ticket_creator" not in scoped.columns or "sub_category" not in scoped.columns:
+        return blank
+    frame = scoped.dropna(subset=["ticket_creator", "sub_category"]).copy()
+    if frame.empty:
+        return blank
+    frame["service"] = _service_column(frame)
+
+    services = [s for s in BAU_SERVICES_DISPLAY if s in set(frame["service"])]
+    areas = ([str(a) for a in sorted(frame["area"].dropna().unique())]
+             if "area" in frame.columns else [])
+    total_users = frame["ticket_creator"].nunique()
+
+    def build(col: str, split_on: str, keys: list) -> list:
+        if col not in frame.columns:
+            return []
+        sub = frame.dropna(subset=[col]).copy()
+        sub[col] = sub[col].astype(str).str.strip()
+        sub = sub[sub[col] != ""]
+        if sub.empty:
+            return []
+        out = []
+        for name, grp in sub.groupby(col):
+            users = grp["ticket_creator"].nunique()
+            counts = grp.groupby(split_on).size().to_dict() if split_on in grp.columns else {}
+            if col == "service":
+                utility = _safe_div(users, total_users, pct=True, nd=0)
+            else:
+                shares = [
+                    grp.loc[grp["service"] == s, "ticket_creator"].nunique() / users * 100
+                    for s in services
+                ] if users else []
+                utility = round(sum(shares) / len(shares)) if shares else None
+            out.append({
+                "name": str(name),
+                "users": int(users),
+                "requests": int(len(grp)),
+                "utility_pct": utility,
+                "breakdown": {str(k): int(counts.get(k, 0)) for k in keys},
+            })
+        return sorted(out, key=lambda r: (-r["requests"], r["name"]))
+
+    return {
+        "services": [{"name": s, "short": SERVICE_ABBREV.get(s, s)} for s in services],
+        "areas": areas,
+        "by_area":       build("area", "service", services),
+        "by_frontline":  build("team", "service", services),
+        "by_specialist": build("assigned_to", "service", services),
+        "by_service":    build("service", "area", areas),
+    }
+
+
 def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
     """Frontline against service: who is using what, and who has stopped.
 
@@ -3042,31 +3112,40 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
         totals.append({"service": service, "short": SERVICE_ABBREV.get(service, service),
                        "requests": int(len(rows)), **tally})
 
-    # How dark a cell is drawn: five levels of equal width across the whole
-    # map, plus one for never used.
+    # How dark a cell is drawn: five levels across the whole map, plus one for
+    # never used.
     #
-    # Equal width, not equal counts. A quantile split put a quarter of the
-    # cells in each shade whatever the numbers were, which made two cells of 7
-    # and 11 requests look as far apart as 11 and 29. Here the range from the
-    # quietest used cell to the busiest is cut into five, so the distance
-    # between two shades always means the same number of requests — and some
-    # bands will be sparse, because that is what the distribution is.
+    # Two schemes came before this one and both failed on real volumes, which
+    # run from 1 to several hundred with the mass down at the bottom — one
+    # frontline on 298 against a long tail of single digits. Equal slices of
+    # the range 1..298 put nearly every cell in the palest step, which is what
+    # washed the map out; equal slices of the log range were better but still
+    # left the middle of the ramp empty.
     #
-    # The cut is over every cell on the map rather than within each service
-    # row, so a number means the same shade wherever it appears.
+    # So the ramp is spread over the DISTINCT volumes rather than over the
+    # range or over the cells. The sorted distinct counts are cut into five
+    # and a cell takes the band of its own value. Every shade is in use
+    # whenever the map holds five different volumes, equal counts always take
+    # the same shade, and bigger is always darker. The colour resolution lands
+    # where the variety is, which is the bottom — and that is where it is
+    # needed, because that is where most of the map lives.
+    #
+    # Cell counts per band stay uneven, and should: if half the map really is
+    # one or two requests, half the map should look it.
+    #
+    # The cut is over every cell on the map rather than within a service row,
+    # so a number means the same shade wherever it appears.
     LEVELS = 5
     busiest = max((c["requests"] for c in grid.values()), default=0)
     used_counts = [c["requests"] for c in grid.values() if c["requests"]]
-    floor = min(used_counts) if used_counts else 0
-    width = (busiest - floor) / LEVELS if used_counts and busiest > floor else 0
+    distinct = sorted(set(used_counts))
+    _rank = {v: i for i, v in enumerate(distinct)}
 
     def _band(n: int) -> int:
         """0 for never used, else 1 (lowest) to 5 (highest)."""
-        if not n:
+        if not n or not distinct:
             return 0
-        if not width:
-            return LEVELS          # every used cell carries the same number
-        return min(LEVELS, int((n - floor) / width) + 1)
+        return min(LEVELS, int(_rank[n] * LEVELS / len(distinct)) + 1)
 
     spread: dict = {}
     for cell in grid.values():
@@ -3078,15 +3157,11 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
             spread.setdefault(cell["band"], []).append(cell["requests"])
 
     # What each shade stands for, so the legend can say it in requests rather
-    # than leaving the reader to guess at the thresholds. A band with no cells
-    # still carries its range: an empty step in the middle of a scale is worth
-    # seeing, because it says the map is split rather than spread.
+    # than leaving the reader to guess at the thresholds.
     def _edges(b: int) -> tuple:
-        if not width:
-            return (floor or None, busiest or None)
-        lo = floor + width * (b - 1)
-        hi = busiest if b == LEVELS else floor + width * b
-        return (int(round(lo)), int(round(hi)))
+        """The volumes this band covers, so the legend can name it."""
+        mine = [v for v in distinct if _band(v) == b]
+        return (mine[0], mine[-1]) if mine else (None, None)
 
     bands = []
     for b in range(1, LEVELS + 1):
@@ -3198,6 +3273,8 @@ def user_metrics(
         "top_n": top_n,
         "user_list": [],
         "service_utility": [],
+        "activity_groups": {"services": [], "areas": [], "by_area": [], "by_frontline": [],
+                            "by_service": [], "by_specialist": []},
         "fl_utility": {"rows": [], "leader": None, "leader_pct": None, "services": []},
         "service_adoption": {"services": [], "areas": [], "grid": {}, "rows": [], "totals": [],
                              "bands": []},
@@ -3403,6 +3480,7 @@ def user_metrics(
             "services_offered":     len(CANONICAL_SERVICES),
         },
         "service_utility":  _service_utility_merged(scoped, users, period_end),
+        "activity_groups":  _activity_groups(scoped),
         "fl_utility":       _utility_per_frontline(scoped),
         "service_adoption": _service_adoption(scoped, period_end),
     }
