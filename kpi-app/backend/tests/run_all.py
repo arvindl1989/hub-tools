@@ -22,6 +22,16 @@ TESTS = [
      "one frontline rule, fixed shading"),
     ("the brief", "test_user_activity_brief.py",
      "the seven cases asked for"),
+    ("working days", "test_effort_working_days.py",
+     "weekends, holidays, and pricing from the ticket's own sub-category"),
+    ("effort views", "test_effort_views.py",
+     "hours beside counts, and where the two mixes disagree"),
+    ("capacity", "test_effort_capacity.py",
+     "hours delivered over hours available, uncapped"),
+    ("SLA", "test_sla_compliance.py",
+     "met, missed, and the open work already late"),
+    ("the effort brief", "test_effort_brief.py",
+     "the seven cases that one asked for"),
 ]
 
 failed = []

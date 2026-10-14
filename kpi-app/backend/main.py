@@ -601,6 +601,50 @@ def _parse_dates_robust(series: pd.Series) -> pd.Series:
     return pd.Series([_parse_one(v) for v in series], index=series.index, dtype="datetime64[ns]")
 
 
+def _price_tickets(df: pd.DataFrame, announce: bool = False) -> pd.DataFrame:
+    """What a ticket is estimated to cost, and what it is judged against.
+
+    Both look up the ticket's OWN sub-category. The five sub-categories are
+    what tickets carry; "Demand Engagement Activations" is a display roll-up of
+    three of them and its 12.7 hours is a blend of 20, 7.27 and 20 — so pricing
+    a Demand Creation ticket at the blend would understate it by 7.3 hours and
+    an Email – Local one by 5.4, in opposite directions. The blend is correct
+    only for a mixed basket, never for a known ticket.
+
+    A ticket whose sub-category is missing or unrecognised gets no estimate
+    rather than a guessed one; the count is reported so the gap is visible
+    instead of quietly rounding every total down.
+
+    This is called again whenever the figures are read, not only at upload, so
+    that editing a rate in Rates & SLA reaches the page without re-uploading
+    the export. It is a dictionary lookup per row and costs nothing worth
+    saving.
+    """
+    if "sub_category" not in df.columns:
+        df["est_hours"] = None
+        df["sla_wd"] = None
+        return df
+
+    rates = {str(k).strip(): v for k, v in BANDWIDTH_RATES.items()}
+    slas = {str(k).strip(): v for k, v in SLA_RULES.items()}
+
+    def _hours(sc):
+        rate = rates.get(str(sc).strip()) if pd.notna(sc) else None
+        return round(BANDWIDTH_HOURS_PER_DAY / rate, 4) if rate else None
+
+    df["est_hours"] = df["sub_category"].map(_hours)
+    df["sla_wd"] = df["sub_category"].map(
+        lambda sc: slas.get(str(sc).strip()) if pd.notna(sc) else None)
+    unpriced = int(df["est_hours"].isna().sum())
+    if announce and unpriced:
+        missing = sorted({str(v) for v in df.loc[df["est_hours"].isna(), "sub_category"]
+                          .dropna().unique()})
+        print(f"[PARSE] {unpriced} rows have no effort estimate"
+              + (f" — unrecognised sub-categories: {missing}" if missing else
+                 " — no sub-category"), flush=True)
+    return df
+
+
 def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = normalize_columns(df.copy())
     df = normalize_sub_category(df)
@@ -659,39 +703,7 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     df["sla_due_date"] = pd.to_datetime(df.apply(_sla, axis=1), errors="coerce").astype("datetime64[ns]")
 
-    # ── What a ticket is estimated to cost, and what it is judged against ────
-    #
-    # Both look up the ticket's OWN sub-category. The five sub-categories are
-    # what tickets carry; "Demand Engagement Activations" is a display roll-up
-    # of three of them and its 12.7 hours is a blend of 20, 7.27 and 20 — so
-    # pricing a Demand Creation ticket at the blend would understate it by
-    # 7.3 hours and an Email – Local one by 5.4, in opposite directions. The
-    # blend is correct only for a mixed basket, never for a known ticket.
-    #
-    # A ticket whose sub-category is missing or unrecognised gets no estimate
-    # rather than a guessed one; the count is reported so the gap is visible
-    # instead of quietly rounding every total down.
-    if "sub_category" in df.columns:
-        rates = {str(k).strip(): v for k, v in BANDWIDTH_RATES.items()}
-        slas = {str(k).strip(): v for k, v in SLA_RULES.items()}
-
-        def _hours(sc):
-            rate = rates.get(str(sc).strip()) if pd.notna(sc) else None
-            return round(BANDWIDTH_HOURS_PER_DAY / rate, 4) if rate else None
-
-        df["est_hours"] = df["sub_category"].map(_hours)
-        df["sla_wd"] = df["sub_category"].map(
-            lambda sc: slas.get(str(sc).strip()) if pd.notna(sc) else None)
-        unpriced = int(df["est_hours"].isna().sum())
-        if unpriced:
-            missing = sorted({str(v) for v in df.loc[df["est_hours"].isna(), "sub_category"]
-                              .dropna().unique()})
-            print(f"[PARSE] {unpriced} rows have no effort estimate"
-                  + (f" — unrecognised sub-categories: {missing}" if missing else
-                     " — no sub-category"), flush=True)
-    else:
-        df["est_hours"] = None
-        df["sla_wd"] = None
+    df = _price_tickets(df, announce=True)
 
     if "state" in df.columns:
         df["is_active"] = ~df["state"].isin(EXCLUDED_STATES)
@@ -3695,6 +3707,11 @@ def user_metrics(
     base = df.dropna(subset=["ticket_creator", "created_date"]).copy()
     if base.empty:
         return empty
+    # Pricing is redone here rather than trusted from upload time. A session
+    # holds its parsed frame for as long as the browser tab lives, so a rate
+    # edited in Rates & SLA would otherwise not reach the page until the file
+    # was uploaded again — and the panel would look like it had done nothing.
+    base = _price_tickets(base)
     base["ticket_creator"] = base["ticket_creator"].astype(str).str.strip()
     base = base[base["ticket_creator"] != ""]
     if "area" in base.columns:
