@@ -446,21 +446,49 @@ def business_hours_between(start, end) -> Optional[float]:
 
 
 def add_working_days(start, num_days: int):
-    """Return SLA due date: num_days working days from start, where start = Day 1."""
+    """Return SLA due date: num_days working days from start, where start = Day 1.
+
+    Holidays count as non-working, like weekends. They did not until now, which
+    made every SLA date up to twelve days optimistic across a year while
+    business_hours_between — reading the same calendar — disagreed with it.
+    """
     if pd.isna(start):
         return pd.NaT
     try:
         current = start.date() if isinstance(start, (pd.Timestamp, datetime)) else start
-        while current.weekday() >= 5:          # advance past weekend to Day 1
+        while not _is_working_day(current):    # advance to Day 1
             current += timedelta(days=1)
         days_counted = 1
         while days_counted < num_days:
             current += timedelta(days=1)
-            if current.weekday() < 5:
+            if _is_working_day(current):
                 days_counted += 1
         return pd.Timestamp(current)
     except Exception:
         return pd.NaT
+
+
+def working_days_between(start, end) -> Optional[int]:
+    """Working days elapsed from start to end, weekends and holidays excluded.
+
+    The start day itself is not counted, so a ticket raised and closed on one
+    day took 0 working days and one raised on Friday and closed on Monday took
+    1. Counting the start day would make every same-day close look like a day's
+    work, and an SLA of "10 working days" would be met in nine.
+    """
+    if start is None or end is None or pd.isna(start) or pd.isna(end):
+        return None
+    try:
+        sd = start.date() if isinstance(start, (pd.Timestamp, datetime)) else start
+        ed = end.date() if isinstance(end, (pd.Timestamp, datetime)) else end
+    except Exception:
+        return None
+    if ed < sd:
+        return 0
+    # [begin, end): from the day after the start, through the end day itself.
+    return int(np.busday_count(np.datetime64(sd, "D") + 1,
+                               np.datetime64(ed, "D") + 1,
+                               holidays=_HOLIDAY_DATES))
 
 
 def calendar_days_to(target, today: date) -> Optional[int]:
@@ -630,6 +658,40 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         return pd.NaT
 
     df["sla_due_date"] = pd.to_datetime(df.apply(_sla, axis=1), errors="coerce").astype("datetime64[ns]")
+
+    # ── What a ticket is estimated to cost, and what it is judged against ────
+    #
+    # Both look up the ticket's OWN sub-category. The five sub-categories are
+    # what tickets carry; "Demand Engagement Activations" is a display roll-up
+    # of three of them and its 12.7 hours is a blend of 20, 7.27 and 20 — so
+    # pricing a Demand Creation ticket at the blend would understate it by
+    # 7.3 hours and an Email – Local one by 5.4, in opposite directions. The
+    # blend is correct only for a mixed basket, never for a known ticket.
+    #
+    # A ticket whose sub-category is missing or unrecognised gets no estimate
+    # rather than a guessed one; the count is reported so the gap is visible
+    # instead of quietly rounding every total down.
+    if "sub_category" in df.columns:
+        rates = {str(k).strip(): v for k, v in BANDWIDTH_RATES.items()}
+        slas = {str(k).strip(): v for k, v in SLA_RULES.items()}
+
+        def _hours(sc):
+            rate = rates.get(str(sc).strip()) if pd.notna(sc) else None
+            return round(BANDWIDTH_HOURS_PER_DAY / rate, 4) if rate else None
+
+        df["est_hours"] = df["sub_category"].map(_hours)
+        df["sla_wd"] = df["sub_category"].map(
+            lambda sc: slas.get(str(sc).strip()) if pd.notna(sc) else None)
+        unpriced = int(df["est_hours"].isna().sum())
+        if unpriced:
+            missing = sorted({str(v) for v in df.loc[df["est_hours"].isna(), "sub_category"]
+                              .dropna().unique()})
+            print(f"[PARSE] {unpriced} rows have no effort estimate"
+                  + (f" — unrecognised sub-categories: {missing}" if missing else
+                     " — no sub-category"), flush=True)
+    else:
+        df["est_hours"] = None
+        df["sla_wd"] = None
 
     if "state" in df.columns:
         df["is_active"] = ~df["state"].isin(EXCLUDED_STATES)
@@ -922,7 +984,12 @@ def normalize_sub_category(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             df[col] = (
                 df[col].astype(str).str.strip()
-                .apply(lambda v: _DASH_VARIANTS.sub(" \u2013 ", v) if v and v not in ("nan", "None", "") else v)
+                # isinstance, not truthiness: pandas 3 keeps a missing value as
+                # NA through astype(str) rather than turning it into "nan", so
+                # a blank Sub-Category reached the regex as a float and took the
+                # whole upload down with it.
+                .apply(lambda v: _DASH_VARIANTS.sub(" \u2013 ", v)
+                       if isinstance(v, str) and v and v not in ("nan", "None") else v)
             )
     return df
 
