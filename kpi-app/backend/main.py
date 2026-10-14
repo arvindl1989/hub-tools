@@ -3062,6 +3062,38 @@ def _activity_groups(scoped: pd.DataFrame) -> dict:
         for name, grp in sub.groupby(col):
             users = grp["ticket_creator"].nunique()
             counts = grp.groupby(split_on).size().to_dict() if split_on in grp.columns else {}
+
+            # A specialist's board is about their work, not about which
+            # services their requesters happen to use: service breadth there
+            # measured the people who came to them, and reading it as their
+            # coverage was a mistake waiting to be made. So the specialist
+            # rows carry throughput instead.
+            if col == "assigned_to":
+                closed = grp.dropna(subset=["closed_date"]) if "closed_date" in grp.columns \
+                    else grp.iloc[0:0]
+                if not closed.empty:
+                    days = (pd.to_datetime(closed["closed_date"])
+                            - pd.to_datetime(closed["created_date"])).dt.total_seconds() / 86400.0
+                    days = days[days >= 0]
+                    median_days = round(float(days.median()), 1) if len(days) else None
+                else:
+                    median_days = None
+                open_now = (int((~grp["state"].isin(EXCLUDED_STATES)).sum())
+                            if "state" in grp.columns else None)
+                out.append({
+                    "name": str(name),
+                    "users": int(users),
+                    "requests": int(len(grp)),
+                    "utility_pct": None,
+                    "requests_per_user": _safe_div(len(grp), users),
+                    "show_pct": ua_config.show_pct(int(users)),
+                    "median_days_to_close": median_days,
+                    "closed": int(len(closed)),
+                    "open_backlog": open_now,
+                    "breakdown": {str(k): int(counts.get(k, 0)) for k in keys},
+                })
+                continue
+
             if col == "service":
                 utility = _safe_div(users, total_users, pct=True, nd=0)
             else:

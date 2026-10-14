@@ -22,7 +22,7 @@ function countBadge(n, max) {
 
 export default function ActivityBreakdown({
   title, subtitle, rows = [], keys = [], labels = {}, headerLabel = 'Name',
-  ignoresServiceFilter = false, rateLabel = 'Service breadth',
+  ignoresServiceFilter = false, rateLabel = 'Service breadth', throughput = false,
 }) {
   if (!rows.length) {
     return <Card title={title} subtitle={subtitle}><Empty /></Card>
@@ -51,14 +51,27 @@ export default function ActivityBreakdown({
               <th style={thStyle}>{headerLabel}</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Users</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Requests</th>
-              <th style={{ ...thStyle, textAlign: 'right' }} title={rateLabel === 'Reach'
-                ? 'Users of this service as a share of the whole user base'
-                : 'Average, across the services, of the share of this group\u2019s users who have used each one'}>
-                {rateLabel}
-              </th>
-              <th style={{ ...thStyle, textAlign: 'right' }} title="Requests divided by users in this group">
-                Req / user
-              </th>
+              {throughput ? (
+                <>
+                  <th style={{ ...thStyle, textAlign: 'right' }} title="Median calendar days from created to closed, over the tickets they closed">
+                    Median days
+                  </th>
+                  <th style={{ ...thStyle, textAlign: 'right' }} title="Tickets assigned to them that are not in a closed state">
+                    Open
+                  </th>
+                </>
+              ) : (
+                <>
+                  <th style={{ ...thStyle, textAlign: 'right' }} title={rateLabel === 'Reach'
+                    ? 'Users of this service as a share of the whole user base'
+                    : 'Average, across the services, of the share of this group\u2019s users who have used each one'}>
+                    {rateLabel}
+                  </th>
+                  <th style={{ ...thStyle, textAlign: 'right' }} title="Requests divided by users in this group">
+                    Req / user
+                  </th>
+                </>
+              )}
               {keys.map(k => (
                 <th key={k} style={{ ...thStyle, textAlign: 'center' }} title={k}>
                   {labels[k] ?? k}
@@ -86,17 +99,30 @@ export default function ActivityBreakdown({
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
                   {r.requests}
                 </td>
-                {/* A percentage over three people swings 33 points when one
-                    of them moves, so below the floor the count stands alone. */}
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#1450f5', fontWeight: 700, fontFamily: INTER }}>
-                  {r.utility_pct == null ? '—'
-                    : r.show_pct === false
-                      ? <span style={{ color: '#b9b1a3', fontWeight: 600 }} title={`Only ${r.users} users — too few for a percentage`}>n={r.users}</span>
-                      : `${r.utility_pct}%`}
-                </td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
-                  {r.requests_per_user == null ? '—' : r.requests_per_user}
-                </td>
+                {throughput ? (
+                  <>
+                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#141414', fontWeight: 700, fontFamily: INTER }}>
+                      {r.median_days_to_close == null ? '—' : `${r.median_days_to_close}d`}
+                    </td>
+                    <td style={{ padding: '9px 6px', textAlign: 'right', color: r.open_backlog ? '#b87d00' : '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
+                      {r.open_backlog == null ? '—' : r.open_backlog}
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    {/* A percentage over three people swings 33 points when one
+                        of them moves, so below the floor the count stands alone. */}
+                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#1450f5', fontWeight: 700, fontFamily: INTER }}>
+                      {r.utility_pct == null ? '—'
+                        : r.show_pct === false
+                          ? <span style={{ color: '#b9b1a3', fontWeight: 600 }} title={`Only ${r.users} users — too few for a percentage`}>n={r.users}</span>
+                          : `${r.utility_pct}%`}
+                    </td>
+                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
+                      {r.requests_per_user == null ? '—' : r.requests_per_user}
+                    </td>
+                  </>
+                )}
                 {keys.map(k => {
                   const n = r.breakdown?.[k] ?? 0
                   const t = countBadge(n, columnMax[k])

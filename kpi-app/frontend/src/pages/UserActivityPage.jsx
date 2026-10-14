@@ -507,7 +507,8 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
           <ActivityBreakdown
             title="By Specialist" headerLabel="Specialist"
-            subtitle="Utility rate and requests per specialist, busiest first"
+            subtitle="Throughput per specialist — service breadth belongs to the people who ask, not to who handled it"
+            throughput
             rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
         </div>
