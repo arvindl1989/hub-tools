@@ -107,6 +107,11 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
   const [search, setSearch]     = useState('')
   const [tierFilter, setTierFilter] = useState('')
   const [sort, setSort] = useState({ key: 'days_since_last', dir: 'desc' })
+  // Tickets or estimated hours. Counts stay the default: they are what the
+  // data actually records. Hours are a standard per-ticket estimate from the
+  // Rates & SLA panel, so they answer "what was this planned to cost", never
+  // "what did it take" — there is no logged time in the export.
+  const [effort, setEffort] = useState(false)
 
   const reqRef = useRef(0)
   const load = useCallback(() => {
@@ -307,6 +312,18 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           {(metrics?.users ?? []).map(u => <option key={u} value={u}>{u}</option>)}
         </select>
         <DateRangePicker dateFrom={range.from} dateTo={range.to} onChange={(from, to) => setRange({ from, to })} presets={ALL_TIME_ONLY} />
+        <div style={{ display: 'inline-flex', border: '1px solid #e8e2d6', borderRadius: 8, overflow: 'hidden' }}
+             title={`Estimated hours are standard per-ticket figures from Rates & SLA (${cfg.effort_label ?? 'Estimated hours'}), not logged time`}>
+          {[[false, 'Tickets'], [true, 'Est. hours']].map(([id, label]) => (
+            <button key={label} onClick={() => setEffort(id)}
+              style={{
+                border: 'none', cursor: 'pointer', padding: '6px 12px', fontSize: 12,
+                fontFamily: INTER, fontWeight: effort === id ? 700 : 500,
+                background: effort === id ? '#1450f5' : '#fff',
+                color: effort === id ? '#fff' : '#6e6e6e',
+              }}>{label}</button>
+          ))}
+        </div>
         {(user || service || area || fl || range.from || range.to) && (
           <button
             onClick={() => { setUser(''); setService(''); setArea(''); setFl(''); setRange({ from: '', to: '' }) }}
@@ -346,13 +363,21 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <MetricCard label="Total Users" value={metrics.total_users?.toLocaleString()}
-            sub={`${volume.total_requests?.toLocaleString() ?? 0} requests in the active range`}
+            sub={effort
+              ? `${Math.round(volume.est_hours ?? 0).toLocaleString()} estimated hours in the active range`
+              : `${volume.total_requests?.toLocaleString() ?? 0} requests in the active range`}
             onClick={() => openList('users')} />
           {/* Median first: a handful of heavy requestors pull the mean well
               above what a typical user does, and the pair shows the gap. */}
-          <MetricCard label="Requests / User (median)" value={fmt1(volume.median_per_user)}
-            sub={`Mean ${fmt1(volume.avg_per_user) ?? '—'} — the gap is the heavy requestors`}
-            onClick={() => openList('users')} />
+          {effort ? (
+            <MetricCard label="Est. hours / User" value={fmt1(volume.est_hours_per_user)}
+              sub={`${Math.round(volume.est_hours ?? 0).toLocaleString()} estimated hours over ${volume.users_in_window ?? 0} users who raised something`}
+              onClick={() => openList('users')} />
+          ) : (
+            <MetricCard label="Requests / User (median)" value={fmt1(volume.median_per_user)}
+              sub={`Mean ${fmt1(volume.avg_per_user) ?? '—'} — the gap is the heavy requestors`}
+              onClick={() => openList('users')} />
+          )}
           <MetricCard label="Repeat Use Rate" value={pct(rates.engagement_pct)}
             sub={`${rates.engaged_users ?? 0} users raised ${cfg.engaged_min_requests ?? 2}+ requests in the last ${cfg.lifecycle_dormant_days ?? 90} days`}
             onClick={() => openList('engaged')} />
@@ -415,13 +440,15 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           </SegmentCard>
 
           <SegmentCard
-            label="Top Requestors"
-            value={pct(growth.top_share_pct)}
-            sub={`Share of all requests from the busiest ${Math.round((cfg.top_requestor_share ?? 0.1) * 100)}% of users — ${growth.top_n_effective ?? 0} of ${growth.top_share_basis ?? 0}`}
+            label={effort ? 'Top Requestors (hours)' : 'Top Requestors'}
+            value={pct(effort ? growth.top_share_hours_pct : growth.top_share_pct)}
+            sub={`Share of all ${effort ? 'estimated hours' : 'requests'} from the busiest `
+              + `${Math.round((cfg.top_requestor_share ?? 0.1) * 100)}% of users by `
+              + `${effort ? 'hours' : 'count'} — ${growth.top_n_effective ?? 0} of ${growth.top_share_basis ?? 0}`}
             tone={WHITE_TONE}
           >
             <ScrollList
-              rows={growth.top_requestors ?? []}
+              rows={(effort ? growth.top_requestors_by_hours : growth.top_requestors) ?? []}
               columns={BASE_COLUMNS}
               tone={WHITE_TONE}
               emptyText="No requests in this range"
@@ -460,13 +487,20 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
                   align: 'right',
                   render: r => {
                     const byUser = r.rates?.[s.name]
-                    const byReq = r.request_rates?.[s.name]
+                    // Breadth stays a share of people whichever mode is on —
+                    // effort has nothing to say about how many used a thing.
+                    // Only the second line switches.
+                    const byReq = effort ? r.hours_rates?.[s.name] : r.request_rates?.[s.name]
                     return (
                       <span title={`${r.users_used?.[s.name] ?? 0} of ${r.users} users · `
-                                 + `${r.service_requests?.[s.name] ?? 0} of ${r.requests} requests`}>
+                                 + (effort
+                                   ? `${Math.round(r.service_hours?.[s.name] ?? 0)} of ${Math.round(r.est_hours ?? 0)} estimated hours`
+                                   : `${r.service_requests?.[s.name] ?? 0} of ${r.requests} requests`)}>
                         {byUser == null ? '—' : `${byUser}%`}
                         <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9c9c9c' }}
-                              title="Request mix: this service's share of the frontline's requests">
+                              title={effort
+                                ? "Hours mix: this service's share of the frontline's estimated hours"
+                                : "Request mix: this service's share of the frontline's requests"}>
                           {byReq == null ? '' : `${byReq}% mix`}
                         </span>
                       </span>
@@ -490,13 +524,15 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <ActivityBreakdown
             title="By Area" headerLabel="Area"
-            subtitle="Utility rate and requests per area, busiest first"
-            rows={groups.by_area} keys={serviceKeys} labels={serviceLabels}
+            subtitle={effort ? "Service breadth and estimated hours per area, busiest first"
+                             : "Service breadth and requests per area, busiest first"}
+            rows={groups.by_area} keys={serviceKeys} labels={serviceLabels} effort={effort}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
           <ActivityBreakdown
             title="By Frontlines" headerLabel="Frontline"
-            subtitle="Utility rate and requests per frontline, busiest first"
-            rows={groups.by_frontline} keys={serviceKeys} labels={serviceLabels}
+            subtitle={effort ? "Service breadth and estimated hours per frontline, busiest first"
+                             : "Service breadth and requests per frontline, busiest first"}
+            rows={groups.by_frontline} keys={serviceKeys} labels={serviceLabels} effort={effort}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
         </div>
 
@@ -504,17 +540,17 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           <ActivityBreakdown
             title="By Service" headerLabel="Service"
             subtitle="Reach across the whole user base, and where each service's demand comes from"
-            rows={groups.by_service} keys={areaKeys} labels={areaLabels} rateLabel="Reach"
+            rows={groups.by_service} keys={areaKeys} labels={areaLabels} rateLabel="Reach" effort={effort}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
           <ActivityBreakdown
             title="By Specialist" headerLabel="Specialist"
             subtitle="Throughput per specialist — service breadth belongs to the people who ask, not to who handled it"
             throughput
-            rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels}
+            rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels} effort={effort}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
         </div>
 
-        <ServiceAdoptionHeatmap data={metrics.service_adoption} />
+        <ServiceAdoptionHeatmap data={metrics.service_adoption} effort={effort} />
 
         {/* ── Retained user list — page filters applied server-side; search,
              tier and column sort stay local to the table. ─────────────────── */}

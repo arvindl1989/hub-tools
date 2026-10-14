@@ -3032,6 +3032,17 @@ def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
         # together say which it is.
         request_rates = {s: _safe_div(requests_by[s].get(fl, 0), total_requests, pct=True, nd=0)
                          for s in BAU_SERVICES_DISPLAY}
+        # The same mix weighted by estimated effort. A frontline whose requests
+        # are 90% WCM can still spend most of its hours on Demand Creation,
+        # and the ticket mix alone hides that entirely.
+        fl_hours = float(frame.loc[frame["team"] == fl, "est_hours"].sum()) \
+            if "est_hours" in frame.columns else 0.0
+        hours_rates = {
+            s: _safe_div(float(frame.loc[(frame["team"] == fl) & (frame["service"] == s),
+                                         "est_hours"].sum()), fl_hours, pct=True, nd=0)
+            if fl_hours else None
+            for s in BAU_SERVICES_DISPLAY
+        }
         rows.append({
             "frontline": fl,
             "area": area_of.get(fl, UNASSIGNED),
@@ -3039,6 +3050,15 @@ def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
             "requests": total_requests,
             "rates": rates,
             "request_rates": request_rates,
+            "hours_rates": hours_rates,
+            "est_hours": round(fl_hours, 1),
+            "est_hours_per_user": _safe_div(fl_hours, total),
+            "service_hours": {
+                s: round(float(frame.loc[(frame["team"] == fl) & (frame["service"] == s),
+                                         "est_hours"].sum()), 1)
+                if "est_hours" in frame.columns else 0.0
+                for s in BAU_SERVICES_DISPLAY
+            },
             "users_used": {s: int(used_by[s].get(fl, 0)) for s in BAU_SERVICES_DISPLAY},
             "service_requests": {s: int(requests_by[s].get(fl, 0)) for s in BAU_SERVICES_DISPLAY},
             # The frontline's own coverage across everything on offer, which is
@@ -3101,6 +3121,13 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
             },
         })
     return out
+
+
+def _hours_of(frame: pd.DataFrame) -> float:
+    """Summed estimated hours, 0 when nothing is priced."""
+    if "est_hours" not in frame.columns:
+        return 0.0
+    return round(float(frame["est_hours"].sum(skipna=True) or 0), 1)
 
 
 def _activity_groups(scoped: pd.DataFrame) -> dict:
@@ -3194,6 +3221,11 @@ def _activity_groups(scoped: pd.DataFrame) -> dict:
                 # Breadth says how many of them touched a service; this says
                 # how hard they lean on it. A group can be wide and shallow.
                 "requests_per_user": _safe_div(len(grp), users),
+                # Estimated, never logged: the hours are a standard per-ticket
+                # figure from Rates & SLA, so this is what the work was planned
+                # to cost, not what it took.
+                "est_hours": _hours_of(grp),
+                "est_hours_per_user": _safe_div(_hours_of(grp), users),
                 "show_pct": ua_config.show_pct(int(users)),
                 # Shown, but marked: a hub function's row is not a market's
                 # performance and should not be read as one.
@@ -3203,6 +3235,11 @@ def _activity_groups(scoped: pd.DataFrame) -> dict:
                     if "area" in grp.columns and grp["area"].notna().any() else None)
                     if col == "team" else True),
                 "breakdown": {str(k): int(counts.get(k, 0)) for k in keys},
+                "breakdown_hours": {
+                    str(k): round(float(grp.loc[grp[split_on] == k, "est_hours"].sum()), 1)
+                    if split_on in grp.columns and "est_hours" in grp.columns else 0.0
+                    for k in keys
+                },
             })
         return sorted(out, key=lambda r: (-r["requests"], r["name"]))
 
@@ -3301,6 +3338,8 @@ def _service_adoption(scoped: pd.DataFrame, period_end,
             tally[state] += 1
             grid[f"{service}||{fl}"] = {
                 "requests": count,
+                "est_hours": round(float(rows.loc[rows["team"] == fl, "est_hours"].sum()), 1)
+                if "est_hours" in rows.columns else 0.0,
                 "users": int(users.get(fl, 0)),
                 "days_since_last": days,
                 "state": state,
@@ -3331,6 +3370,15 @@ def _service_adoption(scoped: pd.DataFrame, period_end,
         cell["requests_per_user"] = round(per_user, 1) if per_user else 0.0
         cell["band_per_user"] = ua_config.band_for(
             round(per_user) if per_user else 0, ua_config.HEATMAP_PER_USER_BANDS)
+        # The same cell in estimated hours. Ten WCM tickets and ten Demand
+        # Creation ones are the same square by count and four times apart by
+        # effort, which is the reason this view exists.
+        hours = cell.get("est_hours") or 0
+        cell["band_hours"] = ua_config.band_for(round(hours), ua_config.HEATMAP_HOUR_BANDS)
+        hours_pu = (hours / cell["users"]) if cell.get("users") and hours else 0
+        cell["est_hours_per_user"] = round(hours_pu, 1) if hours_pu else 0.0
+        cell["band_hours_per_user"] = ua_config.band_for(
+            round(hours_pu), ua_config.HEATMAP_HOUR_BANDS)
         if cell["requests"]:
             spread.setdefault(cell["band"], []).append(cell["requests"])
 
@@ -3377,6 +3425,10 @@ def _service_adoption(scoped: pd.DataFrame, period_end,
             "service_shares": {s: grid[f"{s}||{fl}"]["share_pct"] for s in services},
             "service_bands":  {s: grid[f"{s}||{fl}"]["band"] for s in services},
             "service_bands_per_user": {s: grid[f"{s}||{fl}"]["band_per_user"] for s in services},
+            "service_hours": {s: grid[f"{s}||{fl}"]["est_hours"] for s in services},
+            "service_bands_hours": {s: grid[f"{s}||{fl}"]["band_hours"] for s in services},
+            "service_bands_hours_per_user": {
+                s: grid[f"{s}||{fl}"]["band_hours_per_user"] for s in services},
         })
     rows_out.sort(key=lambda r: (-r["services_used"], -r["requests"]))
 
@@ -3394,6 +3446,7 @@ def _service_adoption(scoped: pd.DataFrame, period_end,
         "rows": rows_out,
         "totals": totals,
         "bands": bands,
+        "hour_band_labels": list(ua_config.HEATMAP_HOUR_LABELS),
     }
 
 
@@ -3552,6 +3605,10 @@ def user_metrics(
     #   days_since_last as of the window's end — recency
     # A roster member with no requests in the window has count 0, which is
     # correct and is why the averages below are taken over the active ones.
+    # Estimated hours raised in the window, per user, for the effort views.
+    user_hours = (scoped.groupby("ticket_creator")["est_hours"].sum().to_dict()
+                  if "est_hours" in scoped.columns else {})
+
     users = []
     for name in last_seen.index:
         last_ts = last_seen[name]
@@ -3559,6 +3616,7 @@ def user_metrics(
         first_ts = first_seen_all.get(name)
         cnt = int(counts.get(name, 0))
         users.append({
+            "est_hours": round(float(user_hours.get(name, 0) or 0), 1),
             "user": name,
             "frontline": str(team_by_user.get(name) or UNASSIGNED),
             "area": str(area_by_user.get(name) or UNASSIGNED),
@@ -3693,6 +3751,14 @@ def user_metrics(
     top_n_effective = max(1, math.ceil(target)) if n_active else 0
     top_requestors = active_in_window[:top_n_effective]
 
+    # And the same question asked of effort. Ranking by hours is not the same
+    # ranking: one Demand Creation ticket is four WCM tickets' worth, so the
+    # busiest tenth by count and by effort can be different people.
+    by_hours = sorted(active_in_window, key=lambda u: u["est_hours"], reverse=True)
+    top_hours = sum(u["est_hours"] for u in by_hours[:whole])
+    if frac and whole < n_active:
+        top_hours += frac * by_hours[whole]["est_hours"]
+
     # ── Row 6: rates ─────────────────────────────────────────────────────────
     # Engaged means came back. The old definition — Active plus Regular over
     # the base — was just 100% minus the dormant share restated, so it carried
@@ -3741,6 +3807,8 @@ def user_metrics(
             # point of the box (it exposes heavy-requestor skew).
             "avg_per_user": _safe_div(total_requests, len(active_in_window)),
             "users_in_window": len(active_in_window),
+            "est_hours": _hours_of(scoped),
+            "est_hours_per_user": _safe_div(_hours_of(scoped), len(active_in_window)),
             "median_per_user": (
                 round(float(counts.median()), 1) if len(active_in_window) else None
             ),
@@ -3754,6 +3822,8 @@ def user_metrics(
             # Share of all requests the top-N users account for — a far more
             # useful headline than "10", which is what a count would always read.
             "top_share_pct": _safe_div(top_requests, total_requests, pct=True, nd=0),
+            "top_share_hours_pct": _safe_div(top_hours, _hours_of(scoped), pct=True, nd=0),
+            "top_requestors_by_hours": by_hours[:top_n_effective],
             "top_n_effective": top_n_effective,
             "top_share_basis": len(active_in_window),
         },

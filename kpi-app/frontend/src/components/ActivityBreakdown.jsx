@@ -23,17 +23,19 @@ function countBadge(n, max) {
 export default function ActivityBreakdown({
   title, subtitle, rows = [], keys = [], labels = {}, headerLabel = 'Name',
   ignoresServiceFilter = false, rateLabel = 'Service breadth', throughput = false,
+  effort = false,
 }) {
   if (!rows.length) {
     return <Card title={title} subtitle={subtitle}><Empty /></Card>
   }
 
-  const maxRequests = Math.max(...rows.map(r => r.requests), 1)
+  const maxVolume = Math.max(...rows.map(r => (effort ? (r.est_hours ?? 0) : r.requests)), 1)
   // One scale per column: services differ in size by an order of magnitude,
   // and a shared scale would leave the smaller ones permanently pale.
+  const cellOf = (r, k) => (effort ? (r.breakdown_hours?.[k] ?? 0) : (r.breakdown?.[k] ?? 0))
   const columnMax = {}
   keys.forEach(k => {
-    columnMax[k] = Math.max(...rows.map(r => r.breakdown?.[k] ?? 0), 1)
+    columnMax[k] = Math.max(...rows.map(r => cellOf(r, k)), 1)
   })
 
   return (
@@ -50,7 +52,10 @@ export default function ActivityBreakdown({
             <tr style={{ borderBottom: '2px solid #e8e2d6' }}>
               <th style={thStyle}>{headerLabel}</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Users</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Requests</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}
+                  title={effort ? 'Standard per-ticket estimates from Rates & SLA, not logged time' : undefined}>
+                {effort ? 'Est. hours' : 'Requests'}
+              </th>
               {throughput ? (
                 <>
                   <th style={{ ...thStyle, textAlign: 'right' }} title="Median calendar days from created to closed, over the tickets they closed">
@@ -67,8 +72,11 @@ export default function ActivityBreakdown({
                     : 'Average, across the services, of the share of this group\u2019s users who have used each one'}>
                     {rateLabel}
                   </th>
-                  <th style={{ ...thStyle, textAlign: 'right' }} title="Requests divided by users in this group">
-                    Req / user
+                  <th style={{ ...thStyle, textAlign: 'right' }}
+                      title={effort
+                        ? 'Estimated hours divided by users in this group'
+                        : 'Requests divided by users in this group'}>
+                    {effort ? 'Est. h / user' : 'Req / user'}
                   </th>
                 </>
               )}
@@ -97,14 +105,15 @@ export default function ActivityBreakdown({
                     </span>
                   </div>
                   <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
-                    <div style={{ width: `${(r.requests / maxRequests) * 100}%`, height: '100%', background: BAR, borderRadius: 3 }} />
+                    <div style={{ width: `${((effort ? (r.est_hours ?? 0) : r.requests) / maxVolume) * 100}%`, height: '100%', background: BAR, borderRadius: 3 }} />
                   </div>
                 </td>
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
                   {r.users}
                 </td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
-                  {r.requests}
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}
+                    title={effort ? `${r.requests} requests` : undefined}>
+                  {effort ? Math.round(r.est_hours ?? 0).toLocaleString() : r.requests}
                 </td>
                 {throughput ? (
                   <>
@@ -126,12 +135,14 @@ export default function ActivityBreakdown({
                           : `${r.utility_pct}%`}
                     </td>
                     <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
-                      {r.requests_per_user == null ? '—' : r.requests_per_user}
+                      {effort
+                        ? (r.est_hours_per_user == null ? '—' : r.est_hours_per_user)
+                        : (r.requests_per_user == null ? '—' : r.requests_per_user)}
                     </td>
                   </>
                 )}
                 {keys.map(k => {
-                  const n = r.breakdown?.[k] ?? 0
+                  const n = cellOf(r, k)
                   const t = countBadge(n, columnMax[k])
                   return (
                     <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>
@@ -139,7 +150,7 @@ export default function ActivityBreakdown({
                         display: 'inline-block', minWidth: 30, borderRadius: 6, padding: '3px 8px',
                         background: t.bg, color: t.fg, fontWeight: t.weight, fontSize: 12,
                         fontFamily: INTER,
-                      }}>{n || '—'}</span>
+                      }}>{n ? (effort ? Math.round(n).toLocaleString() : n) : '—'}</span>
                     </td>
                   )
                 })}
@@ -149,7 +160,7 @@ export default function ActivityBreakdown({
         </table>
       </div>
       <p style={{ fontSize: 11, color: '#9c9c9c', margin: '10px 0 0', lineHeight: 1.6, fontFamily: INTER }}>
-        Requests add up to the total; users do not. Someone whose tickets span two groups is
+        {effort ? 'Estimated hours' : 'Requests'} add up to the total; users do not. Someone whose tickets span two groups is
         counted in both rows, which is why no total is shown for that column.
         {rows.some(r => r.is_frontline === false) && ' Greyed rows are hub functions rather than frontlines.'}
       </p>

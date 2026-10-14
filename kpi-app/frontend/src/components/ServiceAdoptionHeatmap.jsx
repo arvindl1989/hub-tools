@@ -95,8 +95,9 @@ const td = { padding: '9px 14px', borderBottom: '1px solid #f3eee6', fontSize: 1
 // The scale as one continuous strip, lightest to darkest, with what each step
 // holds in requests — the thresholds are worked out on the data, so leaving the
 // reader to infer them from the colour would be asking them to guess.
-function Legend({ bands = [] }) {
+function Legend({ bands = [], effort = false, hourLabels = [] }) {
   const range = (b) => {
+    if (effort) return `${BAND[b].label}: ${hourLabels[b - 1] ?? ''} estimated hours`
     const meta = bands.find(x => x.band === b)
     if (!meta) return BAND[b].label
     const span = meta.from === meta.to ? `${meta.from}` : `${meta.from}–${meta.to}`
@@ -207,12 +208,20 @@ function SortArrow({ dir }) {
   return <span style={{ color: '#1450f5', fontSize: 10, marginLeft: 2 }}>{dir === 'asc' ? '↑' : '↓'}</span>
 }
 
-export default function ServiceAdoptionHeatmap({ data }) {
+export default function ServiceAdoptionHeatmap({ data, effort = false }) {
   // Totals answer "where is the volume"; per user answers "who leans on this".
   // A big frontline raising a lot and a small one depending on a service look
   // the same in the first view and quite different in the second.
   const [mode, setMode] = useState('total')
-  const bandOf = (cell) => (mode === 'total' ? cell?.band : cell?.band_per_user) ?? 0
+  const bandOf = (cell) => (effort
+    ? (mode === 'total' ? cell?.band_hours : cell?.band_hours_per_user)
+    : (mode === 'total' ? cell?.band : cell?.band_per_user)) ?? 0
+  const valueOf = (cell) => {
+    const v = effort
+      ? (mode === 'total' ? cell?.est_hours : cell?.est_hours_per_user)
+      : (mode === 'total' ? cell?.requests : cell?.requests_per_user)
+    return v ? (effort ? Math.round(v).toLocaleString() : v) : 0
+  }
   const [showTable, setShowTable] = useState(true)
   const [openCell, setOpenCell] = useState(null)
   // The table opens on the order the API sends — widest adoption first — and
@@ -269,9 +278,10 @@ export default function ServiceAdoptionHeatmap({ data }) {
       subtitle="Which frontline uses which service, and which has stopped"
       controls={
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <Legend bands={data?.bands ?? []} />
+          <Legend bands={data?.bands ?? []} effort={effort}
+                  hourLabels={data?.hour_band_labels ?? []} />
           <div style={{ display: 'inline-flex', border: '1px solid #e8e2d6', borderRadius: 8, overflow: 'hidden' }}>
-            {[['total', 'Requests'], ['per_user', 'Per user']].map(([id, label]) => (
+            {[['total', effort ? 'Est. hours' : 'Requests'], ['per_user', 'Per user']].map(([id, label]) => (
               <button key={id} onClick={() => setMode(id)}
                 style={{
                   border: 'none', cursor: 'pointer', padding: '5px 11px', fontSize: 11,
@@ -380,7 +390,7 @@ export default function ServiceAdoptionHeatmap({ data }) {
                             cursor: cell.requests ? 'pointer' : 'default',
                             overflow: 'hidden',
                           }}>
-                        {(mode === 'total' ? cell.requests : cell.requests_per_user) || '·'}
+                        {valueOf(cell) || '·'}
                       </td>
                     )
                   })}
@@ -453,8 +463,11 @@ export default function ServiceAdoptionHeatmap({ data }) {
                   {services.map(s => {
                     const n = r.service_breakdown?.[s.name] ?? 0
                     const state = r.service_states?.[s.name] || 'none'
-                    const tone = shade(mode === 'total' ? r.service_bands?.[s.name]
-                                    : r.service_bands_per_user?.[s.name])
+                    const tone = shade(effort
+                      ? (mode === 'total' ? r.service_bands_hours?.[s.name]
+                                          : r.service_bands_hours_per_user?.[s.name])
+                      : (mode === 'total' ? r.service_bands?.[s.name]
+                                          : r.service_bands_per_user?.[s.name]))
                     const cell = grid[`${s.name}||${r.frontline}`]
                     return (
                       <td key={s.name} style={{ ...td, textAlign: 'center' }}>
@@ -470,7 +483,7 @@ export default function ServiceAdoptionHeatmap({ data }) {
                             textShadow: tone.faint ? FAINT_SHADOW : undefined,
                             fontWeight: 700, fontSize: 12,
                             cursor: n ? 'pointer' : 'default',
-                          }}>{n || '·'}</span>
+                          }}>{(effort ? Math.round(r.service_hours?.[s.name] ?? 0) : n) || '·'}</span>
                       </td>
                     )
                   })}
