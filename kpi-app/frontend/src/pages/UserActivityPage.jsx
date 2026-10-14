@@ -208,6 +208,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
   }
   const openModal = listKey ? LISTS[listKey] : null
 
+  const cfg = metrics?.config ?? {}
   const groups = metrics?.activity_groups
     ?? { services: [], areas: [], by_area: [], by_frontline: [], by_service: [], by_specialist: [] }
   const serviceKeys = (groups.services ?? []).map(s => s.name)
@@ -346,11 +347,13 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           <MetricCard label="Total Users" value={metrics.total_users?.toLocaleString()}
             sub={`${volume.total_requests?.toLocaleString() ?? 0} requests in the active range`}
             onClick={() => openList('users')} />
-          <MetricCard label="Avg Requests / User"    value={fmt1(volume.avg_per_user)}
-            sub="Skewed upward by heavy requestors"
+          {/* Median first: a handful of heavy requestors pull the mean well
+              above what a typical user does, and the pair shows the gap. */}
+          <MetricCard label="Requests / User (median)" value={fmt1(volume.median_per_user)}
+            sub={`Mean ${fmt1(volume.avg_per_user) ?? '—'} — the gap is the heavy requestors`}
             onClick={() => openList('users')} />
-          <MetricCard label="Engagement Rate (%)"    value={pct(rates.engagement_pct)}
-            sub="Active + Regular ÷ total users"
+          <MetricCard label="Repeat Use Rate" value={pct(rates.engagement_pct)}
+            sub={`${rates.engaged_users ?? 0} users raised ${cfg.engaged_min_requests ?? 2}+ requests in the last ${cfg.lifecycle_dormant_days ?? 90} days`}
             onClick={() => openList('engaged')} />
         </div>
 
@@ -389,9 +392,11 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         {/* Row 5 — Growth & engagement, KONE Blue accent */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <SegmentCard
-            label="New Users"
-            value={(growth.new_users ?? []).length}
-            sub="First-ever request in the last 90 days"
+            label={`New in last ${cfg.new_user_window_days ?? 90} days`}
+            value={growth.new_users_censored ? '—' : (growth.new_users ?? []).length}
+            sub={growth.new_users_censored
+              ? `Not enough history — the data starts ${growth.history_days ?? 0} days before this date, so everyone would look new`
+              : 'First-ever request in the window'}
             tone={WHITE_TONE}
           >
             <ScrollList
@@ -411,7 +416,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           <SegmentCard
             label="Top Requestors"
             value={pct(growth.top_share_pct)}
-            sub={`Share of all requests from the top ${metrics.top_n ?? 10}`}
+            sub={`Share of all requests from the busiest ${Math.round((cfg.top_requestor_share ?? 0.1) * 100)}% of users — ${growth.top_n_effective ?? 0} of ${growth.top_share_basis ?? 0}`}
             tone={WHITE_TONE}
           >
             <ScrollList
@@ -459,8 +464,9 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
                       <span title={`${r.users_used?.[s.name] ?? 0} of ${r.users} users · `
                                  + `${r.service_requests?.[s.name] ?? 0} of ${r.requests} requests`}>
                         {byUser == null ? '—' : `${byUser}%`}
-                        <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9c9c9c' }}>
-                          {byReq == null ? '' : `${byReq}% req`}
+                        <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9c9c9c' }}
+                              title="Request mix: this service's share of the frontline's requests">
+                          {byReq == null ? '' : `${byReq}% mix`}
                         </span>
                       </span>
                     )
@@ -497,7 +503,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           <ActivityBreakdown
             title="By Service" headerLabel="Service"
             subtitle="Reach across the whole user base, and where each service's demand comes from"
-            rows={groups.by_service} keys={areaKeys} labels={areaLabels}
+            rows={groups.by_service} keys={areaKeys} labels={areaLabels} rateLabel="Reach"
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
           <ActivityBreakdown
             title="By Specialist" headerLabel="Specialist"

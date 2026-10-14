@@ -6,6 +6,7 @@ import pandas as pd
 import xlsxwriter
 import numpy as np
 import io
+import math
 import os
 import re
 import hashlib
@@ -2841,9 +2842,28 @@ def _service_utility_fl(scoped: pd.DataFrame, period_end,
         counts = rows.groupby("team").size().to_dict() if not rows.empty else {}
         users = rows.groupby("team")["ticket_creator"].nunique().to_dict() if not rows.empty else {}
 
+        # A frontline counts as using a service only once it clears a bar:
+        # one person raising one ticket is a trial, not adoption, and counting
+        # it made the frontline reach figures read far higher than the estate
+        # behaves.
+        service_users = (rows.groupby("team")["ticket_creator"].nunique().to_dict()
+                         if not rows.empty else {})
+        service_counts = rows.groupby("team").size().to_dict() if not rows.empty else {}
+
+        def _clears_bar(fl: str) -> bool:
+            return (service_users.get(fl, 0) >= ua_config.FRONTLINE_USES_SERVICE_MIN_USERS
+                    or service_counts.get(fl, 0) >= ua_config.FRONTLINE_USES_SERVICE_MIN_REQUESTS)
+
         buckets = {"active": 0, "regular": 0, "dormant": 0}
         never = []
+        below = []
         for fl in frontlines:
+            if fl in last and not _clears_bar(fl):
+                below.append({"frontline": fl, "area": area_of.get(fl, UNASSIGNED),
+                              "requests": int(service_counts.get(fl, 0)),
+                              "users": int(service_users.get(fl, 0)),
+                              "total_requests": int((frame["team"] == fl).sum())})
+                continue
             if fl not in last:
                 never.append({"frontline": fl, "area": area_of.get(fl, UNASSIGNED),
                               "requests": 0,
@@ -2854,12 +2874,15 @@ def _service_utility_fl(scoped: pd.DataFrame, period_end,
                    else "regular" if days <= LIFECYCLE_REGULAR_MAX else "dormant")
             buckets[key] += 1
 
-        used = len(frontlines) - len(never)
+        used = len(frontlines) - len(never) - len(below)
         out.append({
             "service": service,
             "short": SERVICE_ABBREV.get(service, service),
             "total_frontlines": len(frontlines),
             "frontlines_used": used,
+            # Tried it, but below the bar. Listed apart from "never" because
+            # the two are different conversations.
+            "below_threshold": below,
             "utility_rate_pct": _safe_div(used, len(frontlines), pct=True, nd=0),
             "requests": int(len(rows)),
             "users": int(rows["ticket_creator"].nunique()) if not rows.empty else 0,
@@ -2988,6 +3011,9 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
                 "regular": f["regular"] if f else 0,
                 "dormant": f["dormant"] if f else 0,
                 "not_used": f["not_used"] if f else [],
+                # Tried it but below the adoption bar — a different
+                # conversation from one that never asked at all.
+                "below_threshold": f.get("below_threshold", []) if f else [],
             },
         })
     return out
@@ -3049,6 +3075,10 @@ def _activity_groups(scoped: pd.DataFrame) -> dict:
                 "users": int(users),
                 "requests": int(len(grp)),
                 "utility_pct": utility,
+                # Breadth says how many of them touched a service; this says
+                # how hard they lean on it. A group can be wide and shallow.
+                "requests_per_user": _safe_div(len(grp), users),
+                "show_pct": ua_config.show_pct(int(users)),
                 "breakdown": {str(k): int(counts.get(k, 0)) for k in keys},
             })
         return sorted(out, key=lambda r: (-r["requests"], r["name"]))
@@ -3521,15 +3551,36 @@ def user_metrics(
     ]
 
     # ── Row 5: growth ────────────────────────────────────────────────────────
+    # "New in the last 90 days" means nothing when the data does not go back 90
+    # days: every user looks new because there is no earlier history to have
+    # appeared in. The card says so rather than reporting the whole base.
+    earliest = pd.Timestamp(base["created_date"].min()).normalize()
+    history_days = int((period_end - earliest).days) if pd.notna(earliest) else 0
+    new_users_censored = history_days < NEW_USER_WINDOW_DAYS
+
     new_cutoff = period_end - pd.Timedelta(days=NEW_USER_WINDOW_DAYS)
     new_users = sorted(
         (u for u in users
          if u["first_request_date"] and pd.Timestamp(u["first_request_date"]) >= new_cutoff),
         key=lambda u: (u["first_request_date"], u["count"]), reverse=True,
     )
-    top_requestors = active_in_window[:top_n]
+    # A fixed ten is the whole population once a filter leaves ten users, and
+    # the share it carries is then 100% by construction. A proportion holds its
+    # meaning at any size.
+    top_n_effective = max(1, math.ceil(len(active_in_window) * ua_config.TOP_REQUESTOR_SHARE))
+    top_requestors = active_in_window[:top_n_effective]
 
     # ── Row 6: rates ─────────────────────────────────────────────────────────
+    # Engaged means came back. The old definition — Active plus Regular over
+    # the base — was just 100% minus the dormant share restated, so it carried
+    # no information the lifecycle cards did not already show. This asks for a
+    # second request inside the dormancy window, which is the difference
+    # between someone who tried the hub once and someone who uses it.
+    engaged_cutoff = period_end - pd.Timedelta(days=ua_config.LIFECYCLE_DORMANT_DAYS)
+    recent = as_of[as_of["created_date"] >= engaged_cutoff]
+    repeat_recent = (recent.groupby("ticket_creator").size() >= ua_config.ENGAGED_MIN_REQUESTS).sum() \
+        if not recent.empty else 0
+
     in_scope = ({str(v).strip() for v in scoped["sub_category"].dropna() if str(v).strip()}
                 if "sub_category" in scoped.columns else set())
     services_used = len(in_scope & set(CANONICAL_SERVICES))
@@ -3564,19 +3615,24 @@ def user_metrics(
         "lifecycle": {"active": active, "regular": regular, "dormant": dormant},
         "growth": {
             "new_users": new_users,
+            "new_users_censored": new_users_censored,
+            "history_days": history_days,
             "top_requestors": top_requestors,
             # Share of all requests the top-N users account for — a far more
             # useful headline than "10", which is what a count would always read.
             "top_share_pct": _safe_div(
                 sum(u["count"] for u in top_requestors), total_requests, pct=True, nd=0
             ),
+            "top_n_effective": top_n_effective,
+            "top_share_basis": len(active_in_window),
         },
         "rates": {
             "utility_rate":         _safe_div(total_requests, len(active)),
             # Engaged means still coming back, which is Active or Regular — a
             # user who last asked for something eight weeks ago has not left.
             # Only Dormant sits outside it.
-            "engagement_pct":       _safe_div(len(active) + len(regular), total_users, pct=True, nd=0),
+            "engagement_pct":       _safe_div(int(repeat_recent), total_users, pct=True, nd=0),
+            "engaged_users":        int(repeat_recent),
             "repeat_pct":           _safe_div(repeat_users, total_users, pct=True, nd=0),
             "service_adoption_pct": _safe_div(services_used, len(CANONICAL_SERVICES), pct=True, nd=0),
             "services_used":        services_used,

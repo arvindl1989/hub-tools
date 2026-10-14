@@ -96,12 +96,12 @@ export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = f
             <tr>
               <th style={th}>Service</th>
               <th style={{ ...th, textAlign: 'right', borderLeft: '2px solid #dbe6fd' }}>Used / Total</th>
-              <th style={{ ...th, minWidth: 130 }}>Utility</th>
+              <th style={{ ...th, minWidth: 130 }} title="Users of this service as a share of everyone in the filter">Reach</th>
               <th style={{ ...th, textAlign: 'center' }}>Active</th>
               <th style={{ ...th, textAlign: 'center' }}>Regular</th>
               <th style={{ ...th, textAlign: 'center' }}>Dormant</th>
               <th style={{ ...th, textAlign: 'right', borderLeft: '2px solid #dbe6fd' }}>Used / Total</th>
-              <th style={{ ...th, minWidth: 130 }}>Utility</th>
+              <th style={{ ...th, minWidth: 130 }} title="Users of this service as a share of everyone in the filter">Reach</th>
               <th style={{ ...th, textAlign: 'center' }}>Active</th>
               <th style={{ ...th, textAlign: 'center' }}>Regular</th>
               <th style={{ ...th, textAlign: 'center' }}>Dormant</th>
