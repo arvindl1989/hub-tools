@@ -60,7 +60,7 @@ const pct = (v) => (v == null ? null : `${v}%`)
 const TIER_CONFIG = {
   Active:          { color: '#1e8a5e', bg: '#edf8f2', border: '#aae1c8' },
   'At Risk':       { color: '#b87d00', bg: '#fffae3', border: '#ffe141' },
-  'Remove Access': { color: '#c0305a', bg: '#fff0f3', border: '#f28ba0' },
+  'Review Access': { color: '#c0305a', bg: '#fff0f3', border: '#f28ba0' },
 }
 
 function TierBadge({ tier }) {
@@ -74,7 +74,7 @@ function TierBadge({ tier }) {
       whiteSpace: 'nowrap',
       display: 'inline-flex', alignItems: 'center', gap: 4,
     }}>
-      {tier === 'Remove Access' && (
+      {tier === 'Review Access' && (
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
         </svg>
@@ -507,6 +507,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
              tier and column sort stay local to the table. ─────────────────── */}
         <Card
           title="User List"
+          subtitle="Lifetime — every user this filter allows, however long ago they last asked. Not limited by the date range above."
           controls={
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
@@ -518,7 +519,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
               />
               <select value={tierFilter} onChange={e => setTierFilter(e.target.value)} style={selStyle}>
                 <option value="">All Tiers</option>
-                {['Active', 'At Risk', 'Remove Access'].map(t => <option key={t} value={t}>{t}</option>)}
+                {['Active', 'At Risk', 'Review Access'].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
               {(search || tierFilter) && (
                 <button

@@ -2596,20 +2596,19 @@ def user_activity(
     if "area" in tmp.columns:
         tmp["area"] = tmp["area"].map(lambda a: AREA_RENAME.get(a, a) if pd.notna(a) else a)
 
-    # "Days since" is measured from the END of the active date range, not from
-    # today — same anchor as /user-metrics, so the two never disagree on screen.
-    # Capped at the newest request for the same reason: a range ending in the
-    # future would age every user by the gap between the data and that date.
-    data_end = pd.Timestamp(tmp["created_date"].max()).normalize() if not tmp.empty else pd.NaT
-    period_end = (
-        min(pd.Timestamp(date_to).normalize(), data_end)
-        if date_to and pd.notna(data_end)
-        else pd.Timestamp(date_to).normalize() if date_to
-        else data_end
-    )
+    # This list answers a question about accounts, not about a window: who has
+    # stopped asking for anything, and should their access be reviewed. Someone
+    # whose last request was before the range starts is exactly the person it
+    # exists to surface, so the date filter is deliberately NOT applied here
+    # and recency runs from the newest request in the data.
+    #
+    # It therefore disagrees with the cards above it when a range is set, and
+    # that is the point: the cards describe the window, this describes the
+    # roster. The columns are labelled lifetime so the two are not read as the
+    # same measure.
+    period_end = pd.Timestamp(tmp["created_date"].max()).normalize() if not tmp.empty else pd.NaT
 
     tmp = _apply_dim_filters(tmp, assigned_to, team, area, sub_category)
-    tmp = _filter_by_range(tmp, "created_date", date_from, date_to)
     if tmp.empty or pd.isna(period_end):
         return []
     today = period_end.date()
@@ -2631,12 +2630,15 @@ def user_activity(
             if len(ac):
                 area = ac.index[0]
 
-        if days_since < 28:
+        # Same thresholds as the lifecycle cards now, from the shared config.
+        # "Review Access" rather than "Remove Access": the figure is an input
+        # to a decision someone makes, not the decision.
+        if days_since < ua_config.ACCESS_REVIEW_AT_RISK_DAYS:
             tier = "Active"
-        elif days_since <= 56:
+        elif days_since <= ua_config.ACCESS_REVIEW_FLAG_DAYS:
             tier = "At Risk"
         else:
-            tier = "Remove Access"
+            tier = "Review Access"
 
         service_breakdown: dict[str, int] = {}
         if "sub_category" in grp.columns:
@@ -2652,7 +2654,8 @@ def user_activity(
             "total_tickets": int(len(grp)),
             "last_ticket_date": last_ts.isoformat() if pd.notna(last_ts) else None,
             "days_since_last": int(days_since),
-            "remove_access": days_since > 56,
+            "remove_access": days_since > ua_config.ACCESS_REVIEW_FLAG_DAYS,
+            "scope": "lifetime",
             "engagement_tier": tier,
             "service_breakdown": service_breakdown,
         })
@@ -2715,7 +2718,8 @@ def _service_column(src: pd.DataFrame) -> pd.Series:
     )
 
 
-def _service_utility(scoped: pd.DataFrame, users: list, period_end) -> list:
+def _service_utility(scoped: pd.DataFrame, users: list, period_end,
+                     as_of: Optional[pd.DataFrame] = None) -> list:
     """Per service: how many of the user base have ever asked for it, and how
     recently — plus, by name, the ones who never have.
 
@@ -2745,11 +2749,20 @@ def _service_utility(scoped: pd.DataFrame, users: list, period_end) -> list:
         return [{"service": s, "short": SERVICE_ABBREV.get(s, s), "count": mine.get(s, 0)}
                 for s in order]
 
+    # Recency comes from everything up to the as-of date; the counts beside it
+    # are the window's. Asking "when did they last use this service" off the
+    # window alone can only ever answer "inside the window".
+    recency_frame = frame
+    if as_of is not None and not as_of.empty and "sub_category" in as_of.columns:
+        recency_frame = as_of.dropna(subset=["sub_category"]).copy()
+        recency_frame["service"] = _service_column(recency_frame)
+
     out = []
     for service in BAU_SERVICES_DISPLAY:
         rows = frame[frame["service"] == service]
-        last_by_user = (rows.groupby("ticket_creator")["created_date"].max().to_dict()
-                        if not rows.empty else {})
+        recent = recency_frame[recency_frame["service"] == service]
+        last_by_user = (recent.groupby("ticket_creator")["created_date"].max().to_dict()
+                        if not recent.empty else {})
         counts = (rows.groupby("ticket_creator").size().to_dict() if not rows.empty else {})
 
         buckets = {"active": [], "regular": [], "dormant": []}
@@ -2785,7 +2798,8 @@ def _service_utility(scoped: pd.DataFrame, users: list, period_end) -> list:
     return out
 
 
-def _service_utility_fl(scoped: pd.DataFrame, period_end) -> list:
+def _service_utility_fl(scoped: pd.DataFrame, period_end,
+                        as_of: Optional[pd.DataFrame] = None) -> list:
     """The same reach question asked of frontlines instead of people.
 
     A service can look widely adopted because one busy frontline's whole team
@@ -2812,10 +2826,18 @@ def _service_utility_fl(scoped: pd.DataFrame, period_end) -> list:
             area_of[fl] = str(areas.value_counts().index[0]) if len(areas) else UNASSIGNED
     frontlines = sorted(frame["team"].unique())
 
+    recency_frame = frame
+    if as_of is not None and not as_of.empty and {"sub_category", "team"} <= set(as_of.columns):
+        recency_frame = as_of.dropna(subset=["sub_category", "team"]).copy()
+        recency_frame["team"] = recency_frame["team"].astype(str).str.strip()
+        recency_frame = recency_frame[recency_frame["team"] != ""]
+        recency_frame["service"] = _service_column(recency_frame)
+
     out = []
     for service in BAU_SERVICES_DISPLAY:
         rows = frame[frame["service"] == service]
-        last = rows.groupby("team")["created_date"].max().to_dict() if not rows.empty else {}
+        recent = recency_frame[recency_frame["service"] == service]
+        last = recent.groupby("team")["created_date"].max().to_dict() if not recent.empty else {}
         counts = rows.groupby("team").size().to_dict() if not rows.empty else {}
         users = rows.groupby("team")["ticket_creator"].nunique().to_dict() if not rows.empty else {}
 
@@ -2928,7 +2950,8 @@ def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
     }
 
 
-def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end) -> list:
+def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
+                            as_of: Optional[pd.DataFrame] = None) -> list:
     """One row per service, with both denominators side by side.
 
     Reach across people and reach across frontlines are the same question
@@ -2936,8 +2959,8 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end) -> li
     the same service twice to compare them. They are zipped here rather than
     computed afresh, so each half keeps the definition it already had.
     """
-    by_user = {r["service"]: r for r in _service_utility(scoped, users, period_end)}
-    by_fl = {r["service"]: r for r in _service_utility_fl(scoped, period_end)}
+    by_user = {r["service"]: r for r in _service_utility(scoped, users, period_end, as_of)}
+    by_fl = {r["service"]: r for r in _service_utility_fl(scoped, period_end, as_of)}
 
     out = []
     for service in BAU_SERVICES_DISPLAY:
@@ -3040,7 +3063,8 @@ def _activity_groups(scoped: pd.DataFrame) -> dict:
     }
 
 
-def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
+def _service_adoption(scoped: pd.DataFrame, period_end,
+                      as_of: Optional[pd.DataFrame] = None) -> dict:
     """Frontline against service: who is using what, and who has stopped.
 
     A cell is one frontline's use of one service. It is Not used when the
@@ -3067,18 +3091,29 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
     services = [s for s in CANONICAL_SERVICES if s in set(frame["sub_category"])]
     frontlines = sorted(frame["team"].unique(), key=lambda f: (area_of.get(f, UNASSIGNED), f))
 
+    # Same split as everywhere else: the number in a cell is the window's, the
+    # Dormant/Top judgement behind it is as of the window's end.
+    recency_frame = frame
+    if as_of is not None and not as_of.empty and {"sub_category", "team"} <= set(as_of.columns):
+        recency_frame = as_of.dropna(subset=["sub_category", "team"]).copy()
+        recency_frame["team"] = recency_frame["team"].astype(str).str.strip()
+        recency_frame = recency_frame[recency_frame["team"] != ""]
+
     grid: dict = {}
     totals = []
     for service in services:
         rows = frame[frame["sub_category"] == service]
+        recent = recency_frame[recency_frame["sub_category"] == service]
         counts = rows.groupby("team").size().to_dict()
-        last = rows.groupby("team")["created_date"].max().to_dict()
+        last = recent.groupby("team")["created_date"].max().to_dict() if not recent.empty else {}
         users = rows.groupby("team")["ticket_creator"].nunique().to_dict()
 
         # Who is behind each cell. A number on a heat map invites the question
         # "which of my people is that?", and the answer is already in hand here.
         people: dict = {}
         per_user = rows.groupby(["team", "ticket_creator"])["created_date"].agg(["size", "max"])
+        # (size from the window; max is the window's too, and the popup labels
+        #  it as such — a per-person as-of date would need its own join.)
         for (fl, person), row in per_user.iterrows():
             people.setdefault(fl, []).append({
                 "user": str(person),
@@ -3089,14 +3124,15 @@ def _service_adoption(scoped: pd.DataFrame, period_end) -> dict:
             people[fl].sort(key=lambda u: (-u["count"], u["user"]))
 
         live = [c for fl, c in counts.items()
-                if (period_end - pd.Timestamp(last[fl]).normalize()).days <= LIFECYCLE_REGULAR_MAX]
+                if fl in last
+                and (period_end - pd.Timestamp(last[fl]).normalize()).days <= LIFECYCLE_REGULAR_MAX]
         cut = float(pd.Series(live).quantile(TOP_FRONTLINE_QUANTILE)) if live else None
 
         tally = {"top": 0, "regular": 0, "dormant": 0, "none": 0}
         for fl in frontlines:
             count = int(counts.get(fl, 0))
-            if not count:
-                state, days = "none", None
+            if not count or fl not in last:
+                state, days = ("none", None) if not count else ("regular", None)
             else:
                 days = int((period_end - pd.Timestamp(last[fl]).normalize()).days)
                 if days > LIFECYCLE_REGULAR_MAX:
@@ -3312,18 +3348,30 @@ def user_metrics(
     if pd.isna(period_end):
         return empty
 
-    # Dimension filters apply to both scopes; the date range applies only to
-    # `scoped`. `lifetime` is what makes "first-ever request" and "≥3 lifetime
-    # requests" mean lifetime rather than in-range.
+    # Three scopes, because the page asks three different kinds of question.
+    #
+    #   lifetime  every request this filter allows, whenever it happened
+    #   as_of     everything up to the end of the range — what was true then
+    #   scoped    the range itself — what happened during it
+    #
+    # Volume belongs to `scoped`: requests raised in the window. Recency
+    # belongs to `as_of`, and reading it off `scoped` was the bug behind this
+    # step. A user's last request can only be as old as the window, so a
+    # 30-day range made the oldest possible user 30 days old: everybody
+    # Active, nobody Dormant, Engagement pinned at 100%. The question "when
+    # did this person last ask for something" has nothing to do with where
+    # the window starts.
     lifetime = _apply_dim_filters(base, assigned_to, team, area, sub_category)
+    as_of = _filter_by_range(lifetime, "created_date", None, date_to)
     scoped = _filter_by_range(lifetime, "created_date", date_from, date_to)
     if scoped.empty:
         return {**empty, "period_end": period_end.date().isoformat()}
 
-    # ── Single pass: everything below is derived from these three groupbys ────
+    # ── Single pass: everything below is derived from these groupbys ─────────
     g = scoped.groupby("ticket_creator", sort=False)
     counts = g.size()
-    last_seen = g["created_date"].max()
+    # Recency from everything up to the as-of date, not just the window.
+    last_seen = as_of.groupby("ticket_creator", sort=False)["created_date"].max()
 
     def _mode_by_user(src: pd.DataFrame, col: str) -> dict:
         if col not in src.columns:
@@ -3342,21 +3390,38 @@ def user_metrics(
     first_seen_all = lg["created_date"].min()
     lifetime_counts = lg.size()
 
+    # The roster is everyone known by the end of the window, not only those who
+    # raised something inside it. A user who last asked in March is still one of
+    # our users in a September window — they are the dormant one the page exists
+    # to surface, and building the population from the window alone deleted them
+    # before they could be counted.
+    #
+    # Each carries two different numbers, and they are not interchangeable:
+    #   count          requests inside the window — volume
+    #   days_since_last as of the window's end — recency
+    # A roster member with no requests in the window has count 0, which is
+    # correct and is why the averages below are taken over the active ones.
     users = []
-    for name, cnt in counts.items():
+    for name in last_seen.index:
         last_ts = last_seen[name]
         days_since = int((period_end - pd.Timestamp(last_ts).normalize()).days)
         first_ts = first_seen_all.get(name)
+        cnt = int(counts.get(name, 0))
         users.append({
             "user": name,
             "frontline": str(team_by_user.get(name) or UNASSIGNED),
             "area": str(area_by_user.get(name) or UNASSIGNED),
-            "count": int(cnt),
+            "count": cnt,
             "days_since_last": days_since,
             "first_request_date": pd.Timestamp(first_ts).date().isoformat() if pd.notna(first_ts) else None,
             "lifetime_count": int(lifetime_counts.get(name, cnt)),
         })
     users.sort(key=lambda u: u["count"], reverse=True)
+
+    # Who actually raised something in the window — the denominator for any
+    # per-user volume figure, so a long-dormant account does not drag the
+    # average down towards zero.
+    active_in_window = [u for u in users if u["count"] > 0]
 
     total_users = len(users)
     total_requests = int(len(scoped))
@@ -3430,7 +3495,7 @@ def user_metrics(
          if u["first_request_date"] and pd.Timestamp(u["first_request_date"]) >= new_cutoff),
         key=lambda u: (u["first_request_date"], u["count"]), reverse=True,
     )
-    top_requestors = users[:top_n]
+    top_requestors = active_in_window[:top_n]
 
     # ── Row 6: rates ─────────────────────────────────────────────────────────
     in_scope = ({str(v).strip() for v in scoped["sub_category"].dropna() if str(v).strip()}
@@ -3458,9 +3523,10 @@ def user_metrics(
             # Averaged over ALL users, not just active ones, so it's directly
             # comparable to the median beside it — that pairing is the whole
             # point of the box (it exposes heavy-requestor skew).
-            "avg_per_user": _safe_div(total_requests, total_users),
+            "avg_per_user": _safe_div(total_requests, len(active_in_window)),
+            "users_in_window": len(active_in_window),
             "median_per_user": (
-                round(float(counts.median()), 1) if total_users else None
+                round(float(counts.median()), 1) if len(active_in_window) else None
             ),
         },
         "lifecycle": {"active": active, "regular": regular, "dormant": dormant},
@@ -3484,11 +3550,11 @@ def user_metrics(
             "services_used":        services_used,
             "services_offered":     len(CANONICAL_SERVICES),
         },
-        "service_utility":  _service_utility_merged(scoped, users, period_end),
+        "service_utility":  _service_utility_merged(scoped, users, period_end, as_of),
         "activity_groups":  _activity_groups(scoped),
         "config":           ua_config.as_payload(),
         "fl_utility":       _utility_per_frontline(scoped),
-        "service_adoption": _service_adoption(scoped, period_end),
+        "service_adoption": _service_adoption(scoped, period_end, as_of),
     }
 
 
