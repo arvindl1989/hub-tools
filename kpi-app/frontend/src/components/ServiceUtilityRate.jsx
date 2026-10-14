@@ -42,7 +42,7 @@ function Rate({ pct }) {
   )
 }
 
-export default function ServiceUtilityRate({ rows = [] }) {
+export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = false }) {
   const [open, setOpen] = useState(null)   // the service whose non-users are shown
 
   const current = useMemo(
@@ -165,7 +165,11 @@ export default function ServiceUtilityRate({ rows = [] }) {
 
       <p style={{ fontSize: 11, color: '#9c9c9c', margin: '12px 0 0', lineHeight: 1.7, fontFamily: INTER }}>
         The denominator is everyone in the current filter, not the people who already use the
-        service, so the rate measures reach rather than busyness. Active, Regular and Dormant are
+        service, so the rate measures reach rather than busyness.{ignoresServiceFilter && (
+          <> <b>The Service filter is ignored here</b> — narrowing to one service would leave only
+          its own users in the denominator and every rate would read 100%. Every other filter still
+          applies.</>
+        )} Active, Regular and Dormant are
         measured on the last request <b>for that service</b> — someone raising weekly content
         requests is not an active user of Graphic Design because they tried it once a year ago —
         and the three add up to the users, or frontlines, that have used it.

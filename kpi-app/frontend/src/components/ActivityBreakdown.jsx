@@ -22,6 +22,7 @@ function countBadge(n, max) {
 
 export default function ActivityBreakdown({
   title, subtitle, rows = [], keys = [], labels = {}, headerLabel = 'Name',
+  ignoresServiceFilter = false,
 }) {
   if (!rows.length) {
     return <Card title={title} subtitle={subtitle}><Empty /></Card>
@@ -37,6 +38,12 @@ export default function ActivityBreakdown({
 
   return (
     <Card title={title} subtitle={subtitle}>
+      {ignoresServiceFilter && (
+        <p style={{ fontSize: 11, color: '#9c9c9c', margin: '0 0 10px', fontFamily: INTER }}>
+          The Service filter is ignored in this table — it would leave only one service in the
+          denominator and every row would read 100%. Every other filter still applies.
+        </p>
+      )}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>

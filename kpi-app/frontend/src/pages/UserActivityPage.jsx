@@ -474,7 +474,8 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         {/* ── Service Utility Rate and Service Adoption stand where the four
              rate boxes used to: the same questions, answered per service and
              per frontline instead of as one number for the whole hub. ─────── */}
-        <ServiceUtilityRate rows={metrics.service_utility ?? []} />
+        <ServiceUtilityRate rows={metrics.service_utility ?? []}
+          ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
 
         {/* ── The same four cuts the Feedback page makes, asked of activity:
              utility rate in place of the response rate, and the requests
@@ -483,22 +484,26 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           <ActivityBreakdown
             title="By Area" headerLabel="Area"
             subtitle="Utility rate and requests per area, busiest first"
-            rows={groups.by_area} keys={serviceKeys} labels={serviceLabels} />
+            rows={groups.by_area} keys={serviceKeys} labels={serviceLabels}
+            ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
           <ActivityBreakdown
             title="By Frontlines" headerLabel="Frontline"
             subtitle="Utility rate and requests per frontline, busiest first"
-            rows={groups.by_frontline} keys={serviceKeys} labels={serviceLabels} />
+            rows={groups.by_frontline} keys={serviceKeys} labels={serviceLabels}
+            ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <ActivityBreakdown
             title="By Service" headerLabel="Service"
             subtitle="Reach across the whole user base, and where each service's demand comes from"
-            rows={groups.by_service} keys={areaKeys} labels={areaLabels} />
+            rows={groups.by_service} keys={areaKeys} labels={areaLabels}
+            ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
           <ActivityBreakdown
             title="By Specialist" headerLabel="Specialist"
             subtitle="Utility rate and requests per specialist, busiest first"
-            rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels} />
+            rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels}
+            ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
         </div>
 
         <ServiceAdoptionHeatmap data={metrics.service_adoption} />

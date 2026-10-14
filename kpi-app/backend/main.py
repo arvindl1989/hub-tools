@@ -3364,6 +3364,18 @@ def user_metrics(
     lifetime = _apply_dim_filters(base, assigned_to, team, area, sub_category)
     as_of = _filter_by_range(lifetime, "created_date", None, date_to)
     scoped = _filter_by_range(lifetime, "created_date", date_from, date_to)
+
+    # A reach question cannot be asked of a population already narrowed to the
+    # answer. Filtering to WCM and then asking what share of users have used
+    # WCM leaves only WCM users in the denominator, so the answer is 100% —
+    # and on the breakdown tables every row collapsed to 100% as well, because
+    # the service list was taken from the filtered rows and had one service in
+    # it. Utility and reach therefore keep the other filters and drop the
+    # service one; the page says so under each table.
+    reach_lifetime = _apply_dim_filters(base, assigned_to, team, area, None)
+    reach_as_of = _filter_by_range(reach_lifetime, "created_date", None, date_to)
+    reach_scoped = _filter_by_range(reach_lifetime, "created_date", date_from, date_to)
+    service_filtered = bool(sub_category)
     if scoped.empty:
         return {**empty, "period_end": period_end.date().isoformat()}
 
@@ -3422,6 +3434,26 @@ def user_metrics(
     # per-user volume figure, so a long-dormant account does not drag the
     # average down towards zero.
     active_in_window = [u for u in users if u["count"] > 0]
+
+    # The same roster, built without the service filter, for the reach boards.
+    # When no service is chosen it is the same list, so this costs nothing in
+    # the common case.
+    if service_filtered:
+        reach_last = reach_as_of.groupby("ticket_creator", sort=False)["created_date"].max()
+        reach_counts = reach_scoped.groupby("ticket_creator", sort=False).size()
+        reach_users = [
+            {"user": name,
+             "frontline": str(team_by_user.get(name) or UNASSIGNED),
+             "area": str(area_by_user.get(name) or UNASSIGNED),
+             "count": int(reach_counts.get(name, 0)),
+             "days_since_last": int((period_end - pd.Timestamp(reach_last[name]).normalize()).days),
+             "first_request_date": None,
+             "lifetime_count": int(reach_counts.get(name, 0))}
+            for name in reach_last.index
+        ]
+        reach_users.sort(key=lambda u: u["count"], reverse=True)
+    else:
+        reach_users = users
 
     total_users = len(users)
     total_requests = int(len(scoped))
@@ -3550,10 +3582,12 @@ def user_metrics(
             "services_used":        services_used,
             "services_offered":     len(CANONICAL_SERVICES),
         },
-        "service_utility":  _service_utility_merged(scoped, users, period_end, as_of),
-        "activity_groups":  _activity_groups(scoped),
+        "service_utility":  _service_utility_merged(reach_scoped, reach_users, period_end,
+                                                   reach_as_of),
+        "activity_groups":  _activity_groups(reach_scoped),
         "config":           ua_config.as_payload(),
-        "fl_utility":       _utility_per_frontline(scoped),
+        "reach_ignores_service_filter": service_filtered,
+        "fl_utility":       _utility_per_frontline(reach_scoped),
         "service_adoption": _service_adoption(scoped, period_end, as_of),
     }
 
