@@ -3606,8 +3606,22 @@ def user_metrics(
     )
     # A fixed ten is the whole population once a filter leaves ten users, and
     # the share it carries is then 100% by construction. A proportion holds its
-    # meaning at any size.
-    top_n_effective = max(1, math.ceil(len(active_in_window) * ua_config.TOP_REQUESTOR_SHARE))
+    # meaning at any size — but only if the boundary is interpolated rather
+    # than rounded: the top tenth of 16 users rounds to 2 people (12.5%) and
+    # of 48 to 5 (10.4%), so the same estate measured at two sizes gave two
+    # answers. Taking the whole of the users above the boundary plus the
+    # fraction of the one it falls inside is the standard top-decile share,
+    # and it is exactly invariant when a population is duplicated.
+    n_active = len(active_in_window)
+    target = n_active * ua_config.TOP_REQUESTOR_SHARE
+    whole = int(target)
+    frac = target - whole
+    top_requests = sum(u["count"] for u in active_in_window[:whole])
+    if frac and whole < n_active:
+        top_requests += frac * active_in_window[whole]["count"]
+    # The names shown in the card round up, so a tenth of eight users still
+    # lists somebody; the share above is the un-rounded figure.
+    top_n_effective = max(1, math.ceil(target)) if n_active else 0
     top_requestors = active_in_window[:top_n_effective]
 
     # ── Row 6: rates ─────────────────────────────────────────────────────────
@@ -3618,8 +3632,10 @@ def user_metrics(
     # between someone who tried the hub once and someone who uses it.
     engaged_cutoff = period_end - pd.Timedelta(days=ua_config.LIFECYCLE_DORMANT_DAYS)
     recent = as_of[as_of["created_date"] >= engaged_cutoff]
-    repeat_recent = (recent.groupby("ticket_creator").size() >= ua_config.ENGAGED_MIN_REQUESTS).sum() \
-        if not recent.empty else 0
+    recent_counts = (recent.groupby("ticket_creator").size().to_dict()
+                     if not recent.empty else {})
+    repeat_recent = sum(1 for n in recent_counts.values()
+                        if n >= ua_config.ENGAGED_MIN_REQUESTS)
 
     in_scope = ({str(v).strip() for v in scoped["sub_category"].dropna() if str(v).strip()}
                 if "sub_category" in scoped.columns else set())
@@ -3632,6 +3648,14 @@ def user_metrics(
         "total_users": total_users,
         "top_n": top_n,
         "user_list": user_list,
+        # Who the Repeat Use card counts, so the drill-down lists the people
+        # the number is about rather than the lifecycle buckets it replaced.
+        "repeat_users": [
+            {"name": u["user"], "frontline": u["frontline"], "area": u["area"],
+             "requests": u["count"], "days_since_last": u["days_since_last"]}
+            for u in users
+            if int(recent_counts.get(u["user"], 0)) >= ua_config.ENGAGED_MIN_REQUESTS
+        ],
         "reach": {
             "global_teams": len(global_teams_list),
             "areas": len(areas_list),
@@ -3660,9 +3684,7 @@ def user_metrics(
             "top_requestors": top_requestors,
             # Share of all requests the top-N users account for — a far more
             # useful headline than "10", which is what a count would always read.
-            "top_share_pct": _safe_div(
-                sum(u["count"] for u in top_requestors), total_requests, pct=True, nd=0
-            ),
+            "top_share_pct": _safe_div(top_requests, total_requests, pct=True, nd=0),
             "top_n_effective": top_n_effective,
             "top_share_basis": len(active_in_window),
         },

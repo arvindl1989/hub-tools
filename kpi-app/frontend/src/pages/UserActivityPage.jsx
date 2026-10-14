@@ -150,6 +150,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
   const growth  = metrics?.growth  ?? {}
   const rates   = metrics?.rates   ?? {}
   const segments = metrics?.lifecycle ?? {}
+  const cfg      = metrics?.config ?? {}
   // ── What is behind each headline ────────────────────────────────────────
   // A count is a question half-answered, so every card on the first two rows
   // opens the list it counted. The two rate cards open the population their
@@ -170,10 +171,10 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
     { key: 'days_since_last', label: 'Last seen', align: 'right',
       render: r => `${r.days_since_last}d ago` },
   ]
-  const engaged = [...(segments.active ?? []), ...(segments.regular ?? [])]
-    .map(u => ({ name: u.user, frontline: u.frontline, area: u.area,
-                 requests: u.count, days_since_last: u.days_since_last }))
-    .sort((a, b) => b.requests - a.requests)
+  // The people the Repeat Use card counts, from the API — computing it here
+  // from the lifecycle buckets is what the card used to mean, not what it
+  // means now.
+  const engaged = [...(metrics?.repeat_users ?? [])].sort((a, b) => b.requests - a.requests)
 
   const LISTS = {
     global: {
@@ -200,15 +201,15 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
       columns: USER_COLS, rows: metrics?.user_list ?? [],
     },
     engaged: {
-      title: 'Engaged users',
-      subtitle: `${engaged.length} of ${metrics?.total_users ?? 0} users are Active or Regular — `
-                + 'everyone who has come back inside the last 90 days',
+      title: 'Repeat users',
+      subtitle: `${engaged.length} of ${metrics?.total_users ?? 0} users raised `
+                + `${cfg.engaged_min_requests ?? 2} or more requests in the last `
+                + `${cfg.lifecycle_dormant_days ?? 90} days`,
       columns: USER_COLS, rows: engaged,
     },
   }
   const openModal = listKey ? LISTS[listKey] : null
 
-  const cfg = metrics?.config ?? {}
   const groups = metrics?.activity_groups
     ?? { services: [], areas: [], by_area: [], by_frontline: [], by_service: [], by_specialist: [] }
   const serviceKeys = (groups.services ?? []).map(s => s.name)
