@@ -75,6 +75,38 @@ TOP_REQUESTOR_SHARE = 0.10
 # says how many rows it actually dropped so that stays visible.
 EXCLUDED_TICKET_STATES = ["Cancelled", "Duplicate", "Rejected"]
 
+# ── Working time and effort ──────────────────────────────────────────────────
+# A working day's length. main.py's BANDWIDTH_HOURS_PER_DAY binds to this rather
+# than carrying its own 8, because it is the divisor that turns the Rates & SLA
+# store (which holds tickets per day) into hours per ticket. Two copies of it
+# would silently rescale every effort figure on the page against every capacity
+# figure elsewhere.
+HOURS_PER_DAY = 8
+
+# Monday to Friday, as Python's weekday() numbers them. Matches the
+# _is_working_day used by the SLA and attendance maths.
+WORKING_DAYS = (0, 1, 2, 3, 4)
+
+# Holidays are NOT listed here. The tool already has a calendar —
+# HOLIDAYS_BY_YEAR in main.py, currently 2024-2026 of the Tamil Nadu dates —
+# and it is what the SLA due dates, the attendance beta and the working-hours
+# maths all read. A second list here would let the effort figures disagree with
+# every other page about which days exist. Add dates there.
+
+# Whether a ticket's hours count when it is raised or when it is finished.
+#   "closed"  — credited on the Closed date. Capacity answers "what did we get
+#               out of the door this month", which is the question a utilisation
+#               figure is asked.
+#   "created" — credited on the Created date, i.e. demand rather than delivery.
+# These describe different ticket sets, so volume and utilisation will not tally
+# under "closed". That is correct, and the page says so.
+UTILISATION_BASIS = "closed"
+
+# Said on every effort figure. These are standard per-ticket estimates from the
+# Rates & SLA panel, not logged time — there is no time-worked field in the
+# export, and a reader who assumes otherwise is reading a plan as an actual.
+EFFORT_LABEL = "Estimated hours"
+
 # ── Heat map shading ─────────────────────────────────────────────────────────
 # Fixed boundaries, so a cell of 40 requests is the same shade whatever the
 # filter. Ranked or range-relative bands re-shade the whole map every time the
@@ -91,6 +123,12 @@ HEATMAP_BAND_LABELS = ["1–5", "6–20", "21–50", "51–150", "151+"]
 # per-user figures live in single digits where request counts run to hundreds.
 HEATMAP_PER_USER_BANDS = [(1, 1), (2, 3), (4, 6), (7, 12), (13, None)]
 HEATMAP_PER_USER_LABELS = ["1", "2–3", "4–6", "7–12", "13+"]
+
+# The same map in estimated hours. A WCM ticket is 5 hours and a Demand Creation
+# one is 20, so a cell of ten tickets is anywhere from 50 to 200 hours and the
+# request bands above would put both in the same shade.
+HEATMAP_HOUR_BANDS = [(1, 25), (26, 100), (101, 250), (251, 750), (751, None)]
+HEATMAP_HOUR_LABELS = ["1–25", "26–100", "101–250", "251–750", "751+"]
 
 
 def band_for(value, bands=None) -> int:
@@ -149,4 +187,9 @@ def as_payload() -> dict:
         "heatmap_band_labels": list(HEATMAP_BAND_LABELS),
         "heatmap_per_user_bands": [list(b) for b in HEATMAP_PER_USER_BANDS],
         "heatmap_per_user_labels": list(HEATMAP_PER_USER_LABELS),
+        "heatmap_hour_bands": [list(b) for b in HEATMAP_HOUR_BANDS],
+        "heatmap_hour_labels": list(HEATMAP_HOUR_LABELS),
+        "hours_per_day": HOURS_PER_DAY,
+        "utilisation_basis": UTILISATION_BASIS,
+        "effort_label": EFFORT_LABEL,
     }

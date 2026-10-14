@@ -244,7 +244,9 @@ BANDWIDTH_RATES: dict[str, float] = _load_setting("bandwidth_rates", {
     "Demand Engagement Activations":       0.63,
 })
 
-BANDWIDTH_HOURS_PER_DAY  = 8
+# One definition, in the config: this is the divisor that turns the Rates &
+# SLA store (tickets per day) into hours per ticket.
+BANDWIDTH_HOURS_PER_DAY  = ua_config.HOURS_PER_DAY
 BANDWIDTH_DAYS_PER_WEEK  = 5
 BANDWIDTH_WEEKLY_CAPACITY = BANDWIDTH_HOURS_PER_DAY * BANDWIDTH_DAYS_PER_WEEK  # 40 h
 
