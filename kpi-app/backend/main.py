@@ -3078,7 +3078,8 @@ def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
 
 
 def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
-                            as_of: Optional[pd.DataFrame] = None) -> list:
+                            as_of: Optional[pd.DataFrame] = None,
+                            open_frame: Optional[pd.DataFrame] = None) -> list:
     """One row per service, with both denominators side by side.
 
     Reach across people and reach across frontlines are the same question
@@ -3088,16 +3089,50 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
     """
     by_user = {r["service"]: r for r in _service_utility(scoped, users, period_end, as_of)}
     by_fl = {r["service"]: r for r in _service_utility_fl(scoped, period_end, as_of)}
+    if "sub_category" in scoped.columns and "service" not in scoped.columns:
+        scoped = scoped.copy()
+        scoped["service"] = _service_column(scoped)
 
     out = []
     for service in BAU_SERVICES_DISPLAY:
         u, f = by_user.get(service), by_fl.get(service)
         if not u and not f:
             continue
+        # The SLA record for this offer, and for each sub-service inside it.
+        # DEA's three children have targets of 30, 7 and 30 working days, so a
+        # single blended figure for the parent would hide a service missing its
+        # week behind two that have a month.
+        children = sorted(DEMAND_ENGAGEMENT_SUBS) \
+            if service == "Demand Engagement Activations" else []
+        in_service = scoped[scoped["service"] == service] if "service" in scoped.columns \
+            else scoped.iloc[0:0]
+        open_service = None
+        if open_frame is not None and not open_frame.empty and "sub_category" in open_frame.columns:
+            want = set(children) if children else {service}
+            open_service = open_frame[open_frame["sub_category"].isin(want)]
+
         out.append({
             "service": service,
             "short": SERVICE_ABBREV.get(service, service),
             "requests": (u or f or {}).get("requests", 0),
+            "sla": _sla_figures(in_service, period_end, open_service),
+            "sla_target_wd": SLA_RULES.get(service),
+            "sub_services": [
+                {
+                    "service": child,
+                    "short": SERVICE_ABBREV.get(child, child),
+                    "sla_target_wd": SLA_RULES.get(child),
+                    "requests": int((scoped["sub_category"] == child).sum())
+                    if "sub_category" in scoped.columns else 0,
+                    "sla": _sla_figures(
+                        scoped[scoped["sub_category"] == child] if "sub_category" in scoped.columns
+                        else scoped.iloc[0:0],
+                        period_end,
+                        open_frame[open_frame["sub_category"] == child]
+                        if open_frame is not None and "sub_category" in open_frame.columns else None),
+                }
+                for child in children
+            ],
             "users": {
                 "total": u["total_users"] if u else 0,
                 "used": u["users_used"] if u else 0,
@@ -3121,6 +3156,62 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
             },
         })
     return out
+
+
+def _sla_figures(frame: pd.DataFrame, period_end, open_frame=None) -> dict:
+    """How a set of tickets did against its SLA.
+
+    Closed tickets are judged on the working days they actually took. Open ones
+    are judged on the working days they have taken so far as of period_end,
+    because a ticket that has already blown its target is a breach whether or
+    not anyone has closed it — counting only closed work would let the worst
+    cases hide by staying open.
+
+    Every ticket is judged against the SLA currently set in Rates & SLA. The
+    panel has no history, so a target changed last week is applied to work done
+    last year; the page says so rather than implying the judgement is contemporaneous.
+    """
+    blank = {"closed": 0, "met": 0, "met_pct": None, "show_pct": False,
+             "open_breached": 0, "open_within": 0,
+             "median_working_days": None, "median_calendar_days": None}
+    if frame is None or frame.empty or "sla_wd" not in frame.columns:
+        return blank
+
+    closed = frame.dropna(subset=["closed_date", "sla_wd"]) \
+        if "closed_date" in frame.columns else frame.iloc[0:0]
+    met = 0
+    wds, cds = [], []
+    for _, row in closed.iterrows():
+        wd = working_days_between(row["created_date"], row["closed_date"])
+        if wd is None:
+            continue
+        wds.append(wd)
+        cds.append((pd.Timestamp(row["closed_date"]) - pd.Timestamp(row["created_date"])).days)
+        if wd <= row["sla_wd"]:
+            met += 1
+
+    open_breached = open_within = 0
+    if open_frame is not None and not open_frame.empty and "sla_wd" in open_frame.columns:
+        for _, row in open_frame.dropna(subset=["sla_wd"]).iterrows():
+            wd = working_days_between(row["created_date"], period_end)
+            if wd is None:
+                continue
+            if wd > row["sla_wd"]:
+                open_breached += 1
+            else:
+                open_within += 1
+
+    n = len(wds)
+    return {
+        "closed": n,
+        "met": met,
+        "met_pct": _safe_div(met, n, pct=True, nd=0) if n else None,
+        "show_pct": ua_config.show_pct(n),
+        "open_breached": open_breached,
+        "open_within": open_within,
+        "median_working_days": round(float(np.median(wds)), 1) if wds else None,
+        "median_calendar_days": round(float(np.median(cds)), 1) if cds else None,
+    }
 
 
 def _hours_of(frame: pd.DataFrame) -> float:
@@ -3154,7 +3245,8 @@ def _available_hours(date_from, date_to, period_end, earliest) -> tuple:
 
 
 def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
-                     working_days: int = 0, closed_frame: Optional[pd.DataFrame] = None) -> dict:
+                     working_days: int = 0, closed_frame: Optional[pd.DataFrame] = None,
+                     open_frame: Optional[pd.DataFrame] = None, period_end=None) -> dict:
     """Area, frontline, service and specialist, each read the same way.
 
     The Feedback page answers "how is this group doing" four times over, one
@@ -3246,6 +3338,11 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
                     "requests_per_user": _safe_div(len(grp), users),
                     "show_pct": ua_config.show_pct(int(users)),
                     "median_days_to_close": median_days,
+                    **{f"sla_{k}": v for k, v in _sla_figures(
+                        delivered, period_end,
+                        open_frame[open_frame["assigned_to"] == name]
+                        if open_frame is not None and "assigned_to" in open_frame.columns
+                        else None).items()},
                     "closed": int(len(closed)),
                     "open_backlog": open_now,
                     "breakdown": {str(k): int(counts.get(k, 0)) for k in keys},
@@ -3309,7 +3406,9 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
                                               pct=True, nd=0) if available_hours else None,
                     "requests_per_user": None, "est_hours": 0.0, "est_hours_per_user": None,
                     "show_pct": False, "is_frontline": True,
-                    "median_days_to_close": None, "closed": int(len(grp)), "open_backlog": 0,
+                    "median_days_to_close": None,
+                    **{f"sla_{k}": v for k, v in _sla_figures(grp, period_end).items()},
+                    "closed": int(len(grp)), "open_backlog": 0,
                     "breakdown": {str(k): 0 for k in keys},
                     "breakdown_hours": {str(k): 0.0 for k in keys},
                 })
@@ -3799,6 +3898,16 @@ def user_metrics(
         closed_in_window = _filter_by_range(
             lifetime.dropna(subset=["closed_date"]), "closed_date", date_from, date_to)
 
+    # Still open as of the window's end: raised by then and either never closed
+    # or closed after it. A ticket already past its target is a breach whether
+    # or not anybody has closed it, so these are judged too.
+    open_as_of = as_of.iloc[0:0]
+    if "closed_date" in as_of.columns:
+        end_ts = period_end + pd.Timedelta(days=1)
+        open_as_of = as_of[as_of["closed_date"].isna() | (as_of["closed_date"] >= end_ts)]
+    elif "state" in as_of.columns:
+        open_as_of = as_of[~as_of["state"].isin(EXCLUDED_STATES)]
+
     # ── Row 5: growth ────────────────────────────────────────────────────────
     # "New in the last 90 days" means nothing when the data does not go back 90
     # days: every user looks new because there is no earlier history to have
@@ -3922,9 +4031,9 @@ def user_metrics(
             "services_offered":     len(CANONICAL_SERVICES),
         },
         "service_utility":  _service_utility_merged(reach_scoped, reach_users, period_end,
-                                                   reach_as_of),
+                                                   reach_as_of, open_as_of),
         "activity_groups":  _activity_groups(reach_scoped, available_hours, working_days,
-                                             closed_in_window),
+                                             closed_in_window, open_as_of, period_end),
         "config":           ua_config.as_payload(),
         "reach_ignores_service_filter": service_filtered,
         "fl_utility":       _utility_per_frontline(reach_scoped),
