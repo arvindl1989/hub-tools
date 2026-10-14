@@ -587,6 +587,18 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             print(f"[PARSE] {dc} parsed {parsed_count}/{len(s)} rows", flush=True)
             df[dc] = s
 
+    # Rows that were never work: cancelled, duplicated, rejected outright.
+    # Distinct from EXCLUDED_STATES, which means closed. If none of these
+    # strings appear in the export this does nothing, and the log says so
+    # rather than leaving it to be assumed.
+    if "state" in df.columns and ua_config.EXCLUDED_TICKET_STATES:
+        drop = df["state"].astype(str).str.strip().str.lower().isin(
+            {v.strip().lower() for v in ua_config.EXCLUDED_TICKET_STATES})
+        if drop.any():
+            print(f"[PARSE] Dropped {int(drop.sum())} rows in states "
+                  f"{sorted(set(df.loc[drop, 'state'].astype(str)))}", flush=True)
+            df = df[~drop]
+
     str_cols = ["state", "sub_category", "assigned_to", "area", "team",
                 "ticket_creator", "ticket_number", "short_description", "tags", "watch_list"]
     for sc in str_cols:
@@ -2825,7 +2837,10 @@ def _service_utility_fl(scoped: pd.DataFrame, period_end,
         for fl, grp in frame.groupby("team"):
             areas = grp["area"].dropna()
             area_of[fl] = str(areas.value_counts().index[0]) if len(areas) else UNASSIGNED
-    frontlines = sorted(frame["team"].unique())
+    # Hub functions are not frontlines, so they are not in the denominator —
+    # the same rule the reach card and the breakdown table use.
+    frontlines = sorted(fl for fl in frame["team"].unique()
+                        if ua_config.is_frontline(fl, area_of.get(fl)))
 
     recency_frame = frame
     if as_of is not None and not as_of.empty and {"sub_category", "team"} <= set(as_of.columns):
@@ -3111,6 +3126,13 @@ def _activity_groups(scoped: pd.DataFrame) -> dict:
                 # how hard they lean on it. A group can be wide and shallow.
                 "requests_per_user": _safe_div(len(grp), users),
                 "show_pct": ua_config.show_pct(int(users)),
+                # Shown, but marked: a hub function's row is not a market's
+                # performance and should not be read as one.
+                "is_frontline": (ua_config.is_frontline(
+                    name,
+                    str(grp["area"].dropna().value_counts().index[0])
+                    if "area" in grp.columns and grp["area"].notna().any() else None)
+                    if col == "team" else True),
                 "breakdown": {str(k): int(counts.get(k, 0)) for k in keys},
             })
         return sorted(out, key=lambda r: (-r["requests"], r["name"]))
@@ -3188,7 +3210,11 @@ def _service_adoption(scoped: pd.DataFrame, period_end,
         live = [c for fl, c in counts.items()
                 if fl in last
                 and (period_end - pd.Timestamp(last[fl]).normalize()).days <= LIFECYCLE_REGULAR_MAX]
-        cut = float(pd.Series(live).quantile(TOP_FRONTLINE_QUANTILE)) if live else None
+        # A 75th percentile of three numbers is not a quartile, it is the
+        # second-largest of them dressed as one. Below four users of a service
+        # there is no top tier at all.
+        cut = (float(pd.Series(live).quantile(TOP_FRONTLINE_QUANTILE))
+               if len(live) >= 4 else None)
 
         tally = {"top": 0, "regular": 0, "dormant": 0, "none": 0}
         for fl in frontlines:
@@ -3214,67 +3240,42 @@ def _service_adoption(scoped: pd.DataFrame, period_end,
         totals.append({"service": service, "short": SERVICE_ABBREV.get(service, service),
                        "requests": int(len(rows)), **tally})
 
-    # How dark a cell is drawn: five levels across the whole map, plus one for
-    # never used.
+    # How dark a cell is drawn: the fixed bands in the config, so a cell of 40
+    # requests keeps its shade whatever the filter. Three scales came before
+    # this one — share of the busiest cell, equal slices of the range, ranks of
+    # the distinct volumes — and each re-shaded the whole map when the
+    # population moved, which makes two screenshots incomparable. A fixed scale
+    # can leave part of the ramp unused on a small selection; that is the
+    # honest picture of a small selection.
     #
-    # Two schemes came before this one and both failed on real volumes, which
-    # run from 1 to several hundred with the mass down at the bottom — one
-    # frontline on 298 against a long tail of single digits. Equal slices of
-    # the range 1..298 put nearly every cell in the palest step, which is what
-    # washed the map out; equal slices of the log range were better but still
-    # left the middle of the ramp empty.
-    #
-    # So the ramp is spread over the DISTINCT volumes rather than over the
-    # range or over the cells. The sorted distinct counts are cut into five
-    # and a cell takes the band of its own value. Every shade is in use
-    # whenever the map holds five different volumes, equal counts always take
-    # the same shade, and bigger is always darker. The colour resolution lands
-    # where the variety is, which is the bottom — and that is where it is
-    # needed, because that is where most of the map lives.
-    #
-    # Cell counts per band stay uneven, and should: if half the map really is
-    # one or two requests, half the map should look it.
-    #
-    # The cut is over every cell on the map rather than within a service row,
-    # so a number means the same shade wherever it appears.
-    LEVELS = 5
-    busiest = max((c["requests"] for c in grid.values()), default=0)
-    used_counts = [c["requests"] for c in grid.values() if c["requests"]]
-    distinct = sorted(set(used_counts))
-    _rank = {v: i for i, v in enumerate(distinct)}
-
-    def _band(n: int) -> int:
-        """0 for never used, else 1 (lowest) to 5 (highest)."""
-        if not n or not distinct:
-            return 0
-        return min(LEVELS, int(_rank[n] * LEVELS / len(distinct)) + 1)
-
+    # The same cells are also banded per user, for the toggle: a big frontline
+    # raising a lot is a different finding from a small one leaning hard on a
+    # service, and only the per-user view separates them.
     spread: dict = {}
+    busiest = max((c["requests"] for c in grid.values()), default=0)
     for cell in grid.values():
         cell["share_pct"] = (
             round(cell["requests"] / busiest * 100, 1) if busiest and cell["requests"] else 0.0
         )
-        cell["band"] = _band(cell["requests"])
+        cell["band"] = ua_config.band_for(cell["requests"])
+        per_user = (cell["requests"] / cell["users"]) if cell.get("users") else 0
+        cell["requests_per_user"] = round(per_user, 1) if per_user else 0.0
+        cell["band_per_user"] = ua_config.band_for(
+            round(per_user) if per_user else 0, ua_config.HEATMAP_PER_USER_BANDS)
         if cell["requests"]:
             spread.setdefault(cell["band"], []).append(cell["requests"])
 
-    # What each shade stands for, so the legend can say it in requests rather
-    # than leaving the reader to guess at the thresholds.
-    def _edges(b: int) -> tuple:
-        """The volumes this band covers, so the legend can name it."""
-        mine = [v for v in distinct if _band(v) == b]
-        return (mine[0], mine[-1]) if mine else (None, None)
-
     bands = []
-    for b in range(1, LEVELS + 1):
-        lo, hi = _edges(b)
+    for b, (floor, ceiling) in enumerate(ua_config.HEATMAP_BANDS, start=1):
+        mine = spread.get(b, [])
         bands.append({
             "band": b,
-            "cells": len(spread.get(b, [])),
-            "from": lo,
-            "to": hi,
-            "min": min(spread[b]) if spread.get(b) else None,
-            "max": max(spread[b]) if spread.get(b) else None,
+            "cells": len(mine),
+            "from": floor,
+            "to": ceiling,
+            "label": ua_config.HEATMAP_BAND_LABELS[b - 1],
+            "min": min(mine) if mine else None,
+            "max": max(mine) if mine else None,
         })
 
     # One row per frontline, read like the user list: totals first, then a
@@ -3295,11 +3296,18 @@ def _service_adoption(scoped: pd.DataFrame, period_end,
             "days_since_last": days,
             "services_used": used,
             "services_offered": len(services),
+            # The map lists five sub-categories where the tables show three
+            # offers, so "4 of 5" here meant something different from "2 of 3"
+            # there. The label follows the model rather than the row count.
             "adoption_pct": _safe_div(used, len(services), pct=True, nd=0),
+            "services_label": ("Sub-services used" if ua_config.SERVICE_MODEL == 5
+                               or len(services) > ua_config.SERVICE_MODEL
+                               else "Services used"),
             "service_breakdown": breakdown,
             "service_states": {s: grid[f"{s}||{fl}"]["state"] for s in services},
             "service_shares": {s: grid[f"{s}||{fl}"]["share_pct"] for s in services},
             "service_bands":  {s: grid[f"{s}||{fl}"]["band"] for s in services},
+            "service_bands_per_user": {s: grid[f"{s}||{fl}"]["band_per_user"] for s in services},
         })
     rows_out.sort(key=lambda r: (-r["services_used"], -r["requests"]))
 

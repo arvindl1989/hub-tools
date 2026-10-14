@@ -85,15 +85,43 @@ EXCLUDED_TICKET_STATES = ["Cancelled", "Duplicate", "Rejected"]
 HEATMAP_BANDS = [(1, 5), (6, 20), (21, 50), (51, 150), (151, None)]
 HEATMAP_BAND_LABELS = ["1–5", "6–20", "21–50", "51–150", "151+"]
 
+# The same map read per person rather than in total, for the toggle. A big
+# frontline raising a lot is not the same finding as a small one leaning hard
+# on a service, and only this view separates them. Its own bands, because
+# per-user figures live in single digits where request counts run to hundreds.
+HEATMAP_PER_USER_BANDS = [(1, 1), (2, 3), (4, 6), (7, 12), (13, None)]
+HEATMAP_PER_USER_LABELS = ["1", "2–3", "4–6", "7–12", "13+"]
 
-def band_for(requests: int) -> int:
-    """0 for never used, else 1 (lowest) to 5 (highest)."""
-    if not requests:
+
+def band_for(value, bands=None) -> int:
+    """0 for never used, else 1 (lowest) to 5 (highest).
+
+    Fixed boundaries, so a cell keeps its shade when the filter changes. A
+    scale derived from the data re-shades the whole map every time the
+    population moves, which makes two screenshots of the same estate
+    incomparable — the thing a heat map is for.
+    """
+    if not value:
         return 0
-    for i, (floor, ceiling) in enumerate(HEATMAP_BANDS, start=1):
-        if requests >= floor and (ceiling is None or requests <= ceiling):
+    for i, (floor, ceiling) in enumerate(bands or HEATMAP_BANDS, start=1):
+        if value >= floor and (ceiling is None or value <= ceiling):
             return i
-    return len(HEATMAP_BANDS)
+    return len(bands or HEATMAP_BANDS)
+
+
+def is_frontline(team, area) -> bool:
+    """Whether a team counts as a frontline, as opposed to a hub function.
+
+    One definition, used by the reach card, the breakdown table, the service
+    denominators and the heat map — they disagreed before, so the same estate
+    had three sizes depending on which board you read.
+    """
+    name = str(team or "").strip().lower()
+    if name in {t.strip().lower() for t in NON_FRONTLINE_TEAMS}:
+        return False
+    if not FRONTLINE_INCLUDES_GLOBAL and str(area or "").strip().lower() == GLOBAL_AREA.lower():
+        return False
+    return bool(name)
 
 
 def show_pct(group_size: int) -> bool:
@@ -119,4 +147,6 @@ def as_payload() -> dict:
         "top_requestor_share": TOP_REQUESTOR_SHARE,
         "heatmap_bands": [list(b) for b in HEATMAP_BANDS],
         "heatmap_band_labels": list(HEATMAP_BAND_LABELS),
+        "heatmap_per_user_bands": [list(b) for b in HEATMAP_PER_USER_BANDS],
+        "heatmap_per_user_labels": list(HEATMAP_PER_USER_LABELS),
     }

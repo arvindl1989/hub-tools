@@ -33,7 +33,12 @@ const shade = (band) => BAND[band ?? 0] || BAND[0]
 // Kept for the tooltip and the counts beside each row: the map no longer
 // colours by state, but whether a frontline has stopped is still worth saying.
 const STATE_LABEL = {
-  top: 'Top users', regular: 'Regular', dormant: 'Dormant', none: 'Not used',
+  top: 'Top users',
+  // Not "Regular": that word means a 31-90 day lifecycle bucket on the cards
+  // above, and the same label for two different ideas on one page is a trap.
+  regular: 'Active (below top quartile)',
+  dormant: 'Dormant',
+  none: 'Not used',
 }
 const ORDER = ['top', 'regular', 'dormant', 'none']
 
@@ -123,7 +128,7 @@ function CellUsers({ cell, onClose }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const tone = shade(cell.band)
+  const tone = shade(bandOf(cell))
   return (
     <div
       onClick={onClose}
@@ -203,6 +208,11 @@ function SortArrow({ dir }) {
 }
 
 export default function ServiceAdoptionHeatmap({ data }) {
+  // Totals answer "where is the volume"; per user answers "who leans on this".
+  // A big frontline raising a lot and a small one depending on a service look
+  // the same in the first view and quite different in the second.
+  const [mode, setMode] = useState('total')
+  const bandOf = (cell) => (mode === 'total' ? cell?.band : cell?.band_per_user) ?? 0
   const [showTable, setShowTable] = useState(true)
   const [openCell, setOpenCell] = useState(null)
   // The table opens on the order the API sends — widest adoption first — and
@@ -260,6 +270,17 @@ export default function ServiceAdoptionHeatmap({ data }) {
       controls={
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <Legend bands={data?.bands ?? []} />
+          <div style={{ display: 'inline-flex', border: '1px solid #e8e2d6', borderRadius: 8, overflow: 'hidden' }}>
+            {[['total', 'Requests'], ['per_user', 'Per user']].map(([id, label]) => (
+              <button key={id} onClick={() => setMode(id)}
+                style={{
+                  border: 'none', cursor: 'pointer', padding: '5px 11px', fontSize: 11,
+                  fontFamily: INTER, fontWeight: mode === id ? 700 : 500,
+                  background: mode === id ? '#1450f5' : '#fff',
+                  color: mode === id ? '#fff' : '#6e6e6e',
+                }}>{label}</button>
+            ))}
+          </div>
           <button
             onClick={() => setShowTable(t => !t)}
             style={{
@@ -339,7 +360,7 @@ export default function ServiceAdoptionHeatmap({ data }) {
                   <td style={{ borderBottom: 'none' }} />
                   {flatFrontlines.map(fl => {
                     const cell = grid[`${s.name}||${fl}`] || { state: 'none', requests: 0, users: 0 }
-                    const tone = shade(cell.band)
+                    const tone = shade(bandOf(cell))
                     const open = () => cell.requests && setOpenCell({
                       ...cell, frontline: fl, service: s.name, serviceShort: s.short,
                     })
@@ -359,7 +380,7 @@ export default function ServiceAdoptionHeatmap({ data }) {
                             cursor: cell.requests ? 'pointer' : 'default',
                             overflow: 'hidden',
                           }}>
-                        {cell.requests || '·'}
+                        {(mode === 'total' ? cell.requests : cell.requests_per_user) || '·'}
                       </td>
                     )
                   })}
@@ -432,7 +453,8 @@ export default function ServiceAdoptionHeatmap({ data }) {
                   {services.map(s => {
                     const n = r.service_breakdown?.[s.name] ?? 0
                     const state = r.service_states?.[s.name] || 'none'
-                    const tone = shade(r.service_bands?.[s.name])
+                    const tone = shade(mode === 'total' ? r.service_bands?.[s.name]
+                                    : r.service_bands_per_user?.[s.name])
                     const cell = grid[`${s.name}||${r.frontline}`]
                     return (
                       <td key={s.name} style={{ ...td, textAlign: 'center' }}>
