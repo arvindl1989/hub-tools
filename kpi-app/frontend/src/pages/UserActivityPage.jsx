@@ -547,6 +547,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             subtitle="Throughput per specialist — service breadth belongs to the people who ask, not to who handled it"
             throughput
             rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels} effort={effort}
+            hoursPerDay={cfg.hours_per_day ?? 8}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
         </div>
 

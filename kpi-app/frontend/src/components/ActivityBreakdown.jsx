@@ -23,7 +23,7 @@ function countBadge(n, max) {
 export default function ActivityBreakdown({
   title, subtitle, rows = [], keys = [], labels = {}, headerLabel = 'Name',
   ignoresServiceFilter = false, rateLabel = 'Service breadth', throughput = false,
-  effort = false,
+  effort = false, hoursPerDay = 8,
 }) {
   if (!rows.length) {
     return <Card title={title} subtitle={subtitle}><Empty /></Card>
@@ -40,6 +40,13 @@ export default function ActivityBreakdown({
 
   return (
     <Card title={title} subtitle={subtitle}>
+      {throughput && (
+        <p style={{ fontSize: 11, color: '#9c9c9c', margin: '0 0 10px', fontFamily: INTER }}>
+          Capacity utilisation is estimated hours closed in this window over the working hours it
+          held. Available hours assume full time with no leave — the export carries no absence or
+          part-time data — so a person who took leave will read high.
+        </p>
+      )}
       {ignoresServiceFilter && (
         <p style={{ fontSize: 11, color: '#9c9c9c', margin: '0 0 10px', fontFamily: INTER }}>
           The Service filter is ignored in this table — it would leave only one service in the
@@ -58,6 +65,10 @@ export default function ActivityBreakdown({
               </th>
               {throughput ? (
                 <>
+                  <th style={{ ...thStyle, textAlign: 'right' }}
+                      title="Estimated hours of the tickets they closed in this window, over the working hours the window held. Assumes full time with no leave — there is no absence data in the export.">
+                    Capacity utilisation
+                  </th>
                   <th style={{ ...thStyle, textAlign: 'right' }} title="Median calendar days from created to closed, over the tickets they closed">
                     Median days
                   </th>
@@ -117,6 +128,16 @@ export default function ActivityBreakdown({
                 </td>
                 {throughput ? (
                   <>
+                    {/* Never capped: over 100% is either a genuine overload or
+                        estimates set too high for this person's mix, and
+                        flattening it to 100 hides both. */}
+                    <td style={{ padding: '9px 6px', textAlign: 'right', fontWeight: 700, fontFamily: INTER,
+                                 color: (r.capacity_pct ?? 0) > 100 ? '#c0305a' : '#1450f5' }}
+                        title={`${Math.round(r.delivered_hours ?? 0)} estimated hours closed of `
+                               + `${Math.round(r.available_hours ?? 0)} available `
+                               + `(${r.working_days ?? 0} working days x ${hoursPerDay} h), full time with no leave`}>
+                      {r.capacity_pct == null ? '—' : `${r.capacity_pct}%`}
+                    </td>
                     <td style={{ padding: '9px 6px', textAlign: 'right', color: '#141414', fontWeight: 700, fontFamily: INTER }}>
                       {r.median_days_to_close == null ? '—' : `${r.median_days_to_close}d`}
                     </td>
