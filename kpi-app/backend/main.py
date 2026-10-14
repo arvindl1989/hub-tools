@@ -19,6 +19,7 @@ from openai import AsyncOpenAI
 
 import traceback
 import name_repair
+import user_activity_config as ua_config
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -2680,17 +2681,16 @@ SERVICE_ABBREV = {
 # A frontline counts as a top user of a service when it raises at least as much
 # as the frontline at this quantile of everyone still using it. The median would
 # make half of them "top", which says nothing; this names the leaders.
-TOP_FRONTLINE_QUANTILE = 0.75
+TOP_FRONTLINE_QUANTILE = 0.75   # TODO(step 6): guard for small samples
 
 # Lifecycle thresholds, in days since the user's most recent request measured
 # from periodEnd. Mutually exclusive and collectively exhaustive over [0, ∞).
-LIFECYCLE_ACTIVE_MAX  = 30   # Active:  0–30
-LIFECYCLE_REGULAR_MAX = 90   # Regular: 31–90, Dormant: 91+
+# Defined once, in user_activity_config — these are the names the code below
+# already used, bound to the single source rather than restated here.
+LIFECYCLE_ACTIVE_MAX  = ua_config.LIFECYCLE_ACTIVE_DAYS
+LIFECYCLE_REGULAR_MAX = ua_config.LIFECYCLE_DORMANT_DAYS
 
-NEW_USER_WINDOW_DAYS = 90    # first-ever request within this many days of periodEnd
-AT_RISK_MIN_DAYS     = 60    # At-Risk: last request 60–90 days ago…
-AT_RISK_MAX_DAYS     = 90
-AT_RISK_MIN_LIFETIME = 3     # …and ≥3 lifetime requests, i.e. previously regular
+NEW_USER_WINDOW_DAYS = ua_config.NEW_USER_WINDOW_DAYS
 
 UNASSIGNED = "Unassigned"
 
@@ -3269,13 +3269,14 @@ def user_metrics(
                   "global_team_list": [], "area_list": [], "frontline_list": []},
         "volume": {"total_requests": 0, "avg_per_user": None, "median_per_user": None},
         "lifecycle": {"active": [], "regular": [], "dormant": []},
-        "growth": {"new_users": [], "top_requestors": [], "at_risk": [], "top_share_pct": None},
+        "growth": {"new_users": [], "top_requestors": [], "top_share_pct": None},
         "rates": {"utility_rate": None, "engagement_pct": None, "repeat_pct": None,
                   "service_adoption_pct": None, "services_used": 0,
                   "services_offered": len(CANONICAL_SERVICES)},
         "total_users": 0,
         "top_n": top_n,
         "user_list": [],
+        "config": ua_config.as_payload(),
         "service_utility": [],
         "activity_groups": {"services": [], "areas": [], "by_area": [], "by_frontline": [],
                             "by_service": [], "by_specialist": []},
@@ -3430,12 +3431,6 @@ def user_metrics(
         key=lambda u: (u["first_request_date"], u["count"]), reverse=True,
     )
     top_requestors = users[:top_n]
-    at_risk = sorted(
-        (u for u in users
-         if AT_RISK_MIN_DAYS <= u["days_since_last"] <= AT_RISK_MAX_DAYS
-         and u["lifetime_count"] >= AT_RISK_MIN_LIFETIME),
-        key=lambda u: u["days_since_last"], reverse=True,
-    )
 
     # ── Row 6: rates ─────────────────────────────────────────────────────────
     in_scope = ({str(v).strip() for v in scoped["sub_category"].dropna() if str(v).strip()}
@@ -3472,7 +3467,6 @@ def user_metrics(
         "growth": {
             "new_users": new_users,
             "top_requestors": top_requestors,
-            "at_risk": at_risk,
             # Share of all requests the top-N users account for — a far more
             # useful headline than "10", which is what a count would always read.
             "top_share_pct": _safe_div(
@@ -3492,6 +3486,7 @@ def user_metrics(
         },
         "service_utility":  _service_utility_merged(scoped, users, period_end),
         "activity_groups":  _activity_groups(scoped),
+        "config":           ua_config.as_payload(),
         "fl_utility":       _utility_per_frontline(scoped),
         "service_adoption": _service_adoption(scoped, period_end),
     }
