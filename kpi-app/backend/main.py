@@ -3091,7 +3091,8 @@ def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
 
 def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
                             as_of: Optional[pd.DataFrame] = None,
-                            open_frame: Optional[pd.DataFrame] = None) -> list:
+                            open_frame: Optional[pd.DataFrame] = None,
+                            closed_frame: Optional[pd.DataFrame] = None) -> list:
     """One row per service, with both denominators side by side.
 
     Reach across people and reach across frontlines are the same question
@@ -3105,6 +3106,15 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
         scoped = scoped.copy()
         scoped["service"] = _service_column(scoped)
 
+    # "Closed in the window" is the basis everywhere the SLA is reported, the
+    # specialist board included, so that a ticket raised in March and finished
+    # in September counts once and in the same month on both. Reach keeps the
+    # scoped frame: that question is about who asked, not about who delivered.
+    closed = closed_frame if closed_frame is not None else scoped.iloc[0:0]
+    if not closed.empty and "sub_category" in closed.columns and "service" not in closed.columns:
+        closed = closed.copy()
+        closed["service"] = _service_column(closed)
+
     out = []
     for service in BAU_SERVICES_DISPLAY:
         u, f = by_user.get(service), by_fl.get(service)
@@ -3116,8 +3126,8 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
         # week behind two that have a month.
         children = sorted(DEMAND_ENGAGEMENT_SUBS) \
             if service == "Demand Engagement Activations" else []
-        in_service = scoped[scoped["service"] == service] if "service" in scoped.columns \
-            else scoped.iloc[0:0]
+        in_service = closed[closed["service"] == service] if "service" in closed.columns \
+            else closed.iloc[0:0]
         open_service = None
         if open_frame is not None and not open_frame.empty and "sub_category" in open_frame.columns:
             want = set(children) if children else {service}
@@ -3137,8 +3147,8 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
                     "requests": int((scoped["sub_category"] == child).sum())
                     if "sub_category" in scoped.columns else 0,
                     "sla": _sla_figures(
-                        scoped[scoped["sub_category"] == child] if "sub_category" in scoped.columns
-                        else scoped.iloc[0:0],
+                        closed[closed["sub_category"] == child] if "sub_category" in closed.columns
+                        else closed.iloc[0:0],
                         period_end,
                         open_frame[open_frame["sub_category"] == child]
                         if open_frame is not None and "sub_category" in open_frame.columns else None),
@@ -3920,6 +3930,13 @@ def user_metrics(
         closed_in_window = _filter_by_range(
             lifetime.dropna(subset=["closed_date"]), "closed_date", date_from, date_to)
 
+    # The service board drops the Service filter, as every reach figure on it
+    # does, so its SLA record is counted on the same population.
+    reach_closed_in_window = reach_lifetime
+    if "closed_date" in reach_lifetime.columns:
+        reach_closed_in_window = _filter_by_range(
+            reach_lifetime.dropna(subset=["closed_date"]), "closed_date", date_from, date_to)
+
     # Still open as of the window's end: raised by then and either never closed
     # or closed after it. A ticket already past its target is a breach whether
     # or not anybody has closed it, so these are judged too.
@@ -4053,7 +4070,8 @@ def user_metrics(
             "services_offered":     len(CANONICAL_SERVICES),
         },
         "service_utility":  _service_utility_merged(reach_scoped, reach_users, period_end,
-                                                   reach_as_of, open_as_of),
+                                                   reach_as_of, open_as_of,
+                                                   reach_closed_in_window),
         "activity_groups":  _activity_groups(reach_scoped, available_hours, working_days,
                                              closed_in_window, open_as_of, period_end),
         "config":           ua_config.as_payload(),
