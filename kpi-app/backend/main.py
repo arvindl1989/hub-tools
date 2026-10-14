@@ -4065,6 +4065,21 @@ def user_metrics(
 
 # ── SLA config ─────────────────────────────────────────────────────────────────
 
+@app.get("/api/holidays")
+def get_holidays():
+    """The working calendar, for anything that counts working days.
+
+    The email tracker computes its own due dates in the browser, and was
+    skipping weekends only — so a ticket raised before Diwali came out a day
+    early and chased a day early. It reads this rather than keeping a second
+    list that drifts from the one every server-side figure uses.
+    """
+    return {
+        "by_year": HOLIDAYS_BY_YEAR,
+        "dates": sorted({d for yr in HOLIDAYS_BY_YEAR.values() for d in yr}),
+    }
+
+
 @app.get("/api/sla-rules")
 def get_sla_rules():
     return SLA_RULES

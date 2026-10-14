@@ -1654,7 +1654,65 @@
     const SHEET_URL_KEY = 'aegis_sheet_url';
 
     // ── Constants ─────────────────────────────────────────────────────────
+    // The hub's public holidays. The dashboard counts working days against the
+    // same list, and a due date that ignores them is a day early for every
+    // ticket raised before one — so the chase goes out before the work is
+    // actually late. This copy is the fallback; loadCalendar() refreshes it
+    // from the server, which is where the list is maintained.
+    let HOLIDAYS = new Set([
+      '2024-01-01', '2024-01-15', '2024-01-26', '2024-04-14', '2024-05-01',
+      '2024-08-15', '2024-09-07', '2024-10-02', '2024-10-11', '2024-10-31',
+      '2024-12-25',
+      '2025-01-01', '2025-01-14', '2025-01-26', '2025-04-14', '2025-05-01',
+      '2025-08-15', '2025-08-27', '2025-10-01', '2025-10-02', '2025-10-20',
+      '2025-12-25',
+      '2026-01-01', '2026-01-15', '2026-01-26', '2026-04-14', '2026-04-23',
+      '2026-05-01', '2026-08-15', '2026-09-14', '2026-10-02', '2026-10-19',
+      '2026-11-09', '2026-12-25',
+    ]);
+
+    // Targets, in working days, by exact Sub-Category. Filled from the Rates &
+    // SLA panel so the tracker and the dashboard cannot disagree about what a
+    // service is promised; the name-matching below is what runs until it
+    // arrives, and for any sub-category the panel does not know.
+    let SLA_RULES = null;
+
+    function isoDay(d) {
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${d.getFullYear()}-${m}-${day}`;
+    }
+
+    function isWorkDay(d) {
+      return d.getDay() !== 0 && d.getDay() !== 6 && !HOLIDAYS.has(isoDay(d));
+    }
+
+    async function loadCalendar() {
+      // Both are read-only and either may be missing when the page is opened
+      // from a file rather than the app; the baked-in values stand in.
+      try {
+        const r = await fetch('/api/holidays');
+        if (r.ok) {
+          const data = await r.json();
+          if (Array.isArray(data.dates) && data.dates.length) {
+            HOLIDAYS = new Set(data.dates);
+          }
+        }
+      } catch (e) { /* keep the fallback list */ }
+      try {
+        const r = await fetch('/api/sla-rules');
+        if (r.ok) {
+          const rules = await r.json();
+          if (rules && Object.keys(rules).length) SLA_RULES = rules;
+        }
+      } catch (e) { /* keep the name matching */ }
+    }
+
     function getSLADays(subCat) {
+      if (SLA_RULES) {
+        const exact = SLA_RULES[subCat.trim()];
+        if (exact) return exact;
+      }
       const n = subCat.toLowerCase().replace(/\s*[-–—]\s*/g, ' ').trim();
       if (n.startsWith('website content')) return 10;
       if (n.includes('graphic design'))   return 10;
@@ -1776,12 +1834,13 @@
 
     function addWorkDays(date, days) {
       const d = new Date(date);
-      // Advance past weekends so the start date itself is a working day (Day 1)
-      while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+      // Advance past weekends and holidays so the start date itself is a
+      // working day (Day 1)
+      while (!isWorkDay(d)) d.setDate(d.getDate() + 1);
       let counted = 1;
       while (counted < days) {
         d.setDate(d.getDate() + 1);
-        if (d.getDay() !== 0 && d.getDay() !== 6) counted++;
+        if (isWorkDay(d)) counted++;
       }
       return d;
     }
@@ -1833,6 +1892,9 @@
     async function loadTickets(url, silent = false) {
       if (!silent) showLoading('Fetching ticket data…');
       try {
+        // Due dates are computed below, so the calendar has to be in hand
+        // first; it falls back to the baked-in list rather than blocking.
+        await loadCalendar();
         const rows = await fetchAndParse(url);
         allTickets = rows
           .filter(r => ACTIVE_STATES.has((r['State'] || '').trim()))

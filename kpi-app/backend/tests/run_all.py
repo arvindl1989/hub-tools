@@ -32,6 +32,8 @@ TESTS = [
      "met, missed, and the open work already late"),
     ("the effort brief", "test_effort_brief.py",
      "the seven cases that one asked for"),
+    ("email calendar", "test_email_sla_calendar.py",
+     "the tracker's due dates land where the dashboard's do"),
 ]
 
 failed = []
