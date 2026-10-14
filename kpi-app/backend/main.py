@@ -3172,7 +3172,7 @@ def _sla_figures(frame: pd.DataFrame, period_end, open_frame=None) -> dict:
     last year; the page says so rather than implying the judgement is contemporaneous.
     """
     blank = {"closed": 0, "met": 0, "met_pct": None, "show_pct": False,
-             "open_breached": 0, "open_within": 0,
+             "open_breached": 0, "open_within": 0, "open_total": 0,
              "median_working_days": None, "median_calendar_days": None}
     if frame is None or frame.empty or "sla_wd" not in frame.columns:
         return blank
@@ -3190,8 +3190,12 @@ def _sla_figures(frame: pd.DataFrame, period_end, open_frame=None) -> dict:
         if wd <= row["sla_wd"]:
             met += 1
 
-    open_breached = open_within = 0
+    open_breached = open_within = open_total = 0
     if open_frame is not None and not open_frame.empty and "sla_wd" in open_frame.columns:
+        # The total counts everything still open, including tickets whose
+        # sub-category carries no target: they are part of the backlog even
+        # though there is nothing to judge them against.
+        open_total = int(len(open_frame))
         for _, row in open_frame.dropna(subset=["sla_wd"]).iterrows():
             wd = working_days_between(row["created_date"], period_end)
             if wd is None:
@@ -3209,6 +3213,7 @@ def _sla_figures(frame: pd.DataFrame, period_end, open_frame=None) -> dict:
         "show_pct": ua_config.show_pct(n),
         "open_breached": open_breached,
         "open_within": open_within,
+        "open_total": open_total,
         "median_working_days": round(float(np.median(wds)), 1) if wds else None,
         "median_calendar_days": round(float(np.median(cds)), 1) if cds else None,
     }

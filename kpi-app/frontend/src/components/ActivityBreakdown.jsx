@@ -44,7 +44,9 @@ export default function ActivityBreakdown({
         <p style={{ fontSize: 11, color: '#9c9c9c', margin: '0 0 10px', fontFamily: INTER }}>
           Capacity utilisation is estimated hours closed in this window over the working hours it
           held. Available hours assume full time with no leave — the export carries no absence or
-          part-time data — so a person who took leave will read high.
+          part-time data — so a person who took leave will read high. SLA met and the median are in
+          working days, weekends and public holidays excluded, and judge every ticket against the
+          target currently set in Rates &amp; SLA.
         </p>
       )}
       {ignoresServiceFilter && (
@@ -69,10 +71,16 @@ export default function ActivityBreakdown({
                       title="Estimated hours of the tickets they closed in this window, over the working hours the window held. Assumes full time with no leave — there is no absence data in the export.">
                     Capacity utilisation
                   </th>
-                  <th style={{ ...thStyle, textAlign: 'right' }} title="Median calendar days from created to closed, over the tickets they closed">
+                  <th style={{ ...thStyle, textAlign: 'right' }}
+                      title="Closed tickets that took no more than their target working days, over the tickets they closed. Every ticket is judged against the target currently set in Rates & SLA — the panel keeps no history, so a target changed since is applied to older work too.">
+                    SLA met
+                  </th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}
+                      title="Median working days from created to closed, weekends and public holidays excluded, over the tickets they closed">
                     Median days
                   </th>
-                  <th style={{ ...thStyle, textAlign: 'right' }} title="Tickets assigned to them that are not in a closed state">
+                  <th style={{ ...thStyle, textAlign: 'right' }}
+                      title="Tickets assigned to them that were still open at the end of the period, whenever they were raised. The red figure is how many of those have already passed their SLA target.">
                     Open
                   </th>
                 </>
@@ -138,11 +146,43 @@ export default function ActivityBreakdown({
                                + `(${r.working_days ?? 0} working days x ${hoursPerDay} h), full time with no leave`}>
                       {r.capacity_pct == null ? '—' : `${r.capacity_pct}%`}
                     </td>
-                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#141414', fontWeight: 700, fontFamily: INTER }}>
-                      {r.median_days_to_close == null ? '—' : `${r.median_days_to_close}d`}
+                    {/* Below five closed tickets one ticket moves the figure by
+                        twenty points, so the count stands alone rather than
+                        dressing up as a rate. */}
+                    <td style={{ padding: '9px 6px', textAlign: 'right', fontWeight: 700, fontFamily: INTER,
+                                 color: (r.sla_met_pct ?? 100) < 80 ? '#c0305a' : '#1450f5' }}
+                        title={r.sla_closed
+                          ? `${r.sla_met} of ${r.sla_closed} closed tickets met their target`
+                          : 'Nothing closed in this window'}>
+                      {r.sla_closed
+                        ? (r.sla_show_pct === false
+                            ? <span style={{ color: '#b9b1a3', fontWeight: 600 }}
+                                    title={`Only ${r.sla_closed} closed tickets — too few for a percentage`}>
+                                {r.sla_met}/{r.sla_closed}
+                              </span>
+                            : `${r.sla_met_pct}%`)
+                        : '—'}
                     </td>
-                    <td style={{ padding: '9px 6px', textAlign: 'right', color: r.open_backlog ? '#b87d00' : '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
-                      {r.open_backlog == null ? '—' : r.open_backlog}
+                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#141414', fontWeight: 700, fontFamily: INTER }}
+                        title={r.sla_median_calendar_days == null ? undefined
+                          : `${r.sla_median_calendar_days} calendar days`}>
+                      {r.sla_median_working_days == null ? '—' : `${r.sla_median_working_days}d`}
+                    </td>
+                    {/* The backlog shown is everything still open at the end of
+                        the period, not only what was raised inside it, because
+                        that is the set the breach count is drawn from — two
+                        populations in one cell would read as a contradiction
+                        whenever an old ticket is late. */}
+                    <td style={{ padding: '9px 6px', textAlign: 'right', color: r.sla_open_total ? '#b87d00' : '#6e6e6e', fontWeight: 600, fontFamily: INTER }}
+                        title={`${r.sla_open_total ?? 0} open at the end of the period`
+                               + `, of which ${r.open_backlog ?? 0} were raised inside it`}>
+                      {r.sla_open_total == null ? '—' : r.sla_open_total}
+                      {r.sla_open_breached ? (
+                        <span style={{ color: '#c0305a', fontWeight: 700, marginLeft: 6 }}
+                              title={`${r.sla_open_breached} of them are already past their SLA target`}>
+                          {r.sla_open_breached} late
+                        </span>
+                      ) : null}
                     </td>
                   </>
                 ) : (
