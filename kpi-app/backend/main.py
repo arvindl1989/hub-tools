@@ -2597,10 +2597,14 @@ def user_activity(
 
     # "Days since" is measured from the END of the active date range, not from
     # today — same anchor as /user-metrics, so the two never disagree on screen.
+    # Capped at the newest request for the same reason: a range ending in the
+    # future would age every user by the gap between the data and that date.
+    data_end = pd.Timestamp(tmp["created_date"].max()).normalize() if not tmp.empty else pd.NaT
     period_end = (
-        pd.Timestamp(date_to).normalize() if date_to
-        else pd.Timestamp(tmp["created_date"].max()).normalize() if not tmp.empty
-        else pd.NaT
+        min(pd.Timestamp(date_to).normalize(), data_end)
+        if date_to and pd.notna(data_end)
+        else pd.Timestamp(date_to).normalize() if date_to
+        else data_end
     )
 
     tmp = _apply_dim_filters(tmp, assigned_to, team, area, sub_category)
@@ -3292,11 +3296,18 @@ def user_metrics(
         base["area"] = base["area"].map(lambda a: AREA_RENAME.get(a, a) if pd.notna(a) else a)
 
     # period_end anchors every recency window. End of the date filter if one is
-    # set; otherwise the newest request in the session (i.e. the implicit range end).
-    if date_to:
-        period_end = pd.Timestamp(date_to).normalize()
-    else:
-        period_end = pd.Timestamp(base["created_date"].max()).normalize()
+    # set; otherwise the newest request in the session (i.e. the implicit range
+    # end).
+    #
+    # Capped at the newest request there is, because a range can end in the
+    # future: picking the whole of 2026 in October anchors "days since" to 31
+    # December, which makes the most recent request in the data 80-odd days old
+    # and empties the Active bucket even though people are raising requests
+    # this week. The cap is taken over the whole session rather than the
+    # filtered rows, so choosing an Area still cannot shift the windows — an
+    # area that has gone quiet has to look quiet.
+    data_end = pd.Timestamp(base["created_date"].max()).normalize()
+    period_end = min(pd.Timestamp(date_to).normalize(), data_end) if date_to else data_end
     if pd.isna(period_end):
         return empty
 
