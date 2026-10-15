@@ -3200,6 +3200,50 @@ def _available_hours(date_from, date_to, period_end, earliest) -> tuple:
     return days, round(days * ua_config.HOURS_PER_DAY, 1)
 
 
+def _capacity_of(grp: pd.DataFrame, closed_frame, name,
+                 available_hours: float, working_days: int) -> dict:
+    """What a specialist got out of the door, against the hours they had.
+
+    Not shown on the page any more — the columns came off on 15 October — but
+    computed and carried in the payload, because the sums are tested and
+    putting them back is then a question of labels rather than arithmetic.
+
+    Hours are credited when a ticket closes, not when it is raised: "closed in
+    the window" is not "created in the window and since closed", and a ticket
+    raised in March and finished in September is September's delivery.
+    """
+    closed = grp.dropna(subset=["closed_date"]) if "closed_date" in grp.columns \
+        else grp.iloc[0:0]
+    median_days = None
+    if not closed.empty:
+        days = (pd.to_datetime(closed["closed_date"])
+                - pd.to_datetime(closed["created_date"])).dt.total_seconds() / 86400.0
+        days = days[days >= 0]
+        median_days = round(float(days.median()), 1) if len(days) else None
+
+    if ua_config.UTILISATION_BASIS == "closed" and closed_frame is not None:
+        delivered = closed_frame[closed_frame["assigned_to"] == name] \
+            if "assigned_to" in closed_frame.columns else closed_frame.iloc[0:0]
+    else:
+        delivered = grp
+    delivered_hours = _hours_of(delivered)
+    return {
+        "delivered_hours": delivered_hours,
+        "delivered_tickets": int(len(delivered)),
+        "available_hours": available_hours,
+        "working_days": working_days,
+        # Not capped. Over 100% means the estimates are too high for this
+        # person's mix, or they are genuinely overloaded, and flattening it to
+        # 100 hides both.
+        "capacity_pct": _safe_div(delivered_hours, available_hours,
+                                  pct=True, nd=0) if available_hours else None,
+        "median_days_to_close": median_days,
+        "closed": int(len(closed)),
+        "open_backlog": (int((~grp["state"].isin(EXCLUDED_STATES)).sum())
+                         if "state" in grp.columns else None),
+    }
+
+
 def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
                      working_days: int = 0,
                      closed_frame: Optional[pd.DataFrame] = None) -> dict:
@@ -3246,59 +3290,14 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
             users = grp["ticket_creator"].nunique()
             counts = grp.groupby(split_on).size().to_dict() if split_on in grp.columns else {}
 
-            # A specialist's board is about their work, not about which
-            # services their requesters happen to use: service breadth there
-            # measured the people who came to them, and reading it as their
-            # coverage was a mistake waiting to be made. So the specialist
-            # rows carry throughput instead.
-            if col == "assigned_to":
-                closed = grp.dropna(subset=["closed_date"]) if "closed_date" in grp.columns \
-                    else grp.iloc[0:0]
-                if not closed.empty:
-                    days = (pd.to_datetime(closed["closed_date"])
-                            - pd.to_datetime(closed["created_date"])).dt.total_seconds() / 86400.0
-                    days = days[days >= 0]
-                    median_days = round(float(days.median()), 1) if len(days) else None
-                else:
-                    median_days = None
-                open_now = (int((~grp["state"].isin(EXCLUDED_STATES)).sum())
-                            if "state" in grp.columns else None)
-                # Hours are credited when a ticket closes, not when it is
-                # raised, because utilisation asks what went out of the door.
-                # Volume and utilisation therefore describe different ticket
-                # sets, and the page says which.
-                # "Closed in the window" is not "created in the window and
-                # since closed": a ticket raised in March and finished in
-                # September is September's delivery. closed_frame is filtered
-                # on the Closed date, which is the set capacity is about.
-                if ua_config.UTILISATION_BASIS == "closed" and closed_frame is not None:
-                    delivered = closed_frame[closed_frame["assigned_to"] == name] \
-                        if "assigned_to" in closed_frame.columns else closed_frame.iloc[0:0]
-                else:
-                    delivered = grp
-                delivered_hours = _hours_of(delivered)
-                out.append({
-                    "name": str(name),
-                    "users": int(users),
-                    "requests": int(len(grp)),
-                    "utility_pct": None,
-                    "delivered_hours": delivered_hours,
-                    "delivered_tickets": int(len(delivered)),
-                    "available_hours": available_hours,
-                    "working_days": working_days,
-                    # Not capped. Over 100% means the estimates are too high
-                    # for this person's mix, or they are genuinely overloaded,
-                    # and flattening it to 100 hides both.
-                    "capacity_pct": _safe_div(delivered_hours, available_hours,
-                                              pct=True, nd=0) if available_hours else None,
-                    "requests_per_user": _safe_div(len(grp), users),
-                    "median_days_to_close": median_days,
-                    "closed": int(len(closed)),
-                    "open_backlog": open_now,
-                    "breakdown": {str(k): int(counts.get(k, 0)) for k in keys},
-                })
-                continue
-
+            # A specialist's row is read like every other: the utility rate
+            # is the people who came to them and the services those people
+            # use. It is not a measure of the specialist's own coverage, and
+            # the page has never claimed it is.
+            #
+            # The capacity figures are computed below and kept in the payload,
+            # but no longer shown: hours delivered over hours available rests
+            # on an availability nobody has the data for.
             if col == "service":
                 utility = _safe_div(users, total_users, pct=True, nd=0)
             else:
@@ -3334,32 +3333,9 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
                     for k in keys
                 },
             })
-        # A specialist who closed work in the window but had nothing new raised
-        # in it belongs on a capacity board — that is exactly the person who
-        # spent the window finishing a backlog. Building the rows only from
-        # tickets created in the window deleted them.
-        if col == "assigned_to" and closed_frame is not None \
-                and "assigned_to" in closed_frame.columns:
-            seen = {r["name"] for r in out}
-            for name, grp in closed_frame.dropna(subset=["assigned_to"]).groupby("assigned_to"):
-                if str(name).strip() in seen or not str(name).strip():
-                    continue
-                delivered_hours = _hours_of(grp)
-                out.append({
-                    "name": str(name), "users": 0, "requests": 0, "utility_pct": None,
-                    "delivered_hours": delivered_hours,
-                    "delivered_tickets": int(len(grp)),
-                    "available_hours": available_hours,
-                    "working_days": working_days,
-                    "capacity_pct": _safe_div(delivered_hours, available_hours,
-                                              pct=True, nd=0) if available_hours else None,
-                    "requests_per_user": None, "est_hours": 0.0, "est_hours_per_user": None,
-                    "is_frontline": True,
-                    "median_days_to_close": None,
-                    "closed": int(len(grp)), "open_backlog": 0,
-                    "breakdown": {str(k): 0 for k in keys},
-                    "breakdown_hours": {str(k): 0.0 for k in keys},
-                })
+            if col == "assigned_to":
+                out[-1].update(_capacity_of(grp, closed_frame, name,
+                                            available_hours, working_days))
         return sorted(out, key=lambda r: (-r["requests"], r["name"]))
 
     return {

@@ -12,21 +12,18 @@ import { INTER, cardHeadingStyle, Card } from './KoneUI'
 // range instead left most cells in the palest step, because one frontline on
 // several hundred flattens a map whose other cells are single digits.
 //
-// Text is white throughout, as asked. On the two palest steps white is thin
-// against the background, so those carry a soft shadow to hold the number
-// legible rather than being left to disappear.
+// Text is white throughout, and plain: the palest steps used to carry a shadow
+// to hold the number against the background, which read as a glow around the
+// digits. Every cell is now set the same way as the dark ones.
 const BAND = [
-  { bg: '#e9effe', label: 'Not used', faint: true },
-  { bg: '#d0dcfd', label: 'Lowest',   faint: true },
-  { bg: '#a1b9fb', label: 'Low',      faint: true },
+  { bg: '#e9effe', label: 'Not used' },
+  { bg: '#d0dcfd', label: 'Lowest' },
+  { bg: '#a1b9fb', label: 'Low' },
   { bg: '#7296f9', label: 'Medium' },
   { bg: '#4373f7', label: 'High' },
   { bg: '#1450f5', label: 'Highest' },
 ]
 const INK = '#ffffff'
-// Enough of a shadow to separate white from a pale blue, invisible on the dark
-// steps where it is not needed.
-const FAINT_SHADOW = '0 0 1px rgba(10,40,110,1), 0 0 3px rgba(10,40,110,0.85), 0 1px 2px rgba(10,40,110,0.7)'
 
 const shade = (band) => BAND[band ?? 0] || BAND[0]
 
@@ -388,7 +385,6 @@ export default function ServiceAdoptionHeatmap({ data, effort = false }) {
                           style={{
                             ...fixed, padding: '7px 2px', textAlign: 'center',
                             background: tone.bg, color: INK,
-                            textShadow: tone.faint ? FAINT_SHADOW : undefined,
                             borderBottom: '1px solid #fff', borderRight: '1px solid #fff',
                             fontWeight: 700, fontSize: 12,
                             cursor: cell.requests ? 'pointer' : 'default',
@@ -484,7 +480,6 @@ export default function ServiceAdoptionHeatmap({ data, effort = false }) {
                           style={{
                             display: 'inline-block', minWidth: 28, borderRadius: 5, padding: '2px 7px',
                             background: tone.bg, color: INK, border: '1px solid #e8e2d6',
-                            textShadow: tone.faint ? FAINT_SHADOW : undefined,
                             fontWeight: 700, fontSize: 12,
                             cursor: n ? 'pointer' : 'default',
                           }}>{(effort ? Math.round(r.service_hours?.[s.name] ?? 0) : n) || '·'}</span>

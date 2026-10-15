@@ -23,7 +23,7 @@ function countBadge(n, max) {
 export default function ActivityBreakdown({
   title, subtitle, rows = [], keys = [], labels = {}, headerLabel = 'Name',
   ignoresServiceFilter = false, rateLabel = 'Utility rate', rateOfWholeBase = false,
-  throughput = false, effort = false, hoursPerDay = 8,
+  effort = false,
 }) {
   if (!rows.length) {
     return <Card title={title} subtitle={subtitle}><Empty /></Card>
@@ -40,13 +40,6 @@ export default function ActivityBreakdown({
 
   return (
     <Card title={title} subtitle={subtitle}>
-      {throughput && (
-        <p style={{ fontSize: 11, color: '#9c9c9c', margin: '0 0 10px', fontFamily: INTER }}>
-          Capacity utilisation is estimated hours closed in this window over the working hours it
-          held. Available hours assume full time with no leave — the export carries no absence or
-          part-time data — so a person who took leave will read high.
-        </p>
-      )}
       {ignoresServiceFilter && (
         <p style={{ fontSize: 11, color: '#9c9c9c', margin: '0 0 10px', fontFamily: INTER }}>
           The Service filter is ignored in this table — it would leave only one service in the
@@ -63,36 +56,17 @@ export default function ActivityBreakdown({
                   title={effort ? 'Standard per-ticket estimates from Rates & SLA, not logged time' : undefined}>
                 {effort ? 'Est. hours' : 'Requests'}
               </th>
-              {throughput ? (
-                <>
-                  <th style={{ ...thStyle, textAlign: 'right' }}
-                      title="Estimated hours of the tickets they closed in this window, over the working hours the window held. Assumes full time with no leave — there is no absence data in the export.">
-                    Capacity utilisation
-                  </th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}
-                      title="Median calendar days from created to closed, over the tickets they closed">
-                    Median days
-                  </th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}
-                      title="Tickets assigned to them that are not in a closed state">
-                    Open
-                  </th>
-                </>
-              ) : (
-                <>
-                  <th style={{ ...thStyle, textAlign: 'right' }} title={rateOfWholeBase
+              <th style={{ ...thStyle, textAlign: 'right' }} title={rateOfWholeBase
                     ? 'Users of this service as a share of the whole user base'
                     : 'Average, across the services, of the share of this group\u2019s users who have used each one'}>
-                    {rateLabel}
-                  </th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}
-                      title={effort
-                        ? 'Estimated hours divided by users in this group'
-                        : 'Requests divided by users in this group'}>
-                    {effort ? 'Est. h / user' : 'Req / user'}
-                  </th>
-                </>
-              )}
+                {rateLabel}
+              </th>
+              <th style={{ ...thStyle, textAlign: 'right' }}
+                  title={effort
+                    ? 'Estimated hours divided by users in this group'
+                    : 'Requests divided by users in this group'}>
+                {effort ? 'Est. h / user' : 'Req / user'}
+              </th>
               {keys.map(k => (
                 <th key={k} style={{ ...thStyle, textAlign: 'center' }} title={k}>
                   {labels[k] ?? k}
@@ -124,38 +98,15 @@ export default function ActivityBreakdown({
                     title={effort ? `${r.requests} requests` : undefined}>
                   {effort ? Math.round(r.est_hours ?? 0).toLocaleString() : r.requests}
                 </td>
-                {throughput ? (
-                  <>
-                    {/* Never capped: over 100% is either a genuine overload or
-                        estimates set too high for this person's mix, and
-                        flattening it to 100 hides both. */}
-                    <td style={{ padding: '9px 6px', textAlign: 'right', fontWeight: 700, fontFamily: INTER,
-                                 color: (r.capacity_pct ?? 0) > 100 ? '#c0305a' : '#1450f5' }}
-                        title={`${Math.round(r.delivered_hours ?? 0)} estimated hours closed of `
-                               + `${Math.round(r.available_hours ?? 0)} available `
-                               + `(${r.working_days ?? 0} working days x ${hoursPerDay} h), full time with no leave`}>
-                      {r.capacity_pct == null ? '—' : `${r.capacity_pct}%`}
-                    </td>
-                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#141414', fontWeight: 700, fontFamily: INTER }}>
-                      {r.median_days_to_close == null ? '—' : `${r.median_days_to_close}d`}
-                    </td>
-                    <td style={{ padding: '9px 6px', textAlign: 'right', color: r.open_backlog ? '#b87d00' : '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
-                      {r.open_backlog == null ? '—' : r.open_backlog}
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#1450f5', fontWeight: 700, fontFamily: INTER }}
-                        title={`Across ${r.users} ${r.users === 1 ? 'user' : 'users'}`}>
-                      {r.utility_pct == null ? '—' : `${r.utility_pct}%`}
-                    </td>
-                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
-                      {effort
-                        ? (r.est_hours_per_user == null ? '—' : r.est_hours_per_user)
-                        : (r.requests_per_user == null ? '—' : r.requests_per_user)}
-                    </td>
-                  </>
-                )}
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#1450f5', fontWeight: 700, fontFamily: INTER }}
+                    title={`Across ${r.users} ${r.users === 1 ? 'user' : 'users'}`}>
+                  {r.utility_pct == null ? '—' : `${r.utility_pct}%`}
+                </td>
+                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
+                  {effort
+                    ? (r.est_hours_per_user == null ? '—' : r.est_hours_per_user)
+                    : (r.requests_per_user == null ? '—' : r.requests_per_user)}
+                </td>
                 {keys.map(k => {
                   const n = cellOf(r, k)
                   const t = countBadge(n, columnMax[k])

@@ -120,7 +120,13 @@ check("100 hours over 80 available", solo["delivered_hours"] == 100.0,
       f"{solo['delivered_hours']} h of {solo['available_hours']} h")
 check("reads 125%", solo["capacity_pct"] == 125, f"{solo['capacity_pct']}%")
 
-print("\nThe column is not called Utility")
-check("breadth is absent from specialist rows", a["utility_pct"] is None)
+print("\nThe figures are carried, not shown")
+# The capacity columns came off By Specialist on 15 October. The sums stay in
+# the payload so putting them back is a question of labels rather than
+# arithmetic, and the specialist row now also carries the utility rate every
+# other row has — the services the people who came to them use.
+check("capacity is still computed", a["capacity_pct"] is not None)
+check("and the utility rate is back beside it", a["utility_pct"] is not None,
+      f"{a['utility_pct']}%")
 
 print(f"\n{ok} checks passed")
