@@ -78,10 +78,11 @@ diff = [k for k, c in m["service_adoption"]["grid"].items()
 print(f"  {len(diff)} of {len(m['service_adoption']['grid'])} cells shade differently per user")
 assert diff, "the per-user view is identical to the totals — it adds nothing"
 
-print("\nTEST 6 — small groups still show a count instead of a percentage")
-small = [r for r in m["activity_groups"]["by_frontline"]
-         if r["users"] < cfg["min_group_size_for_pct"]]
-assert all(r["show_pct"] is False for r in small)
-print(f"  {len(small)} rows below {cfg['min_group_size_for_pct']} users, all flagged")
+print("\nTEST 6 — one kind of cell per column, whatever the group size")
+rows = m["activity_groups"]["by_frontline"]
+assert all(isinstance(r["utility_pct"], (int, float)) for r in rows)
+assert not any("show_pct" in r for r in rows)
+print(f"  all {len(rows)} frontline rows print a rate, "
+      f"the smallest over {min(r['users'] for r in rows)} user(s)")
 
 print("\nALL CHECKS PASSED")

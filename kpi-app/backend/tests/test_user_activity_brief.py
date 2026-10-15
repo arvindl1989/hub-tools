@@ -106,10 +106,15 @@ check("same share", M["growth"]["top_share_pct"] == m3["growth"]["top_share_pct"
       f"{M['growth']['top_share_pct']}% on {M['total_users']} users, "
       f"{m3['growth']['top_share_pct']}% on {m3['total_users']}")
 
-print("\n5. A one-user group shows n=1 and no percentage")
+print("\n5. A one-user group prints its rate like any other")
+# Originally "shows n=1 and no percentage". The suppression was withdrawn on
+# 15 October at the user's request: they would rather read a rate everywhere
+# and know the group is small than meet two kinds of cell in one column.
 solo = next((r for r in M["activity_groups"]["by_frontline"] if r["name"] == "KANZ"), None)
 check("KANZ is a one-user row", solo and solo["users"] == 1)
-check("its percentage is suppressed", solo and solo["show_pct"] is False)
+check("and still reads as a percentage", solo and isinstance(solo["utility_pct"], (int, float)),
+      f"{solo['utility_pct']}%" if solo else "")
+check("with nothing suppressed", solo and "show_pct" not in solo)
 
 print("\n6. An Area filter moves no recency window")
 a = metrics(SID, area="EUR")

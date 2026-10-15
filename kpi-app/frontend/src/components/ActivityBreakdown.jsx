@@ -102,19 +102,15 @@ export default function ActivityBreakdown({
           </thead>
           <tbody>
             {rows.map(r => {
-              // A hub function is shown but muted: its row is real work, and
-              // reading it as a market's performance is the mistake to avoid.
-              const muted = r.is_frontline === false
               return (
-              <tr key={r.name} style={{ borderBottom: '1px solid #f1ede3', opacity: muted ? 0.55 : 1 }}>
+              <tr key={r.name} style={{ borderBottom: '1px solid #f1ede3' }}>
                 <td style={{ padding: '9px 6px', minWidth: 140 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 10, height: 10, borderRadius: 3,
-                                   background: muted ? '#b9b1a3' : BAR, flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, color: muted ? '#6e6e6e' : '#141414',
-                                   fontFamily: INTER, whiteSpace: 'nowrap' }}
-                          title={muted ? 'A hub function, not a frontline — excluded from frontline totals' : undefined}>
-                      {r.name}{muted ? ' ·' : ''}
+                                   background: BAR, flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, color: '#141414',
+                                   fontFamily: INTER, whiteSpace: 'nowrap' }}>
+                      {r.name}
                     </span>
                   </div>
                   <div style={{ height: 6, background: '#f1ede3', borderRadius: 3, marginTop: 6, marginLeft: 18, overflow: 'hidden' }}>
@@ -149,13 +145,9 @@ export default function ActivityBreakdown({
                   </>
                 ) : (
                   <>
-                    {/* A percentage over three people swings 33 points when one
-                        of them moves, so below the floor the count stands alone. */}
-                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#1450f5', fontWeight: 700, fontFamily: INTER }}>
-                      {r.utility_pct == null ? '—'
-                        : r.show_pct === false
-                          ? <span style={{ color: '#b9b1a3', fontWeight: 600 }} title={`Only ${r.users} users — too few for a percentage`}>n={r.users}</span>
-                          : `${r.utility_pct}%`}
+                    <td style={{ padding: '9px 6px', textAlign: 'right', color: '#1450f5', fontWeight: 700, fontFamily: INTER }}
+                        title={`Across ${r.users} ${r.users === 1 ? 'user' : 'users'}`}>
+                      {r.utility_pct == null ? '—' : `${r.utility_pct}%`}
                     </td>
                     <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
                       {effort
@@ -185,7 +177,6 @@ export default function ActivityBreakdown({
       <p style={{ fontSize: 11, color: '#9c9c9c', margin: '10px 0 0', lineHeight: 1.6, fontFamily: INTER }}>
         {effort ? 'Estimated hours' : 'Requests'} add up to the total; users do not. Someone whose tickets span two groups is
         counted in both rows, which is why no total is shown for that column.
-        {rows.some(r => r.is_frontline === false) && ' Greyed rows are hub functions rather than frontlines.'}
       </p>
     </Card>
   )

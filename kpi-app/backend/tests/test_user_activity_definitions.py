@@ -124,14 +124,17 @@ for short, r in su.items():
           f"below the bar {len(f['below_threshold'])}  never {len(f['not_used'])}")
     assert f["used"] + len(f["below_threshold"]) + len(f["not_used"]) == f["total"]
 
-print("\nTEST 7 — small groups show a count, not a percentage")
-small = [r for r in m["activity_groups"]["by_frontline"]
-         if r["users"] < cfg["min_group_size_for_pct"]]
-print(f"  {len(small)} frontline rows below {cfg['min_group_size_for_pct']} users; "
-      f"show_pct flags: {sorted({r['show_pct'] for r in small})}")
-assert all(r["show_pct"] is False for r in small)
-assert all(r["show_pct"] is True
-           for r in m["activity_groups"]["by_frontline"]
-           if r["users"] >= cfg["min_group_size_for_pct"])
+print("\nTEST 7 — every group prints a rate, whatever its size")
+# The small-group rule was withdrawn on 15 October: two kinds of cell in one
+# column cost more in reading than the caveat was worth. What has to hold now
+# is that nothing is left half-suppressed — a one-user row reads 33% or 100%,
+# not a blank and not a count.
+rows = m["activity_groups"]["by_frontline"]
+small = [r for r in rows if r["users"] < 5]
+print(f"  {len(small)} of {len(rows)} frontline rows have fewer than five users; "
+      f"rates: {sorted({r['utility_pct'] for r in small})}")
+assert small, "no small frontline in the fixture — this test would prove nothing"
+assert all(isinstance(r["utility_pct"], (int, float)) for r in rows)
+assert not any("show_pct" in r for r in rows), "the suppression flag is still being sent"
 
 print("\nALL CHECKS PASSED")

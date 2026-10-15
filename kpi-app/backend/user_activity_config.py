@@ -30,11 +30,11 @@ ACCESS_REVIEW_FLAG_DAYS = 90
 # First-ever request within this many days of the as-of date.
 NEW_USER_WINDOW_DAYS = 90
 
-# ── Honesty about small numbers ──────────────────────────────────────────────
-# A percentage over three people reads as precision the data does not have:
-# one person moving swings it 33 points. Below this, the count shows and the
-# percentage is suppressed.
-MIN_GROUP_SIZE_FOR_PCT = 5
+# Small groups used to print their size instead of a percentage, on the
+# grounds that a rate over three people swings 33 points when one of them
+# moves. Withdrawn 15 October: two kinds of cell in one column cost more in
+# reading than the caveat was worth. Every rate now prints as a rate, and a
+# two-person frontline reading 50% means one of the two.
 
 # ── Services ─────────────────────────────────────────────────────────────────
 # 3 = the offers the business sells (WCM, DEA, CP), where DEA merges three
@@ -162,11 +162,6 @@ def is_frontline(team, area) -> bool:
     return bool(name)
 
 
-def show_pct(group_size: int) -> bool:
-    """Whether a percentage over this many people is worth printing."""
-    return group_size >= MIN_GROUP_SIZE_FOR_PCT
-
-
 def as_payload() -> dict:
     """What the browser needs so its labels and legends match the maths."""
     return {
@@ -175,7 +170,6 @@ def as_payload() -> dict:
         "access_review_at_risk_days": ACCESS_REVIEW_AT_RISK_DAYS,
         "access_review_flag_days": ACCESS_REVIEW_FLAG_DAYS,
         "new_user_window_days": NEW_USER_WINDOW_DAYS,
-        "min_group_size_for_pct": MIN_GROUP_SIZE_FOR_PCT,
         "service_model": SERVICE_MODEL,
         "frontline_includes_global": FRONTLINE_INCLUDES_GLOBAL,
         "non_frontline_teams": list(NON_FRONTLINE_TEAMS),
