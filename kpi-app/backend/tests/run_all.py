@@ -32,6 +32,8 @@ TESTS = [
      "the cases that one asked for"),
     ("sub-services", "test_sub_service_reach.py",
      "each service inside the roll-up read on its own"),
+    ("page controls", "test_page_controls.py",
+     "every card, toggle, cell and dialog, clicked in a browser"),
     ("email calendar", "test_email_sla_calendar.py",
      "the tracker's due dates land where the dashboard's do"),
 ]

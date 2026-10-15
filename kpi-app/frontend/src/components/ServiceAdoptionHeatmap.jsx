@@ -120,7 +120,11 @@ function Legend({ bands = [], effort = false, hourLabels = [] }) {
 }
 
 // ── Who is behind a cell ──────────────────────────────────────────────────────
-function CellUsers({ cell, onClose }) {
+// The band is passed in rather than worked out here: which band a cell is in
+// depends on the mode and the effort toggle, and both of those live in the
+// component below. Reaching for them from here was a ReferenceError that took
+// the whole page down the moment the dialog opened.
+function CellUsers({ cell, band = 0, onClose }) {
   // Escape closes it, because a dialog that can only be dismissed by hitting a
   // small target is a dialog people learn to avoid opening.
   useEffect(() => {
@@ -129,7 +133,7 @@ function CellUsers({ cell, onClose }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const tone = shade(bandOf(cell))
+  const tone = shade(band)
   return (
     <div
       onClick={onClose}
@@ -494,7 +498,8 @@ export default function ServiceAdoptionHeatmap({ data, effort = false }) {
         </div>
       )}
 
-      {openCell && <CellUsers cell={openCell} onClose={() => setOpenCell(null)} />}
+      {openCell && <CellUsers cell={openCell} band={bandOf(openCell)}
+                              onClose={() => setOpenCell(null)} />}
     </Card>
   )
 }
