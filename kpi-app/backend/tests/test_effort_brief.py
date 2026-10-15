@@ -112,23 +112,13 @@ check("and on to the Tuesday", main.working_days_between(T("2026-11-06"), T("202
 check("closed the day it was raised", main.working_days_between(T("2026-06-01"), T("2026-06-01")) == 0)
 
 # ── 5 ────────────────────────────────────────────────────────────────────────
-print("\n5. An open ticket past its target is a breach; a young one is not")
-rows = [
-    # WCM, 10 working days. Open since 1 June: late by the 30th.
-    ticket(400, "Website Content Management", who="U1", created="2026-06-01 09:00:00",
-           closed=None, state="Work in progress"),
-    # Open since 26 June: two working days old, still within.
-    ticket(401, "Website Content Management", who="U2", created="2026-06-26 09:00:00",
-           closed=None, state="Assigned"),
-    ticket(402, "Website Content Management", who="U3", created="2026-06-02 09:00:00",
-           closed="2026-06-05 17:00:00"),
-]
-m = metrics(upload(rows), date_from="2026-06-01", date_to="2026-06-30")
-wcm = next(r for r in m["service_utility"] if r["short"] == "WCM")["sla"]
-print(f"   open {wcm['open_total']}: {wcm['open_breached']} late, {wcm['open_within']} within")
-check("the old open ticket is counted as breached", wcm["open_breached"] == 1,
-      str(wcm["open_breached"]))
-check("the recent one is not", wcm["open_within"] == 1, str(wcm["open_within"]))
+# Case 5 was SLA breach counting, withdrawn on 15 October along with the rest
+# of the SLA columns — the page does not report compliance any more, so there
+# is nothing left to assert. working_days_between, which the case rested on, is
+# still covered by case 4 above and by test_effort_working_days.py; the email
+# tracker's due dates still lean on it, and test_email_sla_calendar.py checks
+# those against it.
+print("\n5. (withdrawn — SLA compliance is no longer shown on the page)")
 
 # ── 6 ────────────────────────────────────────────────────────────────────────
 print("\n6. 100 estimated hours over 10 working days reads 125%, uncapped")

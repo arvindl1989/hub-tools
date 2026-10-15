@@ -44,38 +44,71 @@ function Rate({ pct }) {
   )
 }
 
-// How a service did against its own target. A rate over three closed tickets
-// swings thirty points when one of them moves, so under the floor the raw
-// count stands instead of a percentage.
-function Sla({ sla, target }) {
-  if (!sla || !sla.closed) {
-    return <span style={{ color: '#b9b1a3', fontSize: 12 }}>—</span>
-  }
-  const late = sla.met_pct != null && sla.met_pct < 80
+// The ten cells that answer both questions. A sub-service row uses the same
+// ones as its parent, because it is the same question asked of a narrower
+// offer — showing it in a different shape would invite reading it as a
+// different measure.
+function ReachCells({ row }) {
   return (
-    <span
-      style={{ fontWeight: 700, fontSize: 12, color: late ? '#c0305a' : '#1e8a5e' }}
-      title={`${sla.met} of ${sla.closed} closed tickets were done within `
-             + `${target ?? '—'} working days`}
-    >
-      {sla.show_pct === false
-        ? <span style={{ color: '#b9b1a3' }}>{sla.met}/{sla.closed}</span>
-        : `${sla.met_pct}%`}
-    </span>
+    <>
+      <td style={{ ...td, textAlign: 'right', borderLeft: '2px solid #dbe6fd' }}>
+        <b>{row.users.used}</b>
+        <span style={{ color: '#9c9c9c' }}> / {row.users.total}</span>
+      </td>
+      <td style={td}><Rate pct={row.users.rate_pct} /></td>
+      <td style={{ ...td, textAlign: 'center' }}><Count n={row.users.active} tone={TONE.active} /></td>
+      <td style={{ ...td, textAlign: 'center' }}><Count n={row.users.regular} tone={TONE.regular} /></td>
+      <td style={{ ...td, textAlign: 'center' }}><Count n={row.users.dormant} tone={TONE.dormant} /></td>
+
+      <td style={{ ...td, textAlign: 'right', borderLeft: '2px solid #dbe6fd' }}>
+        <b>{row.frontlines.used}</b>
+        <span style={{ color: '#9c9c9c' }}> / {row.frontlines.total}</span>
+      </td>
+      <td style={td}><Rate pct={row.frontlines.rate_pct} /></td>
+      <td style={{ ...td, textAlign: 'center' }}><Count n={row.frontlines.active} tone={TONE.active} /></td>
+      <td style={{ ...td, textAlign: 'center' }}><Count n={row.frontlines.regular} tone={TONE.regular} /></td>
+      <td style={{ ...td, textAlign: 'center' }}><Count n={row.frontlines.dormant} tone={TONE.dormant} /></td>
+    </>
+  )
+}
+
+// The people and frontlines that have never asked for this one. It is a list
+// to go and work through rather than a number to look at, so it opens as a
+// dialog instead of unfolding the page underneath it.
+function NeverUsed({ row, onOpen }) {
+  const never = row.users.not_used.length + row.frontlines.not_used.length
+  return (
+    <td style={{ ...td, textAlign: 'center' }}>
+      <button
+        onClick={() => onOpen(row.service)}
+        disabled={!never}
+        style={{
+          background: never ? '#1450f5' : '#f3eee6',
+          color: never ? '#fff' : '#b9b1a3',
+          border: 'none', borderRadius: 6, padding: '5px 12px',
+          fontSize: 12, fontWeight: 700, fontFamily: INTER,
+          cursor: never ? 'pointer' : 'default', whiteSpace: 'nowrap',
+        }}
+      >
+        {never ? `${row.users.not_used.length} users · ${row.frontlines.not_used.length} FLs` : 'None'}
+      </button>
+    </td>
   )
 }
 
 export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = false }) {
   const [open, setOpen] = useState(null)   // the service whose non-users are shown
-  // DEA is three services with targets of 30, 7 and 30 working days. A blended
-  // figure for the parent would hide one missing its week behind two that have
-  // a month, so the children open underneath on request.
+  // Demand Engagement Activations is three separate offers with three separate
+  // audiences. The roll-up's reach is the union of theirs, and a union cannot
+  // show which of the three nobody has taken up, so the children open
+  // underneath on request and answer the same two questions of themselves.
   const [expanded, setExpanded] = useState({})
 
-  const current = useMemo(
-    () => rows.find(r => r.service === open) || null,
-    [rows, open],
-  )
+  // Children are rows in their own right, so the dialog has to find them too.
+  const current = useMemo(() => {
+    const all = rows.flatMap(r => [r, ...(r.sub_services || [])])
+    return all.find(r => r.service === open) || null
+  }, [rows, open])
 
   if (!rows.length) {
     return (
@@ -118,36 +151,20 @@ export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = f
                 ...th, textAlign: 'center', color: '#1450f5', background: '#f5f8fe',
                 borderBottom: '1px solid #e8e2d6', borderLeft: '2px solid #dbe6fd',
               }}>By frontlines</th>
-              <th colSpan={3} style={{
-                ...th, textAlign: 'center', color: '#1450f5', background: '#f5f8fe',
-                borderBottom: '1px solid #e8e2d6', borderLeft: '2px solid #dbe6fd',
-              }}>Against the SLA</th>
               <th style={{ ...th, borderBottom: '1px solid #e8e2d6' }} />
             </tr>
             <tr>
               <th style={th}>Service</th>
               <th style={{ ...th, textAlign: 'right', borderLeft: '2px solid #dbe6fd' }}>Used / Total</th>
-              <th style={{ ...th, minWidth: 130 }} title="Users of this service as a share of everyone in the filter">Reach</th>
+              <th style={{ ...th, minWidth: 130 }} title="Users of this service as a share of everyone in the filter">Utility rate</th>
               <th style={{ ...th, textAlign: 'center' }}>Active</th>
               <th style={{ ...th, textAlign: 'center' }}>Regular</th>
               <th style={{ ...th, textAlign: 'center' }}>Dormant</th>
               <th style={{ ...th, textAlign: 'right', borderLeft: '2px solid #dbe6fd' }}>Used / Total</th>
-              <th style={{ ...th, minWidth: 130 }} title="Users of this service as a share of everyone in the filter">Reach</th>
+              <th style={{ ...th, minWidth: 130 }} title="Frontlines that have taken this service up, as a share of all frontlines in the filter">Utility rate</th>
               <th style={{ ...th, textAlign: 'center' }}>Active</th>
               <th style={{ ...th, textAlign: 'center' }}>Regular</th>
               <th style={{ ...th, textAlign: 'center' }}>Dormant</th>
-              <th style={{ ...th, textAlign: 'center', borderLeft: '2px solid #dbe6fd' }}
-                  title="Closed tickets done within their target working days, over the tickets closed in this window. Every ticket is judged against the target currently set in Rates & SLA — the panel keeps no history, so a target changed since is applied to older work too.">
-                Met
-              </th>
-              <th style={{ ...th, textAlign: 'center' }}
-                  title="Median working days from created to closed, weekends and public holidays excluded. The calendar figure is in the tooltip.">
-                Median
-              </th>
-              <th style={{ ...th, textAlign: 'center' }}
-                  title="Tickets still open at the end of the period that have already passed their target">
-                Open &amp; late
-              </th>
               <th style={{ ...th, textAlign: 'center' }}>Never used</th>
             </tr>
           </thead>
@@ -173,66 +190,15 @@ export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = f
                           borderRadius: 5, color: '#1450f5', fontSize: 11, fontWeight: 600,
                           fontFamily: INTER, cursor: 'pointer', padding: '1px 6px',
                         }}
-                        title="The three services inside this roll-up have different targets"
+                        title="Each of the three has its own audience — the roll-up's reach is the union of theirs"
                       >
                         {isOpen ? '− hide' : `+ ${kids.length} sub-services`}
                       </button>
                     )}
                   </td>
 
-                  <td style={{ ...td, textAlign: 'right', borderLeft: '2px solid #dbe6fd' }}>
-                    <b>{r.users.used}</b>
-                    <span style={{ color: '#9c9c9c' }}> / {r.users.total}</span>
-                  </td>
-                  <td style={td}><Rate pct={r.users.rate_pct} /></td>
-                  <td style={{ ...td, textAlign: 'center' }}><Count n={r.users.active} tone={TONE.active} /></td>
-                  <td style={{ ...td, textAlign: 'center' }}><Count n={r.users.regular} tone={TONE.regular} /></td>
-                  <td style={{ ...td, textAlign: 'center' }}><Count n={r.users.dormant} tone={TONE.dormant} /></td>
-
-                  <td style={{ ...td, textAlign: 'right', borderLeft: '2px solid #dbe6fd' }}>
-                    <b>{r.frontlines.used}</b>
-                    <span style={{ color: '#9c9c9c' }}> / {r.frontlines.total}</span>
-                  </td>
-                  <td style={td}><Rate pct={r.frontlines.rate_pct} /></td>
-                  <td style={{ ...td, textAlign: 'center' }}><Count n={r.frontlines.active} tone={TONE.active} /></td>
-                  <td style={{ ...td, textAlign: 'center' }}><Count n={r.frontlines.regular} tone={TONE.regular} /></td>
-                  <td style={{ ...td, textAlign: 'center' }}><Count n={r.frontlines.dormant} tone={TONE.dormant} /></td>
-
-                  <td style={{ ...td, textAlign: 'center', borderLeft: '2px solid #dbe6fd' }}>
-                    <Sla sla={r.sla} target={r.sla_target_wd} />
-                  </td>
-                  <td style={{ ...td, textAlign: 'center', fontWeight: 700, fontSize: 12, color: '#141414' }}
-                      title={r.sla?.median_calendar_days == null ? undefined
-                        : `${r.sla.median_calendar_days} calendar days`}>
-                    {r.sla?.median_working_days == null ? '—' : `${r.sla.median_working_days}d`}
-                  </td>
-                  {/* A ticket that blew its target three months ago and is
-                      still open is the worst case the SLA has, so it is counted
-                      here rather than waiting for a close date to appear. */}
-                  <td style={{ ...td, textAlign: 'center', fontWeight: 700, fontSize: 12,
-                               color: r.sla?.open_breached ? '#c0305a' : '#b9b1a3' }}
-                      title={`${r.sla?.open_breached ?? 0} of ${r.sla?.open_total ?? 0} tickets `
-                             + 'still open at the end of the period have passed their target'}>
-                    {r.sla?.open_breached || '—'}
-                  </td>
-
-                  {/* The list is a thing to go and work through, so it opens
-                      as a dialog rather than unfolding the page under it. */}
-                  <td style={{ ...td, textAlign: 'center' }}>
-                    <button
-                      onClick={() => setOpen(r.service)}
-                      disabled={!never}
-                      style={{
-                        background: never ? '#1450f5' : '#f3eee6',
-                        color: never ? '#fff' : '#b9b1a3',
-                        border: 'none', borderRadius: 6, padding: '5px 12px',
-                        fontSize: 12, fontWeight: 700, fontFamily: INTER,
-                        cursor: never ? 'pointer' : 'default', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {never ? `${r.users.not_used.length} users · ${r.frontlines.not_used.length} FLs` : 'None'}
-                    </button>
-                  </td>
+                  <ReachCells row={r} />
+                  <NeverUsed row={r} onOpen={setOpen} />
                 </tr>
 
                 {isOpen && kids.map(k => (
@@ -240,25 +206,11 @@ export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = f
                     <td style={{ ...td, paddingLeft: 34, color: '#6e6e6e', whiteSpace: 'nowrap' }}>
                       {k.service}
                       <span style={{ color: '#9c9c9c', marginLeft: 8, fontSize: 11 }}>
-                        {k.requests} requests · target {k.sla_target_wd ?? '—'} working days
+                        {k.requests} requests
                       </span>
                     </td>
-                    <td colSpan={10} style={{ ...td, color: '#b9b1a3', fontSize: 11 }}>
-                      Reach is measured on the roll-up above
-                    </td>
-                    <td style={{ ...td, textAlign: 'center', borderLeft: '2px solid #dbe6fd' }}>
-                      <Sla sla={k.sla} target={k.sla_target_wd} />
-                    </td>
-                    <td style={{ ...td, textAlign: 'center', fontWeight: 700, fontSize: 12, color: '#141414' }}
-                        title={k.sla?.median_calendar_days == null ? undefined
-                          : `${k.sla.median_calendar_days} calendar days`}>
-                      {k.sla?.median_working_days == null ? '—' : `${k.sla.median_working_days}d`}
-                    </td>
-                    <td style={{ ...td, textAlign: 'center', fontWeight: 700, fontSize: 12,
-                                 color: k.sla?.open_breached ? '#c0305a' : '#b9b1a3' }}>
-                      {k.sla?.open_breached || '—'}
-                    </td>
-                    <td style={td} />
+                    <ReachCells row={k} />
+                    <NeverUsed row={k} onOpen={setOpen} />
                   </tr>
                 ))}
               </Fragment>
@@ -277,11 +229,10 @@ export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = f
         )} Active, Regular and Dormant are
         measured on the last request <b>for that service</b> — someone raising weekly content
         requests is not an active user of Graphic Design because they tried it once a year ago —
-        and the three add up to the users, or frontlines, that have used it. The SLA columns are in
-        working days with weekends and public holidays excluded, and judge every ticket against the
-        target <b>currently</b> set in Rates &amp; SLA: the panel keeps no history, so a target
-        changed last week is applied to work done last year. Under five closed tickets a service
-        shows the raw count rather than a percentage.
+        and the three add up to the users, or frontlines, that have used it. Demand Engagement
+        Activations opens to the three services inside it, each measured the same way against the
+        same denominators — the roll-up's reach is the union of theirs, so it cannot show which of
+        the three nobody has taken up.
       </p>
 
       {current && (
@@ -289,7 +240,7 @@ export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = f
           title={`Never used ${current.short}`}
           subtitle={`${current.users.not_used.length} of ${current.users.total} users and `
                     + `${current.frontlines.not_used.length} of ${current.frontlines.total} frontlines `
-                    + `have never raised a ${current.service} request`}
+                    + `have never raised a request for ${current.service}`}
           onClose={() => setOpen(null)}
           rows={modalRows}
           columns={[

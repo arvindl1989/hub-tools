@@ -487,8 +487,9 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
                   align: 'right',
                   render: r => {
                     const byUser = r.rates?.[s.name]
-                    // Breadth stays a share of people whichever mode is on —
-                    // effort has nothing to say about how many used a thing.
+                    // The utility rate stays a share of people whichever mode is
+                    // on — effort has nothing to say about how many used a
+                    // thing.
                     // Only the second line switches.
                     const byReq = effort ? r.hours_rates?.[s.name] : r.request_rates?.[s.name]
                     return (
@@ -524,14 +525,14 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <ActivityBreakdown
             title="By Area" headerLabel="Area"
-            subtitle={effort ? "Service breadth and estimated hours per area, busiest first"
-                             : "Service breadth and requests per area, busiest first"}
+            subtitle={effort ? "Utility rate and estimated hours per area, busiest first"
+                             : "Utility rate and requests per area, busiest first"}
             rows={groups.by_area} keys={serviceKeys} labels={serviceLabels} effort={effort}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
           <ActivityBreakdown
             title="By Frontlines" headerLabel="Frontline"
-            subtitle={effort ? "Service breadth and estimated hours per frontline, busiest first"
-                             : "Service breadth and requests per frontline, busiest first"}
+            subtitle={effort ? "Utility rate and estimated hours per frontline, busiest first"
+                             : "Utility rate and requests per frontline, busiest first"}
             rows={groups.by_frontline} keys={serviceKeys} labels={serviceLabels} effort={effort}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
         </div>
@@ -539,12 +540,12 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <ActivityBreakdown
             title="By Service" headerLabel="Service"
-            subtitle="Reach across the whole user base, and where each service's demand comes from"
-            rows={groups.by_service} keys={areaKeys} labels={areaLabels} rateLabel="Reach" effort={effort}
+            subtitle="Utility rate across the whole user base, and where each service's demand comes from"
+            rows={groups.by_service} keys={areaKeys} labels={areaLabels} rateOfWholeBase effort={effort}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
           <ActivityBreakdown
             title="By Specialist" headerLabel="Specialist"
-            subtitle="Throughput per specialist — service breadth belongs to the people who ask, not to who handled it"
+            subtitle="Throughput per specialist — the utility rate belongs to the people who ask, not to who handled it"
             throughput
             rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels} effort={effort}
             hoursPerDay={cfg.hours_per_day ?? 8}
