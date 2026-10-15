@@ -176,10 +176,13 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
     { key: 'days_since_last', label: 'Last seen', align: 'right',
       render: r => `${r.days_since_last}d ago` },
   ]
-  // The people the Repeat Use card counts, from the API — computing it here
-  // from the lifecycle buckets is what the card used to mean, not what it
-  // means now.
-  const engaged = [...(metrics?.repeat_users ?? [])].sort((a, b) => b.requests - a.requests)
+  // Engagement Rate counts Active plus Regular, so its drill-down is those two
+  // buckets read as one list — the same people the lifecycle cards show,
+  // joined because the rate joins them.
+  const engaged = [...(segments.active ?? []), ...(segments.regular ?? [])]
+    .map(u => ({ name: u.user, frontline: u.frontline, area: u.area,
+                 requests: u.count, days_since_last: u.days_since_last }))
+    .sort((a, b) => b.requests - a.requests)
 
   const LISTS = {
     global: {
@@ -206,10 +209,11 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
       columns: USER_COLS, rows: metrics?.user_list ?? [],
     },
     engaged: {
-      title: 'Repeat users',
-      subtitle: `${engaged.length} of ${metrics?.total_users ?? 0} users raised `
-                + `${cfg.engaged_min_requests ?? 2} or more requests in the last `
-                + `${cfg.lifecycle_dormant_days ?? 90} days`,
+      title: 'Engaged users',
+      subtitle: `${segments.active?.length ?? 0} Active and `
+                + `${segments.regular?.length ?? 0} Regular, out of `
+                + `${metrics?.total_users ?? 0} users — everyone whose last request was `
+                + `within ${cfg.lifecycle_dormant_days ?? 90} days`,
       columns: USER_COLS, rows: engaged,
     },
   }
@@ -367,19 +371,20 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
               ? `${Math.round(volume.est_hours ?? 0).toLocaleString()} estimated hours in the active range`
               : `${volume.total_requests?.toLocaleString() ?? 0} requests in the active range`}
             onClick={() => openList('users')} />
-          {/* Median first: a handful of heavy requestors pull the mean well
-              above what a typical user does, and the pair shows the gap. */}
+          {/* The mean, as asked for. A handful of heavy requestors pull it
+              above what a typical user does — the median is in the payload as
+              volume.median_per_user if the two are ever wanted side by side. */}
           {effort ? (
             <MetricCard label="Est. hours / User" value={fmt1(volume.est_hours_per_user)}
               sub={`${Math.round(volume.est_hours ?? 0).toLocaleString()} estimated hours over ${volume.users_in_window ?? 0} users who raised something`}
               onClick={() => openList('users')} />
           ) : (
-            <MetricCard label="Requests / User (median)" value={fmt1(volume.median_per_user)}
-              sub={`Mean ${fmt1(volume.avg_per_user) ?? '—'} — the gap is the heavy requestors`}
+            <MetricCard label="Avg Requests / User" value={fmt1(volume.avg_per_user)}
+              sub="Skewed upward by heavy requestors"
               onClick={() => openList('users')} />
           )}
-          <MetricCard label="Repeat Use Rate" value={pct(rates.engagement_pct)}
-            sub={`${rates.engaged_users ?? 0} users raised ${cfg.engaged_min_requests ?? 2}+ requests in the last ${cfg.lifecycle_dormant_days ?? 90} days`}
+          <MetricCard label="Engagement Rate (%)" value={pct(rates.engagement_pct)}
+            sub="Active + Regular ÷ total users"
             onClick={() => openList('engaged')} />
         </div>
 

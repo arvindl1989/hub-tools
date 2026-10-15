@@ -3966,8 +3966,19 @@ def user_metrics(
             # Engaged means still coming back, which is Active or Regular — a
             # user who last asked for something eight weeks ago has not left.
             # Only Dormant sits outside it.
-            "engagement_pct":       _safe_div(int(repeat_recent), total_users, pct=True, nd=0),
-            "engaged_users":        int(repeat_recent),
+            #
+            # This is the definition the page was asked for. It was replaced in
+            # October by the repeat-use figure below, on the argument that
+            # Active + Regular over the base is 100% minus the dormant share
+            # restated; that was a judgement to put to the user rather than
+            # make for them, and the card is back. The repeat figure stays in
+            # the payload beside it, under its own name, so nothing that was
+            # built on it has to be rebuilt to look at it again.
+            "engagement_pct":       _safe_div(len(active) + len(regular), total_users,
+                                              pct=True, nd=0),
+            "engaged_users":        len(active) + len(regular),
+            "repeat_recent_pct":    _safe_div(int(repeat_recent), total_users, pct=True, nd=0),
+            "repeat_recent_users":  int(repeat_recent),
             "repeat_pct":           _safe_div(repeat_users, total_users, pct=True, nd=0),
             "service_adoption_pct": _safe_div(services_used, len(CANONICAL_SERVICES), pct=True, nd=0),
             "services_used":        services_used,

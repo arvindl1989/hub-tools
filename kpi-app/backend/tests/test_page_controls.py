@@ -55,7 +55,7 @@ def run(page):
         print(f"  {'FAIL' if len(problems) > before else 'ok  '}  {name}")
 
     # ── Cards, each of which opens a list ────────────────────────────────────
-    for label in ["Total Users", "Active", "Regular", "Dormant", "Repeat Use Rate",
+    for label in ["Total Users", "Active", "Regular", "Dormant", "Engagement Rate",
                   "New in last", "Top Requestors", "Service Utility Rate by FL",
                   "Global Teams", "Areas", "Frontlines"]:
         card = page.locator(f"text=/^{label}/i").first

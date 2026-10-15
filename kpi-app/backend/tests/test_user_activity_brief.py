@@ -81,7 +81,7 @@ win = metrics(SID, date_from=(TODAY - timedelta(days=30)).strftime("%Y-%m-%d"),
               date_to=TODAY.strftime("%Y-%m-%d"))
 check("dormant users exist", len(win["lifecycle"]["dormant"]) > 0,
       f"{len(win['lifecycle']['dormant'])} dormant")
-check("repeat-use rate is not 100%", win["rates"]["engagement_pct"] < 100,
+check("engagement rate is not 100%", win["rates"]["engagement_pct"] < 100,
       f"{win['rates']['engagement_pct']}%")
 
 print("\n2. A user whose last request precedes the range still appears in the list")

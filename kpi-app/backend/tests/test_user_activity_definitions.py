@@ -55,21 +55,27 @@ cfg = m["config"]
 anchor = datetime.fromisoformat(m["period_end"])
 offset = (TODAY - anchor).days
 
-print("TEST 1 — engagement is repeat use, not the inverse of dormancy")
+print("TEST 1 — engagement is Active + Regular, and repeat use is beside it")
+# Engagement Rate is the definition the page was asked for: everyone whose
+# last request was inside the dormancy window. It was briefly replaced by the
+# repeat-use figure; that figure is still computed, under its own name, so
+# both readings are available and neither is pretending to be the other.
 recent_counts = defaultdict(int)
 for who, ages in PLAN:
     recent_counts[who] = sum(1 for a in ages if a - offset <= cfg["lifecycle_dormant_days"])
-want = sum(1 for n in recent_counts.values() if n >= cfg["engaged_min_requests"])
+repeaters = sum(1 for n in recent_counts.values() if n >= cfg["engaged_min_requests"])
 lc = m["lifecycle"]
-print(f"  repeaters in the last {cfg['lifecycle_dormant_days']}d: {want} of {m['total_users']} "
-      f"= {m['rates']['engagement_pct']}%")
-print(f"  (active+regular would have been "
-      f"{round((len(lc['active']) + len(lc['regular'])) / m['total_users'] * 100)}%)")
-assert m["rates"]["engaged_users"] == want, (m["rates"]["engaged_users"], want)
-assert m["rates"]["engagement_pct"] == round(want / m["total_users"] * 100)
-assert m["rates"]["engagement_pct"] != round(
-    (len(lc["active"]) + len(lc["regular"])) / m["total_users"] * 100), \
-    "engagement still mirrors the lifecycle split"
+engaged = len(lc["active"]) + len(lc["regular"])
+print(f"  engagement: {engaged} of {m['total_users']} = {m['rates']['engagement_pct']}%")
+print(f"  repeat use: {repeaters} raised {cfg['engaged_min_requests']}+ in the last "
+      f"{cfg['lifecycle_dormant_days']}d = {m['rates']['repeat_recent_pct']}%")
+assert m["rates"]["engaged_users"] == engaged, (m["rates"]["engaged_users"], engaged)
+assert m["rates"]["engagement_pct"] == round(engaged / m["total_users"] * 100)
+assert m["rates"]["repeat_recent_users"] == repeaters, \
+    (m["rates"]["repeat_recent_users"], repeaters)
+assert m["rates"]["repeat_recent_pct"] == round(repeaters / m["total_users"] * 100)
+# They are different questions, and on this fixture they give different answers.
+assert m["rates"]["engagement_pct"] != m["rates"]["repeat_recent_pct"]
 
 print("\nTEST 2 — the top-requestor share is a proportion")
 g = m["growth"]
