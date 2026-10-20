@@ -1,114 +1,125 @@
 import { useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Html, OrbitControls, Text } from '@react-three/drei'
+import { Edges, Html, OrbitControls, OrthographicCamera, Text } from '@react-three/drei'
 import koneFont from '../assets/fonts/KONE-Information.ttf'
-import { INTER, KONE_FONT } from './KoneUI'
+import {
+  INTER, ISO, KONE, KONE_INFO, LOW_SAMPLE, RIBBON, TOWER, ZONE, ZONES,
+} from '../kone/worldConfig'
 
-// ── A building made of the figures ───────────────────────────────────────────
-// KONE moves people through buildings, so the hub's own numbers are put in one:
-// every area is a floor, the three headline rates ride the lift bank at the
-// side, and the escalators at the front carry what came in and what went out.
+// ── The hub, drawn the way KONE draws a city ─────────────────────────────────
+// White ground, black line, one blue ribbon carrying the flow, glass in light
+// blue. Every structure is an unlit flat face with an outline on it — no
+// emissive, no bloom, no specular, no fog — because the brand's illustration
+// language is line art, and because a glow is a value nobody can read.
 //
-// The metaphor is load-bearing, not decoration. A lift car stops at the height
-// of its percentage against a scale marked on the shaft, so three unrelated
-// rates can be compared at a glance without three axes. An escalator's steps
-// move at the rate work actually arrives, so a month where more is raised than
-// closed is a building where the up escalator outruns the down one.
+// The projection is orthographic isometric, and that is not a style choice:
+// with no perspective, a block of a given size reads the same wherever it
+// stands, so two areas with equal volume look equal whether they are near or
+// far. The first build used a perspective camera and quietly flattered
+// whatever happened to be closest to the viewer.
 //
-// What the shape cannot say exactly, the panel beside it says in figures:
-// nothing here asks anyone to read a value off a perspective drawing.
+// The division of labour is strict. The scene shows shape, relative size and
+// flow. Every exact number is on a flat DOM surface — the zone labels, the
+// ribbon badges, the side panel. Nothing in the geometry encodes headcount,
+// logged time or capacity, because the export contains none of those.
 
-const BLUE = '#1450f5'
-const BLUE_MID = '#4373f7'
-const BLUE_PALE = '#a1b9fb'
-const SAND = '#F3EEE6'
-const GLASS = '#2a3f7a'
+const LINE = KONE.black
+const GLASS = KONE.lightBlue
 
-const STOREY = 2.45        // floor to floor
-const FLOOR_W = 9.0
-const FLOOR_D = 6.4
-const SLAB = 0.26
-const TOWER_X = -2.2
+// A flat, unlit face with a drawn edge: the whole visual language in one place.
+function Solid({ args, position, rotation, color = KONE.white, opacity = 1,
+                 lineWidth = 1.5, children, ...rest }) {
+  return (
+    <mesh position={position} rotation={rotation} {...rest}>
+      <boxGeometry args={args} />
+      <meshBasicMaterial color={color} transparent={opacity < 1} opacity={opacity}
+                         toneMapped={false} />
+      <Edges threshold={15} color={LINE} lineWidth={lineWidth} />
+      {children}
+    </mesh>
+  )
+}
 
-const SHAFT_X = [3.5, 5.3, 7.1]
-const SHAFT_W = 1.35
+// ── People ───────────────────────────────────────────────────────────────────
+// Two per storey, every storey, deliberately. They are the brand illustration's
+// figures and they are decorative: the same count everywhere, so that nobody
+// can read them as headcount — which this export does not contain.
+function Person({ position }) {
+  return (
+    <group position={position}>
+      <Solid args={[0.17, 0.42, 0.17]} position={[0, 0.21, 0]} lineWidth={1.2} />
+      <mesh position={[0, 0.54, 0]}>
+        <sphereGeometry args={[0.1, 10, 8]} />
+        <meshBasicMaterial color={KONE.white} toneMapped={false} />
+        <Edges threshold={30} color={LINE} lineWidth={1.2} />
+      </mesh>
+    </group>
+  )
+}
 
-// ── Floors ───────────────────────────────────────────────────────────────────
-// One per area, stacked in the order the data gives, busiest at the bottom:
-// a building carries its weight low down and so does this one.
-function Floor({ index, floor, widest, selected, hovered, onPick, onHover }) {
-  const y = index * STOREY
-  // The slab is full width; the blue block on it is the area's volume, so the
-  // tower reads as a stack of unequal loads rather than a uniform block.
+// ── The tower: one storey per area ───────────────────────────────────────────
+function Storey({ index, floor, widest, selected, hovered, onPick, onHover }) {
+  const y = index * TOWER.storey
   const share = widest ? floor.requests / widest : 0
-  const blockW = Math.max(0.6, share * (FLOOR_W - 1.6))
+  const blockW = Math.max(TOWER.minBlock, share * (TOWER.width - 1.4))
   const lit = selected || hovered
 
   return (
-    <group position={[TOWER_X, y, 0]}>
-      {/* Slab */}
-      <mesh
-        position={[0, SLAB / 2, 0]}
+    <group position={[TOWER.x, y, TOWER.z]}>
+      <Solid
+        args={[TOWER.width, TOWER.slab, TOWER.depth]}
+        position={[0, TOWER.slab / 2, 0]}
+        color={lit ? GLASS : KONE.white}
         onClick={(e) => { e.stopPropagation(); onPick(floor) }}
         onPointerOver={(e) => { e.stopPropagation(); onHover(floor.key) }}
         onPointerOut={(e) => { e.stopPropagation(); onHover(null) }}
-        receiveShadow
-        castShadow
-      >
-        <boxGeometry args={[FLOOR_W, SLAB, FLOOR_D]} />
-        <meshStandardMaterial
-          color={lit ? '#30303a' : '#1e1e24'}
-          emissive={lit ? BLUE : '#000000'}
-          emissiveIntensity={lit ? 0.3 : 0}
-          roughness={0.6}
-          metalness={0.25}
-        />
-      </mesh>
+      />
 
-      {/* The volume block standing on it */}
-      <mesh position={[-(FLOOR_W - blockW) / 2 + 0.8, SLAB + 0.62, -0.6]} castShadow>
-        <boxGeometry args={[blockW, 1.15, 2.2]} />
-        <meshStandardMaterial
-          color={lit ? BLUE : BLUE_MID}
-          emissive={BLUE}
-          emissiveIntensity={lit ? 0.5 : 0.18}
-          roughness={0.3}
-          metalness={0.3}
-        />
-      </mesh>
+      {/* The volume block: width is this area's requests against the busiest. */}
+      <Solid
+        args={[blockW, 1.05, 1.9]}
+        position={[-(TOWER.width - blockW) / 2 + 0.7, TOWER.slab + 0.525, -0.7]}
+        color={KONE.blue}
+      />
 
-      {/* Corner columns up to the next slab */}
-      {[[-FLOOR_W / 2 + 0.3, -FLOOR_D / 2 + 0.3], [FLOOR_W / 2 - 0.3, -FLOOR_D / 2 + 0.3],
-        [-FLOOR_W / 2 + 0.3, FLOOR_D / 2 - 0.3], [FLOOR_W / 2 - 0.3, FLOOR_D / 2 - 0.3]]
-        .map(([cx, cz]) => (
-          <mesh key={`${cx},${cz}`} position={[cx, SLAB + (STOREY - SLAB) / 2, cz]}>
-            <boxGeometry args={[0.18, STOREY - SLAB, 0.18]} />
-            <meshStandardMaterial color="#343440" roughness={0.5} metalness={0.5} />
-          </mesh>
+      {/* A glass curtain at the back, so a storey reads as a floor of a
+          building rather than a shelf. */}
+      <Solid args={[TOWER.width, TOWER.storey - TOWER.slab, 0.08]}
+             position={[0, TOWER.slab + (TOWER.storey - TOWER.slab) / 2, -TOWER.depth / 2]}
+             color={GLASS} opacity={0.6} lineWidth={1} />
+
+      {[[-TOWER.width / 2 + 0.22, -TOWER.depth / 2 + 0.22],
+        [TOWER.width / 2 - 0.22, -TOWER.depth / 2 + 0.22],
+        [-TOWER.width / 2 + 0.22, TOWER.depth / 2 - 0.22],
+        [TOWER.width / 2 - 0.22, TOWER.depth / 2 - 0.22]].map(([cx, cz]) => (
+          <Solid key={`${cx},${cz}`} args={[0.14, TOWER.storey - TOWER.slab, 0.14]}
+                 position={[cx, TOWER.slab + (TOWER.storey - TOWER.slab) / 2, cz]}
+                 lineWidth={1.2} />
         ))}
 
-      {/* The area's name, cut into the front edge of its own slab */}
+      <Person position={[TOWER.width / 2 - 1.5, TOWER.slab, TOWER.depth / 2 - 1.0]} />
+      <Person position={[TOWER.width / 2 - 2.3, TOWER.slab, TOWER.depth / 2 - 1.6]} />
+
       <Text
         font={koneFont}
-        position={[-FLOOR_W / 2 + 0.55, SLAB + 0.35, FLOOR_D / 2 + 0.02]}
-        fontSize={0.52}
-        color={lit ? '#ffffff' : '#8d8d99'}
+        position={[-TOWER.width / 2 + 0.4, TOWER.slab + 0.34, TOWER.depth / 2 + 0.02]}
+        fontSize={0.42}
+        color={LINE}
         anchorX="left"
         anchorY="middle"
       >
-        {floor.name}
+        {String(floor.name).toUpperCase()}
       </Text>
 
       {lit && (
-        <Html position={[0, SLAB + 2.0, FLOOR_D / 2]} center distanceFactor={16}>
+        <Html position={[0, TOWER.slab + 1.7, TOWER.depth / 2]} center distanceFactor={13}>
           <div style={{
-            background: '#ffffff', color: '#141414', borderRadius: 8, padding: '8px 12px',
-            fontFamily: INTER, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+            background: KONE.white, color: LINE, border: `1px solid ${KONE.hairline}`,
+            borderRadius: 8, padding: '7px 11px', fontFamily: INTER, fontSize: 12,
+            whiteSpace: 'nowrap', pointerEvents: 'none',
           }}>
-            <b style={{ fontFamily: KONE_FONT, fontSize: 16 }}>{floor.requests}</b> requests
-            {' · '}{floor.users} users
-            {floor.score != null && <> · {floor.score.toFixed(1)}★</>}
+            <b style={{ fontFamily: KONE_INFO }}>{floor.requests}</b> requests ·{' '}
+            {floor.users} requesters
           </div>
         </Html>
       )}
@@ -116,189 +127,174 @@ function Floor({ index, floor, widest, selected, hovered, onPick, onHover }) {
   )
 }
 
-// ── The lift bank ────────────────────────────────────────────────────────────
-// Three shafts, three rates, one scale. A car rides to its own percentage of
-// the building's height, so "on time", "engaged" and "satisfied" can be read
-// against each other without three different axes to reconcile.
-function Lift({ x, kpi, height, selected, hovered, onPick, onHover }) {
-  const car = useRef()
-  const top = height - 1.4
-  const target = ((kpi.value ?? 0) / 100) * top + 0.85
+// ── The hero ribbon: everything that came in, and everything that went out ───
+// One blue ribbon in the shape of the reference's "7" — a diagonal up from the
+// ground and a flat run across the top. Two lanes of steps ride it: raised
+// climbing in KONE Blue, closed descending in sand. The motion is the hook;
+// the badges beside it are the reading.
+function Ribbon({ flow, top, reducedMotion }) {
+  const up = useRef([])
+  const down = useRef([])
+  const phase = useRef(0)
 
-  // The car rides up on arrival rather than appearing at its floor: the
-  // movement is what tells a room that the height means something.
+  const rise = top
+  const run = RIBBON.footZ - RIBBON.headZ
+  const length = Math.hypot(rise, run)
+  const angle = Math.atan2(rise, run)
+  const laneX = [-RIBBON.width / 4, RIBBON.width / 4]
+
+  useFrame((state, delta) => {
+    if (reducedMotion) return
+    phase.current = (phase.current + delta) % 1000
+    const place = (arr, speed, descending) => {
+      arr.forEach((m, i) => {
+        if (!m) return
+        const raw = ((i / RIBBON.steps) + phase.current * speed) % 1
+        const f = descending ? 1 - raw : raw
+        m.position.y = f * rise + 0.18
+        m.position.z = RIBBON.footZ - f * run
+        m.visible = f > 0.04 && f < 0.96
+      })
+    }
+    place(up.current, flow.inSpeed ?? 0.3, false)
+    place(down.current, flow.outSpeed ?? 0.3, true)
+  })
+
+  const steps = (ref, color, lane, descending) => (
+    Array.from({ length: RIBBON.steps }).map((_, i) => {
+      // With motion reduced the steps are placed once, evenly, and left alone.
+      const f = descending ? 1 - (i + 0.5) / RIBBON.steps : (i + 0.5) / RIBBON.steps
+      return (
+        <mesh
+          key={i}
+          ref={el => { ref.current[i] = el }}
+          position={[lane, f * rise + 0.18, RIBBON.footZ - f * run]}
+        >
+          <boxGeometry args={[RIBBON.width / 2 - 0.14, 0.12, 0.34]} />
+          <meshBasicMaterial color={color} toneMapped={false} />
+          <Edges threshold={20} color={LINE} lineWidth={1} />
+        </mesh>
+      )
+    })
+  )
+
+  return (
+    <group position={[RIBBON.x, 0, 0]}>
+      {/* The ribbon: blue outer face with a pale blue inner, the way the brand
+          illustration draws a folded band. */}
+      <Solid args={[RIBBON.width, 0.14, length]}
+             position={[0, rise / 2, (RIBBON.footZ + RIBBON.headZ) / 2]}
+             rotation={[angle, 0, 0]} color={KONE.blue} />
+      <Solid args={[RIBBON.width - 0.26, 0.05, length - 0.3]}
+             position={[0, rise / 2 + 0.1, (RIBBON.footZ + RIBBON.headZ) / 2]}
+             rotation={[angle, 0, 0]} color={KONE.blue20} lineWidth={1} />
+      {/* The top run of the "7". */}
+      <Solid args={[RIBBON.topRun, 0.14, RIBBON.width]}
+             position={[RIBBON.topRun / 2 - RIBBON.width / 2 + 0.2, rise + 0.07,
+                        RIBBON.headZ]}
+             color={KONE.blue} />
+
+      {steps(up, KONE.blue, laneX[0], false)}
+      {steps(down, KONE.sand, laneX[1], true)}
+
+      <Text font={koneFont} position={[0, 0.02, RIBBON.footZ + 1.2]}
+            rotation={[-Math.PI / 2, 0, 0]} fontSize={0.36} color={LINE}
+            anchorX="center" anchorY="middle">
+        REQUESTS IN AND OUT
+      </Text>
+    </group>
+  )
+}
+
+// ── A zone: one KPI, standing on its own ─────────────────────────────────────
+// Each KPI has its own small building, its own shaft, its own scale and its own
+// target. They are deliberately apart. Three shafts in a row at a shared height
+// invited a comparison between a percentage, a different percentage and a score
+// out of five — which is not a comparison anybody can make, and was the most
+// misleading thing about the first build.
+function Zone({ at, kpi, selected, hovered, onPick, onHover, reducedMotion }) {
+  const car = useRef()
+  const [x, z] = at
+  const max = kpi.max || 100
+  const frac = kpi.value == null ? 0 : Math.min(1, Math.max(0, kpi.value / max))
+  const travel = ZONE.shaftH - ZONE.carH - 0.3
+  const rideTo = 0.9 + frac * travel + 0.5
+
   useFrame((state, delta) => {
     if (!car.current) return
+    if (reducedMotion) { car.current.position.y = rideTo; return }
     const y = car.current.position.y
-    car.current.position.y = y + (target - y) * Math.min(1, delta * 2.2)
+    // Quiet motion: eased in, no bounce, settled well inside a second.
+    car.current.position.y = y + (rideTo - y) * Math.min(1, delta * 4)
   })
 
   const lit = selected || hovered
-  const rail = lit ? '#6f8ff9' : '#3a4a74'
+  const low = kpi.value != null && kpi.sample != null && kpi.sample < LOW_SAMPLE
+  const targetFrac = kpi.target == null ? null : Math.min(1, kpi.target / max)
+
   return (
-    <group position={[x, 0, 0]}>
-      {/* Four rails and a head beam. Glass alone disappeared against a black
-          background — a shaft has to have edges to read as a shaft. */}
-      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => (
-        <mesh key={`${sx},${sz}`}
-              position={[sx * SHAFT_W / 2, height / 2, sz * SHAFT_W / 2]}>
-          <boxGeometry args={[0.08, height, 0.08]} />
-          <meshStandardMaterial color={rail} emissive={rail}
-                                emissiveIntensity={lit ? 0.5 : 0.2}
-                                roughness={0.3} metalness={0.7} />
-        </mesh>
-      ))}
-      <mesh position={[0, height + 0.08, 0]}>
-        <boxGeometry args={[SHAFT_W + 0.16, 0.16, SHAFT_W + 0.16]} />
-        <meshStandardMaterial color={rail} roughness={0.4} metalness={0.7} />
-      </mesh>
-      <mesh position={[0, height / 2, 0]}>
-        <boxGeometry args={[SHAFT_W, height, SHAFT_W]} />
-        <meshStandardMaterial color={GLASS} transparent opacity={lit ? 0.3 : 0.18}
-                              roughness={0.1} metalness={0.6} />
-      </mesh>
+    <group position={[x, 0, z]}>
+      {/* The little building the shaft belongs to */}
+      <Solid args={[ZONE.footprint, 0.9, ZONE.footprint]} position={[0, 0.45, 0]}
+             color={lit ? GLASS : KONE.white}
+             onClick={(e) => { e.stopPropagation(); onPick(kpi) }}
+             onPointerOver={(e) => { e.stopPropagation(); onHover(kpi.key) }}
+             onPointerOut={(e) => { e.stopPropagation(); onHover(null) }} />
+      <Person position={[ZONE.footprint / 2 + 0.5, 0, ZONE.footprint / 2 - 0.2]} />
 
-      {/* The scale the car is read against: a mark every 25%, the top one in
-          sand so full height is unmistakable. */}
-      {[0, 25, 50, 75, 100].map(p => (
-        <mesh key={p} position={[SHAFT_W / 2 + 0.07, (p / 100) * top + 0.85, 0]}>
-          <boxGeometry args={[0.12, 0.035, SHAFT_W * 0.85]} />
-          <meshStandardMaterial color={p === 100 ? SAND : '#55556a'} />
-        </mesh>
-      ))}
+      {/* The shaft, in glass, carrying this KPI's own scale */}
+      <Solid args={[ZONE.shaftW, ZONE.shaftH, ZONE.shaftW]}
+             position={[0, 0.9 + ZONE.shaftH / 2, 0]} color={GLASS} opacity={0.6} />
 
-      {/* Car and reading, riding together */}
-      <group ref={car} position={[0, 0.85, 0]}>
-        <mesh
-          onClick={(e) => { e.stopPropagation(); onPick(kpi) }}
-          onPointerOver={(e) => { e.stopPropagation(); onHover(kpi.key) }}
-          onPointerOut={(e) => { e.stopPropagation(); onHover(null) }}
-          castShadow
-        >
-          <boxGeometry args={[SHAFT_W - 0.2, 1.2, SHAFT_W - 0.2]} />
-          <meshStandardMaterial
-            color={kpi.tone}
-            emissive={kpi.tone}
-            emissiveIntensity={lit ? 0.8 : 0.4}
-            roughness={0.25}
-            metalness={0.4}
-          />
+      {/* The target, in KONE Blue, on that same scale */}
+      {targetFrac != null && (
+        <group position={[0, 0.9 + targetFrac * travel + 0.5, 0]}>
+          <Solid args={[ZONE.shaftW + 0.3, 0.05, ZONE.shaftW + 0.3]}
+                 color={KONE.blue} lineWidth={1} />
+          <Text font={koneFont} position={[ZONE.shaftW / 2 + 0.3, 0.1, 0]}
+                fontSize={0.26} color={KONE.blue} anchorX="left" anchorY="middle">
+            {`TARGET ${kpi.targetLabel}`}
+          </Text>
+        </group>
+      )}
+
+      {/* The car. Hollow when the sample behind it is too small to be a
+          reading — an outline rather than a solid is the shape of "not yet". */}
+      <group ref={car} position={[0, 0.9, 0]}>
+        <mesh>
+          <boxGeometry args={[ZONE.shaftW - 0.16, ZONE.carH, ZONE.shaftW - 0.16]} />
+          <meshBasicMaterial color={low ? KONE.white : KONE.blue} toneMapped={false} />
+          <Edges threshold={15} color={LINE} lineWidth={low ? 2.5 : 1.5} />
         </mesh>
-        <Text
-          font={koneFont}
-          position={[0, 0, SHAFT_W / 2 + 0.06]}
-          fontSize={0.46}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {kpi.value == null ? '—' : `${Math.round(kpi.value)}%`}
-        </Text>
       </group>
 
-      {/* The name at the foot, where it stays in frame however tall the
-          building gets — above the shaft it was cropped off the top. */}
-      <Text
-        font={koneFont}
-        position={[0, 0.02, SHAFT_W / 2 + 1.0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        fontSize={0.4}
-        color={lit ? '#ffffff' : '#8d8d99'}
-        anchorX="center"
-        anchorY="middle"
-      >
+      <Text font={koneFont} position={[0, 0.02, ZONE.footprint / 2 + 0.8]}
+            rotation={[-Math.PI / 2, 0, 0]} fontSize={0.34} color={LINE}
+            anchorX="center" anchorY="middle">
         {kpi.short}
       </Text>
     </group>
   )
 }
 
-// ── The escalators ───────────────────────────────────────────────────────────
-// One carries work in, the other carries it out, and the steps move at the
-// rate each actually ran over the window. When the up escalator is visibly
-// quicker than the down one, the backlog is growing — which is the one thing
-// about flow a still picture cannot tell you.
-function Escalator({ x, rise, run, speed, color, label, down = false }) {
-  const steps = useRef([])
-  const phase = useRef(0)
-  const COUNT = 16
-
-  // Both escalators have the same geometry — they lean the same way against
-  // the same building. Only the steps differ: one set climbs, the other
-  // descends. Mirroring the truss as well left one of them lying flat on the
-  // ground, which is not a thing an escalator does.
-  useFrame((state, delta) => {
-    phase.current = (phase.current + delta * speed) % 1
-    steps.current.forEach((m, i) => {
-      if (!m) return
-      const raw = (i / COUNT + phase.current) % 1
-      const f = down ? 1 - raw : raw
-      // The far end is the top, at the building; the near end is the ground.
-      m.position.set(0, f * rise + 0.14, (0.5 - f) * run)
-      m.visible = f > 0.03 && f < 0.97
-    })
-  })
-
-  const angle = Math.atan2(rise, run)
-  const length = Math.hypot(rise, run)
-  return (
-    <group position={[x, 0, 0]}>
-      {/* Truss */}
-      <mesh position={[0, rise / 2, 0]} rotation={[angle, 0, 0]} receiveShadow>
-        <boxGeometry args={[1.5, 0.22, length]} />
-        <meshStandardMaterial color="#2a2a33" roughness={0.6} metalness={0.5} />
-      </mesh>
-      {/* Balustrades */}
-      {[-0.78, 0.78].map(side => (
-        <mesh key={side} position={[side, rise / 2 + 0.6, 0]} rotation={[angle, 0, 0]}>
-          <boxGeometry args={[0.07, 0.95, length]} />
-          <meshStandardMaterial color={GLASS} transparent opacity={0.35}
-                                roughness={0.1} metalness={0.6} />
-        </mesh>
-      ))}
-      {/* Steps */}
-      {Array.from({ length: COUNT }).map((_, i) => (
-        <mesh key={i} ref={el => { steps.current[i] = el }} castShadow>
-          <boxGeometry args={[1.3, 0.14, 0.4]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45}
-                                roughness={0.3} metalness={0.3} />
-        </mesh>
-      ))}
-      {/* A chevron of the same colour at the foot, pointing the way the steps
-          actually travel. */}
-      <Text
-        font={koneFont}
-        position={[0, 0.03, run / 2 + 1.0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        fontSize={0.4}
-        color={color === SAND ? SAND : '#8d8d99'}
-        anchorX="center"
-        anchorY="middle"
-      >
-        {down ? `${label} \u2193` : `\u2191 ${label}`}
-      </Text>
-    </group>
-  )
-}
-
-function Scene({ world, selected, onPick, paused }) {
+function Scene({ world, selected, onPick, reducedMotion }) {
   const [hover, setHover] = useState(null)
   const floors = world.floors ?? []
-  const kpis = world.kpis ?? []
   const widest = Math.max(1, ...floors.map(f => f.requests))
-  const height = Math.max(3, floors.length) * STOREY
+  const top = Math.max(3, floors.length) * TOWER.storey
 
   return (
     <>
-      {/* Ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-        <planeGeometry args={[70, 70]} />
-        <meshStandardMaterial color="#121216" roughness={0.95} />
+      {/* White ground with a hairline grid — the reference's paper, not a
+          lit floor. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
+        <planeGeometry args={[80, 80]} />
+        <meshBasicMaterial color={KONE.white} toneMapped={false} />
       </mesh>
-      <gridHelper args={[70, 35, '#23232c', '#1a1a21']} position={[0, 0, 0]} />
+      <gridHelper args={[64, 32, KONE.hairline, KONE.hairline]} position={[0, -0.01, 0]} />
 
       {floors.map((f, i) => (
-        <Floor
+        <Storey
           key={f.key}
           index={i}
           floor={f}
@@ -310,31 +306,29 @@ function Scene({ world, selected, onPick, paused }) {
         />
       ))}
 
-      {kpis.map((k, i) => (
-        <Lift
-          key={k.key}
-          x={SHAFT_X[i] ?? (SHAFT_X[0] + i * 1.9)}
-          kpi={k}
-          height={height}
-          selected={selected?.kind === 'kpi' && selected.key === k.key}
-          hovered={hover === k.key}
-          onPick={(kk) => onPick({ kind: 'kpi', ...kk })}
-          onHover={setHover}
-        />
-      ))}
+      <Ribbon flow={world.flow ?? {}} top={top} reducedMotion={reducedMotion} />
 
-      {/* In at the front, out beside it */}
-      <group position={[TOWER_X, 0, FLOOR_D / 2 + 3.4]}>
-        <Escalator x={-2.2} rise={STOREY} run={4.4} color={BLUE}
-                   speed={world.flow?.inSpeed ?? 0.25} label="RAISED" />
-        <Escalator x={2.2} rise={STOREY} run={4.4} color={SAND}
-                   speed={world.flow?.outSpeed ?? 0.25} label="CLOSED" down />
-      </group>
+      {ZONES.map(z => {
+        const kpi = (world.kpis ?? []).find(k => k.key === z.key)
+        if (!kpi) return null
+        return (
+          <Zone
+            key={z.key}
+            at={z.at}
+            kpi={kpi}
+            selected={selected?.kind === 'kpi' && selected.key === kpi.key}
+            hovered={hover === kpi.key}
+            onPick={(k) => onPick({ kind: 'kpi', ...k })}
+            onHover={setHover}
+            reducedMotion={reducedMotion}
+          />
+        )
+      })}
     </>
   )
 }
 
-export default function KoneWorld({ world, selected, onPick, paused = false }) {
+export default function KoneWorld({ world, selected, onPick, tour = false }) {
   const supported = useMemo(() => {
     try {
       const c = document.createElement('canvas')
@@ -342,13 +336,20 @@ export default function KoneWorld({ world, selected, onPick, paused = false }) {
     } catch { return false }
   }, [])
 
+  const reducedMotion = useMemo(() => {
+    try {
+      return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+    } catch { return false }
+  }, [])
+
   if (!supported) {
     return (
       <div style={{
         height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: '#9c9c9c', fontFamily: INTER, fontSize: 14, textAlign: 'center', padding: 40,
+        color: KONE.black60, fontFamily: INTER, fontSize: 14, textAlign: 'center',
+        padding: 40, background: KONE.white,
       }}>
-        This building needs WebGL, which this browser has turned off or cannot run.<br />
+        This view needs WebGL, which this browser has turned off or cannot run.<br />
         Every figure in it is also on the Dashboard, User Activity and Feedback tabs.
       </div>
     )
@@ -356,36 +357,32 @@ export default function KoneWorld({ world, selected, onPick, paused = false }) {
 
   return (
     <Canvas
-      shadows
       dpr={[1, 2]}
-      camera={{ position: [17, 12, 20], fov: 38 }}
+      flat
       gl={{ antialias: true }}
+      style={{ background: KONE.white }}
       onPointerMissed={() => onPick(null)}
     >
-      <color attach="background" args={['#0b0b0e']} />
-      <fog attach="fog" args={['#0b0b0e', 30, 70]} />
-      <ambientLight intensity={0.5} />
-      <directionalLight
-        position={[12, 20, 10]}
-        intensity={1.4}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-      />
-      <directionalLight position={[-14, 10, -10]} intensity={0.8} color={BLUE_PALE} />
-      <pointLight position={[0, 3, 12]} intensity={28} distance={30} color={BLUE} />
-      <Scene world={world} selected={selected} onPick={onPick} paused={paused} />
+      <color attach="background" args={[KONE.white]} />
+      <OrthographicCamera makeDefault position={ISO.position} zoom={ISO.zoom}
+                          near={-300} far={600} />
+      <Scene world={world} selected={selected} onPick={onPick}
+             reducedMotion={reducedMotion} />
       <OrbitControls
+        makeDefault
         enablePan={false}
-        target={[1, 4.5, 0]}
-        minDistance={14}
-        maxDistance={46}
-        minPolarAngle={0.2}
-        maxPolarAngle={Math.PI / 2.1}
-        autoRotate={!paused}
-        autoRotateSpeed={0.35}
+        target={[0.5, 3.4, 3.2]}
+        // A gentle swing either side of the isometric station point: the view
+        // is a drawing, and a drawing has one angle it is drawn at.
+        minAzimuthAngle={Math.PI / 4 - ISO.azimuthSwing}
+        maxAzimuthAngle={Math.PI / 4 + ISO.azimuthSwing}
+        minPolarAngle={Math.PI / 4.4}
+        maxPolarAngle={Math.PI / 2.6}
+        autoRotate={tour && !reducedMotion}
+        autoRotateSpeed={0.3}
         enableDamping
-        dampingFactor={0.08}
+        dampingFactor={0.1}
+        zoomSpeed={0.6}
       />
     </Canvas>
   )

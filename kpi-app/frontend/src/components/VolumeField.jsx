@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Html, OrbitControls, Text } from '@react-three/drei'
+import { Edges, Html, OrbitControls, OrthographicCamera, Text } from '@react-three/drei'
 import koneFont from '../assets/fonts/KONE-Information.ttf'
-import { INTER, KONE_FONT } from './KoneUI'
+import { INTER, ISO, KONE, KONE_INFO } from '../kone/worldConfig'
 
 // ── The field ────────────────────────────────────────────────────────────────
 // Months run left to right, areas run back to front, and the height of a bar
@@ -24,8 +24,11 @@ const STEP = 1.45          // spacing between bars, both axes
 const BAR = 0.85           // bar footprint
 const MAX_H = 5.0          // the tallest bar in the field
 
-const BLUE = ['#d0dcfd', '#a1b9fb', '#7296f9', '#4373f7', '#1450f5']
-const INK = '#141414'
+// The same tint ramp as the rest of the page, palest to full, with the same
+// black line drawn over it. The field is the city's drawing of a year.
+const BLUE = [KONE.blue20, KONE.blue40, KONE.blue60, KONE.blue80, KONE.blue]
+const LINE = KONE.black
+const INK = KONE.black
 
 // A bar's colour comes from its own height, so the eye reads the landscape
 // without checking a legend: the KONE blue scale, palest to full.
@@ -46,17 +49,10 @@ function Bar({ x, z, height, color, value, label, onHover, hovered }) {
       position={[x, h / 2, z]}
       onPointerOver={(e) => { e.stopPropagation(); onHover({ value, label, x, z, h }) }}
       onPointerOut={(e) => { e.stopPropagation(); onHover(null) }}
-      castShadow
-      receiveShadow
     >
       <boxGeometry args={[BAR, h, BAR]} />
-      <meshStandardMaterial
-        color={color}
-        emissive={hovered ? color : '#000000'}
-        emissiveIntensity={hovered ? 0.55 : 0}
-        roughness={0.35}
-        metalness={0.12}
-      />
+      <meshBasicMaterial color={hovered ? KONE.lightBlue : color} toneMapped={false} />
+      <Edges threshold={15} color={LINE} lineWidth={hovered ? 2 : 1.2} />
     </mesh>
   )
 }
@@ -102,12 +98,12 @@ function Field({ data, paused }) {
     <group ref={group}>
       {/* The floor the field stands on, and the grid that keeps the eye
           aligned with the months once the scene has turned. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
         <planeGeometry args={[width + STEP * 2, depth + STEP * 2]} />
-        <meshStandardMaterial color="#1b1b1b" roughness={0.9} metalness={0} />
+        <meshBasicMaterial color={KONE.white} toneMapped={false} />
       </mesh>
       <gridHelper
-        args={[width + STEP * 2, months.length + 1, '#2e2e2e', '#232323']}
+        args={[width + STEP * 2, months.length + 1, KONE.hairline, KONE.hairline]}
         position={[0, 0, 0]}
         scale={[1, 1, (depth + STEP * 2) / (width + STEP * 2)]}
       />
@@ -125,7 +121,7 @@ function Field({ data, paused }) {
           position={[x0 + i * STEP, 0.02, zOf(rows - 1) + STEP * 1.25]}
           rotation={[-Math.PI / 2, 0, 0]}
           fontSize={0.5}
-          color={m.label === 'Jan' ? '#ffffff' : '#9c9c9c'}
+          color={m.label === 'Jan' ? LINE : KONE.black60}
           anchorX="center"
           anchorY="middle"
         >
@@ -141,7 +137,7 @@ function Field({ data, paused }) {
           position={[x0 - STEP * 1.5, 0.02, zOf(i)]}
           rotation={[-Math.PI / 2, 0, 0]}
           fontSize={0.46}
-          color="#9c9c9c"
+          color={KONE.black60}
           anchorX="center"
           anchorY="middle"
         >
@@ -152,11 +148,11 @@ function Field({ data, paused }) {
       {hover && (
         <Html position={[hover.x, hover.h + 0.6, hover.z]} center distanceFactor={14}>
           <div style={{
-            background: '#ffffff', color: INK, borderRadius: 8, padding: '8px 12px',
-            fontFamily: INTER, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.45)', pointerEvents: 'none',
+            background: KONE.white, color: INK, borderRadius: 8, padding: '8px 12px',
+            fontFamily: INTER, fontSize: 13, whiteSpace: 'nowrap',
+            border: `1px solid ${KONE.hairline}`, pointerEvents: 'none',
           }}>
-            <span style={{ fontFamily: KONE_FONT, fontSize: 18, fontWeight: 700, marginRight: 8 }}>
+            <span style={{ fontFamily: KONE_INFO, fontSize: 18, marginRight: 8 }}>
               {hover.value}
             </span>
             {hover.label}
@@ -181,7 +177,8 @@ export default function VolumeField({ data, paused = false }) {
     return (
       <div style={{
         height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: '#9c9c9c', fontFamily: INTER, fontSize: 14, textAlign: 'center', padding: 40,
+        color: KONE.black60, fontFamily: INTER, fontSize: 14, textAlign: 'center',
+        padding: 40, background: KONE.white,
       }}>
         This screen needs WebGL, which this browser has turned off or cannot run.<br />
         Every figure here is also on the Dashboard tab.
@@ -191,38 +188,28 @@ export default function VolumeField({ data, paused = false }) {
 
   return (
     <Canvas
-      shadows
       dpr={[1, 2]}
-      camera={{ position: [13, 10.5, 17], fov: 40 }}
+      flat
       gl={{ antialias: true }}
-      style={{ background: 'transparent' }}
+      style={{ background: KONE.white }}
     >
-      <color attach="background" args={['#101010']} />
-      <fog attach="fog" args={['#101010', 24, 52]} />
-      <ambientLight intensity={0.55} />
-      <directionalLight
-        position={[9, 16, 8]}
-        intensity={1.5}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-      />
-      {/* A cool rim light from behind, so the back row keeps an edge against
-          the background instead of dissolving into it. */}
-      <directionalLight position={[-10, 8, -12]} intensity={0.7} color="#4373f7" />
+      <color attach="background" args={[KONE.white]} />
+      {/* Orthographic, like the world: a bar of a given height reads the same
+          wherever it stands in the field. */}
+      <OrthographicCamera makeDefault position={ISO.position} zoom={30} near={-300}
+                          far={600} />
       <Field data={data} paused={paused} />
       <OrbitControls
+        makeDefault
         enablePan={false}
-        // The mass of the field sits above the floor, so the camera looks at
-        // the middle of the bars rather than at the plane they stand on —
-        // aiming at the floor leaves the whole thing riding high in frame.
-        target={[0, 0.4, 0]}
-        minDistance={9}
-        maxDistance={30}
-        minPolarAngle={0.25}
-        maxPolarAngle={Math.PI / 2.35}
+        target={[0, 1.4, 0]}
+        minAzimuthAngle={Math.PI / 4 - ISO.azimuthSwing}
+        maxAzimuthAngle={Math.PI / 4 + ISO.azimuthSwing}
+        minPolarAngle={Math.PI / 4.4}
+        maxPolarAngle={Math.PI / 2.6}
         enableDamping
-        dampingFactor={0.08}
+        dampingFactor={0.1}
+        zoomSpeed={0.6}
       />
     </Canvas>
   )

@@ -128,8 +128,15 @@ with sync_playwright() as p:
     # It collapsed to 150px once, because the canvas sizes itself to a parent
     # whose height came from its siblings. A board nobody can see is a bug.
     check("and it is big enough to be a board", size[1] >= 360, f"{size[1]}px tall")
-    check("the headline figures reached it",
-          "14" in page.inner_text("body"), "requests raised")
+    # This used to assert `"14" in body`, which passed by matching "143" in a
+    # service count elsewhere on the page. It tested nothing. What matters is
+    # that the headline card holds a number rather than a dash.
+    raised = page.evaluate(
+        """() => { const t = document.body.innerText;
+                   const m = t.match(/REQUESTS RAISED\\s*\\n\\s*([0-9,]+)/);
+                   return m ? m[1] : null }""")
+    check("the headline card holds a figure", raised is not None and raised != "—",
+          str(raised))
     check("nothing threw", not errors, str(errors[:2]))
 
     # ── The world ────────────────────────────────────────────────────────────
@@ -146,8 +153,9 @@ with sync_playwright() as p:
                return d ? d.innerText.split('\\n')[0] : 'none' }""")
 
     check("the world is what opens", panel_title() == "The hub", panel_title())
-    page.get_by_role("button", name="Hold").click()
-    page.wait_for_timeout(600)
+    # The drawing is still by default now — a drawing has one angle it is drawn
+    # at — so there is nothing to hold before clicking into it.
+    page.wait_for_timeout(400)
 
     box = page.locator("canvas").bounding_box()
     picked = None
@@ -172,6 +180,66 @@ with sync_playwright() as p:
     page.mouse.click(box["x"] + box["width"] * 0.06, box["y"] + box["height"] * 0.12)
     page.wait_for_timeout(500)
     check("clicking away clears the selection", panel_title() == "The hub", panel_title())
+
+    # ── The brand drawing ────────────────────────────────────────────────────
+    print("\n   Drawn in the brand's own language")
+    # A transparent canvas proves nothing — it shows whatever is behind it. The
+    # question is whether anything on this tab is still a dark stage, so every
+    # painted background in the panel is measured for luminance.
+    darks = page.evaluate(
+        """() => {
+          const root = [...document.querySelectorAll('div')]
+            .find(d => d.innerText && d.innerText.includes('Moving requests'))
+            ?.closest('div[style*="border-radius"]') || document.body;
+          const out = [];
+          for (const el of root.querySelectorAll('*')) {
+            const bg = getComputedStyle(el).backgroundColor;
+            const m = bg.match(/rgba?\\((\\d+), (\\d+), (\\d+)(?:, ([\\d.]+))?\\)/);
+            if (!m) continue;
+            const a = m[4] === undefined ? 1 : Number(m[4]);
+            if (a < 0.9) continue;                      // see-through, not a stage
+            const [r, g, bl] = [1, 2, 3].map(i => Number(m[i]));
+            const lum = (0.2126 * r + 0.7152 * g + 0.0722 * bl) / 255;
+            if (lum < 0.5) out.push(bg);
+          }
+          return out;
+        }""")
+    canvas_bg = page.evaluate(
+        "() => getComputedStyle(document.querySelector('canvas')).backgroundColor")
+    print(f"      canvas: {canvas_bg}   opaque dark fills on the tab: {len(darks)}")
+    # KONE Blue is the one dark fill allowed — it is the brand, and it is only
+    # ever a data mark or a selected control here.
+    stray = [d for d in darks if d.replace(' ', '') not in ('rgb(20,80,245)',)]
+    check("nothing on the tab is a dark stage any more", not stray, str(stray[:3]))
+
+    body = page.inner_text("body")
+    # Each KPI keeps its own unit and its own target. Converting a score out of
+    # five into a percentage so three KPIs could share one scale was the most
+    # misleading thing about the first build.
+    check("on time carries a percentage target", "target 90%" in body)
+    check("engaged carries its own percentage target", "target 60%" in body)
+    check("the score is never converted to a percentage",
+          ("/ 5" in body or "No feedback data" in body)
+          and "target 86%" not in body)
+
+    # Motion is the hook; the badge is the reading.
+    check("the ribbon carries its numbers", "Raised" in body and "/ mo" in body,
+          [l for l in body.split("\n") if "/ mo" in l][:2])
+
+    # The rule, asserted in whichever direction this data takes it: a zone with
+    # a reading drawn from fewer than twenty is marked, and a zone drawn from
+    # more than twenty is not. A fixture that happens not to produce a thin
+    # sample still proves the second half.
+    zones = page.evaluate(
+        """() => [...document.body.innerText.matchAll(/n = ([0-9,]+)/g)]
+                 .map(m => Number(m[1].replace(/,/g, ''))) """)
+    thin = [n for n in zones if 0 < n < 20]
+    print(f"      zone samples: {zones}  thin: {thin}")
+    if thin:
+        check("a thin sample is marked rather than reported", "Low sample" in body)
+    else:
+        check("no zone claims a thin sample when none is thin",
+              "Low sample" not in body, str(zones))
 
     print("\n   The field is still there behind the toggle")
     page.get_by_role("button", name="Volume field").click()

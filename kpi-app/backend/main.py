@@ -2894,6 +2894,75 @@ def kpi_3d(sid: str, months: int = 12):
     if "closed_date" in base.columns:
         closed_in_window = int((base["closed_date"].dropna() >= start).sum())
 
+    # ── The four questions a leadership room actually asks ───────────────────
+    # Is the backlog growing, which area is driving the change, how long does
+    # each service take, and what has been sitting open too long. All four are
+    # the same frame read differently, so they are answered here rather than
+    # left to the page to re-derive and get subtly out of step.
+
+    # The window immediately before this one, same length, so every figure can
+    # carry a delta. A period with no history behind it says so rather than
+    # comparing itself with nothing and reporting a rise.
+    prev_start = (start - pd.DateOffset(months=len(month_index))).replace(day=1)
+    prev = base[(base["created_date"] >= prev_start) & (base["created_date"] < start)]
+    prev_closed = 0
+    if "closed_date" in base.columns:
+        prev_closed = int(((base["closed_date"].dropna() >= prev_start)
+                           & (base["closed_date"].dropna() < start)).sum())
+    has_history = pd.Timestamp(base["created_date"].min()) < start
+
+    def _area_counts(frame):
+        if "area" not in frame.columns or frame.empty:
+            return {}
+        return {str(k): int(v) for k, v in frame["area"].dropna().value_counts().items()}
+
+    now_by_area, prev_by_area = _area_counts(window), _area_counts(prev)
+    by_area = sorted(
+        ({"area": a,
+          "requests": now_by_area.get(a, 0),
+          "previous": prev_by_area.get(a, 0),
+          "delta": now_by_area.get(a, 0) - prev_by_area.get(a, 0)}
+         for a in set(now_by_area) | set(prev_by_area)),
+        key=lambda r: -abs(r["delta"]),
+    )
+
+    # Median calendar days to close, per service, over what closed in the
+    # window. Calendar rather than working days: this is the figure the page
+    # already shows elsewhere, and two medians of different kinds under one
+    # name is how a dashboard starts lying.
+    service_close_days = []
+    if {"closed_date", "sub_category"} <= set(base.columns):
+        done = base.dropna(subset=["closed_date"])
+        done = done[done["closed_date"] >= start].copy()
+        if not done.empty:
+            done["service"] = _service_column(done)
+            for name in BAU_SERVICES_DISPLAY:
+                rows_ = done[done["service"] == name]
+                if rows_.empty:
+                    continue
+                days = ((rows_["closed_date"] - rows_["created_date"]).dt.total_seconds()
+                        / 86400.0)
+                days = days[days >= 0]
+                service_close_days.append({
+                    "service": name,
+                    "short": SERVICE_ABBREV.get(name, name),
+                    "median_days": round(float(days.median()), 1) if len(days) else None,
+                    "closed": int(len(rows_)),
+                })
+
+    # What has been open more than thirty days, by area. The count is the
+    # question; the oldest of them is the one somebody has to answer for.
+    oldest_open = []
+    if not open_now.empty and "area" in open_now.columns:
+        aged = open_now.copy()
+        aged["age"] = (pd.Timestamp(period_end)
+                       - aged["created_date"].dt.normalize()).dt.days
+        stale = aged[aged["age"] > 30]
+        for a, grp in stale.groupby(stale["area"].fillna(UNASSIGNED)):
+            oldest_open.append({"area": str(a), "count": int(len(grp)),
+                                "oldest_days": int(grp["age"].max())})
+        oldest_open.sort(key=lambda r: -r["count"])
+
     return _json_safe({
         "months": month_labels,
         "areas": areas,
@@ -2901,6 +2970,17 @@ def kpi_3d(sid: str, months: int = 12):
         "max": highest,
         "trend": trend,
         "services": services,
+        "by_area": by_area,
+        "service_close_days": service_close_days,
+        "oldest_open": oldest_open,
+        "previous": {
+            "has_history": bool(has_history),
+            "requests": int(len(prev)),
+            "closed": prev_closed,
+            "users": int(prev["ticket_creator"].nunique())
+            if "ticket_creator" in prev.columns and not prev.empty else 0,
+            "window_start": prev_start.date().isoformat(),
+        },
         "headline": {
             "requests": int(len(window)),
             "closed": closed_in_window,
