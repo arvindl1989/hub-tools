@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Edges, Html, OrbitControls, OrthographicCamera, Text } from '@react-three/drei'
+import { Edges, OrbitControls, Text } from '@react-three/drei'
 import koneFont from '../assets/fonts/KONE-Information.ttf'
 import { INTER, ISO, KONE, KONE_INFO } from '../kone/worldConfig'
 
@@ -29,6 +29,9 @@ const MAX_H = 5.0          // the tallest bar in the field
 const BLUE = [KONE.blue20, KONE.blue40, KONE.blue60, KONE.blue80, KONE.blue]
 const LINE = KONE.black
 const INK = KONE.black
+// Faces sit a hair back in the depth buffer so the line drawn on them always
+// wins. Coplanar fill and outline is what makes line art shimmer.
+const FILL = { polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 }
 
 // A bar's colour comes from its own height, so the eye reads the landscape
 // without checking a legend: the KONE blue scale, palest to full.
@@ -47,19 +50,26 @@ function Bar({ x, z, height, color, value, label, onHover, hovered }) {
     <mesh
       ref={mesh}
       position={[x, h / 2, z]}
-      onPointerOver={(e) => { e.stopPropagation(); onHover({ value, label, x, z, h }) }}
+      onPointerOver={(e) => {
+        e.stopPropagation()
+        onHover({ value, label, x: e.clientX, y: e.clientY })
+      }}
+      onPointerMove={(e) => {
+        e.stopPropagation()
+        onHover({ value, label, x: e.clientX, y: e.clientY })
+      }}
       onPointerOut={(e) => { e.stopPropagation(); onHover(null) }}
     >
       <boxGeometry args={[BAR, h, BAR]} />
-      <meshBasicMaterial color={hovered ? KONE.lightBlue : color} toneMapped={false} />
+      <meshBasicMaterial color={hovered ? KONE.lightBlue : color} toneMapped={false}
+                         {...FILL} />
       <Edges threshold={15} color={LINE} lineWidth={hovered ? 2 : 1.2} />
     </mesh>
   )
 }
 
-function Field({ data, paused }) {
+function Field({ data, paused, onHover, hoverLabel }) {
   const group = useRef()
-  const [hover, setHover] = useState(null)
   const months = data.months ?? []
   const areas = data.areas ?? []
   const rows = areas.length
@@ -74,7 +84,7 @@ function Field({ data, paused }) {
   // Hovering holds the rotation still: chasing a bar that is turning away is
   // the fastest way to make a room motion-sick.
   useFrame((state, delta) => {
-    if (group.current && !paused && !hover) group.current.rotation.y += delta * 0.055
+    if (group.current && !paused && !hoverLabel) group.current.rotation.y += delta * 0.055
   })
 
   const bars = useMemo(() => {
@@ -98,18 +108,18 @@ function Field({ data, paused }) {
     <group ref={group}>
       {/* The floor the field stands on, and the grid that keeps the eye
           aligned with the months once the scene has turned. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]}>
         <planeGeometry args={[width + STEP * 2, depth + STEP * 2]} />
-        <meshBasicMaterial color={KONE.white} toneMapped={false} />
+        <meshBasicMaterial color={KONE.white} toneMapped={false} {...FILL} />
       </mesh>
       <gridHelper
         args={[width + STEP * 2, months.length + 1, KONE.hairline, KONE.hairline]}
-        position={[0, 0, 0]}
+        position={[0, -0.04, 0]}
         scale={[1, 1, (depth + STEP * 2) / (width + STEP * 2)]}
       />
 
       {bars.map(b => (
-        <Bar key={b.key} {...b} onHover={setHover} hovered={hover?.label === b.label} />
+        <Bar key={b.key} {...b} onHover={onHover} hovered={hoverLabel === b.label} />
       ))}
 
       {/* Month labels along the front edge, lying on the floor so they stay
@@ -145,25 +155,23 @@ function Field({ data, paused }) {
         </Text>
       ))}
 
-      {hover && (
-        <Html position={[hover.x, hover.h + 0.6, hover.z]} center distanceFactor={14}>
-          <div style={{
-            background: KONE.white, color: INK, borderRadius: 8, padding: '8px 12px',
-            fontFamily: INTER, fontSize: 13, whiteSpace: 'nowrap',
-            border: `1px solid ${KONE.hairline}`, pointerEvents: 'none',
-          }}>
-            <span style={{ fontFamily: KONE_INFO, fontSize: 18, marginRight: 8 }}>
-              {hover.value}
-            </span>
-            {hover.label}
-          </div>
-        </Html>
-      )}
     </group>
   )
 }
 
 export default function VolumeField({ data, paused = false }) {
+  const [hover, setHover] = useState(null)
+  const wrap = useRef()
+
+  // The hover card is plain DOM over the canvas, placed from the pointer.
+  // drei's <Html> scales itself from camera.zoom, which under an orthographic
+  // projection meant the card grew with the zoom until it filled the view.
+  const onHover = useCallback((info) => {
+    if (!info) return setHover(null)
+    const box = wrap.current?.getBoundingClientRect()
+    setHover({ ...info, left: info.x - (box?.left ?? 0), top: info.y - (box?.top ?? 0) })
+  }, [])
+
   // A meeting-room machine without WebGL should say so rather than show a
   // blank rectangle in front of an audience.
   const supported = useMemo(() => {
@@ -187,18 +195,17 @@ export default function VolumeField({ data, paused = false }) {
   }
 
   return (
+    <div ref={wrap} style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas
       dpr={[1, 2]}
       flat
+      orthographic
+      camera={{ position: ISO.position, zoom: 30, near: -100, far: 400 }}
       gl={{ antialias: true }}
       style={{ background: KONE.white }}
     >
       <color attach="background" args={[KONE.white]} />
-      {/* Orthographic, like the world: a bar of a given height reads the same
-          wherever it stands in the field. */}
-      <OrthographicCamera makeDefault position={ISO.position} zoom={30} near={-300}
-                          far={600} />
-      <Field data={data} paused={paused} />
+      <Field data={data} paused={paused} onHover={onHover} hoverLabel={hover?.label} />
       <OrbitControls
         makeDefault
         enablePan={false}
@@ -208,9 +215,24 @@ export default function VolumeField({ data, paused = false }) {
         minPolarAngle={Math.PI / 4.4}
         maxPolarAngle={Math.PI / 2.6}
         enableDamping
-        dampingFactor={0.1}
-        zoomSpeed={0.6}
+        dampingFactor={0.12}
+        zoomSpeed={0.5}
+        minZoom={16}
+        maxZoom={64}
       />
     </Canvas>
+
+    {hover && (
+      <div style={{
+        position: 'absolute', left: hover.left + 14, top: hover.top + 14,
+        background: KONE.white, border: `1px solid ${KONE.hairline}`, borderRadius: 8,
+        padding: '7px 11px', fontFamily: INTER, fontSize: 12, color: KONE.black,
+        whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 2,
+      }}>
+        <b style={{ fontFamily: KONE_INFO, marginRight: 7 }}>{hover.value}</b>
+        {hover.label}
+      </div>
+    )}
+    </div>
   )
 }

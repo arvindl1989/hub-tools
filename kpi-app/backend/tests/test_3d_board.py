@@ -241,6 +241,45 @@ with sync_playwright() as p:
         check("no zone claims a thin sample when none is thin",
               "Low sample" not in body, str(zones))
 
+    # ── The view has to hold still ───────────────────────────────────────────
+    # The camera used to be a <OrthographicCamera> component inside the canvas,
+    # so React re-applied its position and zoom on every render: each hover and
+    # each selection yanked the view back to its starting station while the
+    # controls were still damping. On screen that was flicker and a violent
+    # zoom. A patch of empty ground is the probe — nothing animates there, so
+    # if it changes between frames, the camera moved.
+    print("\n   The view holds still")
+    cbox = page.locator("canvas").bounding_box()
+
+    def corner():
+        return page.screenshot(clip={"x": cbox["x"] + 6, "y": cbox["y"] + 6,
+                                     "width": 220, "height": 150})
+
+    page.mouse.click(cbox["x"] + 10, cbox["y"] + 10)      # clear any selection
+    page.wait_for_timeout(500)
+    first = corner()
+    page.wait_for_timeout(1200)
+    check("the camera does not drift while the scene animates", first == corner())
+
+    page.mouse.move(cbox["x"] + cbox["width"] / 2, cbox["y"] + cbox["height"] / 2)
+    page.mouse.wheel(0, -500)
+    page.wait_for_timeout(1100)
+    zoomed = corner()
+    check("the wheel actually zooms", zoomed != first)
+    for fx, fy in [(0.40, 0.45), (0.38, 0.55), (0.42, 0.66)]:
+        page.mouse.click(cbox["x"] + cbox["width"] * fx, cbox["y"] + cbox["height"] * fy)
+        page.wait_for_timeout(400)
+    page.wait_for_timeout(700)
+    check("and selecting does not throw the camera away", zoomed == corner())
+
+    # A lift that never moves is a box in a tube.
+    moving_a = page.screenshot(clip={"x": cbox["x"], "y": cbox["y"],
+                                     "width": cbox["width"], "height": cbox["height"]})
+    page.wait_for_timeout(1100)
+    moving_b = page.screenshot(clip={"x": cbox["x"], "y": cbox["y"],
+                                     "width": cbox["width"], "height": cbox["height"]})
+    check("the lifts and escalators are running", moving_a != moving_b)
+
     print("\n   The field is still there behind the toggle")
     page.get_by_role("button", name="Volume field").click()
     page.wait_for_timeout(2500)
