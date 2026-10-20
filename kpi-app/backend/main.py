@@ -2812,6 +2812,109 @@ def _service_column(src: pd.DataFrame) -> pd.Series:
     )
 
 
+# ── One screen's worth of volume, for the 3D board ────────────────────────────
+
+@app.get("/api/sessions/{sid}/kpi-3d")
+def kpi_3d(sid: str, months: int = 12):
+    """Everything the 3D dashboard draws, in one call.
+
+    The page is meant for a room, not a desk: it opens, it turns, and someone
+    talks over it. Seven round trips would show it assembling itself in front
+    of an audience, so the figures it needs are gathered here and sent at once.
+
+    The grid is months across, areas deep, requests raised as height. Months
+    are the full set between the first and last request rather than the months
+    that happen to have data, because a gap in the middle of a 3D field has to
+    be a hole in the landscape, not a missing column that silently shortens
+    the axis.
+    """
+    df = _get_session(sid)
+    blank = {"months": [], "areas": [], "grid": [], "max": 0, "headline": {},
+             "trend": [], "services": []}
+    if "created_date" not in df.columns:
+        return blank
+    base = df.dropna(subset=["created_date"]).copy()
+    if base.empty:
+        return blank
+    if "area" in base.columns:
+        base["area"] = base["area"].map(lambda a: AREA_RENAME.get(a, a) if pd.notna(a) else a)
+
+    period_end = pd.Timestamp(base["created_date"].max()).normalize()
+    start = (period_end - pd.DateOffset(months=max(1, months) - 1)).replace(day=1)
+    window = base[base["created_date"] >= start]
+
+    month_index = pd.period_range(start=start.to_period("M"),
+                                  end=period_end.to_period("M"), freq="M")
+    month_labels = [{"key": str(m), "label": m.strftime("%b"),
+                     "year": m.strftime("%Y")} for m in month_index]
+
+    areas = ([a for a in sorted(window["area"].dropna().unique())]
+             if "area" in window.columns else [])
+
+    grid, highest = [], 0
+    if areas:
+        window = window.copy()
+        window["month"] = window["created_date"].dt.to_period("M")
+        counts = window.groupby(["month", "area"]).size().to_dict()
+        for mi, m in enumerate(month_index):
+            for ai, area in enumerate(areas):
+                n = int(counts.get((m, area), 0))
+                highest = max(highest, n)
+                grid.append({"m": mi, "a": ai, "n": n})
+
+    # The trend line beneath the field: raised and closed per month, so the
+    # gap between them is visible as the backlog growing or draining.
+    trend = []
+    for m in month_index:
+        raised = int((window["month"] == m).sum()) if "month" in window.columns else 0
+        closed = 0
+        if "closed_date" in base.columns:
+            closed = int((base["closed_date"].dropna().dt.to_period("M") == m).sum())
+        trend.append({"key": str(m), "label": m.strftime("%b"),
+                      "raised": raised, "closed": closed})
+
+    services = []
+    if "sub_category" in window.columns and not window.empty:
+        svc = window.copy()
+        svc["service"] = _service_column(svc)
+        for name, n in svc["service"].value_counts().items():
+            if name in BAU_SERVICES_DISPLAY:
+                services.append({"service": str(name),
+                                 "short": SERVICE_ABBREV.get(name, str(name)),
+                                 "count": int(n)})
+
+    open_now = base[~base["state"].isin(EXCLUDED_STATES)] if "state" in base.columns \
+        else base.iloc[0:0]
+    # period_end is a date at midnight; a ticket raised at nine that morning is
+    # nine hours "after" it and came out as minus one day old. Both sides are
+    # normalised to the day before subtracting.
+    ages = ((pd.Timestamp(period_end) - open_now["created_date"].dt.normalize()).dt.days
+            if not open_now.empty else pd.Series(dtype=float))
+    closed_in_window = 0
+    if "closed_date" in base.columns:
+        closed_in_window = int((base["closed_date"].dropna() >= start).sum())
+
+    return _json_safe({
+        "months": month_labels,
+        "areas": areas,
+        "grid": grid,
+        "max": highest,
+        "trend": trend,
+        "services": services,
+        "headline": {
+            "requests": int(len(window)),
+            "closed": closed_in_window,
+            "open": int(len(open_now)),
+            "median_open_age": round(float(ages.median()), 0) if len(ages) else None,
+            "users": int(window["ticket_creator"].nunique())
+            if "ticket_creator" in window.columns else 0,
+            "period_end": period_end.date().isoformat(),
+            "window_start": start.date().isoformat(),
+            "months_shown": len(month_index),
+        },
+    })
+
+
 def _service_utility(scoped: pd.DataFrame, users: list, period_end,
                      as_of: Optional[pd.DataFrame] = None,
                      items: Optional[list] = None, by_column: str = "service") -> list:

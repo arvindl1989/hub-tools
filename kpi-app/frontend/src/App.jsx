@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect, useRef } from 'react'
+﻿import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
 import UploadZone        from './components/UploadZone'
 import { uploadFromSheetUrl } from './api'
 
@@ -9,6 +9,9 @@ import FeedbackPage      from './pages/FeedbackPage'
 import Service2Page      from './pages/Service2Page'
 import SlaPage           from './pages/SlaPage'
 import ExperimentalReportsPage from './pages/ExperimentalReportsPage'
+// The 3D board is the heaviest thing in the bundle by some way, and most
+// sessions never open it, so it loads when the tab is clicked.
+const ThreeDDashboardPage = lazy(() => import('./pages/ThreeDDashboardPage'))
 import SlaConfigModal    from './components/SlaConfigModal'
 import PasswordGateModal from './components/PasswordGateModal'
 
@@ -18,6 +21,7 @@ const TABS = [
   { id: 'feedback',      label: 'Feedback',         icon: <SmileIcon /> },
   { id: 'service2',      label: 'Service 2',        icon: <JourneyIcon /> },
   { id: 'sla',           label: 'SLA & Time',       icon: <ClockIcon /> },
+  { id: 'three-d',       label: '3D Board',         icon: <CubeIcon /> },
 ]
 
 const EXPERIMENTAL_PASSWORD = 'Whiteshadows'
@@ -202,6 +206,17 @@ export default function App() {
           {activeTab === 'feedback'      && <FeedbackPage sessionId={sessionId} />}
           {activeTab === 'service2'      && <Service2Page />}
           {activeTab === 'sla'           && <SlaPage />}
+          {activeTab === 'three-d'       && (
+            <Suspense fallback={
+              <div style={{ background: '#101010', borderRadius: 12, minHeight: 760,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#9c9c9c', fontSize: 14 }}>
+                Loading the 3D board…
+              </div>
+            }>
+              <ThreeDDashboardPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />
+            </Suspense>
+          )}
           {activeTab === 'experimental'  && experimentalUnlocked && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}
         </div>
       </main>
@@ -370,6 +385,18 @@ function JourneyIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <path d="M4 19V13" /><path d="M10 19V9" /><path d="M16 19V5" /><path d="M22 19H2" />
+    </svg>
+  )
+}
+
+function CubeIcon() {
+  // A box seen in perspective — the one tab that is drawn in three dimensions.
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
     </svg>
   )
 }

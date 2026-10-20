@@ -373,3 +373,8 @@ export async function getFeedback({
   })
   return data
 }
+
+export async function getKpi3d(sid, months = 12) {
+  const { data } = await client.get(`/sessions/${sid}/kpi-3d`, { params: { months } })
+  return data
+}
