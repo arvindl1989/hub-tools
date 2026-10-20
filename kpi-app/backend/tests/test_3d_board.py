@@ -130,8 +130,54 @@ with sync_playwright() as p:
     check("and it is big enough to be a board", size[1] >= 360, f"{size[1]}px tall")
     check("the headline figures reached it",
           "14" in page.inner_text("body"), "requests raised")
-    check("the months are on the axis", page.locator("text=6 months").count() == 1)
     check("nothing threw", not errors, str(errors[:2]))
+
+    # ── The world ────────────────────────────────────────────────────────────
+    # It is the default view, and it has to stand up without a feedback sheet:
+    # this instance has no feedback source, so the satisfaction car simply has
+    # nothing to read and the building is otherwise whole.
+    print("\n   The building")
+
+    def panel_title():
+        return page.evaluate(
+            """() => { const d = [...document.querySelectorAll('div')]
+                .filter(e => e.children.length > 2 && /Requests|Reading/.test(e.innerText))
+                .sort((a, b) => a.innerText.length - b.innerText.length)[0];
+               return d ? d.innerText.split('\\n')[0] : 'none' }""")
+
+    check("the world is what opens", panel_title() == "The hub", panel_title())
+    page.get_by_role("button", name="Hold").click()
+    page.wait_for_timeout(600)
+
+    box = page.locator("canvas").bounding_box()
+    picked = None
+    # Where a slab lands on screen depends on the camera, so several points
+    # are tried and the assertion is that clicking the building selects
+    # something — not that a particular pixel is a particular area.
+    for fx, fy in [(0.40, 0.45), (0.38, 0.55), (0.42, 0.68), (0.45, 0.78), (0.50, 0.50)]:
+        page.mouse.click(box["x"] + box["width"] * fx, box["y"] + box["height"] * fy)
+        page.wait_for_timeout(400)
+        t = panel_title()
+        if t not in ("The hub", "none"):
+            picked = t
+            break
+    print(f"      clicking the building selected: {picked}")
+    check("a floor can be picked", picked is not None, str(picked))
+    check("and it names an area", picked in ("EUR", "APM", "AME", "GCN", "GLOBAL"), str(picked))
+    body = page.inner_text("body")
+    check("the panel carries that area's own figures",
+          "Requests raised" in body and "Utility rate" in body)
+
+    # Clicking past the building clears it again.
+    page.mouse.click(box["x"] + box["width"] * 0.06, box["y"] + box["height"] * 0.12)
+    page.wait_for_timeout(500)
+    check("clicking away clears the selection", panel_title() == "The hub", panel_title())
+
+    print("\n   The field is still there behind the toggle")
+    page.get_by_role("button", name="Volume field").click()
+    page.wait_for_timeout(2500)
+    check("the field still renders", page.locator("canvas").count() == 1)
+    check("still nothing threw", not errors, str(errors[:2]))
     b.close()
 
 print(f"\n{ok} checks passed")
