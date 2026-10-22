@@ -23,16 +23,22 @@ function countBadge(n, max) {
 export default function ActivityBreakdown({
   title, subtitle, rows = [], keys = [], labels = {}, headerLabel = 'Name',
   ignoresServiceFilter = false, rateLabel = 'Utility rate', rateOfWholeBase = false,
-  effort = false, utilisation = false,
+  effort = false, utilisation = false, sharePct = false,
 }) {
   if (!rows.length) {
     return <Card title={title} subtitle={subtitle}><Empty /></Card>
   }
 
   const maxVolume = Math.max(...rows.map(r => (effort ? (r.est_hours ?? 0) : r.requests)), 1)
+  // What the rate is a share of, so the tooltip can name it.
+  const total = rows.reduce((sum, r) => sum + (r.requests ?? 0), 0)
   // One scale per column: services differ in size by an order of magnitude,
   // and a shared scale would leave the smaller ones permanently pale.
   const cellOf = (r, k) => (effort ? (r.breakdown_hours?.[k] ?? 0) : (r.breakdown?.[k] ?? 0))
+  // The share of that column's own total — this area's WCM over every WCM
+  // request — so a column reads as a split of one service across the rows.
+  const shareOf = (r, k) => (effort
+    ? (r.breakdown_hours_pct?.[k] ?? null) : (r.breakdown_pct?.[k] ?? null))
   const columnMax = {}
   keys.forEach(k => {
     columnMax[k] = Math.max(...rows.map(r => cellOf(r, k)), 1)
@@ -111,7 +117,7 @@ export default function ActivityBreakdown({
                             + `= ${r.days_spent} days at ${r.hours_per_day} h/day, `
                             + `against ${r.available_days} working days available`
                           : 'No working-days figure for this person in Rates & SLA')
-                      : `Across ${r.users} ${r.users === 1 ? 'user' : 'users'}`}>
+                      : `${r.requests} of ${total.toLocaleString()} requests in view`}>
                   {r.utility_pct == null ? '—' : `${r.utility_pct}%`}
                 </td>
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
@@ -121,14 +127,25 @@ export default function ActivityBreakdown({
                 </td>
                 {keys.map(k => {
                   const n = cellOf(r, k)
+                  const pct = shareOf(r, k)
                   const t = countBadge(n, columnMax[k])
+                  const shown = effort ? Math.round(n).toLocaleString() : n
                   return (
-                    <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}>
+                    <td key={k} style={{ padding: '9px 6px', textAlign: 'center' }}
+                        title={sharePct && n
+                          ? `${shown} of this column\u2019s ${effort ? 'hours' : 'requests'}`
+                          : undefined}>
                       <span style={{
-                        display: 'inline-block', minWidth: 30, borderRadius: 6, padding: '3px 8px',
+                        display: 'inline-block', minWidth: 34, borderRadius: 6, padding: '3px 8px',
                         background: t.bg, color: t.fg, fontWeight: t.weight, fontSize: 12,
                         fontFamily: INTER,
-                      }}>{n ? (effort ? Math.round(n).toLocaleString() : n) : '—'}</span>
+                      }}>
+                        {!n ? '—' : sharePct && pct != null ? `${pct}%` : shown}
+                      </span>
+                      {sharePct && !!n && (
+                        <div style={{ fontSize: 10, color: '#9c9c9c', marginTop: 3,
+                                      fontFamily: INTER }}>{shown}</div>
+                      )}
                     </td>
                   )
                 })}
@@ -138,8 +155,9 @@ export default function ActivityBreakdown({
         </table>
       </div>
       <p style={{ fontSize: 11, color: '#9c9c9c', margin: '10px 0 0', lineHeight: 1.6, fontFamily: INTER }}>
-        {effort ? 'Estimated hours' : 'Requests'} add up to the total; users do not. Someone whose tickets span two groups is
-        counted in both rows, which is why no total is shown for that column.
+        {sharePct
+          ? `Each service column is that service\u2019s own total split across the rows, so a column adds up to 100%. The small figure under a percentage is the ${effort ? 'hours' : 'requests'} behind it.`
+          : `${effort ? 'Estimated hours' : 'Requests'} add up to the total; users do not. Someone whose tickets span two groups is counted in both rows, which is why no total is shown for that column.`}
       </p>
     </Card>
   )

@@ -43,12 +43,22 @@ for k in b:
           f"WCM filter {f[k][0]:>3}/{f[k][1]:<3} = {f[k][2]}%")
 assert b == f, "reach moved when the service filter was applied"
 
-print("\nTEST 2 — breakdown utility is unchanged")
+print("\nTEST 2 — the breakdown rate now follows the service filter, and should")
+# It used to be held clear of the filter because the old rate — the average
+# across services of a group's take-up — collapsed to 100% everywhere once
+# only one service was left. The rate is now share of the requests in view,
+# which stays meaningful under the filter: each area's share of WCM. So the
+# figures are expected to MOVE, and what has to hold is that they still split
+# one whole between them.
 bu = {r["name"]: r["utility_pct"] for r in base["activity_groups"]["by_area"]}
 fu = {r["name"]: r["utility_pct"] for r in filt["activity_groups"]["by_area"]}
 print("  unfiltered:", bu)
 print("  WCM filter:", fu)
-assert bu == fu, "breakdown utility collapsed under the service filter"
+assert bu != fu, "the rate ignored the service filter — it is a share of what is in view"
+for label, table in (("unfiltered", bu), ("WCM filter", fu)):
+    total = sum(v for v in table.values() if v is not None)
+    print(f"  {label} sums to {round(total)}%")
+    assert 98 <= total <= 102, f"{label}: the shares do not add up to a whole"
 assert not all(v == 100 for v in fu.values()), "every row is 100% — the old bug"
 
 print("\nTEST 3 — per-frontline service breadth is unchanged")

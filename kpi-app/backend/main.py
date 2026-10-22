@@ -3602,6 +3602,10 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
     areas = ([str(a) for a in sorted(frame["area"].dropna().unique())]
              if "area" in frame.columns else [])
     total_users = frame["ticket_creator"].nunique()
+    # Share of volume needs two denominators: every request in the frame, and
+    # every request of each service in it. Both are taken once, here, so every
+    # row divides by the same thing.
+    total_requests_all = int(len(frame))
 
     def build(col: str, split_on: str, keys: list) -> list:
         if col not in frame.columns:
@@ -3624,6 +3628,18 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
             # The capacity figures are computed below and kept in the payload,
             # but no longer shown: hours delivered over hours available rests
             # on an availability nobody has the data for.
+            # The split cells as a share of their own column: this area's WCM
+            # requests over every WCM request. Each column then adds up to
+            # 100% across the rows, which is what makes two rows comparable —
+            # a count tells you EUR is busy, a share tells you how much of a
+            # service EUR is.
+            key_totals = (frame.groupby(split_on).size().to_dict()
+                          if split_on in frame.columns else {})
+            key_hours = ({str(k): float(v) for k, v in
+                          frame.groupby(split_on)["est_hours"].sum().to_dict().items()}
+                         if split_on in frame.columns and "est_hours" in frame.columns
+                         else {})
+
             spent = None
             if col == "assigned_to":
                 # A specialist is measured on their own time, not on their
@@ -3633,14 +3649,13 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
                 # productivity, over the working days they actually had.
                 spent = _utilisation_of(grp, str(name), window)
                 utility = spent["utility_pct"]
-            elif col == "service":
-                utility = _safe_div(users, total_users, pct=True, nd=0)
             else:
-                shares = [
-                    grp.loc[grp["service"] == s, "ticket_creator"].nunique() / users * 100
-                    for s in services
-                ] if users else []
-                utility = round(sum(shares) / len(shares)) if shares else None
+                # Share of all the requests in view. It used to be the average,
+                # across the services, of the share of this group's users who
+                # had used each one — which on a team assigned by service was
+                # mostly a restatement of who handles what, and which capped a
+                # single-service group at a third however busy it was.
+                utility = _safe_div(len(grp), total_requests_all, pct=True, nd=0)
             out.append({
                 "name": str(name),
                 "users": int(users),
@@ -3665,6 +3680,19 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
                 "breakdown_hours": {
                     str(k): round(float(grp.loc[grp[split_on] == k, "est_hours"].sum()), 1)
                     if split_on in grp.columns and "est_hours" in grp.columns else 0.0
+                    for k in keys
+                },
+                # The same two splits as a share of each column's own total.
+                "breakdown_pct": {
+                    str(k): _safe_div(int(counts.get(k, 0)), int(key_totals.get(k, 0)),
+                                      pct=True, nd=0)
+                    for k in keys
+                },
+                "breakdown_hours_pct": {
+                    str(k): _safe_div(
+                        float(grp.loc[grp[split_on] == k, "est_hours"].sum())
+                        if split_on in grp.columns and "est_hours" in grp.columns else 0.0,
+                        key_hours.get(str(k), 0.0), pct=True, nd=0)
                     for k in keys
                 },
                 **(spent or {}),
@@ -4298,7 +4326,11 @@ def user_metrics(
         },
         "service_utility":  _service_utility_merged(reach_scoped, reach_users, period_end,
                                                    reach_as_of),
-        "activity_groups":  _activity_groups(reach_scoped, available_hours, working_days,
+        # These four tables now read share of volume, which stays meaningful
+        # under a Service filter — filtering to WCM gives each area's share of
+        # WCM. The old rate degenerated to 100% everywhere under that filter,
+        # which is why they used to ignore it; that reason is gone.
+        "activity_groups":  _activity_groups(scoped, available_hours, working_days,
                                              closed_in_window,
                                              (date_from, date_to, period_end,
                                               earliest_in_data)),

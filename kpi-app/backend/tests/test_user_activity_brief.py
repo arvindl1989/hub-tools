@@ -92,11 +92,22 @@ check("Hana is listed", hana is not None)
 check("with a real age", hana and hana["days_since_last"] > 300,
       f"{hana['days_since_last']}d" if hana else "")
 
-print("\n3. A Service filter does not move service breadth")
-plain = {r["name"]: r["utility_pct"] for r in M["activity_groups"]["by_area"]}
-wcm = {r["name"]: r["utility_pct"]
-       for r in metrics(SID, sub_category=SERVICES[0])["activity_groups"]["by_area"]}
-check("breadth unchanged", plain == wcm, f"{plain} vs {wcm}")
+print("\n3. A Service filter does not move reach on the Service Utility board")
+# The original case. It was written against the breakdown tables, whose rate
+# was then an average of per-service take-up and collapsed to 100% everywhere
+# under the filter. That rate is now share of the requests in view and is
+# meant to follow the filter, so the case moves to the board that still holds
+# reach — where a service's reach among all users must not move.
+plain = {r["short"]: r["users"]["rate_pct"] for r in M["service_utility"]}
+wcm = {r["short"]: r["users"]["rate_pct"]
+       for r in metrics(SID, sub_category=SERVICES[0])["service_utility"]}
+check("reach unchanged", plain == wcm, f"{plain} vs {wcm}")
+
+# And the breakdown rate, which should move, still splits one whole.
+shares = [r["utility_pct"] for r in
+          metrics(SID, sub_category=SERVICES[0])["activity_groups"]["by_area"]]
+check("the filtered shares still add up to a whole",
+      98 <= sum(v for v in shares if v is not None) <= 102, str(shares))
 
 print("\n4. The top-share is stable when the population is duplicated")
 tripled = [{**r, "Number": f"{r['Number']}c{c}", "Requested by": f"{r['Requested by']} {c}"}

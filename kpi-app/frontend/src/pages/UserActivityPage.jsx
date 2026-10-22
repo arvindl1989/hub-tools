@@ -530,30 +530,27 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <ActivityBreakdown
             title="By Area" headerLabel="Area"
-            subtitle={effort ? "Utility rate and estimated hours per area, busiest first"
-                             : "Utility rate and requests per area, busiest first"}
+            subtitle="Share of all requests, and each service split across the areas"
             rows={groups.by_area} keys={serviceKeys} labels={serviceLabels} effort={effort}
-            ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
+            sharePct />
           <ActivityBreakdown
             title="By Frontlines" headerLabel="Frontline"
-            subtitle={effort ? "Utility rate and estimated hours per frontline, busiest first"
-                             : "Utility rate and requests per frontline, busiest first"}
+            subtitle="Share of all requests, and each service split across the frontlines"
             rows={groups.by_frontline} keys={serviceKeys} labels={serviceLabels} effort={effort}
-            ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
+            sharePct />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <ActivityBreakdown
             title="By Service" headerLabel="Service"
-            subtitle="Utility rate across the whole user base, and where each service's demand comes from"
-            rows={groups.by_service} keys={areaKeys} labels={areaLabels} rateOfWholeBase effort={effort}
-            ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
+            subtitle="Share of all requests, and where each service's demand comes from"
+            rows={groups.by_service} keys={areaKeys} labels={areaLabels} effort={effort} />
           <ActivityBreakdown
             title="By Specialist" headerLabel="Specialist"
             subtitle="Utility rate is their own hours over the working days they had — hover a rate for the sum"
             utilisation
-            rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels} effort={effort}
-            ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
+            rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels}
+            effort={effort} />
         </div>
 
         <ServiceAdoptionHeatmap data={metrics.service_adoption} effort={effort} />
