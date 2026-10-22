@@ -550,8 +550,8 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
           <ActivityBreakdown
             title="By Specialist" headerLabel="Specialist"
-            subtitle={effort ? "Utility rate and estimated hours per specialist, busiest first"
-                             : "Utility rate and requests per specialist, busiest first"}
+            subtitle="Utility rate is their own hours over the working days they had — hover a rate for the sum"
+            utilisation
             rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels} effort={effort}
             ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
         </div>

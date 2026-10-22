@@ -378,3 +378,13 @@ export async function getKpi3d(sid, months = 12) {
   const { data } = await client.get(`/sessions/${sid}/kpi-3d`, { params: { months } })
   return data
 }
+
+export async function getUtilisationSettings() {
+  const { data } = await client.get('/utilisation-settings')
+  return data
+}
+
+export async function updateUtilisationSettings(settings) {
+  const { data } = await client.put('/utilisation-settings', settings)
+  return data
+}

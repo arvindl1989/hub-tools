@@ -23,7 +23,7 @@ function countBadge(n, max) {
 export default function ActivityBreakdown({
   title, subtitle, rows = [], keys = [], labels = {}, headerLabel = 'Name',
   ignoresServiceFilter = false, rateLabel = 'Utility rate', rateOfWholeBase = false,
-  effort = false,
+  effort = false, utilisation = false,
 }) {
   if (!rows.length) {
     return <Card title={title} subtitle={subtitle}><Empty /></Card>
@@ -56,9 +56,11 @@ export default function ActivityBreakdown({
                   title={effort ? 'Standard per-ticket estimates from Rates & SLA, not logged time' : undefined}>
                 {effort ? 'Est. hours' : 'Requests'}
               </th>
-              <th style={{ ...thStyle, textAlign: 'right' }} title={rateOfWholeBase
-                    ? 'Users of this service as a share of the whole user base'
-                    : 'Average, across the services, of the share of this group\u2019s users who have used each one'}>
+              <th style={{ ...thStyle, textAlign: 'right' }} title={utilisation
+                ? 'Hours on the tickets they handled, at each service\u2019s cost for the year it was raised, turned into days at the agreed productivity, over the working days they had in this window'
+                : rateOfWholeBase
+                  ? 'Users of this service as a share of the whole user base'
+                  : 'Average, across the services, of the share of this group\u2019s users who have used each one'}>
                 {rateLabel}
               </th>
               <th style={{ ...thStyle, textAlign: 'right' }}
@@ -98,8 +100,18 @@ export default function ActivityBreakdown({
                     title={effort ? `${r.requests} requests` : undefined}>
                   {effort ? Math.round(r.est_hours ?? 0).toLocaleString() : r.requests}
                 </td>
-                <td style={{ padding: '9px 6px', textAlign: 'right', color: '#1450f5', fontWeight: 700, fontFamily: INTER }}
-                    title={`Across ${r.users} ${r.users === 1 ? 'user' : 'users'}`}>
+                {/* For a specialist the rate is their own time, so the figures
+                    behind it travel with it: nobody should have to take a
+                    percentage about a person on trust. */}
+                <td style={{ padding: '9px 6px', textAlign: 'right', fontWeight: 700, fontFamily: INTER,
+                             color: utilisation && (r.utility_pct ?? 0) > 100 ? '#c0305a' : '#1450f5' }}
+                    title={utilisation
+                      ? (r.available_days
+                          ? `${Math.round(r.hours_spent ?? 0)} hours over ${r.requests} requests `
+                            + `= ${r.days_spent} days at ${r.hours_per_day} h/day, `
+                            + `against ${r.available_days} working days available`
+                          : 'No working-days figure for this person in Rates & SLA')
+                      : `Across ${r.users} ${r.users === 1 ? 'user' : 'users'}`}>
                   {r.utility_pct == null ? '—' : `${r.utility_pct}%`}
                 </td>
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>

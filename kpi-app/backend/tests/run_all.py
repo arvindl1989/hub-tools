@@ -34,6 +34,8 @@ TESTS = [
      "each service inside the roll-up read on its own"),
     ("page controls", "test_page_controls.py",
      "every card, toggle, cell and dialog, clicked in a browser"),
+    ("specialist utilisation", "test_specialist_utilisation.py",
+     "their own hours over the days they had"),
     ("3D board", "test_3d_board.py",
      "the field's arithmetic, and the canvas it is drawn on"),
     ("email calendar", "test_email_sla_calendar.py",

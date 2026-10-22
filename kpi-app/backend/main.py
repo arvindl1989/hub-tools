@@ -295,6 +295,110 @@ SLA_RULES: dict[str, int] = _load_setting("sla_rules", {
     "Demand Engagement Activations": 14,
 })
 
+# ── Specialist utilisation ────────────────────────────────────────────────────
+# What the By Specialist utility rate is measured against. The sum is the one
+# the team already keeps by hand:
+#
+#   hours   = requests handled x hours per ticket (for the year it was raised)
+#   days    = hours / productive hours in a day
+#   utility = days / the working days that person actually had
+#
+# Hours per ticket come from the Rates & SLA store; this holds only what
+# CHANGES by year — WCM moved from 5 hours to 4 in 2026 — so there is still one
+# base figure per service rather than a copy of it per year.
+#
+# Working days are per person per year because they already differ: a joiner, a
+# leaver and a full year are three different denominators, and dividing all
+# three by 250 would flatter two of them.
+UTILISATION_SETTINGS: dict = _load_setting("utilisation_settings", {
+    "productivity_pct": 75,          # of an 8-hour day → 6 productive hours
+    "hours_per_ticket_by_year": {
+        "2026": {"Website Content Management": 4},
+    },
+    "working_days": {
+        "2025": {
+            "Ajith A": 208,
+            "Akshaya Praveen": 155,
+            "Akshayaa Rajeswari AS": 164,
+            "Arvind Lakshminarayanan": 251,
+            "Pooja V": 251,
+        },
+        "2026": {
+            "Ajith A": 250,
+            "Akshaya Praveen": 250,
+            "Akshayaa Rajeswari AS": 250,
+            "Arvind Lakshminarayanan": 250,
+            "Jerlin Jeba": 94,
+            "Nitish JK": 191,
+            "Pooja V": 19,
+            "Ranjithkumar Ashokkumar": 211,
+        },
+    },
+})
+
+
+def productive_hours_per_day() -> float:
+    """An eight-hour day at the agreed productivity, 6 hours by default."""
+    pct = float(UTILISATION_SETTINGS.get("productivity_pct") or 75)
+    return BANDWIDTH_HOURS_PER_DAY * pct / 100.0
+
+
+def hours_per_ticket(service: str, year: int) -> Optional[float]:
+    """Hours for one ticket of this service, in the year it was raised.
+
+    The year table holds overrides only. Everything it does not mention falls
+    back to the Rates & SLA store, so a service whose cost has not changed is
+    still defined in exactly one place.
+    """
+    by_year = UTILISATION_SETTINGS.get("hours_per_ticket_by_year") or {}
+    override = (by_year.get(str(year)) or {}).get(service)
+    if override:
+        return float(override)
+    rate = BANDWIDTH_RATES.get(service)
+    return round(BANDWIDTH_HOURS_PER_DAY / rate, 4) if rate else None
+
+
+def working_days_available(name: str, date_from, date_to, period_end, earliest):
+    """The working days this person actually had inside the window.
+
+    Their figure is an allowance for a whole year, and the page is almost never
+    looking at a whole year, so each year's allowance is taken in proportion to
+    how much of that year's working time the window covers. A window over half
+    of 2026 gives half of that person's 2026 days.
+
+    None when the person has no entry for any year the window touches: a
+    utilisation with an invented denominator is worse than a dash.
+    """
+    table = UTILISATION_SETTINGS.get("working_days") or {}
+    start = pd.Timestamp(date_from).normalize() if date_from else earliest
+    end = pd.Timestamp(date_to).normalize() if date_to else period_end
+    if pd.isna(start) or pd.isna(end) or end < start:
+        return None
+
+    total = 0.0
+    seen = False
+    for year in range(start.year, end.year + 1):
+        allowance = (table.get(str(year)) or {}).get(name)
+        if not allowance:
+            continue
+        seen = True
+        y0, y1 = pd.Timestamp(year=year, month=1, day=1), pd.Timestamp(year=year, month=12, day=31)
+        in_window = _business_days(max(start, y0), min(end, y1))
+        whole_year = _business_days(y0, y1)
+        if whole_year:
+            total += float(allowance) * (in_window / whole_year)
+    return round(total, 1) if seen else None
+
+
+def _business_days(start, end) -> int:
+    """Weekdays between two dates inclusive, public holidays excluded."""
+    if pd.isna(start) or pd.isna(end) or end < start:
+        return 0
+    return int(np.busday_count(np.datetime64(start.date(), "D"),
+                               np.datetime64(end.date(), "D") + 1,
+                               holidays=_HOLIDAY_DATES))
+
+
 CADENCE_SETTINGS: dict = _migrate_people(_load_setting("cadence_settings", {
     "team": {"activities": []},
     "people": {},
@@ -3427,9 +3531,48 @@ def _capacity_of(grp: pd.DataFrame, closed_frame, name,
     }
 
 
+def _utilisation_of(grp: pd.DataFrame, name: str, window: Optional[tuple]) -> dict:
+    """One specialist's utilisation, and every figure behind it.
+
+        hours   = each ticket priced at its service's cost in the year it was raised
+        days    = hours / productive hours in a day
+        utility = days / the working days that person had in this window
+
+    The ticket set is the row's own — what was raised in the window and
+    assigned to them — so the percentage and the Requests column beside it are
+    always about the same tickets.
+    """
+    blank = {"utility_pct": None, "hours_spent": 0.0, "days_spent": None,
+             "available_days": None, "hours_per_day": productive_hours_per_day()}
+    if grp is None or grp.empty:
+        return blank
+
+    hours = 0.0
+    if {"service", "created_date"} <= set(grp.columns):
+        for service, created in zip(grp["service"], grp["created_date"]):
+            if pd.isna(created):
+                continue
+            h = hours_per_ticket(str(service), pd.Timestamp(created).year)
+            if h:
+                hours += h
+
+    per_day = productive_hours_per_day()
+    days = round(hours / per_day, 1) if per_day else None
+    available = working_days_available(name, *(window or (None, None, None, None)))
+    return {
+        "utility_pct": _safe_div(days, available, pct=True, nd=0)
+        if (days is not None and available) else None,
+        "hours_spent": round(hours, 1),
+        "days_spent": days,
+        "available_days": available,
+        "hours_per_day": per_day,
+    }
+
+
 def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
                      working_days: int = 0,
-                     closed_frame: Optional[pd.DataFrame] = None) -> dict:
+                     closed_frame: Optional[pd.DataFrame] = None,
+                     window: Optional[tuple] = None) -> dict:
     """Area, frontline, service and specialist, each read the same way.
 
     The Feedback page answers "how is this group doing" four times over, one
@@ -3481,7 +3624,16 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
             # The capacity figures are computed below and kept in the payload,
             # but no longer shown: hours delivered over hours available rests
             # on an availability nobody has the data for.
-            if col == "service":
+            spent = None
+            if col == "assigned_to":
+                # A specialist is measured on their own time, not on their
+                # requesters' habits. The sum the team keeps by hand: the
+                # tickets they handled, priced at the hours that service cost
+                # in the year it was raised, turned into days at the agreed
+                # productivity, over the working days they actually had.
+                spent = _utilisation_of(grp, str(name), window)
+                utility = spent["utility_pct"]
+            elif col == "service":
                 utility = _safe_div(users, total_users, pct=True, nd=0)
             else:
                 shares = [
@@ -3515,6 +3667,7 @@ def _activity_groups(scoped: pd.DataFrame, available_hours: float = 0.0,
                     if split_on in grp.columns and "est_hours" in grp.columns else 0.0
                     for k in keys
                 },
+                **(spent or {}),
             })
             if col == "assigned_to":
                 out[-1].update(_capacity_of(grp, closed_frame, name,
@@ -4146,7 +4299,9 @@ def user_metrics(
         "service_utility":  _service_utility_merged(reach_scoped, reach_users, period_end,
                                                    reach_as_of),
         "activity_groups":  _activity_groups(reach_scoped, available_hours, working_days,
-                                             closed_in_window),
+                                             closed_in_window,
+                                             (date_from, date_to, period_end,
+                                              earliest_in_data)),
         "config":           ua_config.as_payload(),
         "reach_ignores_service_filter": service_filtered,
         "fl_utility":       _utility_per_frontline(reach_scoped),
@@ -4181,6 +4336,30 @@ def update_sla_rules(rules: dict[str, int]):
     SLA_RULES.update(rules)
     _save_setting("sla_rules", dict(SLA_RULES))
     return {"message": "SLA rules updated", "rules": SLA_RULES}
+
+
+@app.get("/api/utilisation-settings")
+def get_utilisation_settings():
+    return {
+        **UTILISATION_SETTINGS,
+        # Echoed so the editor can show what a service costs today without
+        # keeping its own copy of the Rates & SLA store.
+        "base_hours_per_ticket": {
+            k: round(BANDWIDTH_HOURS_PER_DAY / v, 2) if v else None
+            for k, v in BANDWIDTH_RATES.items()
+        },
+        "hours_per_day": BANDWIDTH_HOURS_PER_DAY,
+        "productive_hours_per_day": productive_hours_per_day(),
+    }
+
+
+@app.put("/api/utilisation-settings")
+def update_utilisation_settings(settings: dict):
+    for key in ("productivity_pct", "hours_per_ticket_by_year", "working_days"):
+        if key in settings:
+            UTILISATION_SETTINGS[key] = settings[key]
+    _save_setting("utilisation_settings", dict(UTILISATION_SETTINGS))
+    return get_utilisation_settings()
 
 
 @app.get("/api/cadence-settings")

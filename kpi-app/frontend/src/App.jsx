@@ -12,7 +12,7 @@ import ExperimentalReportsPage from './pages/ExperimentalReportsPage'
 // The 3D board is the heaviest thing in the bundle by some way, and most
 // sessions never open it, so it loads when the tab is clicked.
 const ThreeDDashboardPage = lazy(() => import('./pages/ThreeDDashboardPage'))
-import SlaConfigModal    from './components/SlaConfigModal'
+import RatesConfigModal  from './components/RatesConfigModal'
 import PasswordGateModal from './components/PasswordGateModal'
 
 const TABS = [
@@ -151,7 +151,7 @@ export default function App() {
         <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <UploadZone onUpload={handleUpload} />
         </main>
-        {showSlaConfig && <SlaConfigModal onClose={() => setShowSlaConfig(false)} />}
+        {showSlaConfig && <RatesConfigModal onClose={() => setShowSlaConfig(false)} />}
       </div>
     )
   }
@@ -221,7 +221,7 @@ export default function App() {
         </div>
       </main>
 
-      {showSlaConfig && <SlaConfigModal onClose={() => setShowSlaConfig(false)} />}
+      {showSlaConfig && <RatesConfigModal onClose={() => setShowSlaConfig(false)} />}
       {showPasswordGate && (
         <PasswordGateModal onSubmit={handleUnlockAttempt} onCancel={() => setShowPasswordGate(false)} />
       )}
@@ -345,7 +345,7 @@ function AppHeader({ filename, totalRows, sheetFetchedAt, sheetStale, sheetError
             cursor: 'pointer', fontFamily: 'Inter, sans-serif',
           }}
         >
-          SLA Config
+          Rates &amp; SLA
         </button>
         {onBack && (
           <button onClick={onBack} style={{ background: 'none', border: 'none', fontSize: 13, color: 'rgba(255,255,255,0.85)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
