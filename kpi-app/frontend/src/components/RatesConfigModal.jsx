@@ -45,8 +45,8 @@ function Row({ label, sub, children }) {
   )
 }
 
-export default function RatesConfigModal({ onClose }) {
-  const [tab, setTab] = useState('hours')
+export default function RatesConfigModal({ onClose, initialTab = 'hours' }) {
+  const [tab, setTab] = useState(initialTab)
   const [rates, setRates] = useState(null)        // tickets per day, the base store
   const [sla, setSla] = useState(null)
   const [util, setUtil] = useState(null)

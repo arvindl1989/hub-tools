@@ -10,6 +10,7 @@ import ServiceUtilityRate from '../components/ServiceUtilityRate'
 import ListModal from '../components/ListModal'
 import ActivityBreakdown from '../components/ActivityBreakdown'
 import ServiceAdoptionHeatmap from '../components/ServiceAdoptionHeatmap'
+import RatesConfigModal from '../components/RatesConfigModal'
 
 // ── Service definitions (match BANDWIDTH_RATES keys in backend) ───────────────
 const SERVICES = [
@@ -161,6 +162,11 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
   // opens the list it counted. The two rate cards open the population their
   // rate is of, which is the same list read for a different reason.
   const [listKey, setListKey] = useState(null)
+  // The numbers behind the specialist rate — working days, hours per ticket,
+  // SLA — are editable from the table they drive, not only from the header.
+  // A figure you cannot change where you are reading it is a figure you end up
+  // mistrusting.
+  const [ratesTab, setRatesTab] = useState(null)
   const openList = (key) => setListKey(key)
 
   const REQ_COLS = [
@@ -549,6 +555,17 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             title="By Specialist" headerLabel="Specialist"
             subtitle="Utility rate is their own hours over the working days they had — hover a rate for the sum"
             utilisation
+            controls={
+              <button
+                onClick={() => setRatesTab('days')}
+                title="Working days per person, hours per ticket and SLA targets — the three numbers this rate is built from"
+                style={{
+                  background: '#fff', color: '#1450f5', border: '1px solid #dbe6fd',
+                  borderRadius: 7, padding: '6px 12px', fontSize: 11, fontWeight: 600,
+                  fontFamily: INTER, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >Edit working days &amp; rates</button>
+            }
             rows={groups.by_specialist} keys={serviceKeys} labels={serviceLabels}
             effort={effort} />
         </div>
@@ -758,6 +775,15 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
           rows={openModal.rows}
           onClose={() => setListKey(null)}
           width={720}
+        />
+      )}
+
+      {/* Saving writes to the shared settings, so the page reloads its figures
+          on close rather than leaving the table showing the old denominators. */}
+      {ratesTab && (
+        <RatesConfigModal
+          initialTab={ratesTab}
+          onClose={() => { setRatesTab(null); load() }}
         />
       )}
     </div>

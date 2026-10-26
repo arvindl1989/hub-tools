@@ -23,10 +23,10 @@ function countBadge(n, max) {
 export default function ActivityBreakdown({
   title, subtitle, rows = [], keys = [], labels = {}, headerLabel = 'Name',
   ignoresServiceFilter = false, rateLabel = 'Utility rate', rateOfWholeBase = false,
-  effort = false, utilisation = false, sharePct = false,
+  effort = false, utilisation = false, sharePct = false, controls = null,
 }) {
   if (!rows.length) {
-    return <Card title={title} subtitle={subtitle}><Empty /></Card>
+    return <Card title={title} subtitle={subtitle} controls={controls}><Empty /></Card>
   }
 
   const maxVolume = Math.max(...rows.map(r => (effort ? (r.est_hours ?? 0) : r.requests)), 1)
@@ -45,7 +45,7 @@ export default function ActivityBreakdown({
   })
 
   return (
-    <Card title={title} subtitle={subtitle}>
+    <Card title={title} subtitle={subtitle} controls={controls}>
       {ignoresServiceFilter && (
         <p style={{ fontSize: 11, color: '#9c9c9c', margin: '0 0 10px', fontFamily: INTER }}>
           The Service filter is ignored in this table — it would leave only one service in the
