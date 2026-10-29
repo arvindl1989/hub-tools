@@ -351,9 +351,16 @@ def hours_per_ticket(service: str, year: int) -> Optional[float]:
     still defined in exactly one place.
     """
     by_year = UTILISATION_SETTINGS.get("hours_per_ticket_by_year") or {}
-    override = (by_year.get(str(year)) or {}).get(service)
-    if override:
-        return float(override)
+    # The most recent year at or before this one that says anything. A cost
+    # agreed for 2026 is the best thing known about 2027; reverting to the
+    # older base figure for next year would price a forecast at a rate the
+    # team has already moved off.
+    known = sorted(int(y) for y in by_year if str(y).isdigit())
+    for y in reversed(known):
+        if y <= int(year):
+            override = (by_year.get(str(y)) or {}).get(service)
+            if override:
+                return float(override)
     rate = BANDWIDTH_RATES.get(service)
     return round(BANDWIDTH_HOURS_PER_DAY / rate, 4) if rate else None
 
@@ -2914,6 +2921,239 @@ def _service_column(src: pd.DataFrame) -> pd.Series:
     return src["sub_category"].map(
         lambda s: "Demand Engagement Activations" if s in DEMAND_ENGAGEMENT_SUBS else s
     )
+
+
+# ── Growth, and whether next year fits ────────────────────────────────────────
+# Verdict bands for a service's demand against the capacity currently pointed
+# at it. Wide enough that a plan is not called overloaded for being 3% over,
+# narrow enough that "appropriate" means something.
+CAPACITY_BANDS = {"overloaded": 105, "under_used": 85}
+
+
+def _verdict(ratio: Optional[float]) -> str:
+    if ratio is None:
+        return "unknown"
+    if ratio > CAPACITY_BANDS["overloaded"]:
+        return "overloaded"
+    if ratio < CAPACITY_BANDS["under_used"]:
+        return "under-utilised"
+    return "appropriate"
+
+
+@app.get("/api/sessions/{sid}/growth-forecast")
+def growth_forecast(sid: str, growth: float = 10.0, base_year: Optional[int] = None,
+                    target_year: Optional[int] = None):
+    """Three years month by month, next year at a growth rate, and whether the
+    people pointed at each service have the hours for it.
+
+    The projection is deliberately the dullest one available: last year's month
+    times a growth rate. It carries last year's seasonality, which is the only
+    pattern three years of this data actually supports, and it does not pretend
+    to a trend line through three points.
+
+    Capacity is allocated by what each person actually worked on in the base
+    year. Someone who spent 70% of their hours on Demand Engagement counts as
+    70% of a person against Demand Engagement next year. That assumption is the
+    whole model, and the page says so: if the team is reorganised, the split
+    moves and this is worth nothing.
+    """
+    df = _get_session(sid)
+    blank = {"years": [], "monthly": [], "year_totals": {}, "by_service": [],
+             "capacity": {}, "seasonality": [], "users": {}, "yoy": []}
+    if "created_date" not in df.columns:
+        return blank
+    base = df.dropna(subset=["created_date"]).copy()
+    if base.empty:
+        return blank
+    base["year"] = base["created_date"].dt.year
+    base["month"] = base["created_date"].dt.month
+    base["service"] = _service_column(base) if "sub_category" in base.columns else None
+
+    years = sorted(int(y) for y in base["year"].dropna().unique())
+    if not years:
+        return blank
+    b_year = int(base_year) if base_year else years[-1]
+    t_year = int(target_year) if target_year else b_year + 1
+    factor = 1 + (growth / 100.0)
+
+    MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    counts = base.groupby(["year", "month"]).size().to_dict()
+
+    # The base year is almost always part-finished — the export stops at the
+    # last sync — and projecting "last year plus ten percent" from a year that
+    # has only nine months in it quietly plans for nine months of work. Any
+    # month the base year has not reached is carried from the most recent year
+    # that does have it, grown once for each year in between, and the row says
+    # where it came from.
+    monthly = []
+    carried = 0
+    for i, label in enumerate(MONTHS, start=1):
+        row = {"month": label}
+        for y in years:
+            row[str(y)] = int(counts.get((y, i), 0))
+        source, gap = None, 0
+        for back, y in enumerate(range(b_year, min(years) - 1, -1)):
+            if counts.get((y, i), 0):
+                source, gap = y, back
+                break
+        if source is None:
+            row["projected"] = 0
+            row["from_year"] = None
+        else:
+            row["projected"] = int(round(counts[(source, i)] * (factor ** (gap + 1))))
+            row["from_year"] = source
+            if source != b_year:
+                carried += 1
+        monthly.append(row)
+
+    base_complete = all(counts.get((b_year, i), 0) for i in range(1, 13))
+
+    year_totals = {str(y): int((base["year"] == y).sum()) for y in years}
+    year_totals["projected"] = sum(r["projected"] for r in monthly)
+
+    # Year on year, so a 10% assumption can be read against what actually
+    # happened rather than taken on faith.
+    yoy = []
+    for a, b in zip(years, years[1:]):
+        before, after = year_totals[str(a)], year_totals[str(b)]
+        yoy.append({"from": a, "to": b,
+                    "pct": _safe_div(after - before, before, pct=True, nd=0)})
+    yoy.append({"from": b_year, "to": t_year, "pct": round(growth, 1),
+                "assumed": True})
+
+    # Seasonality of the base year: which months run hot. A capacity plan that
+    # only looks at the annual total misses that two months carry a sixth of
+    # the work between them.
+    base_months = [counts.get((b_year, i), 0) for i in range(1, 13)]
+    base_total = sum(base_months) or 1
+    seasonality = [
+        {"month": MONTHS[i], "requests": base_months[i],
+         "share_pct": round(base_months[i] / base_total * 100, 1),
+         # 100 = an average month. 130 means that month runs a third hot.
+         "index": round(base_months[i] / (base_total / 12) * 100) if base_total else 0}
+        for i in range(12)
+    ]
+
+    users = {}
+    if "ticket_creator" in base.columns:
+        users = {str(y): int(base.loc[base["year"] == y, "ticket_creator"].nunique())
+                 for y in years}
+
+    # ── Demand next year, priced sub-service by sub-service ──────────────────
+    # DEA is three offers at 20, 7.27 and 20 hours. Projecting the roll-up and
+    # pricing it at a blend would be wrong the moment the mix moves, so each
+    # sub-category is projected and priced on its own and then rolled up.
+    # Each sub-service is projected month by month on the same carry-forward
+    # rule as the table, so a part-finished base year does not shrink the
+    # hours the same way it would shrink the ticket count.
+    demand_hours, projected_tickets = {}, {}
+    if "sub_category" in base.columns:
+        sub_month = base.groupby(["sub_category", "year", "month"]).size().to_dict()
+        subs = [str(x) for x in base["sub_category"].dropna().unique()]
+        for sub in subs:
+            service = "Demand Engagement Activations" if sub in DEMAND_ENGAGEMENT_SUBS \
+                else sub
+            if service not in BAU_SERVICES_DISPLAY:
+                continue
+            hours = hours_per_ticket(str(sub), t_year) or 0
+            projected = 0.0
+            for i in range(1, 13):
+                for back, y in enumerate(range(b_year, min(years) - 1, -1)):
+                    n = sub_month.get((sub, y, i), 0)
+                    if n:
+                        projected += n * (factor ** (back + 1))
+                        break
+            demand_hours[service] = demand_hours.get(service, 0.0) + projected * hours
+            projected_tickets[service] = projected_tickets.get(service, 0.0) + projected
+
+    # ── Supply, allocated by what each person actually worked on ─────────────
+    people_hours: dict = {}
+    if {"assigned_to", "est_hours"} <= set(base.columns):
+        worked = base[(base["year"] == b_year)].dropna(subset=["assigned_to"])
+        for (who, service), hrs in worked.groupby(["assigned_to", "service"])["est_hours"] \
+                .sum().items():
+            people_hours.setdefault(str(who), {})[str(service)] = float(hrs or 0)
+
+    per_day = productive_hours_per_day()
+    wd = UTILISATION_SETTINGS.get("working_days") or {}
+    people = []
+    service_capacity: dict = {}
+    for who, mix in sorted(people_hours.items()):
+        days = (wd.get(str(t_year)) or {}).get(who)
+        assumed = False
+        if not days:
+            days = (wd.get(str(b_year)) or {}).get(who)
+            assumed = days is not None
+        if not days:
+            people.append({"name": who, "days": None, "hours": None, "assumed": False})
+            continue
+        hours = float(days) * per_day
+        people.append({"name": who, "days": float(days), "hours": round(hours, 1),
+                       "assumed": assumed})
+        total_mix = sum(mix.values()) or 1
+        for service, h in mix.items():
+            service_capacity[service] = service_capacity.get(service, 0.0) \
+                + hours * (h / total_mix)
+
+    by_service = []
+    for service in BAU_SERVICES_DISPLAY:
+        per_year = {str(y): int(((base["year"] == y) & (base["service"] == service)).sum())
+                    for y in years}
+        dem = demand_hours.get(service)
+        cap = service_capacity.get(service)
+        ratio = _safe_div(dem, cap, pct=True, nd=0) if (dem and cap) else None
+        row = {
+            "service": service,
+            "short": SERVICE_ABBREV.get(service, service),
+            **per_year,
+            "projected": int(round(projected_tickets.get(service, 0))),
+            "demand_hours": round(dem, 1) if dem else 0.0,
+            "capacity_hours": round(cap, 1) if cap else None,
+            "ratio_pct": ratio,
+            "verdict": _verdict(ratio),
+        }
+        prev = per_year.get(str(b_year - 1))
+        row["yoy_pct"] = _safe_div(per_year.get(str(b_year), 0) - (prev or 0), prev,
+                                   pct=True, nd=0) if prev else None
+        by_service.append(row)
+
+    total_demand = round(sum(demand_hours.values()), 1)
+    total_capacity = round(sum(p["hours"] or 0 for p in people), 1)
+    overall = _safe_div(total_demand, total_capacity, pct=True, nd=0) \
+        if total_capacity else None
+    shortfall = round(total_demand - total_capacity, 1)
+    # A whole person, at the same productivity and a typical year's days.
+    typical_days = max((p["days"] or 0) for p in people) if people else 0
+    one_person = typical_days * per_day
+    return _json_safe({
+        "years": years,
+        "base_year": b_year,
+        "base_year_complete": bool(base_complete),
+        "months_carried": carried,
+        "target_year": t_year,
+        "growth_pct": growth,
+        "monthly": monthly,
+        "year_totals": year_totals,
+        "yoy": yoy,
+        "seasonality": seasonality,
+        "users": users,
+        "by_service": by_service,
+        "capacity": {
+            "productive_hours_per_day": per_day,
+            "people": people,
+            "people_without_days": [p["name"] for p in people if p["days"] is None],
+            "assumed_from_base": [p["name"] for p in people if p.get("assumed")],
+            "total_demand_hours": total_demand,
+            "total_capacity_hours": total_capacity,
+            "ratio_pct": overall,
+            "verdict": _verdict(overall),
+            "shortfall_hours": shortfall,
+            "people_needed": round(shortfall / one_person, 1)
+            if one_person and shortfall > 0 else 0,
+            "bands": CAPACITY_BANDS,
+        },
+    })
 
 
 # ── One screen's worth of volume, for the 3D board ────────────────────────────

@@ -5,6 +5,7 @@ import BandwidthPage       from './BandwidthPage'
 import InsightsPage        from './InsightsPage'
 import UtilityRatePage     from './UtilityRatePage'
 import DashboardExtrasPage from './DashboardExtrasPage'
+import GrowthForecastPage  from './GrowthForecastPage'
 
 const REPORTS = [
   { id: 'priority',    label: 'Priority Tracker', icon: <FlagIcon /> },
@@ -13,6 +14,7 @@ const REPORTS = [
   { id: 'insights',    label: 'Insights',         icon: <SparklesIcon /> },
   { id: 'utility-rate',label: 'Utility Rate',     icon: <GaugeIcon /> },
   { id: 'extras',      label: 'Dashboard Extras', icon: <GridIcon /> },
+  { id: 'growth',      label: 'Growth & Capacity', icon: <TrendIcon /> },
 ]
 
 export default function ExperimentalReportsPage({ sessionId, onSessionExpired, onBack, initialReport }) {
@@ -74,6 +76,7 @@ export default function ExperimentalReportsPage({ sessionId, onSessionExpired, o
         {active === 'insights'     && <InsightsPage         sessionId={sessionId} onSessionExpired={onSessionExpired} />}
         {active === 'utility-rate' && <UtilityRatePage      sessionId={sessionId} onSessionExpired={onSessionExpired} />}
         {active === 'extras'       && <DashboardExtrasPage  sessionId={sessionId} onSessionExpired={onSessionExpired} />}
+        {active === 'growth'       && <GrowthForecastPage   sessionId={sessionId} onSessionExpired={onSessionExpired} />}
       </div>
 
     </div>
@@ -95,6 +98,17 @@ function SparklesIcon() {
 function GaugeIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10"/><path d="M12 16V12"/><path d="M8 12H4"/><path d="M16 12h-1"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
 }
+function TrendIcon() {
+  // A line stepping up and to the right — the one report about next year.
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  )
+}
+
 function GridIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
 }

@@ -388,3 +388,10 @@ export async function updateUtilisationSettings(settings) {
   const { data } = await client.put('/utilisation-settings', settings)
   return data
 }
+
+export async function getGrowthForecast(sid, growth = 10, { baseYear, targetYear } = {}) {
+  const { data } = await client.get(`/sessions/${sid}/growth-forecast`, {
+    params: _clean({ growth, base_year: baseYear, target_year: targetYear }),
+  })
+  return data
+}
