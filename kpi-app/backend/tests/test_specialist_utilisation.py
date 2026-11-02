@@ -39,12 +39,13 @@ def put(path, body):
     return json.loads(urllib.request.urlopen(req).read())
 
 
-def tickets(n, who, service, year, start=0):
+def tickets(n, who, service, year, start=0, state="Closed Completed"):
+    closed = state == "Closed Completed"
     return [{"Number": f"UT{start + i:06d}", "Short description": "r",
              "Requested by": f"U{i % 60}", "Assigned to": who,
              "Created": f"{year}-{(i % 12) + 1:02d}-10 09:00:00",
-             "Closed": f"{year}-{(i % 12) + 1:02d}-20 17:00:00",
-             "State": "Closed Completed", "Area": "EUR", "Team": "EEM",
+             "Closed": f"{year}-{(i % 12) + 1:02d}-20 17:00:00" if closed else None,
+             "State": state, "Area": "EUR", "Team": "EEM",
              "Sub-Category": service} for i in range(n)]
 
 
@@ -109,6 +110,39 @@ check("hours are still counted", srow["hours_spent"] == 160.0, str(srow["hours_s
 check("but there is no rate", srow["utility_pct"] is None, str(srow["utility_pct"]))
 check("and no invented denominator", srow["available_days"] is None,
       str(srow["available_days"]))
+
+print("\nOnly finished work is priced")
+# 318 closed and 100 still in progress. The rate must read off the 318; the
+# Requests column still counts all 418, and the gap is reported.
+mixed = tickets(318, WHO, "Website Content Management", 2026) \
+    + tickets(100, WHO, "Website Content Management", 2026, start=900,
+              state="Work in progress")
+m2 = metrics(mixed, **YEAR)
+row2 = next(r for r in m2["activity_groups"]["by_specialist"] if r["name"] == WHO)
+print(f"   {row2['requests']} raised, {row2['priced_tickets']} priced, "
+      f"{row2['hours_spent']} h, {row2['utility_pct']}%")
+check("every request still counted in the Requests column", row2["requests"] == 418,
+      str(row2["requests"]))
+check("only the closed ones are priced", row2["priced_tickets"] == 318,
+      str(row2["priced_tickets"]))
+check("so the hours are unchanged by the open work", row2["hours_spent"] == 1272.0,
+      str(row2["hours_spent"]))
+check("and the rate is the same as with the closed alone", row2["utility_pct"] == 85,
+      f"{row2['utility_pct']}%")
+check("the counted states are declared", row2["counted_states"] == ["Closed Completed"],
+      str(row2["counted_states"]))
+
+print("\nA specialist with nothing finished has no rate, not a zero")
+open_only = tickets(40, "Ajith A", "Website Content Management", 2026, start=1800,
+                    state="Work in progress")
+m3 = metrics(open_only, **YEAR)
+row3 = next(r for r in m3["activity_groups"]["by_specialist"] if r["name"] == "Ajith A")
+print(f"   {row3['requests']} raised, {row3['priced_tickets']} priced, "
+      f"{row3['hours_spent']} h, rate {row3['utility_pct']}")
+check("the requests are there", row3["requests"] == 40, str(row3["requests"]))
+check("nothing is priced", row3["priced_tickets"] == 0, str(row3["priced_tickets"]))
+check("and the rate reads nought, not a dash", row3["utility_pct"] == 0,
+      str(row3["utility_pct"]))
 
 print("\nThe settings are editable, and the figures follow")
 before = get("/api/utilisation-settings")

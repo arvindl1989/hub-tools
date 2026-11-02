@@ -553,7 +553,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
             rows={groups.by_service} keys={areaKeys} labels={areaLabels} effort={effort} />
           <ActivityBreakdown
             title="By Specialist" headerLabel="Specialist"
-            subtitle="Utility rate is their own hours over the working days they had — hover a rate for the sum"
+            subtitle="Utility rate is the hours of their finished work over the working days they had — Closed Completed only, so open work is not priced"
             utilisation
             controls={
               <button

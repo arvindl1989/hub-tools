@@ -312,6 +312,10 @@ SLA_RULES: dict[str, int] = _load_setting("sla_rules", {
 # three by 250 would flatter two of them.
 UTILISATION_SETTINGS: dict = _load_setting("utilisation_settings", {
     "productivity_pct": 75,          # of an 8-hour day → 6 productive hours
+    # Only finished work counts. A ticket still in progress has consumed some
+    # of the year but nobody knows how much, and pricing it at its full
+    # estimate would credit hours that have not been spent yet.
+    "counted_states": ["Closed Completed"],
     "hours_per_ticket_by_year": {
         "2026": {"Website Content Management": 4},
     },
@@ -335,6 +339,12 @@ UTILISATION_SETTINGS: dict = _load_setting("utilisation_settings", {
         },
     },
 })
+
+
+def _counted_states() -> list:
+    """The ticket states that count as delivered work."""
+    states = UTILISATION_SETTINGS.get("counted_states")
+    return list(states) if states else ["Closed Completed"]
 
 
 def productive_hours_per_day() -> float:
@@ -3792,22 +3802,31 @@ def _capacity_of(grp: pd.DataFrame, closed_frame, name,
 def _utilisation_of(grp: pd.DataFrame, name: str, window: Optional[tuple]) -> dict:
     """One specialist's utilisation, and every figure behind it.
 
-        hours   = each ticket priced at its service's cost in the year it was raised
+        hours   = each FINISHED ticket priced at its service's cost in the year
+                  it was raised
         days    = hours / productive hours in a day
         utility = days / the working days that person had in this window
 
-    The ticket set is the row's own — what was raised in the window and
-    assigned to them — so the percentage and the Requests column beside it are
-    always about the same tickets.
+    Only tickets in a counted state — Closed Completed as it stands — are
+    priced. Work still in progress has taken some of the year and nobody knows
+    how much, so charging it at the full estimate would credit hours that have
+    not been spent. The row's Requests column still counts everything raised,
+    so the two differ by whatever is open; the page shows both rather than
+    leaving the gap to be discovered.
     """
     blank = {"utility_pct": None, "hours_spent": 0.0, "days_spent": None,
-             "available_days": None, "hours_per_day": productive_hours_per_day()}
+             "available_days": None, "hours_per_day": productive_hours_per_day(),
+             "priced_tickets": 0, "counted_states": list(_counted_states())}
     if grp is None or grp.empty:
         return blank
 
+    done = grp
+    if "state" in grp.columns:
+        done = grp[grp["state"].isin(_counted_states())]
+
     hours = 0.0
-    if {"service", "created_date"} <= set(grp.columns):
-        for service, created in zip(grp["service"], grp["created_date"]):
+    if {"service", "created_date"} <= set(done.columns):
+        for service, created in zip(done["service"], done["created_date"]):
             if pd.isna(created):
                 continue
             h = hours_per_ticket(str(service), pd.Timestamp(created).year)
@@ -3824,6 +3843,8 @@ def _utilisation_of(grp: pd.DataFrame, name: str, window: Optional[tuple]) -> di
         "days_spent": days,
         "available_days": available,
         "hours_per_day": per_day,
+        "priced_tickets": int(len(done)),
+        "counted_states": list(_counted_states()),
     }
 
 

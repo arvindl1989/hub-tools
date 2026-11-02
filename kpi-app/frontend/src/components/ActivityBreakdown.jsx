@@ -63,7 +63,7 @@ export default function ActivityBreakdown({
                 {effort ? 'Est. hours' : 'Requests'}
               </th>
               <th style={{ ...thStyle, textAlign: 'right' }} title={utilisation
-                ? 'Hours on the tickets they handled, at each service\u2019s cost for the year it was raised, turned into days at the agreed productivity, over the working days they had in this window'
+                ? 'Hours on the tickets they have FINISHED — Closed Completed only — at each service\u2019s cost for the year it was raised, turned into days at the agreed productivity, over the working days they had in this window. Work still open is not priced.'
                 : rateOfWholeBase
                   ? 'Users of this service as a share of the whole user base'
                   : 'Average, across the services, of the share of this group\u2019s users who have used each one'}>
@@ -113,12 +113,19 @@ export default function ActivityBreakdown({
                              color: utilisation && (r.utility_pct ?? 0) > 100 ? '#c0305a' : '#1450f5' }}
                     title={utilisation
                       ? (r.available_days
-                          ? `${Math.round(r.hours_spent ?? 0)} hours over ${r.requests} requests `
+                          ? `${Math.round(r.hours_spent ?? 0)} hours over `
+                            + `${r.priced_tickets ?? 0} closed of ${r.requests} raised `
                             + `= ${r.days_spent} days at ${r.hours_per_day} h/day, `
                             + `against ${r.available_days} working days available`
                           : 'No working-days figure for this person in Rates & SLA')
                       : `${r.requests} of ${total.toLocaleString()} requests in view`}>
                   {r.utility_pct == null ? '—' : `${r.utility_pct}%`}
+                  {utilisation && r.priced_tickets != null && (
+                    <div style={{ fontSize: 10, color: '#9c9c9c', marginTop: 3,
+                                  fontWeight: 500 }}>
+                      {r.priced_tickets} closed
+                    </div>
+                  )}
                 </td>
                 <td style={{ padding: '9px 6px', textAlign: 'right', color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
                   {effort
