@@ -157,6 +157,16 @@
     .status-row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .status-dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); flex-shrink: 0; }
     .cal-notes-container { display: flex; flex-direction: column; gap: 2px; margin-top: 5px; }
+    .repeat-days { display: flex; gap: 5px; flex-wrap: wrap; }
+    .repeat-days button {
+      flex: 1; min-width: 38px; padding: 6px 0; font-size: 0.68rem; font-weight: 700;
+      border: 1px solid rgba(0,0,0,0.12); border-radius: 7px; background: #fff;
+      color: var(--black); cursor: pointer; font-family: inherit;
+    }
+    .repeat-days button.on { background: var(--kone-blue); color: #fff;
+      border-color: var(--kone-blue); }
+    .repeat-preview { font-size: 0.7rem; color: #6e6e6e; margin: 8px 0 10px;
+      line-height: 1.5; }
     .cal-note-marker { font-size: 0.62rem; padding: 2px 4px; border-radius: 3px; background: var(--p-yellow); color: var(--black); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #importantNotesSection { background: white; border-radius: 14px; padding: 22px; box-shadow: var(--shadow); margin-bottom: 25px; border-left: 5px solid var(--kone-blue); display: none; }
     .notes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-top: 18px; }
@@ -227,6 +237,32 @@
       <button id="applyStatusBtn" class="btn-primary">Apply Status</button>
       <button id="clearBtn" class="btn-pink">Clear Selection</button>
       <button id="toggleMultiSelectBtn" class="btn-yellow">Multi-Select Mode</button>
+
+      <div style="height:1px; background:rgba(0,0,0,0.1); margin:18px 0;"></div>
+
+      <!-- A standing arrangement — "Wednesdays and Fridays until the end of
+           January" — is a hundred and fifty clicks one day at a time. It sets
+           the same records the day-by-day editor does, and it skips weekends,
+           public holidays and days outside a person's own start/end dates
+           exactly as a single click would. -->
+      <button id="toggleRepeatBtn" class="btn-blue">Repeat Weekly</button>
+      <div id="repeatContainer" style="display:none;">
+        <div class="control-group">
+          <label>Weekdays</label>
+          <div id="repeatDays" class="repeat-days"></div>
+        </div>
+        <div class="control-group">
+          <label>From</label>
+          <input type="date" id="repeatFrom" class="note-input">
+        </div>
+        <div class="control-group">
+          <label>To</label>
+          <input type="date" id="repeatTo" class="note-input">
+        </div>
+        <p id="repeatPreview" class="repeat-preview">Pick weekdays and a date range.</p>
+        <button id="repeatApplyBtn" class="btn-primary">Apply to every matching day</button>
+      </div>
+
       <div style="height:1px; background:rgba(0,0,0,0.1); margin:18px 0;"></div>
       <button id="toggleNoteEditBtn" class="btn-green">Add / Edit Note</button>
       <div id="noteEditorContainer">
@@ -367,7 +403,12 @@
       '2026-01-01':"New Year's Day",'2026-01-15':'Pongal','2026-01-26':'Republic Day',
       '2026-04-14':'Tamil New Year','2026-04-23':'Tamil Nadu Elections','2026-05-01':'May Day',
       '2026-08-15':'Independence Day','2026-09-14':'Ganesh Chaturthi','2026-10-02':'Gandhi Jayanti',
-      '2026-10-19':'Ayudha Pooja','2026-11-09':'Diwali','2026-12-25':'Christmas'
+      '2026-10-19':'Ayudha Pooja','2026-11-09':'Diwali','2026-12-25':'Christmas',
+      // 2027, fixed-date only. Pongal, Tamil New Year, Ganesh Chaturthi,
+      // Ayudha Pooja and Diwali move with the calendar and are left out
+      // rather than guessed — add them once the 2027 list is published.
+      '2027-01-01':"New Year's Day",'2027-01-26':'Republic Day','2027-05-01':'May Day',
+      '2027-08-15':'Independence Day','2027-10-02':'Gandhi Jayanti','2027-12-25':'Christmas'
     };
     const statusColors = { present:'#aae1c8', wfh:'#1450f5', leave:'#ffcdd7', halfDayLeave:'#ffe141', onDuty:'#f3eee6', travel:'#a1a1a1' };
     const noteColors = { sand:{hex:'#f3eee6'}, yellow:{hex:'#ffe141'}, blue:{hex:'#d2f5ff'}, pink:{hex:'#ffcdd7'}, green:{hex:'#aae1c8'} };
@@ -595,6 +636,84 @@
       push(ref(db,'logs'),{timestamp:Date.now(),details:`${emp} marked as ${stat} on ${selectedDates.sort().join(', ')}`});
     };
     document.getElementById('clearBtn').onclick = () => { selectedDates=[]; renderCalendar(); renderDailyBreakdown(); updateEditor(); };
+
+    // ── Repeat weekly ───────────────────────────────────────────────────────
+    // Everything a standing arrangement needs: which weekdays, between which
+    // dates. The days it will not touch — weekends, public holidays, and
+    // anything outside that person's own start and end dates — are counted in
+    // the preview before anything is written, because a bulk write you cannot
+    // see the shape of is one nobody will trust.
+    const REPEAT_DAYS = [['Mon',1],['Tue',2],['Wed',3],['Thu',4],['Fri',5]];
+    let repeatPicked = new Set();
+
+    function repeatMatches() {
+      const from = document.getElementById('repeatFrom').value;
+      const to   = document.getElementById('repeatTo').value;
+      const emp  = document.getElementById('employeeSelect').value;
+      if (!from || !to || !repeatPicked.size || from > to) return null;
+      const hit = [], skip = [];
+      // Stepping by UTC avoids a daylight-saving hour turning one midnight
+      // into the previous day halfway through a three-month range.
+      for (let t = Date.parse(from + 'T00:00:00Z'); t <= Date.parse(to + 'T00:00:00Z');
+           t += 86400000) {
+        const d = new Date(t);
+        const key = d.toISOString().slice(0, 10);
+        if (!repeatPicked.has(d.getUTCDay())) continue;
+        (isWorkDay(key) && isValidEmp(emp, key) ? hit : skip).push(key);
+      }
+      return { hit, skip, emp };
+    }
+
+    function renderRepeat() {
+      const box = document.getElementById('repeatDays');
+      if (!box.children.length) {
+        REPEAT_DAYS.forEach(([label, num]) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.onclick = () => {
+            repeatPicked.has(num) ? repeatPicked.delete(num) : repeatPicked.add(num);
+            b.classList.toggle('on');
+            renderRepeat();
+          };
+          box.appendChild(b);
+        });
+      }
+      const m = repeatMatches();
+      const out = document.getElementById('repeatPreview');
+      if (!m) { out.textContent = 'Pick weekdays and a date range.'; return; }
+      const stat = document.getElementById('statusSelect').value;
+      out.innerHTML = `<b>${m.hit.length}</b> day${m.hit.length === 1 ? '' : 's'} for `
+        + `<b>${m.emp}</b> as <b>${stat}</b>`
+        + (m.skip.length
+            ? `<br><span style="color:#b87d00;">${m.skip.length} skipped — holiday, `
+              + `or outside their dates</span>` : '');
+    }
+
+    document.getElementById('toggleRepeatBtn').onclick = function () {
+      const box = document.getElementById('repeatContainer');
+      box.style.display = box.style.display === 'none' ? 'block' : 'none';
+      if (box.style.display === 'block') renderRepeat();
+    };
+    ['repeatFrom', 'repeatTo', 'employeeSelect', 'statusSelect'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        if (document.getElementById('repeatContainer').style.display !== 'none') renderRepeat();
+      });
+    });
+    document.getElementById('repeatApplyBtn').onclick = () => {
+      const m = repeatMatches();
+      if (!m || !m.hit.length) return alert('Pick weekdays and a date range first.');
+      const stat = document.getElementById('statusSelect').value;
+      if (!confirm(`Mark ${m.emp} as ${stat} on ${m.hit.length} days, `
+                   + `${m.hit[0]} to ${m.hit[m.hit.length - 1]}?`)) return;
+      m.hit.forEach(k => set(ref(db, `attendance/${k}/${m.emp}`), { status: stat }));
+      // One log line for the arrangement, not one per day: a hundred and fifty
+      // identical entries would bury everything else in the activity log.
+      push(ref(db, 'logs'), { timestamp: Date.now(),
+        details: `${m.emp} marked as ${stat} on ${m.hit.length} repeating days `
+                 + `(${m.hit[0]} to ${m.hit[m.hit.length - 1]})` });
+      renderCalendar();
+      alert(`Marked ${m.hit.length} days.`);
+    };
     document.getElementById('toggleMultiSelectBtn').onclick = function() { multiSelectMode=!multiSelectMode; selectedDates=[]; renderCalendar(); };
     document.getElementById('toggleNoteEditBtn').onclick = function() { editMode=!editMode; updateEditor(); };
     document.getElementById('saveImpNoteBtn').onclick = () => {

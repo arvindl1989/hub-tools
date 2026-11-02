@@ -40,6 +40,8 @@ TESTS = [
      "three years, next year, and whether it fits"),
     ("3D board", "test_3d_board.py",
      "the field's arithmetic, and the canvas it is drawn on"),
+    ("attendance repeat", "test_attendance_repeat.py",
+     "a standing arrangement written in one go, holidays skipped"),
     ("email calendar", "test_email_sla_calendar.py",
      "the tracker's due dates land where the dashboard's do"),
 ]
