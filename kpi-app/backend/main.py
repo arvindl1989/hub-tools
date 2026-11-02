@@ -487,6 +487,24 @@ HOLIDAYS_BY_YEAR: dict[int, list[str]] = {
         "2026-11-09",  # Diwali
         "2026-12-25",  # Christmas
     ],
+    # The same set as 2026, less the one-off election day. Ayudha Pooja and
+    # Deepavali are the two the sources disagree on — the paper reporting the
+    # state announcement has the 8th and 28th, some calendar sites the 9th and
+    # 29th. Neither falls on a weekday on either reading, so no working-day
+    # count here changes whichever is right.
+    2027: [
+        "2027-01-01",  # New Year's Day
+        "2027-01-15",  # Pongal (Fri)
+        "2027-01-26",  # Republic Day
+        "2027-04-14",  # Tamil New Year
+        "2027-05-01",  # May Day (Sat)
+        "2027-08-15",  # Independence Day (Sun)
+        "2027-09-04",  # Ganesh Chaturthi (Sat)
+        "2027-10-02",  # Gandhi Jayanti (Sat)
+        "2027-10-08",  # Ayudha Pooja
+        "2027-10-28",  # Diwali
+        "2027-12-25",  # Christmas (Sat)
+    ],
 }
 _HOLIDAY_DATES = np.array(
     sorted({d for yr in HOLIDAYS_BY_YEAR.values() for d in yr}), dtype="datetime64[D]"

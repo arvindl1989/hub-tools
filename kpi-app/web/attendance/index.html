@@ -165,6 +165,31 @@
     }
     .repeat-days button.on { background: var(--kone-blue); color: #fff;
       border-color: var(--kone-blue); }
+    .repeat-mode { display: flex; gap: 5px; }
+    .repeat-mode button {
+      flex: 1; padding: 6px 0; font-size: 0.68rem; font-weight: 700; cursor: pointer;
+      border: 1px solid rgba(0,0,0,0.12); border-radius: 7px; background: #fff;
+      color: var(--black); font-family: inherit;
+    }
+    .repeat-mode button.on { background: var(--kone-blue); color: #fff;
+      border-color: var(--kone-blue); }
+    .repeat-months {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;
+      max-height: 168px; overflow-y: auto; padding-right: 2px;
+    }
+    .repeat-months button {
+      padding: 6px 0; font-size: 0.64rem; font-weight: 700; cursor: pointer;
+      border: 1px solid rgba(0,0,0,0.12); border-radius: 7px; background: #fff;
+      color: var(--black); font-family: inherit; white-space: nowrap;
+    }
+    .repeat-months button.on { background: var(--kone-blue); color: #fff;
+      border-color: var(--kone-blue); }
+    .repeat-quick { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+    .repeat-quick button {
+      padding: 4px 9px; font-size: 0.62rem; font-weight: 600; cursor: pointer;
+      border: 1px solid rgba(0,0,0,0.12); border-radius: 20px; background: #fff;
+      color: #6e6e6e; font-family: inherit;
+    }
     .repeat-preview { font-size: 0.7rem; color: #6e6e6e; margin: 8px 0 10px;
       line-height: 1.5; }
     .cal-note-marker { font-size: 0.62rem; padding: 2px 4px; border-radius: 3px; background: var(--p-yellow); color: var(--black); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -252,14 +277,38 @@
           <div id="repeatDays" class="repeat-days"></div>
         </div>
         <div class="control-group">
-          <label>From</label>
-          <input type="date" id="repeatFrom" class="note-input">
+          <label>Apply across</label>
+          <div class="repeat-mode">
+            <button id="repeatModeMonths" class="on" data-mode="months">Months</button>
+            <button id="repeatModeRange" data-mode="range">Date range</button>
+          </div>
         </div>
-        <div class="control-group">
-          <label>To</label>
-          <input type="date" id="repeatTo" class="note-input">
+
+        <!-- Months, because a rota is agreed a month or a quarter at a time,
+             not between two arbitrary dates. Several can be picked at once. -->
+        <div id="repeatMonthsBlock" class="control-group">
+          <label>Months</label>
+          <div id="repeatMonths" class="repeat-months"></div>
+          <div class="repeat-quick">
+            <button data-quick="this">This month</button>
+            <button data-quick="3">Next 3</button>
+            <button data-quick="rest">Rest of year</button>
+            <button data-quick="none">Clear</button>
+          </div>
         </div>
-        <p id="repeatPreview" class="repeat-preview">Pick weekdays and a date range.</p>
+
+        <div id="repeatRangeBlock" style="display:none;">
+          <div class="control-group">
+            <label>From</label>
+            <input type="date" id="repeatFrom" class="note-input">
+          </div>
+          <div class="control-group">
+            <label>To</label>
+            <input type="date" id="repeatTo" class="note-input">
+          </div>
+        </div>
+
+        <p id="repeatPreview" class="repeat-preview">Pick weekdays and at least one month.</p>
         <button id="repeatApplyBtn" class="btn-primary">Apply to every matching day</button>
       </div>
 
@@ -404,11 +453,16 @@
       '2026-04-14':'Tamil New Year','2026-04-23':'Tamil Nadu Elections','2026-05-01':'May Day',
       '2026-08-15':'Independence Day','2026-09-14':'Ganesh Chaturthi','2026-10-02':'Gandhi Jayanti',
       '2026-10-19':'Ayudha Pooja','2026-11-09':'Diwali','2026-12-25':'Christmas',
-      // 2027, fixed-date only. Pongal, Tamil New Year, Ganesh Chaturthi,
-      // Ayudha Pooja and Diwali move with the calendar and are left out
-      // rather than guessed — add them once the 2027 list is published.
-      '2027-01-01':"New Year's Day",'2027-01-26':'Republic Day','2027-05-01':'May Day',
-      '2027-08-15':'Independence Day','2027-10-02':'Gandhi Jayanti','2027-12-25':'Christmas'
+      // 2027, the same set as 2026 less the one-off election day. The fixed
+      // dates are certain; Pongal and Ganesh Chaturthi are agreed across the
+      // sources. Ayudha Pooja and Deepavali are reported as 8 and 28 October
+      // by the paper covering the state announcement, and as the 9th and 29th
+      // by some calendar sites — worth checking against the official
+      // notification, though neither falls on a weekday either way.
+      '2027-01-01':"New Year's Day",'2027-01-15':'Pongal','2027-01-26':'Republic Day',
+      '2027-04-14':'Tamil New Year','2027-05-01':'May Day','2027-08-15':'Independence Day',
+      '2027-09-04':'Ganesh Chaturthi','2027-10-02':'Gandhi Jayanti',
+      '2027-10-08':'Ayudha Pooja','2027-10-28':'Diwali','2027-12-25':'Christmas'
     };
     const statusColors = { present:'#aae1c8', wfh:'#1450f5', leave:'#ffcdd7', halfDayLeave:'#ffe141', onDuty:'#f3eee6', travel:'#a1a1a1' };
     const noteColors = { sand:{hex:'#f3eee6'}, yellow:{hex:'#ffe141'}, blue:{hex:'#d2f5ff'}, pink:{hex:'#ffcdd7'}, green:{hex:'#aae1c8'} };
@@ -644,24 +698,78 @@
     // the preview before anything is written, because a bulk write you cannot
     // see the shape of is one nobody will trust.
     const REPEAT_DAYS = [['Mon',1],['Tue',2],['Wed',3],['Thu',4],['Fri',5]];
-    let repeatPicked = new Set();
+    const REPEAT_MONTH_COUNT = 18;          // this month and the next seventeen
+    let repeatPicked = new Set();           // weekday numbers
+    let repeatMonths = new Set();           // 'YYYY-MM'
+    let repeatMode = 'months';
+
+    // The months on offer: from the start of the current one, far enough ahead
+    // to cover a rota agreed for the next year without scrolling for ever.
+    function repeatMonthList() {
+      const out = [];
+      const now = new Date();
+      for (let i = 0; i < REPEAT_MONTH_COUNT; i++) {
+        const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() + i, 1));
+        out.push({
+          key: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`,
+          label: d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit',
+                                                 timeZone: 'UTC' }).toUpperCase(),
+          year: d.getUTCFullYear(), month: d.getUTCMonth(),
+        });
+      }
+      return out;
+    }
+
+    // Whichever way the span was chosen, it comes out as a list of day keys.
+    function repeatSpan() {
+      if (repeatMode === 'range') {
+        const from = document.getElementById('repeatFrom').value;
+        const to   = document.getElementById('repeatTo').value;
+        if (!from || !to || from > to) return null;
+        return [[Date.parse(from + 'T00:00:00Z'), Date.parse(to + 'T00:00:00Z')]];
+      }
+      if (!repeatMonths.size) return null;
+      return [...repeatMonths].sort().map(key => {
+        const [y, m] = key.split('-').map(Number);
+        return [Date.UTC(y, m - 1, 1), Date.UTC(y, m, 0)];
+      });
+    }
+
+    // Applying a pattern is a replacement, not an addition: the days you picked
+    // become WFH and any OTHER work-from-home in the same span is taken back
+    // off, or last month's arrangement would quietly survive inside this
+    // month's. Nothing else is touched. A leave, a half day, on-duty or travel
+    // stays exactly as it is — on a day the pattern wants as well, which is
+    // reported rather than overwritten, because the person is not at home that
+    // day and somebody already recorded why.
+    const KEEP = new Set(['leave', 'halfDayLeave', 'onDuty', 'travel']);
 
     function repeatMatches() {
-      const from = document.getElementById('repeatFrom').value;
-      const to   = document.getElementById('repeatTo').value;
-      const emp  = document.getElementById('employeeSelect').value;
-      if (!from || !to || !repeatPicked.size || from > to) return null;
-      const hit = [], skip = [];
+      const emp = document.getElementById('employeeSelect').value;
+      const stat = document.getElementById('statusSelect').value;
+      const spans = repeatSpan();
+      if (!spans || !repeatPicked.size) return null;
+      const hit = [], skip = [], kept = [], cleared = [];
       // Stepping by UTC avoids a daylight-saving hour turning one midnight
       // into the previous day halfway through a three-month range.
-      for (let t = Date.parse(from + 'T00:00:00Z'); t <= Date.parse(to + 'T00:00:00Z');
-           t += 86400000) {
-        const d = new Date(t);
-        const key = d.toISOString().slice(0, 10);
-        if (!repeatPicked.has(d.getUTCDay())) continue;
-        (isWorkDay(key) && isValidEmp(emp, key) ? hit : skip).push(key);
+      for (const [start, end] of spans) {
+        for (let t = start; t <= end; t += 86400000) {
+          const d = new Date(t);
+          const key = d.toISOString().slice(0, 10);
+          const usable = isWorkDay(key) && isValidEmp(emp, key);
+          const existing = attendanceData[key]?.[emp]?.status;
+          if (repeatPicked.has(d.getUTCDay())) {
+            if (!usable) { skip.push(key); continue; }
+            if (KEEP.has(existing)) { kept.push(key); continue; }
+            hit.push(key);
+          } else if (usable && existing === stat && stat === 'wfh') {
+            // A work-from-home on a day the new pattern does not include.
+            cleared.push(key);
+          }
+        }
       }
-      return { hit, skip, emp };
+      [hit, skip, kept, cleared].forEach(a => a.sort());
+      return { hit, skip, kept, cleared, emp };
     }
 
     function renderRepeat() {
@@ -678,16 +786,77 @@
           box.appendChild(b);
         });
       }
+
+      const mbox = document.getElementById('repeatMonths');
+      if (!mbox.children.length) {
+        repeatMonthList().forEach(mo => {
+          const b = document.createElement('button');
+          b.textContent = mo.label;
+          b.dataset.key = mo.key;
+          b.onclick = () => {
+            repeatMonths.has(mo.key) ? repeatMonths.delete(mo.key)
+                                     : repeatMonths.add(mo.key);
+            renderRepeat();
+          };
+          mbox.appendChild(b);
+        });
+      }
+      [...mbox.children].forEach(b =>
+        b.classList.toggle('on', repeatMonths.has(b.dataset.key)));
+
       const m = repeatMatches();
       const out = document.getElementById('repeatPreview');
-      if (!m) { out.textContent = 'Pick weekdays and a date range.'; return; }
+      if (!m) {
+        out.textContent = repeatMode === 'months'
+          ? 'Pick weekdays and at least one month.'
+          : 'Pick weekdays and a date range.';
+        return;
+      }
       const stat = document.getElementById('statusSelect').value;
-      out.innerHTML = `<b>${m.hit.length}</b> day${m.hit.length === 1 ? '' : 's'} for `
-        + `<b>${m.emp}</b> as <b>${stat}</b>`
+      const where = repeatMode === 'months'
+        ? `${repeatMonths.size} month${repeatMonths.size === 1 ? '' : 's'}`
+        : 'that range';
+      out.innerHTML = `<b>${m.hit.length}</b> day${m.hit.length === 1 ? '' : 's'} across `
+        + `${where} for <b>${m.emp}</b> as <b>${stat}</b>`
+        + (m.cleared.length
+            ? `<br><span style="color:#c0305a;">${m.cleared.length} existing `
+              + `${stat} day${m.cleared.length === 1 ? '' : 's'} outside the pattern `
+              + `will be removed</span>` : '')
+        + (m.kept.length
+            ? `<br><span style="color:#1450f5;">${m.kept.length} left alone — already `
+              + `leave, half day, on duty or travel</span>` : '')
         + (m.skip.length
             ? `<br><span style="color:#b87d00;">${m.skip.length} skipped — holiday, `
               + `or outside their dates</span>` : '');
     }
+
+    document.querySelectorAll('.repeat-mode button').forEach(btn => {
+      btn.onclick = () => {
+        repeatMode = btn.dataset.mode;
+        document.querySelectorAll('.repeat-mode button').forEach(b =>
+          b.classList.toggle('on', b === btn));
+        document.getElementById('repeatMonthsBlock').style.display =
+          repeatMode === 'months' ? 'block' : 'none';
+        document.getElementById('repeatRangeBlock').style.display =
+          repeatMode === 'range' ? 'block' : 'none';
+        renderRepeat();
+      };
+    });
+
+    document.querySelectorAll('.repeat-quick button').forEach(btn => {
+      btn.onclick = () => {
+        const months = repeatMonthList();
+        const pick = btn.dataset.quick;
+        repeatMonths = new Set(
+          pick === 'this' ? [months[0].key]
+          : pick === '3' ? months.slice(0, 3).map(mo => mo.key)
+          // Everything left in the calendar year the current month sits in.
+          : pick === 'rest' ? months.filter(mo => mo.year === months[0].year)
+                                    .map(mo => mo.key)
+          : []);
+        renderRepeat();
+      };
+    });
 
     document.getElementById('toggleRepeatBtn').onclick = function () {
       const box = document.getElementById('repeatContainer');
@@ -703,16 +872,33 @@
       const m = repeatMatches();
       if (!m || !m.hit.length) return alert('Pick weekdays and a date range first.');
       const stat = document.getElementById('statusSelect').value;
-      if (!confirm(`Mark ${m.emp} as ${stat} on ${m.hit.length} days, `
-                   + `${m.hit[0]} to ${m.hit[m.hit.length - 1]}?`)) return;
+      const where = repeatMode === 'months'
+        ? `${repeatMonths.size} selected month${repeatMonths.size === 1 ? '' : 's'}`
+        : 'the selected range';
+      if (!confirm(`Mark ${m.emp} as ${stat} on ${m.hit.length} days across `
+                   + `${where} — ${m.hit[0]} to ${m.hit[m.hit.length - 1]}.`
+                   + (m.cleared.length
+                       ? `\n\nThis also REMOVES ${m.cleared.length} existing ${stat} `
+                         + `day${m.cleared.length === 1 ? '' : 's'} in the same span.` : '')
+                   + (m.kept.length
+                       ? `\n${m.kept.length} day${m.kept.length === 1 ? '' : 's'} stay as `
+                         + `leave or duty.` : '')
+                   + '\n\nGo ahead?')) return;
       m.hit.forEach(k => set(ref(db, `attendance/${k}/${m.emp}`), { status: stat }));
+      // Removing the record, not writing "present" over it: an absent record
+      // already means present everywhere else on this page.
+      m.cleared.forEach(k => remove(ref(db, `attendance/${k}/${m.emp}`)));
       // One log line for the arrangement, not one per day: a hundred and fifty
       // identical entries would bury everything else in the activity log.
       push(ref(db, 'logs'), { timestamp: Date.now(),
         details: `${m.emp} marked as ${stat} on ${m.hit.length} repeating days `
-                 + `(${m.hit[0]} to ${m.hit[m.hit.length - 1]})` });
+                 + `(${m.hit[0]} to ${m.hit[m.hit.length - 1]})`
+                 + (m.cleared.length ? `, ${m.cleared.length} removed outside the pattern` : '')
+                 + (m.kept.length ? `, ${m.kept.length} left as leave or duty` : '') });
       renderCalendar();
-      alert(`Marked ${m.hit.length} days.`);
+      alert(`Marked ${m.hit.length} days`
+            + (m.cleared.length ? `, removed ${m.cleared.length}` : '')
+            + (m.kept.length ? `, left ${m.kept.length} as they were` : '') + '.');
     };
     document.getElementById('toggleMultiSelectBtn').onclick = function() { multiSelectMode=!multiSelectMode; selectedDates=[]; renderCalendar(); };
     document.getElementById('toggleNoteEditBtn').onclick = function() { editMode=!editMode; updateEditor(); };
