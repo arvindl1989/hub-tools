@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import PriorityPage        from './PriorityPage'
 import AnalyticsPage       from './AnalyticsPage'
 import BandwidthPage       from './BandwidthPage'
@@ -6,6 +6,11 @@ import InsightsPage        from './InsightsPage'
 import UtilityRatePage     from './UtilityRatePage'
 import DashboardExtrasPage from './DashboardExtrasPage'
 import GrowthForecastPage  from './GrowthForecastPage'
+import Service2Page        from './Service2Page'
+import SlaPage             from './SlaPage'
+// The 3D board carries three.js with it — the heaviest thing in the bundle by
+// some way — so it loads when its pill is clicked rather than with the page.
+const ThreeDDashboardPage = lazy(() => import('./ThreeDDashboardPage'))
 
 const REPORTS = [
   { id: 'priority',    label: 'Priority Tracker', icon: <FlagIcon /> },
@@ -15,6 +20,9 @@ const REPORTS = [
   { id: 'utility-rate',label: 'Utility Rate',     icon: <GaugeIcon /> },
   { id: 'extras',      label: 'Dashboard Extras', icon: <GridIcon /> },
   { id: 'growth',      label: 'Growth & Capacity', icon: <TrendIcon /> },
+  { id: 'service2',    label: 'Service 2',         icon: <JourneyIcon /> },
+  { id: 'sla',         label: 'SLA & Time',        icon: <ClockIcon /> },
+  { id: 'three-d',     label: '3D Board',          icon: <CubeIcon /> },
 ]
 
 export default function ExperimentalReportsPage({ sessionId, onSessionExpired, onBack, initialReport }) {
@@ -77,6 +85,19 @@ export default function ExperimentalReportsPage({ sessionId, onSessionExpired, o
         {active === 'utility-rate' && <UtilityRatePage      sessionId={sessionId} onSessionExpired={onSessionExpired} />}
         {active === 'extras'       && <DashboardExtrasPage  sessionId={sessionId} onSessionExpired={onSessionExpired} />}
         {active === 'growth'       && <GrowthForecastPage   sessionId={sessionId} onSessionExpired={onSessionExpired} />}
+        {active === 'service2'     && <Service2Page />}
+        {active === 'sla'          && <SlaPage />}
+        {active === 'three-d'      && (
+          <Suspense fallback={
+            <div style={{ background: '#fff', border: '1px solid #e8e2d6', borderRadius: 12,
+                          minHeight: 420, display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', color: '#6e6e6e', fontSize: 13 }}>
+              Loading the 3D board…
+            </div>
+          }>
+            <ThreeDDashboardPage sessionId={sessionId} onSessionExpired={onSessionExpired} />
+          </Suspense>
+        )}
       </div>
 
     </div>
@@ -98,6 +119,31 @@ function SparklesIcon() {
 function GaugeIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10"/><path d="M12 16V12"/><path d="M8 12H4"/><path d="M16 12h-1"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
 }
+function JourneyIcon() {
+  // Three rising steps — the plan-to-delivery progression that tab is about.
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M4 19V13" /><path d="M10 19V9" /><path d="M16 19V5" /><path d="M22 19H2" />
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+}
+
+function CubeIcon() {
+  // A box seen in perspective — the one report drawn in three dimensions.
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  )
+}
+
 function TrendIcon() {
   // A line stepping up and to the right — the one report about next year.
   return (

@@ -316,7 +316,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
         <div>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#141414', margin: 0 }}>Experimental Reports</h3>
           <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0' }}>
-            Priority Tracker, Analytics, Bandwidth, Insights, Utility Rate and other legacy widgets — moved out of the main navigation.
+            Service 2, SLA &amp; Time, the 3D Board, Growth &amp; Capacity, Priority Tracker, Analytics, Bandwidth, Insights and Utility Rate — everything kept out of the main navigation.
           </p>
         </div>
         <button

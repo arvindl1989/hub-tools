@@ -118,7 +118,14 @@ with sync_playwright() as p:
                   " localStorage.setItem('ticketMeta', JSON.stringify(m)) }", [sid, meta])
     page.reload(wait_until="load")
     page.wait_for_timeout(1600)
-    page.get_by_role("button", name="3D Board").click()
+    # The board moved out of the main navigation and under Experimental
+    # Reports, which is behind a password gate the test opens directly.
+    page.evaluate("() => sessionStorage.setItem('experimentalUnlocked', 'true')")
+    page.reload(wait_until="load")
+    page.wait_for_timeout(1600)
+    page.locator("button", has_text="Open Experimental Reports").first.click()
+    page.wait_for_timeout(1200)
+    page.locator("button", has_text="3D Board").first.click()
     page.wait_for_timeout(5000)
 
     check("a canvas is on the page", page.locator("canvas").count() == 1)
