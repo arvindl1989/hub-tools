@@ -2,8 +2,14 @@ import DateRangePicker, { ALL_TIME_ONLY } from './DateRangePicker'
 import MultiSelectFilter from './MultiSelectFilter'
 
 // Only these specialists are offered as an Assignee filter option — everyone
-// else (Pooja, Sameera, Suresh, etc.) still counts fully in all report data,
-// they're just not individually selectable here.
+// else (Sameera, Suresh, etc.) still counts fully in all report data, they are
+// just not individually selectable here.
+//
+// A name stays on this list after the person leaves: their tickets are still
+// in the history and somebody will want to filter to them. The list is
+// intersected with the assignees the current data actually has, so a leaver
+// quietly drops out of the dropdown once the date range no longer reaches
+// their work, without anyone editing this.
 const ALLOWED_ASSIGNEES = [
   'Arvind Lakshminarayanan',
   'Akshayaa Rajeswari AS',
@@ -12,6 +18,7 @@ const ALLOWED_ASSIGNEES = [
   'Ranjithkumar Ashokkumar',
   'Ajith A',
   'Jerlin Jeba',
+  'Pooja V',
 ]
 
 export default function DashboardFilters({ overview, filters, range, onFilter, onRange }) {
