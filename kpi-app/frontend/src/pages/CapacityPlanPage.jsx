@@ -316,7 +316,10 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
 
       {/* ── Per service ──────────────────────────────────────────────────── */}
       <Card title={`Each service — ${year}`}
-            subtitle="Tickets. Goal is the same delivered days worked at the target rate; the year column is what was closed.">
+            subtitle={`Tickets. Avg TAT is days x 8 over tickets closed; Goal is those same days at the target rate.`
+                      + (shown.some(x => x.actual && !x.days_set)
+                        ? ' Figures marked \u2021 have no days entered, so they restate the fallback rate rather than measuring anything.'
+                        : '')}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -359,16 +362,23 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                         service over the tickets that came out. Where every
                         cell is priced from the rate it restates the rate;
                         where days were set by hand the two part company. */}
-                    <td style={{ ...td, color: s.year_hours ? INK
-                      : s.actual ? AMBER : FAINT }}
-                        title={s.year_hours && s.rate_hours
-                          && Math.abs(s.year_hours - s.rate_hours) > 0.05
-                          ? `${s.days} days over ${s.actual} closed. The rate set for `
-                            + `pricing is ${s.rate_hours}h; this is what it came to.`
-                          : s.days
+                    {/* Say when it is not a measurement. Days priced from the
+                        rate make this sum circular, and a figure that merely
+                        restates a setting must not look like a finding. */}
+                    <td style={{ ...td,
+                                 color: !s.year_hours ? (s.actual ? AMBER : FAINT)
+                                   : s.days_set ? INK : '#9a9388' }}
+                        title={!s.actual ? 'Nothing closed to measure'
+                          : s.days_set
                             ? `${s.days} days over ${s.actual} closed`
-                            : 'No days to measure yet'}>
+                            : `No days entered for ${s.short}, so its days are priced at `
+                              + `the ${s.rate_hours ?? '—'}h fallback and this restates it. `
+                              + 'Enter the days in the edit bar to measure it.'}>
                       {s.year_hours ?? (s.actual ? 'set it' : '—')}
+                      {s.year_hours && !s.days_set && (
+                        <span style={{ color: AMBER, fontSize: 9, verticalAlign: 'super',
+                                       marginLeft: 1 }}>&#8225;</span>
+                      )}
                     </td>
                     <td style={{ ...td, color: s.prev_hours ? FAINT : FAINT }}
                         title={s.prev_days

@@ -3437,6 +3437,11 @@ def capacity_plan(sid: str, year: int = 2026,
             # Counted but not costed: the tickets are there, the hours are not,
             # so the days read nought until somebody types a rate in.
             "priced": bool(hours),
+            # Whether anybody has said how long this service's work actually
+            # took. Until somebody has, its days come from the rate and Avg
+            # TAT can only hand that rate back — which looks identical to a
+            # measurement and is not one.
+            "days_set": any(short in (p["manual"] or []) for p in people),
             "goal_hours": goal_hours,
             "year_hours": effective(days, actual) or hours,
             "prev_hours": effective(prev_days, prev),
