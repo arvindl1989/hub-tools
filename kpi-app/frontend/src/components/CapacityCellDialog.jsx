@@ -38,6 +38,7 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
   const [d, setD] = useState(null)
   const [error, setError] = useState(null)
   const [days, setDays] = useState('')
+  const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
 
   const { assignedTo, team, area, subCategory } = filters
@@ -47,7 +48,12 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
     getCapacityPlanCell(sessionId, { year, person, service }, {
       assignedTo, team, area, subCategory, dateFrom: range.from, dateTo: range.to,
     })
-      .then(r => { if (live) { setD(r); setDays(r.manual == null ? '' : String(r.manual)) } })
+      .then(r => {
+        if (!live) return
+        setD(r)
+        setDays(r.manual == null ? '' : String(r.manual))
+        setNote(r.note || '')
+      })
       .catch(e => { if (live) setError(e?.message || 'Could not open the cell.') })
     return () => { live = false }
   }, [sessionId, year, person, service, assignedTo, team, area, subCategory,
@@ -56,7 +62,8 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
   const save = async (value) => {
     setBusy(true); setError(null)
     try {
-      await setCapacityManualDays({ year, person, service, days: value })
+      await setCapacityManualDays({ year, person, service, days: value,
+                                    note: value == null ? null : note })
       onSaved?.()
       onClose?.()
     } catch (e) {
@@ -123,6 +130,14 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
               ? `Currently set by hand to ${d.manual}. Empty the box and save to undo.`
               : 'Replaces the computed figure for this person, service and year only.'}
           </span>
+          {/* A figure typed over a calculation is an assertion, and in six
+              months nobody remembers whose it was or what it rested on. */}
+          <input type="text" value={note} maxLength={400}
+                 placeholder="Note — why this figure (optional)"
+                 onChange={e => setNote(e.target.value)}
+                 style={{ flexBasis: '100%', padding: '7px 10px', fontSize: 12.5,
+                          fontFamily: INTER, border: `1px solid ${LINE}`,
+                          borderRadius: 6, color: INK }} />
         </div>
 
         {error && (

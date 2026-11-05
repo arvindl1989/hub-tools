@@ -261,6 +261,7 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                       // nought, so the work is visible before the rate is set.
                       const bare = !days && tick
                       const byHand = (p.manual || []).includes(s.short)
+                      const why = (p.manual_notes || {})[s.short]
                       return (
                         <td key={s.short}
                             onClick={() => setCell({ person: p.name, service: s.short })}
@@ -268,15 +269,18 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                                      color: byHand ? BLUE
                                        : days ? INK : bare ? AMBER : '#ddd8cf' }}
                             title={byHand
-                              ? `Set by hand. ${tick} closed — click to see them or change it`
+                              ? (why ? `Set by hand — ${why}. ${tick} closed`
+                                : `Set by hand. ${tick} closed — click to see them or change it`)
                               : bare
                                 ? `${tick} closed — no ${year} hours set for ${s.short}. `
                                   + 'Click to see them or set the days by hand'
                                 : `${tick} closed — click to see them`}>
                           {days ? n0(days) : bare ? `${tick}t` : '–'}
                           {byHand && (
-                            <span style={{ color: BLUE, fontSize: 9, verticalAlign: 'super',
-                                           marginLeft: 1 }}>&#9998;</span>
+                            <span style={{ color: why ? BLUE : '#9ab2fb', fontSize: 9,
+                                           verticalAlign: 'super', marginLeft: 1 }}>
+                              &#9998;
+                            </span>
                           )}
                         </td>
                       )
@@ -446,9 +450,10 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
         ) : null}
         <br />
         <b>Click any service cell</b> to see the tickets behind it, and the sub-categories
-        and teams that put them there — and to type the days in by hand where the ticket
-        count does not describe the work. A <span style={{ color: BLUE }}>&#9998;</span>
-        marks a figure set that way.
+        and teams that put them there — and to type the days in by hand, with a note
+        saying why, where the ticket count does not describe the work. A
+        {' '}<span style={{ color: BLUE }}>&#9998;</span> marks a figure set that way;
+        hover it for the note.
         <br />
         <b>Where each figure comes from.</b> Working days, holidays, the cadence and training
         shares and each service&rsquo;s hours are settings, per year, in the bar above.

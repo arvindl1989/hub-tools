@@ -1,16 +1,16 @@
-"""The By Specialist utility rate: a person's own hours over the days they had.
+"""By Specialist and the Capacity tab are one sum, run twice.
 
-The sum is the one the team keeps by hand, and the fixture is their own worked
-example:
+    allocated  = each finished ticket priced at its column's rate for the year
+                 it closed in, in days of eight hours
+    productive = working days, less holidays, less the cadence share, less
+                 training
+    utility    = allocated / productive
 
-    318 requests x 4 hours = 1272 hours
-    1272 / 6 productive hours = 212 days
-    212 / the working days that person had = the rate
-
-The three things worth proving are that the arithmetic matches theirs to the
-hour, that a cost which changed between years is applied by the year the ticket
-was raised rather than today's figure, and that a person with no working-days
-entry gets a dash rather than a percentage over a guessed denominator.
+The thing most worth proving is the last check in this file: the two pages,
+asked about the same person over the same window, return the same number. The
+rest is the arithmetic behind it — the rate for the right year, the team
+owning its own work, a rejected ticket still costing what it cost, and a dash
+rather than a percentage when nobody has said how many days that person had.
 
     python test_specialist_utilisation.py      # expects the app on :8822
 """
@@ -19,6 +19,9 @@ import urllib.parse
 import urllib.request
 
 BASE = "http://127.0.0.1:8822"
+WHO = "Akshayaa Rajeswari AS"
+YEAR = {"date_from": "2026-01-01", "date_to": "2026-12-31"}
+WCM = "Website Content Management"
 ok = 0
 
 
@@ -39,130 +42,155 @@ def put(path, body):
     return json.loads(urllib.request.urlopen(req).read())
 
 
-def tickets(n, who, service, year, start=0, state="Closed Completed"):
-    closed = state == "Closed Completed"
+def tickets(n, who, service, year, start=0, state="Closed Completed", team="EEM"):
+    closed = state != "Work in progress"
     return [{"Number": f"UT{start + i:06d}", "Short description": "r",
              "Requested by": f"U{i % 60}", "Assigned to": who,
              "Created": f"{year}-{(i % 12) + 1:02d}-10 09:00:00",
              "Closed": f"{year}-{(i % 12) + 1:02d}-20 17:00:00" if closed else None,
-             "State": state, "Area": "EUR", "Team": "EEM",
+             "State": state, "Area": "EUR", "Team": team,
              "Sub-Category": service} for i in range(n)]
 
 
-def metrics(rows, **params):
+def upload(rows):
     req = urllib.request.Request(f"{BASE}/api/upload-json",
                                  data=json.dumps({"rows": rows}).encode(),
                                  headers={"Content-Type": "application/json"})
-    sid = json.loads(urllib.request.urlopen(req).read())["session_id"]
-    q = urllib.parse.urlencode(params)
-    return json.loads(urllib.request.urlopen(
-        f"{BASE}/api/sessions/{sid}/user-metrics?{q}").read())
+    return json.loads(urllib.request.urlopen(req).read())["session_id"]
 
 
-settings = get("/api/utilisation-settings")
-print(f"A {settings['hours_per_day']}-hour day at {settings['productivity_pct']}% "
-      f"= {settings['productive_hours_per_day']} productive hours")
-check("six productive hours", settings["productive_hours_per_day"] == 6.0,
-      str(settings["productive_hours_per_day"]))
-check("WCM costs four hours in 2026",
-      settings["hours_per_ticket_by_year"]["2026"]["Website Content Management"] == 4)
+def specialist(rows, who=WHO, **params):
+    sid = upload(rows)
+    m = json.loads(urllib.request.urlopen(
+        f"{BASE}/api/sessions/{sid}/user-metrics?{urllib.parse.urlencode(params)}").read())
+    row = next((r for r in m["activity_groups"]["by_specialist"] if r["name"] == who), None)
+    return sid, row
 
-WHO = "Akshayaa Rajeswari AS"
-YEAR = {"date_from": "2026-01-01", "date_to": "2026-12-31"}
 
-print("\nTheir worked example, over a whole year")
-m = metrics(tickets(318, WHO, "Website Content Management", 2026), **YEAR)
-row = next(r for r in m["activity_groups"]["by_specialist"] if r["name"] == WHO)
-print(f"   {row['requests']} requests · {row['hours_spent']} h · {row['days_spent']} days "
-      f"· {row['available_days']} available · {row['utility_pct']}%")
+plan = get("/api/capacity-plan/settings?year=2026")
+print(f"2026: cadence {plan['cadence_pct']}%, training {plan['training_pct']}%, "
+      f"WCM at {plan['hours']['WCM']} hours")
+check("one rate table drives it, the capacity plan's", plan["hours"]["WCM"] == 4.6,
+      str(plan["hours"]["WCM"]))
+
+print("\nA whole year, from working days down to the rate")
+# 250 working − 30 holidays = 220 available; − 44 cadence − 23 training = 153.
+# 318 tickets at 4.6 hours = 1462.8 hours = 182.8 days of eight.
+sid, row = specialist(tickets(318, WHO, WCM, 2026), **YEAR)
+print(f"   {row['requests']} requests · {row['basis_working_days']} working "
+      f"− {row['basis_holidays']} holidays − {row['basis_cadence_days']} cadence "
+      f"− {row['basis_training_days']} training = {row['available_days']} productive "
+      f"· {row['days_spent']} allocated · {row['utility_pct']}%")
 check("318 requests", row["requests"] == 318, str(row["requests"]))
-check("1272 hours, at four hours each", row["hours_spent"] == 1272.0,
-      str(row["hours_spent"]))
-check("212 days, at six hours a day", row["days_spent"] == 212.0, str(row["days_spent"]))
-check("against that person's own 250 days", row["available_days"] == 250.0,
-      str(row["available_days"]))
-check("85%", row["utility_pct"] == 85, f"{row['utility_pct']}%")
+check("priced at the capacity rate, not a second one",
+      row["days_spent"] == 182.8, str(row["days_spent"]))
+check("a day is eight hours here, the shares having taken their cut already",
+      row["hours_per_day"] == 8, str(row["hours_per_day"]))
+check("the denominator is availability less cadence less training",
+      row["available_days"] == 153.0, str(row["available_days"]))
+check("which is the working days less holidays, less both shares",
+      round(row["basis_working_days"] - row["basis_holidays"] - row["basis_cadence_days"]
+            - row["basis_training_days"], 1) == row["available_days"],
+      f"{row['basis_working_days']} − {row['basis_holidays']} − {row['basis_cadence_days']} "
+      f"− {row['basis_training_days']}")
+check("119%", row["utility_pct"] == 119, f"{row['utility_pct']}%")
 
-print("\nA cost that changed is applied by the year the ticket was raised")
-# The same 100 tickets, one year apart: 5 hours each in 2025, 4 in 2026.
-a = metrics(tickets(100, WHO, "Website Content Management", 2025),
-            date_from="2025-01-01", date_to="2025-12-31")
-b = metrics(tickets(100, WHO, "Website Content Management", 2026), **YEAR)
-h25 = next(r for r in a["activity_groups"]["by_specialist"] if r["name"] == WHO)["hours_spent"]
-h26 = next(r for r in b["activity_groups"]["by_specialist"] if r["name"] == WHO)["hours_spent"]
-print(f"   100 WCM tickets: {h25} h in 2025, {h26} h in 2026")
-check("five hours each in 2025", h25 == 500.0, str(h25))
-check("four hours each in 2026", h26 == 400.0, str(h26))
+print("\nThe Capacity tab, asked the same question, answers the same")
+cap = json.loads(urllib.request.urlopen(
+    f"{BASE}/api/sessions/{sid}/capacity-plan?year=2026"
+    f"&date_from={YEAR['date_from']}&date_to={YEAR['date_to']}").read())
+p = next(r for r in cap["people"] if r["name"] == WHO)
+print(f"   capacity: {p['allocated_days']} of {p['productivity_days']} = {p['utility_pct']}%")
+check("the same allocated days", p["allocated_days"] == row["days_spent"],
+      f"{p['allocated_days']} vs {row['days_spent']}")
+check("the same productive days", p["productivity_days"] == row["available_days"],
+      f"{p['productivity_days']} vs {row['available_days']}")
+check("and so the same rate", p["utility_pct"] == row["utility_pct"],
+      f"{p['utility_pct']}% vs {row['utility_pct']}%")
 
-print("\nA shorter window takes its share of the year's days")
-half = metrics(tickets(100, WHO, "Website Content Management", 2026),
-               date_from="2026-01-01", date_to="2026-06-30")
-hrow = next(r for r in half["activity_groups"]["by_specialist"] if r["name"] == WHO)
-print(f"   six months of 2026: {hrow['available_days']} of 250 days")
-check("about half the allowance", 110 < hrow["available_days"] < 135,
-      str(hrow["available_days"]))
+print("\nA rate that changed is applied by the year the ticket closed in")
+_, a = specialist(tickets(100, WHO, WCM, 2025), date_from="2025-01-01", date_to="2025-12-31")
+_, b = specialist(tickets(100, WHO, WCM, 2026), **YEAR)
+print(f"   100 WCM: {a['days_spent']} days in 2025 at 5.0h, "
+      f"{b['days_spent']} in 2026 at 4.6h")
+check("five hours each in 2025", a["days_spent"] == 62.5, str(a["days_spent"]))
+check("four and a bit in 2026", b["days_spent"] == 57.5, str(b["days_spent"]))
+
+print("\nPWR and KDB keep their own work, whatever it is filed as")
+# The same sub-category, raised by the PWR team. It is their ticket.
+_, pwr = specialist(tickets(40, WHO, WCM, 2026, team="PWR"), **YEAR)
+print(f"   40 WCM-shaped tickets on team PWR → {pwr['by_service']}")
+check("none of it lands in WCM", pwr["by_service"]["WCM"] == 0.0,
+      str(pwr["by_service"]["WCM"]))
+check("all of it lands in PWR/KDB", pwr["by_service"]["PWR/KDB"] > 0,
+      str(pwr["by_service"]["PWR/KDB"]))
+check("and it is still priced", pwr["days_spent"] == pwr["by_service"]["PWR/KDB"],
+      str(pwr["days_spent"]))
+
+print("\nClosed means finished either way")
+mixed = (tickets(10, WHO, WCM, 2026)
+         + tickets(10, WHO, WCM, 2026, start=400, state="Closed Rejected")
+         + tickets(10, WHO, WCM, 2026, start=800, state="Work in progress"))
+_, mrow = specialist(mixed, **YEAR)
+print(f"   {mrow['requests']} raised, {mrow['priced_tickets']} priced, "
+      f"{mrow['days_spent']} days")
+check("every request is still counted as a request", mrow["requests"] == 30,
+      str(mrow["requests"]))
+check("a rejected ticket cost what it cost", mrow["priced_tickets"] == 20,
+      str(mrow["priced_tickets"]))
+check("work in progress is not priced", mrow["days_spent"] == 11.5,
+      str(mrow["days_spent"]))
+check("and the states are declared",
+      mrow["counted_states"] == ["Closed Completed", "Closed Rejected"],
+      str(mrow["counted_states"]))
+
+print("\nA shorter window takes its share of the year")
+_, half = specialist(tickets(100, WHO, WCM, 2026),
+                     date_from="2026-01-01", date_to="2026-06-30")
+print(f"   six months: {half['available_days']} productive of 153")
+check("about half the year's productive days", 68 < half["available_days"] < 84,
+      str(half["available_days"]))
 
 print("\nSomebody with no figure gets a dash, not a guess")
-stranger = metrics(tickets(40, "Someone New", "Website Content Management", 2026), **YEAR)
-srow = next(r for r in stranger["activity_groups"]["by_specialist"]
-            if r["name"] == "Someone New")
-check("hours are still counted", srow["hours_spent"] == 160.0, str(srow["hours_spent"]))
+_, srow = specialist(tickets(40, "Someone New", WCM, 2026), who="Someone New", **YEAR)
+check("the days are still counted", srow["days_spent"] == 23.0, str(srow["days_spent"]))
 check("but there is no rate", srow["utility_pct"] is None, str(srow["utility_pct"]))
 check("and no invented denominator", srow["available_days"] is None,
       str(srow["available_days"]))
 
-print("\nOnly finished work is priced")
-# 318 closed and 100 still in progress. The rate must read off the 318; the
-# Requests column still counts all 418, and the gap is reported.
-mixed = tickets(318, WHO, "Website Content Management", 2026) \
-    + tickets(100, WHO, "Website Content Management", 2026, start=900,
-              state="Work in progress")
-m2 = metrics(mixed, **YEAR)
-row2 = next(r for r in m2["activity_groups"]["by_specialist"] if r["name"] == WHO)
-print(f"   {row2['requests']} raised, {row2['priced_tickets']} priced, "
-      f"{row2['hours_spent']} h, {row2['utility_pct']}%")
-check("every request still counted in the Requests column", row2["requests"] == 418,
-      str(row2["requests"]))
-check("only the closed ones are priced", row2["priced_tickets"] == 318,
-      str(row2["priced_tickets"]))
-check("so the hours are unchanged by the open work", row2["hours_spent"] == 1272.0,
-      str(row2["hours_spent"]))
-check("and the rate is the same as with the closed alone", row2["utility_pct"] == 85,
-      f"{row2['utility_pct']}%")
-check("the counted states are declared", row2["counted_states"] == ["Closed Completed"],
-      str(row2["counted_states"]))
+print("\nA specialist with nothing finished reads nought, not a dash")
+_, orow = specialist(tickets(40, "Ajith A", WCM, 2026, start=1800,
+                             state="Work in progress"), who="Ajith A", **YEAR)
+print(f"   {orow['requests']} raised, {orow['priced_tickets']} priced, "
+      f"rate {orow['utility_pct']}")
+check("the requests are there", orow["requests"] == 40, str(orow["requests"]))
+check("nothing is priced", orow["priced_tickets"] == 0, str(orow["priced_tickets"]))
+check("and the rate reads nought", orow["utility_pct"] == 0, str(orow["utility_pct"]))
 
-print("\nA specialist with nothing finished has no rate, not a zero")
-open_only = tickets(40, "Ajith A", "Website Content Management", 2026, start=1800,
-                    state="Work in progress")
-m3 = metrics(open_only, **YEAR)
-row3 = next(r for r in m3["activity_groups"]["by_specialist"] if r["name"] == "Ajith A")
-print(f"   {row3['requests']} raised, {row3['priced_tickets']} priced, "
-      f"{row3['hours_spent']} h, rate {row3['utility_pct']}")
-check("the requests are there", row3["requests"] == 40, str(row3["requests"]))
-check("nothing is priced", row3["priced_tickets"] == 0, str(row3["priced_tickets"]))
-check("and the rate reads nought, not a dash", row3["utility_pct"] == 0,
-      str(row3["utility_pct"]))
-
-print("\nThe settings are editable, and the figures follow")
+print("\nThe settings are editable, and both pages follow")
 before = get("/api/utilisation-settings")
 try:
     put("/api/utilisation-settings", {
         **before,
         "working_days": {**before["working_days"],
-                         "2026": {**before["working_days"]["2026"], WHO: 222}},
+                         "2026": {**before["working_days"]["2026"], WHO: 200}},
     })
-    again = metrics(tickets(318, WHO, "Website Content Management", 2026), **YEAR)
-    r2 = next(r for r in again["activity_groups"]["by_specialist"] if r["name"] == WHO)
-    print(f"   with 222 days: {r2['utility_pct']}%")
-    # 212 / 222 = 95.5%, which is the figure on their spreadsheet.
-    check("212 over 222 days reads 95%", r2["utility_pct"] == 95, f"{r2['utility_pct']}%")
+    sid2, r2 = specialist(tickets(318, WHO, WCM, 2026), **YEAR)
+    cap2 = json.loads(urllib.request.urlopen(
+        f"{BASE}/api/sessions/{sid2}/capacity-plan?year=2026"
+        f"&date_from={YEAR['date_from']}&date_to={YEAR['date_to']}").read())
+    p2 = next(r for r in cap2["people"] if r["name"] == WHO)
+    print(f"   with 200 working days: {r2['available_days']} productive, "
+          f"{r2['utility_pct']}%")
+    check("the new figure is used", r2["basis_working_days"] == 200, str(r2["basis_working_days"]))
+    check("the rate moves with it", r2["utility_pct"] != row["utility_pct"],
+          f"{row['utility_pct']}% → {r2['utility_pct']}%")
+    check("and the two pages move together", p2["utility_pct"] == r2["utility_pct"],
+          f"{p2['utility_pct']}% vs {r2['utility_pct']}%")
 finally:
     put("/api/utilisation-settings", before)
 
-restored = metrics(tickets(318, WHO, "Website Content Management", 2026), **YEAR)
-r3 = next(r for r in restored["activity_groups"]["by_specialist"] if r["name"] == WHO)
-check("and the page follows the panel back", r3["utility_pct"] == 85,
-      f"{r3['utility_pct']}%")
+_, r3 = specialist(tickets(318, WHO, WCM, 2026), **YEAR)
+check("and both go back", r3["utility_pct"] == 119, f"{r3['utility_pct']}%")
 
 print(f"\n{ok} checks passed")

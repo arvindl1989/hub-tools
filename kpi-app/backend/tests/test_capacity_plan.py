@@ -197,8 +197,23 @@ check("PWR, Other PWR and KDB Nordics land in one column",
       pm_["tickets"]["PWR/KDB"] == 14, str(pm_["tickets"]["PWR/KDB"]))
 check("a team that merely starts the same does not",
       pm_["tickets"]["Adhoc"] == 7, str(pm_["tickets"]["Adhoc"]))
-check("the sub-category still wins where there is one",
+check("and work on any other team still routes by its sub-category",
       pm_["tickets"]["WCM"] == 10, str(pm_["tickets"]["WCM"]))
+
+# The team owns its own work. A PWR ticket filed as Website Content
+# Management is PWR's, not WCM's — reading the sub-category first was why
+# the PWR column sat empty while WCM carried their tickets.
+owned = ([ticket(i, 2026) for i in range(12)]
+         + [ticket(600 + i, 2026) for i in range(5)])
+for r in owned[12:]:
+    r["Team"] = "PWR"
+downed = plan(owned)
+pw = next(r for r in downed["people"] if r["name"] == WHO)
+print(f"   12 WCM on EEM, 5 WCM-shaped on PWR → {pw['tickets']}")
+check("the team wins over the sub-category", pw["tickets"]["PWR/KDB"] == 5,
+      str(pw["tickets"]["PWR/KDB"]))
+check("so WCM keeps only the work that is actually WCM's",
+      pw["tickets"]["WCM"] == 12, str(pw["tickets"]["WCM"]))
 check("so every closed ticket is counted exactly once",
       dm["total_tickets"] == len(mixed), f"{dm['total_tickets']} of {len(mixed)}")
 check("PWR/KDB is priced, so it is worth days",
@@ -241,11 +256,11 @@ def cell(service, person=WHO, sid=None):
         f"{BASE}/api/sessions/{sid or sid_cell}/capacity-plan/tickets?{q}").read())
 
 
-def manual(service, days, person=WHO):
+def manual(service, days, person=WHO, note=None):
     req = urllib.request.Request(
         f"{BASE}/api/capacity-plan/manual",
-        data=json.dumps({"year": 2026, "person": person,
-                         "service": service, "days": days}).encode(),
+        data=json.dumps({"year": 2026, "person": person, "service": service,
+                         "days": days, "note": note}).encode(),
         headers={"Content-Type": "application/json"}, method="PUT")
     return json.loads(urllib.request.urlopen(req).read())
 
@@ -264,7 +279,7 @@ check("a priced cell shows its rate", cell("WCM")["hours"] == 4.6,
 check("an unpriced one admits it has none", c["hours"] is None, str(c["hours"]))
 
 try:
-    manual("Adhoc", 70)
+    manual("Adhoc", 70, note="Agreed with the team at the October review")
     dh = plan(subbed)
     ph = next(r for r in dh["people"] if r["name"] == WHO)
     print(f"   Adhoc set to 70 → allocated {ph['allocated_days']}")
@@ -280,6 +295,12 @@ try:
           str(ph["by_service"]["WCM"]))
     check("and the dialog knows it is set", cell("Adhoc")["manual"] == 70.0,
           str(cell("Adhoc")["manual"]))
+    check("the reason is kept with the figure",
+          cell("Adhoc")["note"] == "Agreed with the team at the October review",
+          str(cell("Adhoc")["note"]))
+    check("and reaches the table, so the cell can say why",
+          ph["manual_notes"]["Adhoc"].startswith("Agreed with the team"),
+          str(ph.get("manual_notes")))
 finally:
     manual("Adhoc", None)
 
@@ -287,6 +308,8 @@ dc = plan(subbed)
 pc = next(r for r in dc["people"] if r["name"] == WHO)
 check("clearing it goes back to the rate",
       pc["by_service"]["Adhoc"] == 0.0 and pc["manual"] == [], str(pc["manual"]))
+check("and takes the note with it, a reason for a vanished number explaining nothing",
+      cell("Adhoc")["note"] is None, str(cell("Adhoc")["note"]))
 
 print("\nServices with no route carry nothing")
 check("they are named rather than hidden",

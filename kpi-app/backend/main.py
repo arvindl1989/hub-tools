@@ -3007,6 +3007,9 @@ CAPACITY_PLAN_DEFAULT: dict = {
     # column of things that resemble each other only in not being anything
     # else. A figure here replaces the computed one and nothing else.
     "manual_days": {},
+    # Why it was set. A figure typed over a calculation is an assertion, and
+    # six months later nobody remembers whose it was or what it rested on.
+    "manual_notes": {},
     "training_days": {"2026": {"Ajith A": 11, "Akshaya Praveen": 11,
                                "Akshayaa Rajeswari AS": 23,
                                "Arvind Lakshminarayanan": 23, "Jerlin Jeba": 34,
@@ -3107,14 +3110,155 @@ def update_capacity_plan_settings(body: CapacitySettingsBody):
 
 
 
+def _plan_closed_states() -> list:
+    """What counts as delivered, for every page that asks.
+
+    One list, because the By Specialist table and the capacity sheet are the
+    same question asked twice and a person reading 92% on one page and 61% on
+    the other has no way to tell which is wrong.
+    """
+    return list(CAPACITY_PLAN.get("closed_states") or ["Closed Completed"])
+
+
+def _plan_productive_days(name: str, date_from=None, date_to=None,
+                          fallback_start=None, fallback_end=None, year=None):
+    """Availability net of cadence and training, over a window.
+
+    Every figure behind it is an allowance for a whole year, so a window
+    covering part of a year takes that share of it. Without an explicit date
+    range the whole year counts, which is what makes this an annual plan
+    rather than a tally to date — and what makes the two pages agree.
+
+    None when no year in range says anything about this person: a utility rate
+    over an invented denominator is worse than a dash.
+    """
+    table = UTILISATION_SETTINGS.get("working_days") or {}
+
+    def _ts(v):
+        if v is None or v == "":
+            return None
+        t = pd.Timestamp(v)
+        return None if pd.isna(t) else t.normalize()
+
+    start, end = _ts(date_from), _ts(date_to)
+    lo = start or _ts(fallback_start)
+    hi = end or _ts(fallback_end)
+    if year is not None:
+        y0, y1 = pd.Timestamp(year=year, month=1, day=1), pd.Timestamp(year=year, month=12, day=31)
+        lo, hi = max(lo, y0) if lo else y0, min(hi, y1) if hi else y1
+    if lo is None or hi is None or hi < lo:
+        return None
+
+    out = {"working_days": 0.0, "holidays": 0.0, "availability": 0.0,
+           "cadence_days": 0.0, "training_days": 0.0, "productivity_days": 0.0,
+           "training_from_share": True, "share": {}}
+    seen = False
+    for y in range(lo.year, hi.year + 1):
+        working = (table.get(str(y)) or {}).get(name)
+        if not working:
+            continue
+        seen = True
+        y0 = pd.Timestamp(year=y, month=1, day=1)
+        y1 = pd.Timestamp(year=y, month=12, day=31)
+        whole = _business_days(y0, y1)
+        if not whole:
+            continue
+        # An explicit range clips the year; without one the year counts whole.
+        w_lo = max(lo, y0) if (start or year is not None) else y0
+        w_hi = min(hi, y1) if (end or year is not None) else y1
+        share = _business_days(w_lo, w_hi) / whole
+        out["share"][y] = round(share, 4)
+
+        block = _plan_year(y)
+        cadence_pct = float(block.get("cadence_pct") or 0)
+        training_pct = float(block.get("training_pct", 5) or 0)
+        holidays = float(((CAPACITY_PLAN.get("holidays") or {}).get(str(y)) or {})
+                         .get(name) or 0)
+        availability = max(0.0, float(working) - holidays)
+        override = ((CAPACITY_PLAN.get("training_days") or {}).get(str(y)) or {}).get(name)
+        if override in (None, ""):
+            training = availability * training_pct / 100.0
+        else:
+            training = float(override)
+            out["training_from_share"] = False
+        cadence = availability * cadence_pct / 100.0
+
+        out["working_days"] += float(working) * share
+        out["holidays"] += holidays * share
+        out["availability"] += availability * share
+        out["cadence_days"] += cadence * share
+        out["training_days"] += training * share
+        out["productivity_days"] += max(0.0, availability - cadence - training) * share
+
+    if not seen:
+        return None
+    for k in ("working_days", "holidays", "availability", "cadence_days",
+              "training_days", "productivity_days"):
+        out[k] = round(out[k], 1)
+    return out
+
+
+def _plan_allocation(rows, name: str, services: list, route, shares: dict,
+                     year=None) -> dict:
+    """What one person's finished work is worth, in days, by service column.
+
+    Priced at the rate for the year the ticket closed in, because that is the
+    year whose capacity it consumed. A figure set by hand replaces the rate for
+    that person, service and year, pro-rated when the window is part of a year.
+    """
+    per_day = float(BANDWIDTH_HOURS_PER_DAY)
+    tickets = {svc["short"]: 0 for svc in services}
+    days = {svc["short"]: 0.0 for svc in services}
+    if rows is not None and not rows.empty:
+        work = rows.copy()
+        for col in ("sub_category", "team"):
+            if col not in work.columns:
+                work[col] = ""
+        work = work.fillna({"sub_category": "", "team": ""})
+        for sub, team, closed in zip(work["sub_category"], work["team"],
+                                     work["closed_date"]):
+            short = route(sub, team)
+            if not short or short not in tickets:
+                continue
+            tickets[short] += 1
+            y = year if year is not None else (
+                pd.Timestamp(closed).year if pd.notna(closed) else None)
+            hours = _plan_hours(short, y) if y else None
+            if hours:
+                days[short] += hours / per_day
+
+    manual_all = CAPACITY_PLAN.get("manual_days") or {}
+    notes_all = CAPACITY_PLAN.get("manual_notes") or {}
+    manual_set, notes = [], {}
+    for y, share in (shares or {}).items():
+        for short, value in ((manual_all.get(str(y)) or {}).get(name) or {}).items():
+            if short not in days:
+                continue
+            if short not in manual_set:
+                days[short] = 0.0
+                manual_set.append(short)
+            days[short] += float(value) * share
+            note = ((notes_all.get(str(y)) or {}).get(name) or {}).get(short)
+            if note:
+                notes[short] = note if short not in notes else f"{notes[short]} · {note}"
+    return {"tickets": tickets,
+            "by_service": {k: round(v, 1) for k, v in days.items()},
+            "manual": manual_set, "manual_notes": notes}
+
+
 def _plan_router(services: list):
     """How a closed ticket finds its column on the capacity sheet.
 
-    Exact sub-category first, then a word match on either Team or the
-    sub-category itself, then the catch-all. Both columns are tried because
-    ServiceNow files PWR and KDB in whichever of the two the exporting view
-    happens to carry, and a report that depends on knowing which is a report
-    that quietly loses a team's work.
+    The team is asked first. PWR and KDB raise their work under the ordinary
+    sub-categories — a PWR ticket is usually filed as Website Content
+    Management — so reading the sub-category first put their work in WCM and
+    left the PWR column empty. Their team owns the ticket whatever it is
+    about, so the team wins, and WCM, DEA and the rest are the work of
+    everybody else.
+
+    Then the exact sub-category, then a word match on the sub-category for the
+    exports that carry PWR and KDB there instead of in Team, then the
+    catch-all. Every closed ticket lands in exactly one column.
     """
     sub_to_short = {str(sub).strip(): svc["short"]
                     for svc in services for sub in (svc.get("subs") or [])}
@@ -3124,14 +3268,20 @@ def _plan_router(services: list):
               for svc in services if svc.get("teams")]
     catch_all = next((svc["short"] for svc in services if svc.get("catch")), None)
 
+    def words_of(value):
+        return set(re.split(r"[^A-Za-z0-9]+", str(value or "").upper())) - {""}
+
     def route(sub, team):
+        team_words = words_of(team)
+        for short, want in tokens:
+            if team_words & want:
+                return short
         short = sub_to_short.get(str(sub or "").strip())
         if short:
             return short
-        words = set(re.split(r"[^A-Za-z0-9]+",
-                             f"{team or ''} {sub or ''}".upper())) - {""}
+        sub_words = words_of(sub)
         for short, want in tokens:
-            if words & want:
+            if sub_words & want:
                 return short
         return catch_all
 
@@ -3203,51 +3353,35 @@ def capacity_plan(sid: str, year: int = 2026,
     # every untouched year a team that never trains.
     training_pct = float(_plan_year(year).get("training_pct", 5) or 0)
     wd_table = (UTILISATION_SETTINGS.get("working_days") or {}).get(str(year)) or {}
-    hol = (CAPACITY_PLAN.get("holidays") or {}).get(str(year)) or {}
-    trn = (CAPACITY_PLAN.get("training_days") or {}).get(str(year)) or {}
 
-    manual = (CAPACITY_PLAN.get("manual_days") or {}).get(str(year)) or {}
     names = sorted(set(wd_table) | set(now_counts) | set(prev_counts))
     people = []
     for who in names:
-        working = float(wd_table.get(who) or 0)
-        holidays = float(hol.get(who) or 0)
-        availability = max(0.0, working - holidays)
-        cadence = round(availability * cadence_pct / 100.0, 1)
-        # The share is the rule; the per-person figure is the exception. Most
-        # of the team sits on 5%, and the two or three who spent a month in
-        # training need a number rather than a different percentage each.
-        override = trn.get(who)
-        training_is_set = override not in (None, "")
-        training = (float(override) if training_is_set
-                    else round(availability * training_pct / 100.0, 1))
-        productivity = round(max(0.0, availability - cadence - training), 1)
-
-        by_service, tickets = {}, now_counts.get(who, {})
-        manual_for = (manual.get(who) or {})
-        manual_set = []
-        for svc in services:
-            short = svc["short"]
-            n = tickets.get(short, 0)
-            hours = _plan_hours(short, year)
-            if short in manual_for:
-                by_service[short] = round(float(manual_for[short]), 1)
-                manual_set.append(short)
-            else:
-                by_service[short] = round(n * hours / per_day, 1) if (n and hours) else 0.0
-        allocated = round(sum(by_service.values()), 1)
+        # Both of these are shared with User Activity's By Specialist table,
+        # so the same person reads the same rate on both pages.
+        avail = _plan_productive_days(who, date_from, date_to, year=year) or {}
+        alloc = _plan_allocation(this_year[this_year["assigned_to"].astype(str) == who]
+                                 if not this_year.empty else this_year,
+                                 who, services, route, avail.get("share") or {year: 1.0},
+                                 year=year)
+        productivity = avail.get("productivity_days", 0.0)
+        allocated = round(sum(alloc["by_service"].values()), 1)
         people.append({
             "name": who,
-            "working_days": working, "holidays": holidays, "availability": availability,
-            "cadence_days": cadence, "training_days": training,
-            "training_from_share": not training_is_set,
+            "working_days": avail.get("working_days", 0.0),
+            "holidays": avail.get("holidays", 0.0),
+            "availability": avail.get("availability", 0.0),
+            "cadence_days": avail.get("cadence_days", 0.0),
+            "training_days": avail.get("training_days", 0.0),
+            "training_from_share": avail.get("training_from_share", True),
             "productivity_days": productivity,
             "allocated_days": allocated,
             "utility_pct": _safe_div(allocated, productivity, pct=True, nd=0)
             if productivity else None,
-            "by_service": by_service,
-            "manual": manual_set,
-            "tickets": {svc["short"]: tickets.get(svc["short"], 0) for svc in services},
+            "by_service": alloc["by_service"],
+            "manual": alloc["manual"],
+            "manual_notes": alloc["manual_notes"],
+            "tickets": alloc["tickets"],
         })
     people.sort(key=lambda r: -r["allocated_days"])
 
@@ -3313,6 +3447,7 @@ class ManualDaysBody(BaseModel):
     person: str
     service: str
     days: Optional[float] = None       # None clears it and goes back to the rate
+    note: Optional[str] = None         # why, kept with the figure
 
 
 @app.put("/api/capacity-plan/manual")
@@ -3320,15 +3455,26 @@ def set_capacity_manual_days(body: ManualDaysBody):
     """Set, or clear, one cell of the allocation table by hand."""
     y = str(body.year)
     store = CAPACITY_PLAN.setdefault("manual_days", {}).setdefault(y, {})
+    notes = CAPACITY_PLAN.setdefault("manual_notes", {}).setdefault(y, {})
     person = store.setdefault(body.person, {})
+    note_for = notes.setdefault(body.person, {})
     if body.days is None:
+        # Clearing the figure clears the note with it: a reason for a number
+        # that is no longer there explains nothing.
         person.pop(body.service, None)
-        if not person:
-            store.pop(body.person, None)
+        note_for.pop(body.service, None)
     else:
         person[body.service] = float(body.days)
+        text = (body.note or "").strip()
+        if text:
+            note_for[body.service] = text[:400]
+        else:
+            note_for.pop(body.service, None)
+    for holder, key in ((store, body.person), (notes, body.person)):
+        if not holder.get(key):
+            holder.pop(key, None)
     _save_setting("capacity_plan", dict(CAPACITY_PLAN))
-    return {"year": body.year, "manual_days": store}
+    return {"year": body.year, "manual_days": store, "manual_notes": notes}
 
 
 @app.get("/api/sessions/{sid}/capacity-plan/tickets")
@@ -3394,6 +3540,8 @@ def capacity_plan_tickets(sid: str, year: int = 2026, person: str = '', service:
         "hours": _plan_hours(service, year),
         "manual": ((CAPACITY_PLAN.get("manual_days") or {}).get(str(year), {})
                    .get(person, {}).get(service)),
+        "note": ((CAPACITY_PLAN.get("manual_notes") or {}).get(str(year), {})
+                 .get(person, {}).get(service)),
     })
 
 
@@ -4246,51 +4394,68 @@ def _capacity_of(grp: pd.DataFrame, closed_frame, name,
 
 
 def _utilisation_of(grp: pd.DataFrame, name: str, window: Optional[tuple]) -> dict:
-    """One specialist's utilisation, and every figure behind it.
+    """One specialist's utility rate — the capacity sheet's definition.
 
-        hours   = each FINISHED ticket priced at its service's cost in the year
-                  it was raised
-        days    = hours / productive hours in a day
-        utility = days / the working days that person had in this window
+        allocated  = each finished ticket priced at its service's rate for the
+                     year it closed in, in days of eight hours
+        productive = the days they had, less holidays, less the cadence share,
+                     less training
+        utility    = allocated / productive
 
-    Only tickets in a counted state — Closed Completed as it stands — are
-    priced. Work still in progress has taken some of the year and nobody knows
-    how much, so charging it at the full estimate would credit hours that have
-    not been spent. The row's Requests column still counts everything raised,
-    so the two differ by whatever is open; the page shows both rather than
-    leaving the gap to be discovered.
+    This is deliberately the same arithmetic the Capacity tab runs, through
+    the same two functions, because the two tables answer one question and a
+    person who reads 92% on one page and 61% on the other cannot tell which to
+    believe. Finished means whatever the capacity plan's closed states say —
+    Closed Completed and Closed Rejected as it stands, a rejected ticket
+    having consumed the time it took to reach the decision.
+
+    The row's Requests column still counts everything raised, so the two
+    differ by whatever is open; the page shows both rather than leaving the
+    gap to be discovered.
     """
+    states = _plan_closed_states()
+    per_day = float(BANDWIDTH_HOURS_PER_DAY)
     blank = {"utility_pct": None, "hours_spent": 0.0, "days_spent": None,
-             "available_days": None, "hours_per_day": productive_hours_per_day(),
-             "priced_tickets": 0, "counted_states": list(_counted_states())}
+             "available_days": None, "hours_per_day": per_day,
+             "priced_tickets": 0, "counted_states": list(states)}
     if grp is None or grp.empty:
         return blank
 
+    date_from, date_to, period_end, earliest = window or (None, None, None, None)
+    avail = _plan_productive_days(name, date_from, date_to,
+                                  fallback_start=earliest, fallback_end=period_end)
+
     done = grp
     if "state" in grp.columns:
-        done = grp[grp["state"].isin(_counted_states())]
+        done = grp[grp["state"].isin(states)]
+    if "closed_date" in done.columns:
+        done = done.dropna(subset=["closed_date"])
 
-    hours = 0.0
-    if {"service", "created_date"} <= set(done.columns):
-        for service, created in zip(done["service"], done["created_date"]):
-            if pd.isna(created):
-                continue
-            h = hours_per_ticket(str(service), pd.Timestamp(created).year)
-            if h:
-                hours += h
+    services = CAPACITY_PLAN.get("services") or []
+    alloc = _plan_allocation(done, name, services, _plan_router(services),
+                             (avail or {}).get("share") or {})
+    days = round(sum(alloc["by_service"].values()), 1)
+    productive = (avail or {}).get("productivity_days")
 
-    per_day = productive_hours_per_day()
-    days = round(hours / per_day, 1) if per_day else None
-    available = working_days_available(name, *(window or (None, None, None, None)))
     return {
-        "utility_pct": _safe_div(days, available, pct=True, nd=0)
-        if (days is not None and available) else None,
-        "hours_spent": round(hours, 1),
+        "utility_pct": _safe_div(days, productive, pct=True, nd=0) if productive else None,
+        "hours_spent": round(days * per_day, 1),
         "days_spent": days,
-        "available_days": available,
+        "available_days": productive,
         "hours_per_day": per_day,
         "priced_tickets": int(len(done)),
-        "counted_states": list(_counted_states()),
+        "counted_states": list(states),
+        # What the denominator is made of, so the tooltip can say it rather
+        # than leaving "available days" to be taken on trust. Prefixed because
+        # the row this is spread into already carries a team-wide
+        # "working_days" that means something else entirely.
+        "basis_working_days": (avail or {}).get("working_days"),
+        "basis_holidays": (avail or {}).get("holidays"),
+        "basis_cadence_days": (avail or {}).get("cadence_days"),
+        "basis_training_days": (avail or {}).get("training_days"),
+        "by_service": alloc["by_service"],
+        "manual": alloc["manual"],
+        "manual_notes": alloc["manual_notes"],
     }
 
 

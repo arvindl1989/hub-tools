@@ -433,8 +433,9 @@ export async function getCapacityPlanCell(sid, { year, person, service }, filter
 }
 
 // days: a number to set the cell by hand, null to go back to the rate.
-export async function setCapacityManualDays({ year, person, service, days }) {
+// note: why it was set, kept with the figure and cleared along with it.
+export async function setCapacityManualDays({ year, person, service, days, note }) {
   const { data } = await client.put('/capacity-plan/manual',
-                                    { year, person, service, days })
+                                    { year, person, service, days, note })
   return data
 }
