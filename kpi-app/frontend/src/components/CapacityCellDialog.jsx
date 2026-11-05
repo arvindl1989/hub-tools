@@ -39,6 +39,7 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
   const [error, setError] = useState(null)
   const [days, setDays] = useState('')
   const [note, setNote] = useState('')
+  const [goal, setGoal] = useState('')
   const [busy, setBusy] = useState(false)
 
   const { assignedTo, team, area, subCategory } = filters
@@ -53,6 +54,7 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
         setD(r)
         setDays(r.manual == null ? '' : String(r.manual))
         setNote(r.note || '')
+        setGoal(r.goal == null ? '' : String(r.goal))
       })
       .catch(e => { if (live) setError(e?.message || 'Could not open the cell.') })
     return () => { live = false }
@@ -62,8 +64,11 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
   const save = async (value) => {
     setBusy(true); setError(null)
     try {
-      await setCapacityManualDays({ year, person, service, days: value,
-                                    note: value == null ? null : note })
+      await setCapacityManualDays({
+        year, person, service,
+        days: value, note: value == null ? null : note,
+        goal: goal === '' ? null : Number(goal), setGoal: true,
+      })
       onSaved?.()
       onClose?.()
     } catch (e) {
@@ -138,6 +143,18 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
                  style={{ flexBasis: '100%', padding: '7px 10px', fontSize: 12.5,
                           fontFamily: INTER, border: `1px solid ${LINE}`,
                           borderRadius: 6, color: INK }} />
+          {/* The Goal column on the service board. A plan the team sets, not
+              a projection: nothing in the tickets implies it. */}
+          <span style={{ fontSize: 12, fontFamily: INTER, color: INK }}>
+            Goal for {year}
+          </span>
+          <input type="number" step="1" min="0" value={goal} placeholder="—"
+                 onChange={e => setGoal(e.target.value)}
+                 style={{ width: 90, padding: '6px 8px', fontSize: 13, fontFamily: KONE_FONT,
+                          border: `1px solid ${LINE}`, borderRadius: 6, textAlign: 'right' }} />
+          <span style={{ fontSize: 11, color: DIM, fontFamily: INTER }}>
+            tickets anticipated by the end of the year — Save writes this too
+          </span>
         </div>
 
         {error && (

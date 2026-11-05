@@ -355,13 +355,27 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                     <td style={{ ...td, borderLeft: `2px solid ${LINE}`, color: DIM }}>
                       {s.goal_hours ?? '—'}
                     </td>
-                    {/* "set it" only where it would change something: a rate
-                        on a service nobody worked buys nothing. */}
+                    {/* Measured, not echoed: the days that went into the
+                        service over the tickets that came out. Where every
+                        cell is priced from the rate it restates the rate;
+                        where days were set by hand the two part company. */}
                     <td style={{ ...td, color: s.year_hours ? INK
-                      : s.actual ? AMBER : FAINT }}>
+                      : s.actual ? AMBER : FAINT }}
+                        title={s.year_hours && s.rate_hours
+                          && Math.abs(s.year_hours - s.rate_hours) > 0.05
+                          ? `${s.days} days over ${s.actual} closed. The rate set for `
+                            + `pricing is ${s.rate_hours}h; this is what it came to.`
+                          : s.days
+                            ? `${s.days} days over ${s.actual} closed`
+                            : 'No days to measure yet'}>
                       {s.year_hours ?? (s.actual ? 'set it' : '—')}
                     </td>
-                    <td style={{ ...td, color: FAINT }}>—</td>
+                    <td style={{ ...td, color: s.prev_hours ? FAINT : FAINT }}
+                        title={s.prev_days
+                          ? `${s.prev_days} days over ${s.previous} closed`
+                          : ''}>
+                      {s.prev_hours ?? '—'}
+                    </td>
                   </Fragment>
                 ))}
                 <td style={{ ...td, borderLeft: `2px solid ${LINE}`, color: FAINT }}>—</td>
@@ -375,7 +389,7 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                       {s.goal_per_day ?? '—'}
                     </td>
                     <td style={td}>{s.year_per_day ?? '—'}</td>
-                    <td style={{ ...td, color: FAINT }}>—</td>
+                    <td style={{ ...td, color: FAINT }}>{s.prev_per_day ?? '—'}</td>
                   </Fragment>
                 ))}
                 <td style={{ ...td, borderLeft: `2px solid ${LINE}`, color: FAINT }}>—</td>
@@ -408,12 +422,17 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                     <td style={{ ...stick, background: zebra, fontWeight: 400 }}>{p.name}</td>
                     {shown.map(s => {
                       const c = s.people[p.name] || {}
-                      const blank = !c.goal && !c.actual && !c.previous
+                      const blank = !c.actual && !c.previous
                       return (
                         <Fragment key={s.short}>
-                          <td style={{ ...td, borderLeft: `2px solid ${LINE}`,
-                                       color: blank ? '#ddd8cf' : DIM }}>
-                            {blank ? '–' : n0(c.goal)}
+                          <td onClick={() => setCell({ person: p.name, service: s.short })}
+                              style={{ ...td, borderLeft: `2px solid ${LINE}`,
+                                       cursor: 'pointer',
+                                       color: c.goal == null ? '#ddd8cf' : BLUE }}
+                              title={c.goal == null
+                                ? `No ${year} goal set for ${p.name} — click to set one`
+                                : `Goal for ${year}, set by hand — click to change it`}>
+                            {c.goal == null ? '–' : n0(c.goal)}
                           </td>
                           <td style={{ ...td, color: blank ? '#ddd8cf' : INK,
                                        fontWeight: blank ? 400 : 600 }}>
@@ -449,7 +468,13 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
           Set the hours in the bar above.</Note>
         ) : null}
         <br />
-        <b>Click any service cell</b> to see the tickets behind it, and the sub-categories
+        <b>Goal</b> is what the team anticipates finishing by the end of the year — typed,
+        per person, because nothing in the tickets implies it. <b>Avg TAT</b> for {year} and
+        {' '}{year - 1} is measured rather than typed: the days that went into a service over
+        the tickets that came out of it. Where every cell is priced from the rate it restates
+        the rate; where days have been set by hand it shows what the work actually came to.
+        <br />
+        <b>Click any service cell</b>, or a Goal cell, to see the tickets behind it, and the sub-categories
         and teams that put them there — and to type the days in by hand, with a note
         saying why, where the ticket count does not describe the work. A
         {' '}<span style={{ color: BLUE }}>&#9998;</span> marks a figure set that way;

@@ -78,16 +78,57 @@ check("utility is allocated over productive days",
 
 wcm = next(s for s in d["services"] if s["short"] == "WCM")
 print(f"   WCM goal {wcm['goal_hours']}h ({wcm['goal_per_day']}/day), "
-      f"2026 {wcm['year_hours']}h ({wcm['year_per_day']}/day), "
-      f"goal capacity {wcm['goal_capacity']} vs actual {wcm['actual']}, 2025 {wcm['previous']}")
+      f"2026 measured {wcm['year_hours']}h ({wcm['year_per_day']}/day) "
+      f"from {wcm['days']} days over {wcm['actual']} closed, "
+      f"2025 {wcm['prev_hours']}h over {wcm['previous']}")
 check("per day is eight hours over the rate", wcm["goal_per_day"] == round(8 / 4.5, 2),
       str(wcm["goal_per_day"]))
-# The same 57.5 days worked at the 4.5-hour goal instead of the 4.6 it took.
-check("goal capacity is those days at the target rate",
-      wcm["goal_capacity"] == round(57.5 * (8 / 4.5)), str(wcm["goal_capacity"]))
-check("which is above the actual, because the goal is the faster rate",
-      wcm["goal_capacity"] > wcm["actual"], f"{wcm['goal_capacity']} vs {wcm['actual']}")
+# Avg TAT is measured, not echoed: the days that went into the service over
+# the tickets that came out. Where every cell is priced from the rate it
+# restates the rate, which is why this reads 4.6 and not something else.
+check("this year's TAT is the days over the tickets",
+      wcm["year_hours"] == round(8 * wcm["days"] / wcm["actual"], 2),
+      f"{wcm['year_hours']} from {wcm['days']}/{wcm['actual']}")
+check("and with nothing set by hand that is the rate restated",
+      wcm["year_hours"] == wcm["rate_hours"],
+      f"{wcm['year_hours']} vs {wcm['rate_hours']}")
+check("the year before is measured the same way, at its own rate",
+      wcm["prev_hours"] == 5.0, str(wcm["prev_hours"]))
+check("per day is the other way up", wcm["year_per_day"] == round(100 / 57.5, 2),
+      str(wcm["year_per_day"]))
+check("the goal is typed, so nothing is claimed until somebody types it",
+      wcm["goal_capacity"] is None, str(wcm["goal_capacity"]))
 check("last year is counted separately", wcm["previous"] == 40, str(wcm["previous"]))
+
+print("\nA hand-set figure parts the measured rate from the one set for pricing")
+hand = json.loads(urllib.request.urlopen(urllib.request.Request(
+    f"{BASE}/api/capacity-plan/manual",
+    data=json.dumps({"year": 2026, "person": WHO, "service": "WCM", "days": 100,
+                     "goal": 120, "set_goal": True}).encode(),
+    headers={"Content-Type": "application/json"}, method="PUT")).read())
+try:
+    dh2 = plan(rows)
+    wh = next(s for s in dh2["services"] if s["short"] == "WCM")
+    print(f"   100 days by hand over {wh['actual']} closed → {wh['year_hours']}h measured, "
+          f"{wh['rate_hours']}h set, goal {wh['goal_capacity']}")
+    check("the measured rate follows the days", wh["year_hours"] == 8.0,
+          str(wh["year_hours"]))
+    check("while the rate used for pricing is untouched", wh["rate_hours"] == 4.6,
+          str(wh["rate_hours"]))
+    check("the goal is what was typed", wh["goal_capacity"] == 120,
+          str(wh["goal_capacity"]))
+    check("and it is carried per person", wh["people"][WHO]["goal"] == 120.0,
+          str(wh["people"][WHO]["goal"]))
+finally:
+    urllib.request.urlopen(urllib.request.Request(
+        f"{BASE}/api/capacity-plan/manual",
+        data=json.dumps({"year": 2026, "person": WHO, "service": "WCM",
+                         "days": None, "goal": None, "set_goal": True}).encode(),
+        headers={"Content-Type": "application/json"}, method="PUT"))
+back_wcm = next(s for s in plan(rows)["services"] if s["short"] == "WCM")
+check("clearing both puts it all back",
+      back_wcm["year_hours"] == 4.6 and back_wcm["goal_capacity"] is None,
+      f"{back_wcm['year_hours']}, {back_wcm['goal_capacity']}")
 
 print("\nTraining is a share of availability, with a figure for the exceptions")
 tsettings = json.loads(urllib.request.urlopen(

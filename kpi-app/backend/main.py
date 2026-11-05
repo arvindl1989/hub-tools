@@ -3006,6 +3006,9 @@ CAPACITY_PLAN_DEFAULT: dict = {
     # ticket count does not describe the work — Adhoc above all, which is a
     # column of things that resemble each other only in not being anything
     # else. A figure here replaces the computed one and nothing else.
+    # Anticipated completions for the year, per person per service. A plan
+    # the team sets, not something the tickets imply.
+    "goal_tickets": {},
     "manual_days": {},
     # Why it was set. A figure typed over a calculation is an assertion, and
     # six months later nobody remembers whose it was or what it rested on.
@@ -3364,6 +3367,10 @@ def capacity_plan(sid: str, year: int = 2026,
                                  if not this_year.empty else this_year,
                                  who, services, route, avail.get("share") or {year: 1.0},
                                  year=year)
+        prev_alloc = _plan_allocation(
+            last_year[last_year["assigned_to"].astype(str) == who]
+            if not last_year.empty else last_year,
+            who, services, route, {year - 1: 1.0}, year=year - 1)
         productivity = avail.get("productivity_days", 0.0)
         allocated = round(sum(alloc["by_service"].values()), 1)
         people.append({
@@ -3382,20 +3389,28 @@ def capacity_plan(sid: str, year: int = 2026,
             "manual": alloc["manual"],
             "manual_notes": alloc["manual_notes"],
             "tickets": alloc["tickets"],
+            "prev_by_service": prev_alloc["by_service"],
         })
     people.sort(key=lambda r: -r["allocated_days"])
 
     # ── The service board underneath ─────────────────────────────────────────
     out_services = []
+    goals = (CAPACITY_PLAN.get("goal_tickets") or {}).get(str(year)) or {}
     for svc in services:
         short = svc["short"]
         hours = _plan_hours(short, year)
         goal_hours = (CAPACITY_PLAN.get("goal_hours") or {}).get(short)
         days = round(sum(p["by_service"].get(short, 0.0) for p in people), 1)
+        prev_days = round(sum(p["prev_by_service"].get(short, 0.0) for p in people), 1)
         actual = sum(p["tickets"].get(short, 0) for p in people)
         prev = sum(v.get(short, 0) for v in prev_counts.values())
-        # Goal capacity: the same days, worked at the target rate.
-        goal_cap = round(days * (per_day / goal_hours)) if (goal_hours and days) else None
+        # What a ticket of this service actually took: the days that went into
+        # it over the tickets that came out. Where every cell is priced from
+        # the rate this is the rate restated; where days have been set by hand
+        # it is the real figure, and the two part company — which is the point
+        # of showing it rather than echoing the setting.
+        def effective(d, n):
+            return round(per_day * d / n, 2) if (d and n) else None
         out_services.append({
             "name": svc["name"], "short": short,
             "mapped": bool(svc.get("subs") or svc.get("teams") or svc.get("catch")),
@@ -3405,14 +3420,23 @@ def capacity_plan(sid: str, year: int = 2026,
             # Counted but not costed: the tickets are there, the hours are not,
             # so the days read nought until somebody types a rate in.
             "priced": bool(hours),
-            "goal_hours": goal_hours, "year_hours": hours,
+            "goal_hours": goal_hours,
+            "year_hours": effective(days, actual) or hours,
+            "prev_hours": effective(prev_days, prev),
+            "rate_hours": hours,
             "goal_per_day": round(per_day / goal_hours, 2) if goal_hours else None,
-            "year_per_day": round(per_day / hours, 2) if hours else None,
-            "days": days, "goal_capacity": goal_cap, "actual": int(actual),
-            "previous": int(prev),
+            "year_per_day": (round(actual / days, 2) if (days and actual)
+                             else round(per_day / hours, 2) if hours else None),
+            "prev_per_day": round(prev / prev_days, 2) if (prev_days and prev) else None,
+            "days": days, "prev_days": prev_days,
+            # Anticipated by the end of the year, and typed: it is a plan, not
+            # a projection, and nothing in the tickets implies it.
+            "goal_capacity": int(round(sum(float(v.get(short) or 0)
+                                           for v in goals.values()))) or None,
+            "actual": int(actual), "previous": int(prev),
             "people": {p["name"]: {
-                "goal": round(p["by_service"].get(short, 0.0) * (per_day / goal_hours))
-                if goal_hours else None,
+                "goal": (float((goals.get(p["name"]) or {}).get(short))
+                         if (goals.get(p["name"]) or {}).get(short) is not None else None),
                 "actual": p["tickets"].get(short, 0),
                 "previous": int(prev_counts.get(p["name"], {}).get(short, 0)),
             } for p in people},
@@ -3448,6 +3472,8 @@ class ManualDaysBody(BaseModel):
     service: str
     days: Optional[float] = None       # None clears it and goes back to the rate
     note: Optional[str] = None         # why, kept with the figure
+    goal: Optional[float] = None       # tickets anticipated for the year
+    set_goal: bool = False             # so a null goal can mean "clear it"
 
 
 @app.put("/api/capacity-plan/manual")
@@ -3470,11 +3496,19 @@ def set_capacity_manual_days(body: ManualDaysBody):
             note_for[body.service] = text[:400]
         else:
             note_for.pop(body.service, None)
-    for holder, key in ((store, body.person), (notes, body.person)):
-        if not holder.get(key):
-            holder.pop(key, None)
+    goals = CAPACITY_PLAN.setdefault("goal_tickets", {}).setdefault(y, {})
+    if body.set_goal:
+        goal_for = goals.setdefault(body.person, {})
+        if body.goal is None:
+            goal_for.pop(body.service, None)
+        else:
+            goal_for[body.service] = float(body.goal)
+    for holder in (store, notes, goals):
+        if not holder.get(body.person):
+            holder.pop(body.person, None)
     _save_setting("capacity_plan", dict(CAPACITY_PLAN))
-    return {"year": body.year, "manual_days": store, "manual_notes": notes}
+    return {"year": body.year, "manual_days": store, "manual_notes": notes,
+            "goal_tickets": goals}
 
 
 @app.get("/api/sessions/{sid}/capacity-plan/tickets")
@@ -3541,6 +3575,8 @@ def capacity_plan_tickets(sid: str, year: int = 2026, person: str = '', service:
         "manual": ((CAPACITY_PLAN.get("manual_days") or {}).get(str(year), {})
                    .get(person, {}).get(service)),
         "note": ((CAPACITY_PLAN.get("manual_notes") or {}).get(str(year), {})
+                 .get(person, {}).get(service)),
+        "goal": ((CAPACITY_PLAN.get("goal_tickets") or {}).get(str(year), {})
                  .get(person, {}).get(service)),
     })
 
