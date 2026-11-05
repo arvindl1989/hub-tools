@@ -48,6 +48,8 @@ TESTS = [
      "the CSV is what the table shows, awkward characters and all"),
     ("email calendar", "test_email_sla_calendar.py",
      "the tracker's due dates land where the dashboard's do"),
+    ("report locks", "test_report_locks.py",
+     "each locked report opened with its own key, and not the other's"),
 ]
 
 failed = []

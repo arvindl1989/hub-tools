@@ -18,7 +18,14 @@ const TABS = [
   { id: 'capacity',      label: 'Capacity',         icon: <ScaleIcon /> },
 ]
 
-const EXPERIMENTAL_PASSWORD = 'Whiteshadows'
+// Two locks, each with its own key and its own session flag, so unlocking one
+// does not quietly open the other. Both are client-side: they keep a report
+// off a passing screen, and are not a defence against anyone who opens the
+// bundle.
+const LOCKS = {
+  experimental: { password: 'Whiteshadows',  title: 'Experimental reports' },
+  capacity:     { password: 'White6shadows', title: 'Capacity' },
+}
 
 export default function App() {
   const [sessionId,  setSessionId]  = useState(() => localStorage.getItem('ticketSessionId'))
@@ -35,32 +42,35 @@ export default function App() {
   // password for the session (cleared on tab close). `runGated` is generic —
   // it either runs the action immediately (already unlocked) or shows the
   // password prompt and holds onto the action until it succeeds.
-  const [experimentalUnlocked, setExperimentalUnlocked] = useState(
-    () => sessionStorage.getItem('experimentalUnlocked') === 'true'
-  )
-  const [showPasswordGate, setShowPasswordGate] = useState(false)
+  const [unlocked, setUnlocked] = useState(() => ({
+    experimental: sessionStorage.getItem('experimentalUnlocked') === 'true',
+    capacity: sessionStorage.getItem('capacityUnlocked') === 'true',
+  }))
+  const [gate, setGate] = useState(null)        // which lock is being asked for
   const pendingGatedAction = useRef(null)
 
-  const runGated = useCallback((action) => {
-    if (experimentalUnlocked) { action(); return }
+  const runGated = useCallback((action, which = 'experimental') => {
+    if (unlocked[which]) { action(); return }
     pendingGatedAction.current = action
-    setShowPasswordGate(true)
-  }, [experimentalUnlocked])
+    setGate(which)
+  }, [unlocked])
 
   const openExperimental = useCallback(() => {
-    runGated(() => setActiveTab('experimental'))
+    runGated(() => setActiveTab('experimental'), 'experimental')
   }, [runGated])
 
   const handleUnlockAttempt = useCallback((password) => {
-    if (password !== EXPERIMENTAL_PASSWORD) return false
-    sessionStorage.setItem('experimentalUnlocked', 'true')
-    setExperimentalUnlocked(true)
-    setShowPasswordGate(false)
+    const which = gate
+    if (!which || password !== LOCKS[which].password) return false
+    sessionStorage.setItem(which === 'capacity' ? 'capacityUnlocked'
+                                                : 'experimentalUnlocked', 'true')
+    setUnlocked(u => ({ ...u, [which]: true }))
+    setGate(null)
     const action = pendingGatedAction.current
     pendingGatedAction.current = null
     action?.()
     return true
-  }, [])
+  }, [gate])
 
   const handleUpload = useCallback((result, isAutoConnect = false) => {
     localStorage.setItem('ticketSessionId', result.session_id)
@@ -170,7 +180,9 @@ export default function App() {
             return (
               <button
                 key={t.id}
-                onClick={() => setActiveTab(t.id)}
+                onClick={() => (t.id === 'capacity'
+                  ? runGated(() => setActiveTab('capacity'), 'capacity')
+                  : setActiveTab(t.id))}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 7,
                   padding: '12px 16px',
@@ -198,14 +210,15 @@ export default function App() {
           {activeTab === 'dashboard'     && <DashboardPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} onOpenExperimental={openExperimental} runGatedAction={runGated} />}
           {activeTab === 'user-activity' && <UserActivityPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'feedback'      && <FeedbackPage sessionId={sessionId} />}
-          {activeTab === 'capacity'      && <CapacityPlanPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
-          {activeTab === 'experimental'  && experimentalUnlocked && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}
+          {activeTab === 'capacity'      && unlocked.capacity && <CapacityPlanPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
+          {activeTab === 'experimental'  && unlocked.experimental && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}
         </div>
       </main>
 
       {showSlaConfig && <RatesConfigModal onClose={() => setShowSlaConfig(false)} />}
-      {showPasswordGate && (
-        <PasswordGateModal onSubmit={handleUnlockAttempt} onCancel={() => setShowPasswordGate(false)} />
+      {gate && (
+        <PasswordGateModal onSubmit={handleUnlockAttempt} onCancel={() => setGate(null)}
+                           title={`${LOCKS[gate].title} — password required`} />
       )}
     </div>
   )
