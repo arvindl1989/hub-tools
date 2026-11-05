@@ -172,13 +172,57 @@ p2 = next(r for r in d2["people"] if r["name"] == WHO)
 check("both closed states are counted", p2["tickets"]["WCM"] == 20,
       str(p2["tickets"]["WCM"]))
 
-print("\nServices with no sub-category mapped carry nothing")
+print("\nPWR and KDB come in by team, and nothing else is dropped")
+# Team is free text on the sheet, so the match is on whole words.
+mixed = ([ticket(i, 2026) for i in range(10)]
+         + [ticket(100 + i, 2026, sub="Something Else", who=WHO) for i in range(7)]
+         + [ticket(200 + i, 2026, sub="Another Thing") for i in range(3)]
+         + [ticket(300 + i, 2026, sub="Yet More") for i in range(4)]
+         + [ticket(400 + i, 2026, sub="Mystery Work") for i in range(5)]
+         + [ticket(500 + i, 2026, sub="") for i in range(2)])
+for r in mixed[10:17]:
+    r["Team"] = "PWR"
+for r in mixed[17:20]:
+    r["Team"] = "Other PWR"          # the word is there, inside a longer name
+for r in mixed[20:24]:
+    r["Team"] = "KDB Nordics"
+for r in mixed[24:29]:
+    r["Team"] = "Brand"              # routes nowhere, so it is Adhoc
+for r in mixed[29:]:
+    r["Team"] = "KDBX"               # not KDB: a word, not a prefix
+dm = plan(mixed)
+pm_ = next(r for r in dm["people"] if r["name"] == WHO)
+print(f"   {pm_['tickets']}")
+check("PWR, Other PWR and KDB Nordics land in one column",
+      pm_["tickets"]["PWR/KDB"] == 14, str(pm_["tickets"]["PWR/KDB"]))
+check("a team that merely starts the same does not",
+      pm_["tickets"]["Adhoc"] == 7, str(pm_["tickets"]["Adhoc"]))
+check("the sub-category still wins where there is one",
+      pm_["tickets"]["WCM"] == 10, str(pm_["tickets"]["WCM"]))
+check("so every closed ticket is counted exactly once",
+      dm["total_tickets"] == len(mixed), f"{dm['total_tickets']} of {len(mixed)}")
+check("PWR/KDB is priced, so it is worth days",
+      pm_["by_service"]["PWR/KDB"] > 0, str(pm_["by_service"]["PWR/KDB"]))
+check("Adhoc has no rate, and says so rather than hiding",
+      dm["unpriced"] == ["Adhoc"] and pm_["by_service"]["Adhoc"] == 0,
+      str(dm["unpriced"]))
+check("PWR/KDB and Adhoc are no longer called unrouted",
+      set(dm["unmapped"]) == {"PM", "Local SEO"}, str(dm["unmapped"]))
+pwr = next(s for s in dm["services"] if s["short"] == "PWR/KDB")
+check("and the page is told how it is routed",
+      pwr["routed_by"] == "team PWR or KDB", str(pwr["routed_by"]))
+
+print("\nServices with no route carry nothing")
 check("they are named rather than hidden",
-      set(d["unmapped"]) == {"PM", "Local SEO", "PWR/KDB", "Adhoc"}, str(d["unmapped"]))
+      set(d["unmapped"]) == {"PM", "Local SEO"}, str(d["unmapped"]))
 for short in d["unmapped"]:
     svc = next(s for s in d["services"] if s["short"] == short)
     assert svc["days"] == 0 and svc["actual"] == 0, short
 check("and they claim no days and no tickets", True)
+check("every service is returned, routed or not",
+      [s["short"] for s in d["services"]]
+      == ["WCM", "DEA", "CP-GD", "PM", "Local SEO", "PWR/KDB", "Adhoc"],
+      str([s["short"] for s in d["services"]]))
 
 print("\nAnother year is another set of rates")
 d25 = plan(rows, year=2025)

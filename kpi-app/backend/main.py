@@ -2962,14 +2962,16 @@ def _service_column(src: pd.DataFrame) -> pd.Series:
 # Everything a person can disagree with is a setting, and every setting is per
 # year, because a rate agreed for 2026 says nothing about 2024. Nothing that
 # can be calculated is editable, and nothing editable is calculated.
-CAPACITY_PLAN: dict = _load_setting("capacity_plan", {
+CAPACITY_PLAN_DEFAULT: dict = {
     # Closed means finished either way: a rejected ticket still consumed the
     # time it took to reach the decision.
     "closed_states": ["Closed Completed", "Closed Rejected"],
     # The services as this report lists them, in order, each mapping to the
-    # ServiceNow sub-categories that belong to it. The four after CP-GD are
-    # waiting on their sub-category names and show nothing until they have
-    # them — an empty mapping is better than a wrong one.
+    # Three ways a ticket reaches a service, tried in that order:
+    #   subs    — its ServiceNow sub-category, the usual route
+    #   teams   — its Team, for the work ServiceNow files by frontline rather
+    #             than by service: PWR and KDB are two teams, one column
+    #   catch   — whatever matched nothing, so the row still adds up
     "services": [
         {"name": "Website Content Management", "short": "WCM",
          "subs": ["Website Content Management"]},
@@ -2979,8 +2981,8 @@ CAPACITY_PLAN: dict = _load_setting("capacity_plan", {
          "subs": ["Content Production – Graphic Design"]},
         {"name": "Project Management", "short": "PM", "subs": []},
         {"name": "Local SEO", "short": "Local SEO", "subs": []},
-        {"name": "PWR / KDB", "short": "PWR/KDB", "subs": []},
-        {"name": "Adhoc / Others", "short": "Adhoc", "subs": []},
+        {"name": "PWR / KDB", "short": "PWR/KDB", "subs": [], "teams": ["PWR", "KDB"]},
+        {"name": "Adhoc / Others", "short": "Adhoc", "subs": [], "catch": True},
     ],
     # Per service, the hours one ticket is taken to have cost. The goal is the
     # target; the year figure is what that year is costed at.
@@ -3004,7 +3006,22 @@ CAPACITY_PLAN: dict = _load_setting("capacity_plan", {
                                "Akshayaa Rajeswari AS": 23,
                                "Arvind Lakshminarayanan": 23, "Jerlin Jeba": 34,
                                "Ranjithkumar Ashokkumar": 30, "Nitish JK": 30}},
-})
+}
+
+CAPACITY_PLAN: dict = _load_setting("capacity_plan", CAPACITY_PLAN_DEFAULT)
+
+
+# Routing is code, not configuration. Nothing in the app writes "services",
+# so a stored copy is only ever a snapshot of an older release — and a snapshot
+# taken before PWR and KDB were routed by team silently kept them empty, which
+# reads exactly like nobody having done any PWR work.
+_PLAN_ROUTES = {s_["short"]: s_ for s_ in CAPACITY_PLAN_DEFAULT["services"]}
+CAPACITY_PLAN["services"] = (
+    [dict(_PLAN_ROUTES[s_["short"]]) if s_.get("short") in _PLAN_ROUTES else s_
+     for s_ in (CAPACITY_PLAN.get("services") or [])]
+    + [s_ for s_ in CAPACITY_PLAN_DEFAULT["services"]
+       if s_["short"] not in {x.get("short") for x in (CAPACITY_PLAN.get("services") or [])}]
+) if CAPACITY_PLAN.get("services") else list(CAPACITY_PLAN_DEFAULT["services"])
 
 
 def _plan_year(year: int) -> dict:
@@ -3113,6 +3130,23 @@ def capacity_plan(sid: str, year: int = 2026,
 
     services = CAPACITY_PLAN.get("services") or []
     sub_to_short = {sub: svc["short"] for svc in services for sub in (svc.get("subs") or [])}
+    # Team is free text on the sheet — "PWR", "Other PWR", "KDB Nordics" —
+    # so match a whole word rather than the exact string, and never a word
+    # inside another one ("KDBX" is not KDB).
+    team_tokens = [(svc["short"], {str(t).strip().upper() for t in (svc.get("teams") or [])})
+                   for svc in services if svc.get("teams")]
+    catch_all = next((svc["short"] for svc in services if svc.get("catch")), None)
+
+    def route(sub, team):
+        """Which service column this ticket belongs in, or None."""
+        short = sub_to_short.get(str(sub).strip())
+        if short:
+            return short
+        words = set(re.split(r"[^A-Za-z0-9]+", str(team or "").upper())) - {""}
+        for short, tokens in team_tokens:
+            if words & tokens:
+                return short
+        return catch_all
 
     def closed_in(y):
         rows = done[done["closed_date"].dt.year == y]
@@ -3127,11 +3161,17 @@ def capacity_plan(sid: str, year: int = 2026,
         out: dict = {}
         if frame.empty or "sub_category" not in frame.columns:
             return out
-        for (who, sub), n in frame.groupby(["assigned_to", "sub_category"]).size().items():
-            short = sub_to_short.get(str(sub))
+        work = frame.copy()
+        if "team" not in work.columns:
+            work["team"] = ""
+        grouped = work.fillna({"sub_category": "", "team": ""}) \
+            .groupby(["assigned_to", "sub_category", "team"]).size()
+        for (who, sub, team), n in grouped.items():
+            short = route(sub, team)
             if not short:
                 continue
-            out.setdefault(str(who), {})[short] = out.setdefault(str(who), {}).get(short, 0) + int(n)
+            row = out.setdefault(str(who), {})
+            row[short] = row.get(short, 0) + int(n)
         return out
 
     now_counts, prev_counts = counts(this_year), counts(last_year)
@@ -3195,7 +3235,14 @@ def capacity_plan(sid: str, year: int = 2026,
         # Goal capacity: the same days, worked at the target rate.
         goal_cap = round(days * (per_day / goal_hours)) if (goal_hours and days) else None
         out_services.append({
-            "name": svc["name"], "short": short, "mapped": bool(svc.get("subs")),
+            "name": svc["name"], "short": short,
+            "mapped": bool(svc.get("subs") or svc.get("teams") or svc.get("catch")),
+            "routed_by": ("sub-category" if svc.get("subs")
+                          else "team " + " or ".join(svc.get("teams") or []) if svc.get("teams")
+                          else "everything else" if svc.get("catch") else None),
+            # Counted but not costed: the tickets are there, the hours are not,
+            # so the days read nought until somebody types a rate in.
+            "priced": bool(hours),
             "goal_hours": goal_hours, "year_hours": hours,
             "goal_per_day": round(per_day / goal_hours, 2) if goal_hours else None,
             "year_per_day": round(per_day / hours, 2) if hours else None,
@@ -3222,7 +3269,14 @@ def capacity_plan(sid: str, year: int = 2026,
         "totals": totals, "cadence_pct": cadence_pct, "training_pct": training_pct,
         "hours_per_day": per_day,
         "closed_states": sorted(states),
-        "unmapped": [svc["short"] for svc in services if not svc.get("subs")],
+        "unmapped": [svc["short"] for svc in services
+                     if not (svc.get("subs") or svc.get("teams") or svc.get("catch"))],
+        # Reaching the page but worth nothing on it, which is a different
+        # complaint from not being reachable at all.
+        "unpriced": [svc["short"] for svc in out_services
+                     if svc["mapped"] and not svc["priced"] and svc["actual"]],
+        "total_tickets": int(sum(p["tickets"].get(svc["short"], 0)
+                                 for p in people for svc in services)),
     })
 
 
