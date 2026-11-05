@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getCapacityPlan } from '../api'
 import { INTER, KONE_FONT, Card, Empty } from '../components/KoneUI'
+import CapacityEditBar from '../components/CapacityEditBar'
 
 // ── The capacity sheet, computed ─────────────────────────────────────────────
 // The team keeps this by hand. Everything in it that can be derived is derived
@@ -46,6 +47,9 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
   const [year, setYear] = useState(2026)
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
+  // Bumped when the editor saves, so the tables re-read the figures they were
+  // computed from rather than sitting on the ones that were just replaced.
+  const [stamp, setStamp] = useState(0)
 
   // Depend on the filter VALUES, not the object. `filters = {}` is a fresh
   // object on every render, so putting it in the dependency list re-ran the
@@ -65,27 +69,38 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
       })
     return () => { live = false }
   }, [sessionId, year, assignedTo, team, area, subCategory, range.from, range.to,
-      onSessionExpired])
+      stamp, onSessionExpired])
 
   const shown = useMemo(
     () => (data?.services ?? []).filter(s => s.mapped || s.days > 0),
     [data],
   )
 
-  if (error) {
-    return <Card title="Capacity"><div style={{ padding: 22, color: '#c0305a',
-      fontSize: 13, fontFamily: INTER }}>{error}</div></Card>
+  const bar = <CapacityEditBar year={year} onSaved={() => setStamp(n => n + 1)} />
+
+  if (error || !data || !data.people.length) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {bar}
+        <Card title="Capacity">
+          {error
+            ? <div style={{ padding: 22, color: '#c0305a', fontSize: 13,
+                            fontFamily: INTER }}>{error}</div>
+            : !data
+              ? <div style={{ padding: 22, color: DIM, fontSize: 13,
+                              fontFamily: INTER }}>Working it out…</div>
+              : <Empty />}
+        </Card>
+      </div>
+    )
   }
-  if (!data) {
-    return <Card title="Capacity"><div style={{ padding: 22, color: DIM, fontSize: 13,
-      fontFamily: INTER }}>Working it out…</div></Card>
-  }
-  if (!data.people.length) return <Card title="Capacity"><Empty /></Card>
 
   const t = data.totals
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {bar}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
                     background: '#fff', border: `1px solid ${LINE}`, borderRadius: 12,

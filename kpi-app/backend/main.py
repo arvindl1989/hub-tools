@@ -3016,6 +3016,69 @@ def _plan_hours(short: str, year: int) -> Optional[float]:
     return float(h) if h else None
 
 
+@app.get("/api/capacity-plan/settings")
+def get_capacity_plan_settings(year: int = 2026):
+    """Everything the capacity page lets a person change, for one year.
+
+    A path of its own: /api/capacity-settings already belongs to the Utility
+    Rate page and means something else entirely.
+    """
+    wd = (UTILISATION_SETTINGS.get("working_days") or {}).get(str(year)) or {}
+    y = _plan_year(year)
+    return {
+        "year": year,
+        "cadence_pct": y.get("cadence_pct", 20),
+        "hours": y.get("hours") or {},
+        "goal_hours": CAPACITY_PLAN.get("goal_hours") or {},
+        "working_days": wd,
+        "holidays": (CAPACITY_PLAN.get("holidays") or {}).get(str(year)) or {},
+        "training_days": (CAPACITY_PLAN.get("training_days") or {}).get(str(year)) or {},
+        "services": [{"name": s_["name"], "short": s_["short"], "subs": s_.get("subs") or []}
+                     for s_ in (CAPACITY_PLAN.get("services") or [])],
+        "people": sorted(set(wd) | set(DEFAULT_PEOPLE)),
+        "hours_per_day": BANDWIDTH_HOURS_PER_DAY,
+    }
+
+
+class CapacitySettingsBody(BaseModel):
+    year: int
+    cadence_pct: Optional[float] = None
+    hours: Optional[dict] = None          # {short: hours}  for this year
+    goal_hours: Optional[dict] = None     # {short: hours}  not year-specific
+    working_days: Optional[dict] = None   # {person: days}  gross, before holidays
+    holidays: Optional[dict] = None       # {person: days}
+    training_days: Optional[dict] = None  # {person: days}
+
+
+@app.put("/api/capacity-plan/settings")
+def update_capacity_plan_settings(body: CapacitySettingsBody):
+    """Save one year's figures. Only what is sent is touched, so two people
+    editing different years cannot overwrite each other's work."""
+    y = str(body.year)
+    years = CAPACITY_PLAN.setdefault("years", {})
+    year_block = years.setdefault(y, {})
+    if body.cadence_pct is not None:
+        year_block["cadence_pct"] = float(body.cadence_pct)
+    if body.hours is not None:
+        year_block["hours"] = {k: float(v) for k, v in body.hours.items() if v}
+    if body.goal_hours is not None:
+        CAPACITY_PLAN["goal_hours"] = {k: float(v) for k, v in body.goal_hours.items() if v}
+    for field, store in (("holidays", "holidays"), ("training_days", "training_days")):
+        sent = getattr(body, field)
+        if sent is not None:
+            CAPACITY_PLAN.setdefault(store, {})[y] = {
+                k: float(v) for k, v in sent.items() if v not in (None, "")}
+    _save_setting("capacity_plan", dict(CAPACITY_PLAN))
+
+    # Working days live with the utilisation settings, so By Specialist and
+    # this page cannot disagree about how many days somebody had.
+    if body.working_days is not None:
+        UTILISATION_SETTINGS.setdefault("working_days", {})[y] = {
+            k: float(v) for k, v in body.working_days.items() if v not in (None, "")}
+        _save_setting("utilisation_settings", dict(UTILISATION_SETTINGS))
+    return get_capacity_plan_settings(body.year)
+
+
 @app.get("/api/sessions/{sid}/capacity-plan")
 def capacity_plan(sid: str, year: int = 2026,
                   assigned_to: str = '', team: str = '', area: str = '',

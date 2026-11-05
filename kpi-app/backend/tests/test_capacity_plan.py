@@ -113,4 +113,48 @@ print(f"   2025: {p25['tickets']['WCM']} closed → {p25['by_service']['WCM']} d
 check("2025 is priced at 2025's rate", p25["by_service"]["WCM"] == 25.0,
       str(p25["by_service"]["WCM"]))
 
+print("\nThe editor writes back, and the page follows")
+settings = json.loads(urllib.request.urlopen(
+    f"{BASE}/api/capacity-plan/settings?year=2026").read())
+before_days = dict(settings["working_days"])
+check("it reads the same working days the page used",
+      before_days.get(WHO) == p["working_days"], str(before_days.get(WHO)))
+
+
+def save(payload):
+    req = urllib.request.Request(f"{BASE}/api/capacity-plan/settings",
+                                 data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"},
+                                 method="PUT")
+    return json.loads(urllib.request.urlopen(req).read())
+
+
+try:
+    save({"year": 2026, "working_days": {**before_days, WHO: 200},
+          "cadence_pct": 10})
+    after = plan(rows)
+    pa = next(r for r in after["people"] if r["name"] == WHO)
+    print(f"   200 working days at 10% cadence → {pa['availability']} available, "
+          f"{pa['cadence_days']} cadence, {pa['productivity_days']} productive")
+    check("the new working days are used", pa["working_days"] == 200,
+          str(pa["working_days"]))
+    check("and the new cadence share", after["cadence_pct"] == 10,
+          str(after["cadence_pct"]))
+    check("which moves productivity, and so the rate",
+          pa["productivity_days"] != p["productivity_days"],
+          f"{p['productivity_days']} → {pa['productivity_days']}")
+finally:
+    save({"year": 2026, "working_days": before_days, "cadence_pct": 20})
+
+restored = plan(rows)
+pr = next(r for r in restored["people"] if r["name"] == WHO)
+check("and it goes back", pr["productivity_days"] == p["productivity_days"],
+      str(pr["productivity_days"]))
+
+# The Utility Rate page owns /api/capacity-settings; this page must not have
+# taken that path from it.
+other = json.loads(urllib.request.urlopen(f"{BASE}/api/capacity-settings").read())
+check("the older capacity-settings endpoint is untouched",
+      "default_working_days" in other, str(sorted(other)[:4]))
+
 print(f"\n{ok} checks passed")

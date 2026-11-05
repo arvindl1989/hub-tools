@@ -407,3 +407,13 @@ export async function getCapacityPlan(sid, year = 2026, filters = {}) {
   })
   return data
 }
+
+export async function getCapacityPlanSettings(year = 2026) {
+  const { data } = await client.get('/capacity-plan/settings', { params: { year } })
+  return data
+}
+
+export async function updateCapacityPlanSettings(body) {
+  const { data } = await client.put('/capacity-plan/settings', body)
+  return data
+}
