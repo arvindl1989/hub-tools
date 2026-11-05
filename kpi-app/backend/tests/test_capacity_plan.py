@@ -415,6 +415,53 @@ pr = next(r for r in restored["people"] if r["name"] == WHO)
 check("and it goes back", pr["productivity_days"] == p["productivity_days"],
       str(pr["productivity_days"]))
 
+print("\nThe days grid makes Avg TAT a measurement, and reproduces the sheet")
+# Their own WCM figures: these days over these tickets, person by person.
+SHEET = {"Ajith A": (15, 27), "Akshayaa Rajeswari AS": (129, 237),
+         "Arvind Lakshminarayanan": (60, 76), "Jerlin Jeba": (6, 14),
+         "Ranjithkumar Ashokkumar": (42, 74), "Nitish JK": (41, 76)}
+sheet_rows, n = [], 0
+for who, (_, count) in SHEET.items():
+    for _ in range(count):
+        sheet_rows.append(ticket(n, 2026, who=who)); n += 1
+
+
+def wcm_of(d_):
+    return next(s for s in d_["services"] if s["short"] == "WCM")
+
+
+before_days = json.loads(urllib.request.urlopen(
+    f"{BASE}/api/capacity-plan/settings?year=2026").read()).get("manual_days") or {}
+try:
+    save({"year": 2026,
+          "manual_days": {who: {"WCM": days} for who, (days, _) in SHEET.items()}})
+    ws = wcm_of(plan(sheet_rows))
+    print(f"   {ws['days']} days over {ws['actual']} closed → TAT {ws['year_hours']}, "
+          f"per day {ws['year_per_day']}, goal {ws['goal_capacity']}")
+    check("the days are the ones entered, not the ones the rate implies",
+          ws["days"] == 293.0, str(ws["days"]))
+    check("Avg TAT is days times eight over tickets closed",
+          ws["year_hours"] == round(8 * 293 / 504, 2), str(ws["year_hours"]))
+    check("which is the sheet's 4.65, not the 4.6 rate it is priced at",
+          ws["year_hours"] == 4.65 and ws["rate_hours"] == 4.6,
+          f"{ws['year_hours']} measured, {ws['rate_hours']} set")
+    check("per day is tickets over days", ws["year_per_day"] == round(504 / 293, 2),
+          str(ws["year_per_day"]))
+    check("goal capacity is the sheet's 520, to the rounding",
+          abs(ws["goal_capacity"] - 520) <= 1, str(ws["goal_capacity"]))
+    # Their own per-person Goal column, which is where this all started.
+    for who, expected in (("Arvind Lakshminarayanan", 107),
+                          ("Akshayaa Rajeswari AS", 229),
+                          ("Ranjithkumar Ashokkumar", 75), ("Ajith A", 27)):
+        got = ws["people"][who]["goal"]
+        assert abs(got - expected) <= 1, f"{who}: {got} vs {expected}"
+    check("and so is every person's Goal cell", True)
+finally:
+    save({"year": 2026, "manual_days": before_days})
+check("clearing the grid goes back to the rate",
+      wcm_of(plan(sheet_rows))["year_hours"] == 4.6,
+      str(wcm_of(plan(sheet_rows))["year_hours"]))
+
 # The Utility Rate page owns /api/capacity-settings; this page must not have
 # taken that path from it.
 other = json.loads(urllib.request.urlopen(f"{BASE}/api/capacity-settings").read())

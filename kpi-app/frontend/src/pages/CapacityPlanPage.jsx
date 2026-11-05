@@ -476,11 +476,11 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
         <b>Goal</b> is what the same days would finish if a ticket took the target time:
         the days that went into a service, times eight hours over the goal TAT. Set the
         target in the edit bar. <b>Avg TAT</b> for {year} and
-        {' '}{year - 1} is measured rather than typed: the days that went into a service over
-        the tickets that came out of it. While every day on the page is priced from the rate
-        in the edit bar that calculation is circular and simply restates that rate — which is
-        what it is doing now. It only becomes a measurement once days are set by hand, cell
-        by cell, from what the work actually took.
+        {' '}{year - 1} is never typed: it is days &times; 8 &divide; tickets closed, and
+        Per day is the same figure the other way up. For it to mean anything the days have to
+        come from somewhere other than a rate per ticket — enter them in the days grid in the
+        edit bar. A cell left empty there is priced from the fallback hours instead, and its
+        Avg TAT can only hand that rate back.
         <br />
         <b>Click any service cell</b>, or a Goal cell, to see the tickets behind it, and the sub-categories
         and teams that put them there — and to type the days in by hand, with a note

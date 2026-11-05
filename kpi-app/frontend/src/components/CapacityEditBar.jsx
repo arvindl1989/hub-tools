@@ -44,6 +44,11 @@ export default function CapacityEditBar({ year, onSaved }) {
   const put = (group, key, value) =>
     setS(prev => ({ ...prev, [group]: { ...prev[group], [key]: value } }))
 
+  const putDay = (who, short, value) =>
+    setS(prev => ({ ...prev,
+      manual_days: { ...prev.manual_days,
+                     [who]: { ...(prev.manual_days || {})[who], [short]: value } } }))
+
   const save = async () => {
     setSaving(true); setError(null)
     try {
@@ -53,6 +58,8 @@ export default function CapacityEditBar({ year, onSaved }) {
         training_pct: Number(s.training_pct) || 0,
         hours: numeric(s.hours),
         goal_hours: numeric(s.goal_hours),
+        manual_days: Object.fromEntries(
+          Object.entries(s.manual_days || {}).map(([who, row]) => [who, numeric(row)])),
         working_days: numeric(s.working_days),
         holidays: numeric(s.holidays),
         training_days: numeric(s.training_days),
@@ -92,8 +99,8 @@ export default function CapacityEditBar({ year, onSaved }) {
           {open ? 'Close editor' : `Edit ${year} figures`}
         </button>
         <span style={{ fontSize: 11, color: DIM, fontFamily: INTER }}>
-          Working days, holidays, the cadence and training shares and the hours per
-          ticket — everything on this page that is not calculated
+          Working days, holidays, the cadence and training shares, the days spent
+          per service — everything on this page that is not calculated
         </span>
         {saved && <span style={{ fontSize: 11, color: '#1e8a5e', fontFamily: INTER }}>
           Saved
@@ -185,14 +192,17 @@ export default function CapacityEditBar({ year, onSaved }) {
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, fontFamily: INTER,
                                 color: '#141414', marginBottom: 6 }}>
-                    Per service — hours a ticket is reckoned to take
+                    Per service — fallback hours a ticket is reckoned to take
                   </div>
                   <table style={{ borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
                         <th style={{ ...head, textAlign: 'left' }}>Service</th>
                         <th style={head} title="The target, used for Goal capacity">Goal</th>
-                        <th style={head} title={`What ${year} is costed at`}>{year}</th>
+                        <th style={head}
+                            title={'Used only where no days are entered below'}>
+                          {year}
+                        </th>
                         <th style={{ ...head, textAlign: 'left' }}>Per day</th>
                       </tr>
                     </thead>
@@ -234,6 +244,51 @@ export default function CapacityEditBar({ year, onSaved }) {
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              {/* The figure the whole sheet turns on. Avg TAT is these days
+                  over the tickets closed, so while they are derived from the
+                  rate above the sum is circular and simply hands that rate
+                  back. Entered here, it becomes a measurement — and the rate
+                  above falls back to covering only the blanks. */}
+              <div style={{ marginTop: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, fontFamily: INTER,
+                              color: '#141414', marginBottom: 2 }}>
+                  Days spent in {year} — the figure Avg TAT is measured from
+                </div>
+                <div style={{ fontSize: 11, color: DIM, fontFamily: INTER,
+                              marginBottom: 6 }}>
+                  Leave a box empty and that cell is priced from the fallback hours
+                  above, which makes its Avg TAT restate that rate. Fill it in and
+                  Avg TAT becomes days&nbsp;&times;&nbsp;8 &divide; tickets closed.
+                </div>
+                <table style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...head, textAlign: 'left' }}>Name</th>
+                      {s.services.map(svc => (
+                        <th key={svc.short} style={head}>{svc.short}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {s.people.map(name => (
+                      <tr key={name}>
+                        <td style={{ ...cell, textAlign: 'left', fontSize: 12.5,
+                                     fontFamily: INTER, whiteSpace: 'nowrap' }}>{name}</td>
+                        {s.services.map(svc => (
+                          <td key={svc.short} style={cell}>
+                            <input style={{ ...box, width: 62 }} type="number"
+                                   step="0.5" min="0" placeholder="—"
+                                   title={(s.manual_notes?.[name] || {})[svc.short] || ''}
+                                   value={(s.manual_days?.[name] || {})[svc.short] ?? ''}
+                                   onChange={e => putDay(name, svc.short, e.target.value)} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>

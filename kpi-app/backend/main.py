@@ -3060,6 +3060,10 @@ def get_capacity_plan_settings(year: int = 2026):
         "working_days": wd,
         "holidays": (CAPACITY_PLAN.get("holidays") or {}).get(str(year)) or {},
         "training_days": (CAPACITY_PLAN.get("training_days") or {}).get(str(year)) or {},
+        # The days actually spent, person by service. The grid that makes Avg
+        # TAT a measurement instead of a restatement of the rate.
+        "manual_days": (CAPACITY_PLAN.get("manual_days") or {}).get(str(year)) or {},
+        "manual_notes": (CAPACITY_PLAN.get("manual_notes") or {}).get(str(year)) or {},
         "services": [{"name": s_["name"], "short": s_["short"], "subs": s_.get("subs") or []}
                      for s_ in (CAPACITY_PLAN.get("services") or [])],
         "people": sorted(set(wd) | set(DEFAULT_PEOPLE)),
@@ -3076,6 +3080,7 @@ class CapacitySettingsBody(BaseModel):
     working_days: Optional[dict] = None   # {person: days}  gross, before holidays
     holidays: Optional[dict] = None       # {person: days}
     training_days: Optional[dict] = None  # {person: days}
+    manual_days: Optional[dict] = None    # {person: {service: days}} spent
 
 
 @app.put("/api/capacity-plan/settings")
@@ -3098,6 +3103,18 @@ def update_capacity_plan_settings(body: CapacitySettingsBody):
         if sent is not None:
             CAPACITY_PLAN.setdefault(store, {})[y] = {
                 k: float(v) for k, v in sent.items() if v not in (None, "")}
+    if body.manual_days is not None:
+        kept = {person: {svc: float(n) for svc, n in (row or {}).items()
+                         if n not in (None, "")}
+                for person, row in body.manual_days.items()}
+        kept = {k: v for k, v in kept.items() if v}
+        CAPACITY_PLAN.setdefault("manual_days", {})[y] = kept
+        # A reason for a figure that is no longer there explains nothing.
+        notes = (CAPACITY_PLAN.get("manual_notes") or {}).get(y) or {}
+        CAPACITY_PLAN.setdefault("manual_notes", {})[y] = {
+            person: {svc: text for svc, text in (row or {}).items()
+                     if svc in kept.get(person, {})}
+            for person, row in notes.items() if person in kept}
     _save_setting("capacity_plan", dict(CAPACITY_PLAN))
 
     # Working days live with the utilisation settings, so By Specialist and
