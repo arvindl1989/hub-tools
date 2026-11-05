@@ -6,6 +6,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaW_Z6bgnEO6SY
 import DashboardPage     from './pages/DashboardPage'
 import UserActivityPage  from './pages/UserActivityPage'
 import FeedbackPage      from './pages/FeedbackPage'
+import CapacityPlanPage  from './pages/CapacityPlanPage'
 import ExperimentalReportsPage from './pages/ExperimentalReportsPage'
 import RatesConfigModal  from './components/RatesConfigModal'
 import PasswordGateModal from './components/PasswordGateModal'
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'dashboard',     label: 'Dashboard',       icon: <GridIcon /> },
   { id: 'user-activity', label: 'User Activity',    icon: <UsersIcon /> },
   { id: 'feedback',      label: 'Feedback',         icon: <SmileIcon /> },
+  { id: 'capacity',      label: 'Capacity',         icon: <ScaleIcon /> },
 ]
 
 const EXPERIMENTAL_PASSWORD = 'Whiteshadows'
@@ -196,6 +198,7 @@ export default function App() {
           {activeTab === 'dashboard'     && <DashboardPage    sessionId={sessionId} onSessionExpired={handleSessionExpired} onOpenExperimental={openExperimental} runGatedAction={runGated} />}
           {activeTab === 'user-activity' && <UserActivityPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'feedback'      && <FeedbackPage sessionId={sessionId} />}
+          {activeTab === 'capacity'      && <CapacityPlanPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'experimental'  && experimentalUnlocked && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}
         </div>
       </main>
@@ -359,6 +362,18 @@ function GridIcon() {
 function UsersIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
 }
+function ScaleIcon() {
+  // A balance — what was delivered against the time there was to deliver it.
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v18" /><path d="M5 7h14" />
+      <path d="M5 7 2 14h6L5 7z" /><path d="M19 7l-3 7h6l-3-7z" />
+      <path d="M8 21h8" />
+    </svg>
+  )
+}
+
 function SmileIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
 }

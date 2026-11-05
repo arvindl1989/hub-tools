@@ -36,6 +36,8 @@ TESTS = [
      "every card, toggle, cell and dialog, clicked in a browser"),
     ("specialist utilisation", "test_specialist_utilisation.py",
      "their own hours over the days they had"),
+    ("capacity plan", "test_capacity_plan.py",
+     "availability down to a utility rate, from the closed tickets"),
     ("growth forecast", "test_growth_forecast.py",
      "three years, next year, and whether it fits"),
     ("3D board", "test_3d_board.py",

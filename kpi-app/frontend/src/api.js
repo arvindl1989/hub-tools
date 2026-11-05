@@ -395,3 +395,15 @@ export async function getGrowthForecast(sid, growth = 10, { baseYear, targetYear
   })
   return data
 }
+
+export async function getCapacityPlan(sid, year = 2026, filters = {}) {
+  const { data } = await client.get(`/sessions/${sid}/capacity-plan`, {
+    params: _clean({
+      year,
+      assigned_to: filters.assignedTo, team: filters.team, area: filters.area,
+      sub_category: filters.subCategory,
+      date_from: filters.dateFrom, date_to: filters.dateTo,
+    }),
+  })
+  return data
+}

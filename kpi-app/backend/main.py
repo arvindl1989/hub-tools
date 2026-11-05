@@ -2951,6 +2951,202 @@ def _service_column(src: pd.DataFrame) -> pd.Series:
     )
 
 
+# ── The capacity plan ─────────────────────────────────────────────────────────
+# The sheet the team keeps by hand, in one place and fed by the ticket data.
+#
+#   availability = working days − holidays
+#   productivity = availability − cadence − training
+#   allocated    = the days the work they closed is worth, at that year's rate
+#   utility      = allocated / productivity
+#
+# Everything a person can disagree with is a setting, and every setting is per
+# year, because a rate agreed for 2026 says nothing about 2024. Nothing that
+# can be calculated is editable, and nothing editable is calculated.
+CAPACITY_PLAN: dict = _load_setting("capacity_plan", {
+    # Closed means finished either way: a rejected ticket still consumed the
+    # time it took to reach the decision.
+    "closed_states": ["Closed Completed", "Closed Rejected"],
+    # The services as this report lists them, in order, each mapping to the
+    # ServiceNow sub-categories that belong to it. The four after CP-GD are
+    # waiting on their sub-category names and show nothing until they have
+    # them — an empty mapping is better than a wrong one.
+    "services": [
+        {"name": "Website Content Management", "short": "WCM",
+         "subs": ["Website Content Management"]},
+        {"name": "Demand Engagement Activations", "short": "DEA",
+         "subs": ["Demand Creation – Global", "Email – Local", "Retention – Activations"]},
+        {"name": "Content Production – Graphic Design", "short": "CP-GD",
+         "subs": ["Content Production – Graphic Design"]},
+        {"name": "Project Management", "short": "PM", "subs": []},
+        {"name": "Local SEO", "short": "Local SEO", "subs": []},
+        {"name": "PWR / KDB", "short": "PWR/KDB", "subs": []},
+        {"name": "Adhoc / Others", "short": "Adhoc", "subs": []},
+    ],
+    # Per service, the hours one ticket is taken to have cost. The goal is the
+    # target; the year figure is what that year is costed at.
+    "goal_hours": {"WCM": 4.5, "DEA": 10.0, "CP-GD": 7.0, "PWR/KDB": 40.0},
+    "years": {
+        "2024": {"cadence_pct": 20, "hours": {"WCM": 5.0, "DEA": 20.0, "CP-GD": 8.0}},
+        "2025": {"cadence_pct": 20, "hours": {"WCM": 5.0, "DEA": 20.0, "CP-GD": 8.0,
+                                              "PWR/KDB": 5.0}},
+        "2026": {"cadence_pct": 20, "hours": {"WCM": 4.6, "DEA": 11.9, "CP-GD": 6.4,
+                                              "PWR/KDB": 1.4}},
+        "2027": {"cadence_pct": 20, "hours": {}},
+    },
+    # Per person per year. Working days come from the utilisation settings, so
+    # there is still one place that says how many days somebody had.
+    "holidays": {"2026": {"Ajith A": 30, "Akshaya Praveen": 30,
+                          "Akshayaa Rajeswari AS": 30, "Arvind Lakshminarayanan": 30,
+                          "Jerlin Jeba": 10, "Ranjithkumar Ashokkumar": 15,
+                          "Nitish JK": 15}},
+    "training_days": {"2026": {"Ajith A": 11, "Akshaya Praveen": 11,
+                               "Akshayaa Rajeswari AS": 23,
+                               "Arvind Lakshminarayanan": 23, "Jerlin Jeba": 34,
+                               "Ranjithkumar Ashokkumar": 30, "Nitish JK": 30}},
+})
+
+
+def _plan_year(year: int) -> dict:
+    return (CAPACITY_PLAN.get("years") or {}).get(str(year)) or {}
+
+
+def _plan_hours(short: str, year: int) -> Optional[float]:
+    """What one ticket of this service is costed at in this year."""
+    h = (_plan_year(year).get("hours") or {}).get(short)
+    return float(h) if h else None
+
+
+@app.get("/api/sessions/{sid}/capacity-plan")
+def capacity_plan(sid: str, year: int = 2026,
+                  assigned_to: str = '', team: str = '', area: str = '',
+                  sub_category: str = '', date_from: str = '', date_to: str = ''):
+    """The capacity sheet, computed rather than typed.
+
+    Allocation is derived from what each person actually closed, so the
+    Utility Rate reads as "the work that went out of the door was worth this
+    much of the time they had" rather than as a plan somebody maintained.
+    """
+    df = _get_session(sid)
+    blank = {"year": year, "people": [], "services": [], "totals": {}, "as_of": None,
+             "closed_states": list(CAPACITY_PLAN.get("closed_states") or [])}
+    if "created_date" not in df.columns:
+        return blank
+
+    base = _apply_dim_filters(df, assigned_to=assigned_to, team=team, area=area,
+                              sub_category=sub_category)
+    base = _filter_by_range(base, "created_date", date_from, date_to)
+    if "closed_date" not in base.columns or "assigned_to" not in base.columns:
+        return blank
+
+    states = set(CAPACITY_PLAN.get("closed_states") or ["Closed Completed"])
+    done = base.dropna(subset=["closed_date", "assigned_to"])
+    if "state" in done.columns:
+        done = done[done["state"].isin(states)]
+
+    services = CAPACITY_PLAN.get("services") or []
+    sub_to_short = {sub: svc["short"] for svc in services for sub in (svc.get("subs") or [])}
+
+    def closed_in(y):
+        rows = done[done["closed_date"].dt.year == y]
+        return rows
+
+    this_year, last_year = closed_in(year), closed_in(year - 1)
+    as_of = (pd.Timestamp(this_year["closed_date"].max()).date().isoformat()
+             if not this_year.empty else None)
+
+    def counts(frame):
+        """tickets[person][service short]"""
+        out: dict = {}
+        if frame.empty or "sub_category" not in frame.columns:
+            return out
+        for (who, sub), n in frame.groupby(["assigned_to", "sub_category"]).size().items():
+            short = sub_to_short.get(str(sub))
+            if not short:
+                continue
+            out.setdefault(str(who), {})[short] = out.setdefault(str(who), {}).get(short, 0) + int(n)
+        return out
+
+    now_counts, prev_counts = counts(this_year), counts(last_year)
+
+    per_day = float(BANDWIDTH_HOURS_PER_DAY)
+    cadence_pct = float(_plan_year(year).get("cadence_pct") or 0)
+    wd_table = (UTILISATION_SETTINGS.get("working_days") or {}).get(str(year)) or {}
+    hol = (CAPACITY_PLAN.get("holidays") or {}).get(str(year)) or {}
+    trn = (CAPACITY_PLAN.get("training_days") or {}).get(str(year)) or {}
+
+    names = sorted(set(wd_table) | set(now_counts) | set(prev_counts))
+    people = []
+    for who in names:
+        working = float(wd_table.get(who) or 0)
+        holidays = float(hol.get(who) or 0)
+        availability = max(0.0, working - holidays)
+        cadence = round(availability * cadence_pct / 100.0, 1)
+        training = float(trn.get(who) or 0)
+        productivity = round(max(0.0, availability - cadence - training), 1)
+
+        by_service, tickets = {}, now_counts.get(who, {})
+        for svc in services:
+            short = svc["short"]
+            n = tickets.get(short, 0)
+            hours = _plan_hours(short, year)
+            by_service[short] = round(n * hours / per_day, 1) if (n and hours) else 0.0
+        allocated = round(sum(by_service.values()), 1)
+        people.append({
+            "name": who,
+            "working_days": working, "holidays": holidays, "availability": availability,
+            "cadence_days": cadence, "training_days": training,
+            "productivity_days": productivity,
+            "allocated_days": allocated,
+            "utility_pct": _safe_div(allocated, productivity, pct=True, nd=0)
+            if productivity else None,
+            "by_service": by_service,
+            "tickets": {svc["short"]: tickets.get(svc["short"], 0) for svc in services},
+        })
+    people.sort(key=lambda r: -r["allocated_days"])
+
+    # ── The service board underneath ─────────────────────────────────────────
+    out_services = []
+    for svc in services:
+        short = svc["short"]
+        hours = _plan_hours(short, year)
+        goal_hours = (CAPACITY_PLAN.get("goal_hours") or {}).get(short)
+        days = round(sum(p["by_service"].get(short, 0.0) for p in people), 1)
+        actual = sum(p["tickets"].get(short, 0) for p in people)
+        prev = sum(v.get(short, 0) for v in prev_counts.values())
+        # Goal capacity: the same days, worked at the target rate.
+        goal_cap = round(days * (per_day / goal_hours)) if (goal_hours and days) else None
+        out_services.append({
+            "name": svc["name"], "short": short, "mapped": bool(svc.get("subs")),
+            "goal_hours": goal_hours, "year_hours": hours,
+            "goal_per_day": round(per_day / goal_hours, 2) if goal_hours else None,
+            "year_per_day": round(per_day / hours, 2) if hours else None,
+            "days": days, "goal_capacity": goal_cap, "actual": int(actual),
+            "previous": int(prev),
+            "people": {p["name"]: {
+                "goal": round(p["by_service"].get(short, 0.0) * (per_day / goal_hours))
+                if goal_hours else None,
+                "actual": p["tickets"].get(short, 0),
+                "previous": int(prev_counts.get(p["name"], {}).get(short, 0)),
+            } for p in people},
+        })
+
+    totals = {k: round(sum(p[k] for p in people), 1) for k in
+              ("working_days", "holidays", "availability", "cadence_days",
+               "training_days", "productivity_days", "allocated_days")}
+    totals["utility_pct"] = _safe_div(totals["allocated_days"],
+                                      totals["productivity_days"], pct=True, nd=0)
+    totals["by_service"] = {svc["short"]: round(
+        sum(p["by_service"].get(svc["short"], 0.0) for p in people), 1) for svc in services}
+
+    return _json_safe({
+        "year": year, "as_of": as_of, "people": people, "services": out_services,
+        "totals": totals, "cadence_pct": cadence_pct,
+        "hours_per_day": per_day,
+        "closed_states": sorted(states),
+        "unmapped": [svc["short"] for svc in services if not svc.get("subs")],
+    })
+
+
 # ── Growth, and whether next year fits ────────────────────────────────────────
 # Verdict bands for a service's demand against the capacity currently pointed
 # at it. Wide enough that a plan is not called overloaded for being 3% over,
