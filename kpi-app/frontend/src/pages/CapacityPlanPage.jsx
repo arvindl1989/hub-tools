@@ -143,7 +143,10 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                 <th style={th} title={`${data.cadence_pct}% of availability`}>
                   Cadence {data.cadence_pct}%
                 </th>
-                <th style={th}>Training</th>
+                <th style={th} title={`${data.training_pct}% of availability unless a `
+                                      + 'figure is typed in for somebody'}>
+                  Training {data.training_pct}%
+                </th>
                 <th style={th} title="Availability less cadence and training">Productivity</th>
                 <th style={{ ...th, borderLeft: '2px solid #dbe6fd' }}>Allocated</th>
                 <th style={th}>Utility rate</th>
@@ -161,7 +164,19 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                     <td style={td}>{n0(p.holidays)}</td>
                     <td style={td}>{n0(p.availability)}</td>
                     <td style={td}>{n0(p.cadence_days)}</td>
-                    <td style={td}>{n0(p.training_days)}</td>
+                    {/* The share is the default; a typed figure says so, because
+                        40% of Jerlin's year in training is not a rounding error
+                        and should not read like one. */}
+                    <td style={td}
+                        title={p.training_from_share
+                          ? `${data.training_pct}% of ${n1(p.availability)} available days`
+                          : `Set for ${p.name}, rather than the ${data.training_pct}% share`}>
+                      {n0(p.training_days)}
+                      {!p.training_from_share && (
+                        <span style={{ color: '#1450f5', fontSize: 9, verticalAlign: 'super',
+                                       marginLeft: 1 }}>&#9679;</span>
+                      )}
+                    </td>
                     <td style={{ ...td, fontWeight: 700 }}>{n0(p.productivity_days)}</td>
                     <td style={{ ...td, borderLeft: '2px solid #dbe6fd', fontWeight: 700 }}>
                       {n0(p.allocated_days)}
@@ -309,8 +324,11 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
 
       <p style={{ fontSize: 11, color: '#9c9c9c', fontFamily: INTER, lineHeight: 1.7,
                   margin: 0 }}>
-        <b>Where each figure comes from.</b> Working days, holidays, training, the cadence
-        share and each service&rsquo;s hours are settings, per year, in Rates &amp; SLA.
+        <b>Where each figure comes from.</b> Working days, holidays, the cadence and training
+        shares and each service&rsquo;s hours are settings, per year, in the bar above.
+        Training is {data.training_pct}% of availability for anybody without a figure of
+        their own; a <span style={{ color: '#1450f5' }}>&#9679;</span> marks the ones that
+        have one.
         Everything else is computed from the tickets closed in {year} —
         {' '}{data.closed_states.join(' and ')} — so nothing on this page is typed twice.
         {data.unmapped?.length ? (

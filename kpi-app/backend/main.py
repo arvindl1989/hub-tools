@@ -2986,12 +2986,13 @@ CAPACITY_PLAN: dict = _load_setting("capacity_plan", {
     # target; the year figure is what that year is costed at.
     "goal_hours": {"WCM": 4.5, "DEA": 10.0, "CP-GD": 7.0, "PWR/KDB": 40.0},
     "years": {
-        "2024": {"cadence_pct": 20, "hours": {"WCM": 5.0, "DEA": 20.0, "CP-GD": 8.0}},
-        "2025": {"cadence_pct": 20, "hours": {"WCM": 5.0, "DEA": 20.0, "CP-GD": 8.0,
-                                              "PWR/KDB": 5.0}},
-        "2026": {"cadence_pct": 20, "hours": {"WCM": 4.6, "DEA": 11.9, "CP-GD": 6.4,
-                                              "PWR/KDB": 1.4}},
-        "2027": {"cadence_pct": 20, "hours": {}},
+        "2024": {"cadence_pct": 20, "training_pct": 5,
+                 "hours": {"WCM": 5.0, "DEA": 20.0, "CP-GD": 8.0}},
+        "2025": {"cadence_pct": 20, "training_pct": 5,
+                 "hours": {"WCM": 5.0, "DEA": 20.0, "CP-GD": 8.0, "PWR/KDB": 5.0}},
+        "2026": {"cadence_pct": 20, "training_pct": 5,
+                 "hours": {"WCM": 4.6, "DEA": 11.9, "CP-GD": 6.4, "PWR/KDB": 1.4}},
+        "2027": {"cadence_pct": 20, "training_pct": 5, "hours": {}},
     },
     # Per person per year. Working days come from the utilisation settings, so
     # there is still one place that says how many days somebody had.
@@ -3028,6 +3029,7 @@ def get_capacity_plan_settings(year: int = 2026):
     return {
         "year": year,
         "cadence_pct": y.get("cadence_pct", 20),
+        "training_pct": y.get("training_pct", 5),
         "hours": y.get("hours") or {},
         "goal_hours": CAPACITY_PLAN.get("goal_hours") or {},
         "working_days": wd,
@@ -3043,6 +3045,7 @@ def get_capacity_plan_settings(year: int = 2026):
 class CapacitySettingsBody(BaseModel):
     year: int
     cadence_pct: Optional[float] = None
+    training_pct: Optional[float] = None
     hours: Optional[dict] = None          # {short: hours}  for this year
     goal_hours: Optional[dict] = None     # {short: hours}  not year-specific
     working_days: Optional[dict] = None   # {person: days}  gross, before holidays
@@ -3059,6 +3062,8 @@ def update_capacity_plan_settings(body: CapacitySettingsBody):
     year_block = years.setdefault(y, {})
     if body.cadence_pct is not None:
         year_block["cadence_pct"] = float(body.cadence_pct)
+    if body.training_pct is not None:
+        year_block["training_pct"] = float(body.training_pct)
     if body.hours is not None:
         year_block["hours"] = {k: float(v) for k, v in body.hours.items() if v}
     if body.goal_hours is not None:
@@ -3133,6 +3138,10 @@ def capacity_plan(sid: str, year: int = 2026,
 
     per_day = float(BANDWIDTH_HOURS_PER_DAY)
     cadence_pct = float(_plan_year(year).get("cadence_pct") or 0)
+    # Default rather than `or 0`: settings saved before this field existed have
+    # no training share, and reading that absence as nought would quietly give
+    # every untouched year a team that never trains.
+    training_pct = float(_plan_year(year).get("training_pct", 5) or 0)
     wd_table = (UTILISATION_SETTINGS.get("working_days") or {}).get(str(year)) or {}
     hol = (CAPACITY_PLAN.get("holidays") or {}).get(str(year)) or {}
     trn = (CAPACITY_PLAN.get("training_days") or {}).get(str(year)) or {}
@@ -3144,7 +3153,13 @@ def capacity_plan(sid: str, year: int = 2026,
         holidays = float(hol.get(who) or 0)
         availability = max(0.0, working - holidays)
         cadence = round(availability * cadence_pct / 100.0, 1)
-        training = float(trn.get(who) or 0)
+        # The share is the rule; the per-person figure is the exception. Most
+        # of the team sits on 5%, and the two or three who spent a month in
+        # training need a number rather than a different percentage each.
+        override = trn.get(who)
+        training_is_set = override not in (None, "")
+        training = (float(override) if training_is_set
+                    else round(availability * training_pct / 100.0, 1))
         productivity = round(max(0.0, availability - cadence - training), 1)
 
         by_service, tickets = {}, now_counts.get(who, {})
@@ -3158,6 +3173,7 @@ def capacity_plan(sid: str, year: int = 2026,
             "name": who,
             "working_days": working, "holidays": holidays, "availability": availability,
             "cadence_days": cadence, "training_days": training,
+            "training_from_share": not training_is_set,
             "productivity_days": productivity,
             "allocated_days": allocated,
             "utility_pct": _safe_div(allocated, productivity, pct=True, nd=0)
@@ -3203,7 +3219,7 @@ def capacity_plan(sid: str, year: int = 2026,
 
     return _json_safe({
         "year": year, "as_of": as_of, "people": people, "services": out_services,
-        "totals": totals, "cadence_pct": cadence_pct,
+        "totals": totals, "cadence_pct": cadence_pct, "training_pct": training_pct,
         "hours_per_day": per_day,
         "closed_states": sorted(states),
         "unmapped": [svc["short"] for svc in services if not svc.get("subs")],

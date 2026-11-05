@@ -3,9 +3,10 @@ import { getCapacityPlanSettings, updateCapacityPlanSettings } from '../api'
 import { INTER, KONE_FONT } from './KoneUI'
 
 // ── One bar, everything the page lets you change ─────────────────────────────
-// Working days, holidays, training and the cadence share per person; the goal
-// and this year's hours per service. Per year, because none of it carries from
-// one year to the next.
+// Working days and holidays per person; the cadence and training shares for
+// everyone, with a per-person training figure for the people those shares do
+// not describe; the goal and this year's hours per service. Per year, because
+// none of it carries from one year to the next.
 //
 // Working days is labelled gross on purpose. It was being filled in with the
 // net productive figure, which this page then deducted holidays, cadence and
@@ -49,6 +50,7 @@ export default function CapacityEditBar({ year, onSaved }) {
       await updateCapacityPlanSettings({
         year,
         cadence_pct: Number(s.cadence_pct) || 0,
+        training_pct: Number(s.training_pct) || 0,
         hours: numeric(s.hours),
         goal_hours: numeric(s.goal_hours),
         working_days: numeric(s.working_days),
@@ -63,6 +65,15 @@ export default function CapacityEditBar({ year, onSaved }) {
     } finally {
       setSaving(false)
     }
+  }
+
+  // What the training share works out to for this person, from the figures
+  // in the form rather than the ones last saved, so the hint moves as the
+  // working days and holidays beside it are typed.
+  const shareDays = (name) => {
+    const avail = Math.max(0, (Number(s.working_days?.[name]) || 0)
+                              - (Number(s.holidays?.[name]) || 0))
+    return String(Math.round(avail * (Number(s.training_pct) || 0) / 100 * 10) / 10)
   }
 
   const numeric = (o) => Object.fromEntries(
@@ -81,8 +92,8 @@ export default function CapacityEditBar({ year, onSaved }) {
           {open ? 'Close editor' : `Edit ${year} figures`}
         </button>
         <span style={{ fontSize: 11, color: DIM, fontFamily: INTER }}>
-          Working days, holidays, training, cadence and the hours per ticket — everything
-          on this page that is not calculated
+          Working days, holidays, the cadence and training shares and the hours per
+          ticket — everything on this page that is not calculated
         </span>
         {saved && <span style={{ fontSize: 11, color: '#1e8a5e', fontFamily: INTER }}>
           Saved
@@ -98,15 +109,25 @@ export default function CapacityEditBar({ year, onSaved }) {
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10,
-                            marginBottom: 14 }}>
+                            marginBottom: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontFamily: INTER, color: '#141414' }}>
                   Cadence
                 </span>
                 <input style={{ ...box, width: 60 }} type="number" min="0" max="100"
                        value={s.cadence_pct ?? ''}
                        onChange={e => setS({ ...s, cadence_pct: e.target.value })} />
-                <span style={{ fontSize: 11, color: DIM, fontFamily: INTER }}>
+                <span style={{ fontSize: 11, color: DIM, fontFamily: INTER,
+                               marginRight: 14 }}>
                   % of availability, for everyone in {year}
+                </span>
+                <span style={{ fontSize: 12, fontFamily: INTER, color: '#141414' }}>
+                  Training &amp; workshops
+                </span>
+                <input style={{ ...box, width: 60 }} type="number" min="0" max="100"
+                       value={s.training_pct ?? ''}
+                       onChange={e => setS({ ...s, training_pct: e.target.value })} />
+                <span style={{ fontSize: 11, color: DIM, fontFamily: INTER }}>
+                  % — the starting point, overridden per person below
                 </span>
               </div>
 
@@ -122,7 +143,9 @@ export default function CapacityEditBar({ year, onSaved }) {
                           Working days (gross)
                         </th>
                         <th style={head}>Holidays</th>
-                        <th style={head}>Training</th>
+                        <th style={head} title={`Blank takes the ${s.training_pct || 0}% share`}>
+                          Training
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -140,8 +163,16 @@ export default function CapacityEditBar({ year, onSaved }) {
                                    value={s.holidays?.[name] ?? ''}
                                    onChange={e => put('holidays', name, e.target.value)} />
                           </td>
+                          {/* Placeholder, not value: an empty box means "use the
+                              share", and showing the share's own number greyed
+                              out says what will happen without pretending it was
+                              typed. Clearing a box hands the person back to it. */}
                           <td style={cell}>
-                            <input style={box} type="number" min="0" placeholder="—"
+                            <input style={box} type="number" min="0"
+                                   placeholder={shareDays(name)}
+                                   title={`${s.training_pct || 0}% of availability `
+                                          + `is ${shareDays(name)} days — type a figure `
+                                          + 'here to override it'}
                                    value={s.training_days?.[name] ?? ''}
                                    onChange={e => put('training_days', name, e.target.value)} />
                           </td>

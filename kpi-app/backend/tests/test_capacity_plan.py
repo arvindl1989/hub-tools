@@ -89,6 +89,81 @@ check("which is above the actual, because the goal is the faster rate",
       wcm["goal_capacity"] > wcm["actual"], f"{wcm['goal_capacity']} vs {wcm['actual']}")
 check("last year is counted separately", wcm["previous"] == 40, str(wcm["previous"]))
 
+print("\nTraining is a share of availability, with a figure for the exceptions")
+tsettings = json.loads(urllib.request.urlopen(
+    f"{BASE}/api/capacity-plan/settings?year=2026").read())
+check("the share is offered as a setting", tsettings["training_pct"] == 5,
+      str(tsettings["training_pct"]))
+
+
+def save_t(payload):
+    req = urllib.request.Request(f"{BASE}/api/capacity-plan/settings",
+                                 data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"},
+                                 method="PUT")
+    return json.loads(urllib.request.urlopen(req).read())
+
+
+before_training = dict(tsettings["training_days"])
+try:
+    # Nobody has a figure of their own, so everybody is on the share.
+    save_t({"year": 2026, "training_days": {}, "training_pct": 5})
+    ds = plan(rows)
+    ps = next(r for r in ds["people"] if r["name"] == WHO)
+    print(f"   5% of {ps['availability']} available → {ps['training_days']} days "
+          f"(from the share: {ps['training_from_share']})")
+    check("the share is reported", ds["training_pct"] == 5, str(ds["training_pct"]))
+    check("and applied when no figure is set",
+          ps["training_days"] == round(ps["availability"] * 5 / 100, 1),
+          str(ps["training_days"]))
+    check("which the row says it is", ps["training_from_share"] is True)
+    check("productivity still takes it off",
+          ps["productivity_days"] == round(ps["availability"] - ps["cadence_days"]
+                                           - ps["training_days"], 1),
+          str(ps["productivity_days"]))
+
+    # Change the share and everybody moves with it.
+    save_t({"year": 2026, "training_pct": 10})
+    d10 = plan(rows)
+    p10 = next(r for r in d10["people"] if r["name"] == WHO)
+    print(f"   10% → {p10['training_days']} days")
+    check("doubling the share doubles the days",
+          p10["training_days"] == round(ps["training_days"] * 2, 1),
+          f"{ps['training_days']} → {p10['training_days']}")
+
+    # One person spent a month in training; the share does not describe them.
+    save_t({"year": 2026, "training_days": {WHO: 34}, "training_pct": 10})
+    dov = plan(rows)
+    pov = next(r for r in dov["people"] if r["name"] == WHO)
+    other = next(r for r in dov["people"] if r["name"] != WHO
+                 and r["availability"] > 0)
+    print(f"   {WHO} set to 34 → {pov['training_days']}; "
+          f"{other['name']} still on the share → {other['training_days']}")
+    check("the figure wins for the person it is set for", pov["training_days"] == 34,
+          str(pov["training_days"]))
+    check("and is flagged as theirs rather than the share",
+          pov["training_from_share"] is False)
+    check("while everybody else stays on the share",
+          other["training_from_share"] is True
+          and other["training_days"] == round(other["availability"] * 10 / 100, 1),
+          str(other["training_days"]))
+
+    # Clearing it hands them back to the share.
+    save_t({"year": 2026, "training_days": {}, "training_pct": 10})
+    dcl = plan(rows)
+    pcl = next(r for r in dcl["people"] if r["name"] == WHO)
+    check("clearing the figure returns them to the share",
+          pcl["training_from_share"] is True
+          and pcl["training_days"] == p10["training_days"],
+          str(pcl["training_days"]))
+finally:
+    save_t({"year": 2026, "training_days": before_training, "training_pct": 5})
+
+back = plan(rows)
+pb = next(r for r in back["people"] if r["name"] == WHO)
+check("and the configured figures come back",
+      pb["training_days"] == p["training_days"], str(pb["training_days"]))
+
 print("\nA rejected ticket still took the time it took")
 rows2 = [ticket(i, 2026) for i in range(10)] \
     + [ticket(700 + i, 2026, state="Closed Rejected") for i in range(10)]
