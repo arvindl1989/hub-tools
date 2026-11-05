@@ -96,19 +96,23 @@ check("the year before is measured the same way, at its own rate",
       wcm["prev_hours"] == 5.0, str(wcm["prev_hours"]))
 check("per day is the other way up", wcm["year_per_day"] == round(100 / 57.5, 2),
       str(wcm["year_per_day"]))
-check("the goal is typed, so nothing is claimed until somebody types it",
-      wcm["goal_capacity"] is None, str(wcm["goal_capacity"]))
-# Not the value — the starting point offered beside the empty box.
-check("but this year's rate carried to December is offered",
-      wcm["projected"] and wcm["projected"] >= wcm["actual"],
-      f"{wcm['actual']} closed → {wcm['projected']} projected")
+# The sheet's own sum: consolidated days times eight hours over the goal TAT.
+# Against its figures — WCM 293 x 1.78 = 521 for 520, DEA 155 x 0.80 = 124,
+# CP-GD 137 x 1.14 = 157 for 156, PWR 199 x 0.20 = 40.
+check("goal capacity is those days at the target rate",
+      wcm["goal_capacity"] == round(57.5 * (8 / 4.5)), str(wcm["goal_capacity"]))
+check("which is above the actual, the goal being the faster rate",
+      wcm["goal_capacity"] > wcm["actual"], f"{wcm['goal_capacity']} vs {wcm['actual']}")
+check("and per person it is their own days at that rate",
+      wcm["people"][WHO]["goal"] == round(wcm["people"][WHO]["actual"] * 4.6 / 4.5),
+      str(wcm["people"][WHO]["goal"]))
 check("last year is counted separately", wcm["previous"] == 40, str(wcm["previous"]))
 
 print("\nA hand-set figure parts the measured rate from the one set for pricing")
 hand = json.loads(urllib.request.urlopen(urllib.request.Request(
     f"{BASE}/api/capacity-plan/manual",
-    data=json.dumps({"year": 2026, "person": WHO, "service": "WCM", "days": 100,
-                     "goal": 120, "set_goal": True}).encode(),
+    data=json.dumps({"year": 2026, "person": WHO, "service": "WCM",
+                     "days": 100}).encode(),
     headers={"Content-Type": "application/json"}, method="PUT")).read())
 try:
     dh2 = plan(rows)
@@ -119,20 +123,17 @@ try:
           str(wh["year_hours"]))
     check("while the rate used for pricing is untouched", wh["rate_hours"] == 4.6,
           str(wh["rate_hours"]))
-    check("the goal is what was typed", wh["goal_capacity"] == 120,
-          str(wh["goal_capacity"]))
-    check("and it is carried per person", wh["people"][WHO]["goal"] == 120.0,
-          str(wh["people"][WHO]["goal"]))
+    check("and the goal follows the days it is computed from",
+          wh["goal_capacity"] == round(100 * (8 / 4.5)), str(wh["goal_capacity"]))
 finally:
     urllib.request.urlopen(urllib.request.Request(
         f"{BASE}/api/capacity-plan/manual",
         data=json.dumps({"year": 2026, "person": WHO, "service": "WCM",
-                         "days": None, "goal": None, "set_goal": True}).encode(),
+                         "days": None}).encode(),
         headers={"Content-Type": "application/json"}, method="PUT"))
 back_wcm = next(s for s in plan(rows)["services"] if s["short"] == "WCM")
-check("clearing both puts it all back",
-      back_wcm["year_hours"] == 4.6 and back_wcm["goal_capacity"] is None,
-      f"{back_wcm['year_hours']}, {back_wcm['goal_capacity']}")
+check("clearing it puts it all back", back_wcm["year_hours"] == 4.6,
+      str(back_wcm["year_hours"]))
 
 print("\nTraining is a share of availability, with a figure for the exceptions")
 tsettings = json.loads(urllib.request.urlopen(
@@ -413,28 +414,6 @@ restored = plan(rows)
 pr = next(r for r in restored["people"] if r["name"] == WHO)
 check("and it goes back", pr["productivity_days"] == p["productivity_days"],
       str(pr["productivity_days"]))
-
-print("\nThe goal grid fills a whole year in one pass")
-before_goals = json.loads(urllib.request.urlopen(
-    f"{BASE}/api/capacity-plan/settings?year=2026").read()).get("goal_tickets") or {}
-try:
-    save({"year": 2026, "goal_tickets": {WHO: {"WCM": 130}, "Nitish JK": {"WCM": 40}}})
-    dg = plan(rows)
-    wg = next(s for s in dg["services"] if s["short"] == "WCM")
-    print(f"   130 + 40 typed → team capacity {wg['goal_capacity']}")
-    check("team capacity is the sum of what was typed", wg["goal_capacity"] == 170,
-          str(wg["goal_capacity"]))
-    check("and it is kept per person", wg["people"][WHO]["goal"] == 130.0,
-          str(wg["people"][WHO]["goal"]))
-    check("the grid reads back what it wrote",
-          (json.loads(urllib.request.urlopen(
-              f"{BASE}/api/capacity-plan/settings?year=2026").read())["goal_tickets"]
-           [WHO]["WCM"]) == 130.0)
-finally:
-    save({"year": 2026, "goal_tickets": before_goals})
-check("and clearing the grid empties the column",
-      next(s for s in plan(rows)["services"]
-           if s["short"] == "WCM")["goal_capacity"] is None)
 
 # The Utility Rate page owns /api/capacity-settings; this page must not have
 # taken that path from it.

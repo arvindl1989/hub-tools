@@ -401,16 +401,12 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                 {shown.map(s => (
                   <Fragment key={s.short}>
                     <td style={{ ...td, fontWeight: 700,
-                                 borderLeft: `2px solid ${LINE}`,
-                                 color: s.goal_capacity == null ? AMBER : INK,
-                                 fontSize: s.goal_capacity == null ? 10.5 : 12.5 }}
-                        title={s.goal_capacity == null
-                          ? (s.projected
-                            ? `No goal typed for ${s.short} yet. At this year's rate so far `
-                              + `it lands near ${s.projected}.`
-                            : `No goal typed for ${s.short} yet.`)
-                          : `Typed, summed across the team`}>
-                      {s.goal_capacity == null ? 'not set' : n0(s.goal_capacity)}
+                                 borderLeft: `2px solid ${LINE}` }}
+                        title={s.goal_hours
+                          ? `${s.days} days at ${s.goal_per_day}/day — what those same `
+                            + `days would finish at the ${s.goal_hours}h target`
+                          : `No target rate set for ${s.short}`}>
+                      {n0(s.goal_capacity)}
                     </td>
                     <td style={{ ...td, fontWeight: 700 }}>{n0(s.actual)}</td>
                     <td style={{ ...td, fontWeight: 700, color: DIM }}>{n0(s.previous)}</td>
@@ -438,14 +434,10 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                           <td onClick={() => setCell({ person: p.name, service: s.short })}
                               style={{ ...td, borderLeft: `2px solid ${LINE}`,
                                        cursor: 'pointer',
-                                       color: c.goal == null ? '#ddd8cf' : BLUE }}
-                              title={c.goal == null
-                                ? (c.projected
-                                  ? `No ${year} goal set for ${p.name}. At this rate they `
-                                    + `land near ${c.projected} — click to set one`
-                                  : `No ${year} goal set for ${p.name} — click to set one`)
-                                : `Goal for ${year}, set by hand — click to change it`}>
-                            {c.goal == null ? '–' : n0(c.goal)}
+                                       color: blank ? '#ddd8cf' : DIM }}
+                              title={`Their ${s.short} days at the `
+                                     + `${s.goal_hours ?? '—'}h target`}>
+                            {blank ? '–' : n0(c.goal)}
                           </td>
                           <td style={{ ...td, color: blank ? '#ddd8cf' : INK,
                                        fontWeight: blank ? 400 : 600 }}>
@@ -481,11 +473,9 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
           Set the hours in the bar above.</Note>
         ) : null}
         <br />
-        <b>Goal</b> is what the team anticipates finishing by the end of the year. It is
-        typed, per person, because nothing in the tickets implies it — set it in the grid in
-        the edit bar, or by clicking a Goal cell. Until then it reads
-        {' '}<span style={{ color: '#b87d00' }}>not set</span>, and hovering a cell offers
-        where this year&rsquo;s rate so far would land. <b>Avg TAT</b> for {year} and
+        <b>Goal</b> is what the same days would finish if a ticket took the target time:
+        the days that went into a service, times eight hours over the goal TAT. Set the
+        target in the edit bar. <b>Avg TAT</b> for {year} and
         {' '}{year - 1} is measured rather than typed: the days that went into a service over
         the tickets that came out of it. While every day on the page is priced from the rate
         in the edit bar that calculation is circular and simply restates that rate — which is

@@ -434,12 +434,8 @@ export async function getCapacityPlanCell(sid, { year, person, service }, filter
 
 // days: a number to set the cell by hand, null to go back to the rate.
 // note: why it was set, kept with the figure and cleared along with it.
-// goal: tickets anticipated for the year, sent only when set_goal is true so
-// that a null can mean "clear it" rather than "leave it alone".
-export async function setCapacityManualDays({ year, person, service, days, note,
-                                              goal, setGoal = false }) {
+export async function setCapacityManualDays({ year, person, service, days, note }) {
   const { data } = await client.put('/capacity-plan/manual',
-                                    { year, person, service, days, note,
-                                      goal, set_goal: setGoal })
+                                    { year, person, service, days, note })
   return data
 }

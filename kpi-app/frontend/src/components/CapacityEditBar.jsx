@@ -44,11 +44,6 @@ export default function CapacityEditBar({ year, onSaved }) {
   const put = (group, key, value) =>
     setS(prev => ({ ...prev, [group]: { ...prev[group], [key]: value } }))
 
-  const putGoal = (who, short, value) =>
-    setS(prev => ({ ...prev,
-      goal_tickets: { ...prev.goal_tickets,
-                      [who]: { ...(prev.goal_tickets || {})[who], [short]: value } } }))
-
   const save = async () => {
     setSaving(true); setError(null)
     try {
@@ -58,8 +53,6 @@ export default function CapacityEditBar({ year, onSaved }) {
         training_pct: Number(s.training_pct) || 0,
         hours: numeric(s.hours),
         goal_hours: numeric(s.goal_hours),
-        goal_tickets: Object.fromEntries(
-          Object.entries(s.goal_tickets || {}).map(([who, row]) => [who, numeric(row)])),
         working_days: numeric(s.working_days),
         holidays: numeric(s.holidays),
         training_days: numeric(s.training_days),
@@ -241,48 +234,6 @@ export default function CapacityEditBar({ year, onSaved }) {
                     </tbody>
                   </table>
                 </div>
-              </div>
-
-              {/* The Goal column on the service board: what the team
-                  anticipates finishing this year. A plan, so it is typed —
-                  nothing in the tickets implies it. One grid rather than
-                  sixty-three visits to the cell dialog. */}
-              <div style={{ marginTop: 18 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, fontFamily: INTER,
-                              color: '#141414', marginBottom: 2 }}>
-                  Goal for {year} — tickets anticipated by the year end
-                </div>
-                <div style={{ fontSize: 11, color: DIM, fontFamily: INTER,
-                              marginBottom: 6 }}>
-                  Leave a box empty and that cell stays unset. The service board
-                  totals whatever is here.
-                </div>
-                <table style={{ borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ ...head, textAlign: 'left' }}>Name</th>
-                      {s.services.map(svc => (
-                        <th key={svc.short} style={head}>{svc.short}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {s.people.map(name => (
-                      <tr key={name}>
-                        <td style={{ ...cell, textAlign: 'left', fontSize: 12.5,
-                                     fontFamily: INTER, whiteSpace: 'nowrap' }}>{name}</td>
-                        {s.services.map(svc => (
-                          <td key={svc.short} style={cell}>
-                            <input style={{ ...box, width: 62 }} type="number" min="0"
-                                   placeholder="—"
-                                   value={(s.goal_tickets?.[name] || {})[svc.short] ?? ''}
-                                   onChange={e => putGoal(name, svc.short, e.target.value)} />
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
