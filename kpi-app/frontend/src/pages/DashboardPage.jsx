@@ -16,7 +16,15 @@ import MiniPieChart      from '../components/charts/MiniPieChart'
 import ComparisonBarChart from '../components/charts/ComparisonBarChart'
 import PeriodOverlayChart from '../components/charts/PeriodOverlayChart'
 import GenerateDeckModal from '../components/GenerateDeckModal'
-import { Card as KoneCard, MetricCard, stickyFilterCard } from '../components/KoneUI'
+import {
+  Card as KoneCard, MetricCard, SegmentCard, stickyFilterCard,
+  activeFilterPillStyle, INTER, KONE_FONT, NPS_BUCKET_STYLES, cardHeadingStyle,
+} from '../components/KoneUI'
+
+// The comparison period's colour. KONE orange rather than the near-miss that
+// was here, so the two periods read as brand colours and not as a chart's own.
+const COMPARE = '#FF5F28'
+const pct = (n, of) => (of ? `${Math.round((n / of) * 100)}% of all requests` : null)
 
 function useRefetch(fn, set, onErr, deps) {
   const ref = useRef(0)
@@ -131,6 +139,11 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
   const uniqueTicketsB = hubHealthB?.unique      ?? totalAllB
   const dependencyB    = hubHealthB?.dependency  ?? 0
 
+  // Whatever is narrowing the page, echoed under the title as pills — the
+  // same cue the other two tabs give, so a filtered page never looks like
+  // the whole picture.
+  const activeFilters = Object.values(filters).filter(Boolean)
+
   const labelA = compareEnabled ? labelForRange(range.from, range.to) : null
   const labelB = compareEnabled ? labelForRange(compareRange.from, compareRange.to) : null
   const comparing = compareEnabled && (compareRange.from || compareRange.to)
@@ -147,15 +160,40 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+      {/* Header — the same shape User Activity and Feedback open with: the
+          page's name, whatever is filtering it, and the period on the right. */}
+      <div style={{ display: 'flex', alignItems: 'flex-end',
+                    justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#141414', margin: 0,
+                       letterSpacing: '-0.02em', fontFamily: INTER }}>Dashboard</h2>
+          {activeFilters.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              {activeFilters.map(v => (
+                <span key={v} style={activeFilterPillStyle}>{v}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#1450f5', background: '#eef3fe',
+                       borderRadius: 8, padding: '5px 12px', fontFamily: INTER }}>
+          {(labelForRange(range.from, range.to) || 'All time').toUpperCase()}
+          {totalAll ? ` · ${totalAll.toLocaleString()} REQUESTS` : ''}
+        </span>
+      </div>
+
       {/* Filters — govern every component on this page */}
       <div style={stickyFilterCard}>
         <DashboardFilters overview={overview} filters={filters} range={range} onFilter={onFilter} onRange={setRange} />
       </div>
 
-      {/* Period comparison toggle */}
+      {/* Period comparison. Off, it is one button and gets no card — an empty
+          panel holding a single control reads as something failing to load. */}
       <div style={{
-        background: comparing ? '#eef3fe' : '#fff', borderRadius: 12,
-        border: `1px solid ${comparing ? '#c7d7fd' : '#e8e2d6'}`, padding: '10px 16px',
+        background: compareEnabled ? (comparing ? '#eef3fe' : '#fff') : 'transparent',
+        borderRadius: 12, marginTop: -8,
+        border: compareEnabled ? `1px solid ${comparing ? '#c7d7fd' : '#e8e2d6'}` : 'none',
+        padding: compareEnabled ? '10px 16px' : 0,
         display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
       }}>
         <button
@@ -166,7 +204,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
             borderRadius: 8, border: `1px solid ${compareEnabled ? '#1450f5' : '#e8e2d6'}`,
             background: compareEnabled ? '#1450f5' : '#fff',
             color: compareEnabled ? '#fff' : '#404040',
-            fontFamily: 'Inter, sans-serif',
+            fontFamily: INTER,
           }}
         >
           <CompareIcon />
@@ -174,8 +212,9 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
         </button>
 
         {compareEnabled && (<>
-          <span style={{ fontSize: 12, color: '#6e6e6e', fontWeight: 600 }}>
-            {labelForRange(range.from, range.to)} <span style={{ color: '#9c9c9c', fontWeight: 400 }}>vs</span>
+          <span style={{ fontSize: 12, color: '#6e6e6e', fontWeight: 600, fontFamily: INTER }}>
+            {labelForRange(range.from, range.to)}{' '}
+            <span style={{ color: '#9c9c9c', fontWeight: 400 }}>vs</span>
           </span>
           <PeriodPickerButton
             dateFrom={compareRange.from} dateTo={compareRange.to}
@@ -183,11 +222,43 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
             placeholder="Pick a period to compare"
           />
           {comparing && (
-            <span style={{ fontSize: 11, color: '#1450f5', fontWeight: 600 }}>
+            <span style={{ fontSize: 11, color: '#1450f5', fontWeight: 600,
+                           fontFamily: INTER }}>
               Every card and chart below now shows both periods.
             </span>
           )}
         </>)}
+      </div>
+
+      {/* KPI row — the three totals. The states below get the tinted triad
+          instead, the way User Activity splits its counts from its segments. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <MetricCard label="Total Tickets" value={totalAll?.toLocaleString()}
+                    sub="Every request raised in range"
+                    footer={<Cmp current={totalAll} previous={comparing ? totalAllB : null} />} />
+        <MetricCard label="Unique Tickets" value={uniqueTickets?.toLocaleString()}
+                    sub="Distinct ticket numbers, duplicates collapsed"
+                    footer={<Cmp current={uniqueTickets} previous={comparing ? uniqueTicketsB : null} />} />
+        <MetricCard label="Dependency" value={dependency?.toLocaleString()}
+                    sub="Held up by somebody outside the hub"
+                    footer={<Cmp current={dependency} previous={comparing ? dependencyB : null} />} />
+      </div>
+
+      {/* The three states, in the sentiment triad the other tabs use for their
+          own segments — finished, still moving, turned down. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <SegmentCard label="Closed Completed" value={closedCompleted?.toLocaleString()}
+                     tone={NPS_BUCKET_STYLES.promoter}
+                     sub={comparing ? `vs ${closedCompletedB.toLocaleString()} last period`
+                       : pct(closedCompleted, totalAll)} />
+        <SegmentCard label="In Pipeline" value={inPipeline?.toLocaleString()}
+                     tone={NPS_BUCKET_STYLES.passive}
+                     sub={comparing ? `vs ${inPipelineB.toLocaleString()} last period`
+                       : pct(inPipeline, totalAll)} />
+        <SegmentCard label="Closed Rejected" value={closedRejected?.toLocaleString()}
+                     tone={NPS_BUCKET_STYLES.detractor}
+                     sub={comparing ? `vs ${closedRejectedB.toLocaleString()} last period`
+                       : pct(closedRejected, totalAll)} />
       </div>
 
       {/* Hub Health */}
@@ -199,7 +270,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
               <div style={{ marginTop: 8 }}><HubHealthBar data={hubHealth} /></div>
             </div>
             <div style={{ borderTop: '1px solid #f1ede3', paddingTop: 16 }}>
-              <PeriodTag color="#e86427" label={labelB} />
+              <PeriodTag color={COMPARE} label={labelB} />
               <div style={{ marginTop: 8 }}><HubHealthBar data={hubHealthB} /></div>
             </div>
           </div>
@@ -208,16 +279,6 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
         )}
       </Card>
 
-      {/* KPI Row — same blue metric cards as the Feedback and User Activity tabs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        <MetricCard label="Total Tickets"    value={totalAll?.toLocaleString()}        footer={<Cmp current={totalAll}        previous={comparing ? totalAllB : null} />} />
-        <MetricCard label="Closed Completed" value={closedCompleted?.toLocaleString()} footer={<Cmp current={closedCompleted} previous={comparing ? closedCompletedB : null} />} />
-        <MetricCard label="Closed Rejected"  value={closedRejected?.toLocaleString()}  footer={<Cmp current={closedRejected}  previous={comparing ? closedRejectedB : null} />} />
-        <MetricCard label="In Pipeline"      value={inPipeline?.toLocaleString()}      footer={<Cmp current={inPipeline}      previous={comparing ? inPipelineB : null} />} />
-        <MetricCard label="Unique Tickets"   value={uniqueTickets?.toLocaleString()}   footer={<Cmp current={uniqueTickets}   previous={comparing ? uniqueTicketsB : null} />} />
-        <MetricCard label="Dependency"       value={dependency?.toLocaleString()}      footer={<Cmp current={dependency}      previous={comparing ? dependencyB : null} />} />
-      </div>
-
       {/* Inflow vs Outflow */}
       <Card title="Inflow vs Outflow" subtitle="Ticket creation vs resolution — positive net means backlog is growing" accent="#1450f5" icon={<TrendIcon />}
         controls={!comparing && (
@@ -225,7 +286,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
             {['week', 'month'].map(g => (
               <button key={g} onClick={() => setGroupBy(g)} style={{
                 padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
-                fontFamily: 'Inter, sans-serif',
+                fontFamily: INTER,
                 background: groupBy === g ? '#1450f5' : '#fff',
                 color: groupBy === g ? '#fff' : '#6e6e6e',
               }}>
@@ -314,8 +375,9 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
       }}>
         <div>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#141414', margin: 0 }}>Experimental Reports</h3>
-          <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0' }}>
+          <h3 style={{ ...cardHeadingStyle('#141414'), fontSize: 14, fontWeight: 700,
+                       margin: 0, textTransform: 'none' }}>Experimental Reports</h3>
+          <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0', fontFamily: INTER }}>
             Service 2, SLA &amp; Time, the 3D Board, Growth &amp; Capacity, Priority Tracker, Analytics, Bandwidth, Insights and Utility Rate — everything kept out of the main navigation.
           </p>
         </div>
@@ -324,7 +386,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
           style={{
             background: '#1450f5', color: '#fff', border: 'none', borderRadius: 8,
             padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
+            fontFamily: INTER, whiteSpace: 'nowrap',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
         >
@@ -341,18 +403,20 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
       }}>
         <div>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#141414', margin: 0 }}>Generate Monthly Deck</h3>
-          <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0' }}>
+          <h3 style={{ ...cardHeadingStyle('#141414'), fontSize: 14, fontWeight: 700,
+                       margin: 0, textTransform: 'none' }}>Generate Monthly Deck</h3>
+          <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0', fontFamily: INTER }}>
             Fills the KPIs, requests and feedback highlights for the selected period ({labelForRange(range.from, range.to) || 'pick a range above'}) into the Marketing Hub sharing template.
           </p>
-          {deckError && <p style={{ fontSize: 12, color: '#c0305a', margin: '6px 0 0', fontWeight: 600 }}>{deckError}</p>}
+          {deckError && <p style={{ fontSize: 12, color: '#c0305a', margin: '6px 0 0',
+                                    fontWeight: 600, fontFamily: INTER }}>{deckError}</p>}
         </div>
         <button
           onClick={handleGenerateDeckClick}
           style={{
             background: '#1450f5', color: '#fff', border: 'none', borderRadius: 8,
             padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
+            fontFamily: INTER, whiteSpace: 'nowrap',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
         >
@@ -392,7 +456,9 @@ function Cmp({ current, previous }) {
   if (previous == null || current == null) return null
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>vs {previous.toLocaleString()}</span>
+      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', fontFamily: INTER }}>
+        vs {previous.toLocaleString()}
+      </span>
       <DeltaBadge current={current} previous={previous} size="sm" />
     </div>
   )
@@ -405,6 +471,7 @@ function PeriodTag({ color, label }) {
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700,
       color, background: `${color}15`, borderRadius: 6, padding: '3px 9px',
+      fontFamily: INTER,
     }}>
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />
       {label}
@@ -413,35 +480,37 @@ function PeriodTag({ color, label }) {
 }
 
 function SectionLabel({ children }) {
-  return <div style={{ fontSize: 11, fontWeight: 700, color: '#6e6e6e', marginBottom: 6 }}>{children}</div>
+  return (
+    <div style={{ ...cardHeadingStyle('#6e6e6e'), fontSize: 10, marginBottom: 6,
+                  textTransform: 'none', letterSpacing: 0 }}>{children}</div>
+  )
 }
 
 function CompareStat({ label, valueA, valueB, unit = '', labelA, labelB }) {
   return (
     <div style={{ background: '#faf8f3', border: '1px solid #f1ede3', borderRadius: 10, padding: '12px 14px' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#6e6e6e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+      <div style={cardHeadingStyle('#6e6e6e')}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-        <span style={{ fontSize: 20, fontWeight: 800, color: '#1450f5' }}>{valueA ?? '—'}{valueA != null ? unit : ''}</span>
-        <span style={{ fontSize: 12, color: '#9c9c9c' }}>vs</span>
-        <span style={{ fontSize: 20, fontWeight: 800, color: '#e86427' }}>{valueB ?? '—'}{valueB != null ? unit : ''}</span>
+        <span style={{ fontSize: 22, fontWeight: 700, color: '#1450f5', fontFamily: KONE_FONT }}>
+          {valueA ?? '—'}{valueA != null ? unit : ''}
+        </span>
+        <span style={{ fontSize: 12, color: '#9c9c9c', fontFamily: INTER }}>vs</span>
+        <span style={{ fontSize: 22, fontWeight: 700, color: COMPARE, fontFamily: KONE_FONT }}>
+          {valueB ?? '—'}{valueB != null ? unit : ''}
+        </span>
         <DeltaBadge current={valueB} previous={valueA} size="sm" />
       </div>
-      <div style={{ fontSize: 10, color: '#9c9c9c', marginTop: 4 }}>{labelA} → {labelB}</div>
+      <div style={{ fontSize: 10, color: '#9c9c9c', marginTop: 4, fontFamily: INTER }}>
+        {labelA} → {labelB}
+      </div>
     </div>
   )
 }
-
-// ── KPI Tile ──────────────────────────────────────────────────────────
-
-
-// ── Closed KPI Tile (Completed + Rejected coupled, KONE mint surface) ─
-
 
 // ── Icons (14×14 SVG) ─────────────────────────────────────────────────
 
 const I = (d) => () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 
-const CheckIcon   = I(<><path d="M20 6L9 17l-5-5"/></>)
 const PulseIcon   = I(<><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></>)
 const MapIcon     = I(<><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></>)
 const TeamIcon    = I(<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>)
