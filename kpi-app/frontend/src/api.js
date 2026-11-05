@@ -417,3 +417,24 @@ export async function updateCapacityPlanSettings(body) {
   const { data } = await client.put('/capacity-plan/settings', body)
   return data
 }
+
+// The closed tickets behind one cell of the allocation table — same filters
+// and same routing as the table, so what opens is what was counted.
+export async function getCapacityPlanCell(sid, { year, person, service }, filters = {}) {
+  const { data } = await client.get(`/sessions/${sid}/capacity-plan/tickets`, {
+    params: _clean({
+      year, person, service,
+      assigned_to: filters.assignedTo, team: filters.team, area: filters.area,
+      sub_category: filters.subCategory,
+      date_from: filters.dateFrom, date_to: filters.dateTo,
+    }),
+  })
+  return data
+}
+
+// days: a number to set the cell by hand, null to go back to the rate.
+export async function setCapacityManualDays({ year, person, service, days }) {
+  const { data } = await client.put('/capacity-plan/manual',
+                                    { year, person, service, days })
+  return data
+}

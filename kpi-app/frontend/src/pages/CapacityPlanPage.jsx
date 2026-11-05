@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { getCapacityPlan } from '../api'
 import { INTER, KONE_FONT, Card, Empty } from '../components/KoneUI'
 import CapacityEditBar from '../components/CapacityEditBar'
+import CapacityCellDialog from '../components/CapacityCellDialog'
 
 // ── The capacity sheet, computed ─────────────────────────────────────────────
 // The team keeps this by hand. Everything in it that can be derived is derived
@@ -101,6 +102,10 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
   // Bumped when the editor saves, so the tables re-read the figures they were
   // computed from rather than sitting on the ones that were just replaced.
   const [stamp, setStamp] = useState(0)
+  // Which cell is open. Clicking one shows the tickets behind it and lets the
+  // figure be typed instead — Adhoc is the reason, but every column gets it,
+  // because "what is actually in here" is the same question everywhere.
+  const [cell, setCell] = useState(null)
 
   // Depend on the filter VALUES, not the object. `filters = {}` is a fresh
   // object on every render, so putting it in the dependency list re-ran the
@@ -255,15 +260,24 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                       // Counted but not costed: show the tickets rather than a
                       // nought, so the work is visible before the rate is set.
                       const bare = !days && tick
+                      const byHand = (p.manual || []).includes(s.short)
                       return (
                         <td key={s.short}
-                            style={{ ...td, ...edge,
-                                     color: days ? INK : bare ? AMBER : '#ddd8cf' }}
-                            title={bare
-                              ? `${tick} closed — no ${year} hours set for ${s.short}, `
-                                + 'so it is worth no days yet'
-                              : `${tick} closed`}>
+                            onClick={() => setCell({ person: p.name, service: s.short })}
+                            style={{ ...td, ...edge, cursor: 'pointer',
+                                     color: byHand ? BLUE
+                                       : days ? INK : bare ? AMBER : '#ddd8cf' }}
+                            title={byHand
+                              ? `Set by hand. ${tick} closed — click to see them or change it`
+                              : bare
+                                ? `${tick} closed — no ${year} hours set for ${s.short}. `
+                                  + 'Click to see them or set the days by hand'
+                                : `${tick} closed — click to see them`}>
                           {days ? n0(days) : bare ? `${tick}t` : '–'}
+                          {byHand && (
+                            <span style={{ color: BLUE, fontSize: 9, verticalAlign: 'super',
+                                           marginLeft: 1 }}>&#9998;</span>
+                          )}
                         </td>
                       )
                     })}
@@ -431,6 +445,11 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
           Set the hours in the bar above.</Note>
         ) : null}
         <br />
+        <b>Click any service cell</b> to see the tickets behind it, and the sub-categories
+        and teams that put them there — and to type the days in by hand where the ticket
+        count does not describe the work. A <span style={{ color: BLUE }}>&#9998;</span>
+        marks a figure set that way.
+        <br />
         <b>Where each figure comes from.</b> Working days, holidays, the cadence and training
         shares and each service&rsquo;s hours are settings, per year, in the bar above.
         Training is {data.training_pct}% of availability for anybody without a figure of
@@ -441,6 +460,13 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
         Everything else is computed from the tickets closed in {year} —
         {' '}{data.closed_states.join(' and ')} — so nothing on this page is typed twice.
       </p>
+
+      {cell && (
+        <CapacityCellDialog sessionId={sessionId} year={year} person={cell.person}
+                            service={cell.service} filters={filters} range={range}
+                            onClose={() => setCell(null)}
+                            onSaved={() => setStamp(n => n + 1)} />
+      )}
     </div>
   )
 }

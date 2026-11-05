@@ -3002,6 +3002,11 @@ CAPACITY_PLAN_DEFAULT: dict = {
                           "Akshayaa Rajeswari AS": 30, "Arvind Lakshminarayanan": 30,
                           "Jerlin Jeba": 10, "Ranjithkumar Ashokkumar": 15,
                           "Nitish JK": 15}},
+    # Days set by hand for one person, one service, one year, where the
+    # ticket count does not describe the work — Adhoc above all, which is a
+    # column of things that resemble each other only in not being anything
+    # else. A figure here replaces the computed one and nothing else.
+    "manual_days": {},
     "training_days": {"2026": {"Ajith A": 11, "Akshaya Praveen": 11,
                                "Akshayaa Rajeswari AS": 23,
                                "Arvind Lakshminarayanan": 23, "Jerlin Jeba": 34,
@@ -3101,6 +3106,38 @@ def update_capacity_plan_settings(body: CapacitySettingsBody):
     return get_capacity_plan_settings(body.year)
 
 
+
+def _plan_router(services: list):
+    """How a closed ticket finds its column on the capacity sheet.
+
+    Exact sub-category first, then a word match on either Team or the
+    sub-category itself, then the catch-all. Both columns are tried because
+    ServiceNow files PWR and KDB in whichever of the two the exporting view
+    happens to carry, and a report that depends on knowing which is a report
+    that quietly loses a team's work.
+    """
+    sub_to_short = {str(sub).strip(): svc["short"]
+                    for svc in services for sub in (svc.get("subs") or [])}
+    # Whole words only, and never a word inside another one: "Other PWR" is
+    # PWR, "KDBX" is not KDB.
+    tokens = [(svc["short"], {str(t).strip().upper() for t in (svc.get("teams") or [])})
+              for svc in services if svc.get("teams")]
+    catch_all = next((svc["short"] for svc in services if svc.get("catch")), None)
+
+    def route(sub, team):
+        short = sub_to_short.get(str(sub or "").strip())
+        if short:
+            return short
+        words = set(re.split(r"[^A-Za-z0-9]+",
+                             f"{team or ''} {sub or ''}".upper())) - {""}
+        for short, want in tokens:
+            if words & want:
+                return short
+        return catch_all
+
+    return route
+
+
 @app.get("/api/sessions/{sid}/capacity-plan")
 def capacity_plan(sid: str, year: int = 2026,
                   assigned_to: str = '', team: str = '', area: str = '',
@@ -3129,24 +3166,7 @@ def capacity_plan(sid: str, year: int = 2026,
         done = done[done["state"].isin(states)]
 
     services = CAPACITY_PLAN.get("services") or []
-    sub_to_short = {sub: svc["short"] for svc in services for sub in (svc.get("subs") or [])}
-    # Team is free text on the sheet — "PWR", "Other PWR", "KDB Nordics" —
-    # so match a whole word rather than the exact string, and never a word
-    # inside another one ("KDBX" is not KDB).
-    team_tokens = [(svc["short"], {str(t).strip().upper() for t in (svc.get("teams") or [])})
-                   for svc in services if svc.get("teams")]
-    catch_all = next((svc["short"] for svc in services if svc.get("catch")), None)
-
-    def route(sub, team):
-        """Which service column this ticket belongs in, or None."""
-        short = sub_to_short.get(str(sub).strip())
-        if short:
-            return short
-        words = set(re.split(r"[^A-Za-z0-9]+", str(team or "").upper())) - {""}
-        for short, tokens in team_tokens:
-            if words & tokens:
-                return short
-        return catch_all
+    route = _plan_router(services)
 
     def closed_in(y):
         rows = done[done["closed_date"].dt.year == y]
@@ -3186,6 +3206,7 @@ def capacity_plan(sid: str, year: int = 2026,
     hol = (CAPACITY_PLAN.get("holidays") or {}).get(str(year)) or {}
     trn = (CAPACITY_PLAN.get("training_days") or {}).get(str(year)) or {}
 
+    manual = (CAPACITY_PLAN.get("manual_days") or {}).get(str(year)) or {}
     names = sorted(set(wd_table) | set(now_counts) | set(prev_counts))
     people = []
     for who in names:
@@ -3203,11 +3224,17 @@ def capacity_plan(sid: str, year: int = 2026,
         productivity = round(max(0.0, availability - cadence - training), 1)
 
         by_service, tickets = {}, now_counts.get(who, {})
+        manual_for = (manual.get(who) or {})
+        manual_set = []
         for svc in services:
             short = svc["short"]
             n = tickets.get(short, 0)
             hours = _plan_hours(short, year)
-            by_service[short] = round(n * hours / per_day, 1) if (n and hours) else 0.0
+            if short in manual_for:
+                by_service[short] = round(float(manual_for[short]), 1)
+                manual_set.append(short)
+            else:
+                by_service[short] = round(n * hours / per_day, 1) if (n and hours) else 0.0
         allocated = round(sum(by_service.values()), 1)
         people.append({
             "name": who,
@@ -3219,6 +3246,7 @@ def capacity_plan(sid: str, year: int = 2026,
             "utility_pct": _safe_div(allocated, productivity, pct=True, nd=0)
             if productivity else None,
             "by_service": by_service,
+            "manual": manual_set,
             "tickets": {svc["short"]: tickets.get(svc["short"], 0) for svc in services},
         })
     people.sort(key=lambda r: -r["allocated_days"])
@@ -3277,6 +3305,95 @@ def capacity_plan(sid: str, year: int = 2026,
                      if svc["mapped"] and not svc["priced"] and svc["actual"]],
         "total_tickets": int(sum(p["tickets"].get(svc["short"], 0)
                                  for p in people for svc in services)),
+    })
+
+
+class ManualDaysBody(BaseModel):
+    year: int
+    person: str
+    service: str
+    days: Optional[float] = None       # None clears it and goes back to the rate
+
+
+@app.put("/api/capacity-plan/manual")
+def set_capacity_manual_days(body: ManualDaysBody):
+    """Set, or clear, one cell of the allocation table by hand."""
+    y = str(body.year)
+    store = CAPACITY_PLAN.setdefault("manual_days", {}).setdefault(y, {})
+    person = store.setdefault(body.person, {})
+    if body.days is None:
+        person.pop(body.service, None)
+        if not person:
+            store.pop(body.person, None)
+    else:
+        person[body.service] = float(body.days)
+    _save_setting("capacity_plan", dict(CAPACITY_PLAN))
+    return {"year": body.year, "manual_days": store}
+
+
+@app.get("/api/sessions/{sid}/capacity-plan/tickets")
+def capacity_plan_tickets(sid: str, year: int = 2026, person: str = '', service: str = '',
+                          assigned_to: str = '', team: str = '', area: str = '',
+                          sub_category: str = '', date_from: str = '', date_to: str = '',
+                          limit: int = 400):
+    """The closed tickets behind one cell of the allocation table.
+
+    Same filters and the same router as the table itself, so what opens is
+    what was counted — including, for Adhoc, the sub-categories and teams
+    that matched nothing, which is how the next mapping gets written.
+    """
+    df = _get_session(sid)
+    empty = {"year": year, "person": person, "service": service, "rows": [],
+             "total": 0, "sub_categories": [], "teams": []}
+    if "created_date" not in df.columns:
+        return empty
+
+    base = _apply_dim_filters(df, assigned_to=assigned_to, team=team, area=area,
+                              sub_category=sub_category)
+    base = _filter_by_range(base, "created_date", date_from, date_to)
+    if "closed_date" not in base.columns or "assigned_to" not in base.columns:
+        return empty
+
+    states = set(CAPACITY_PLAN.get("closed_states") or ["Closed Completed"])
+    done = base.dropna(subset=["closed_date", "assigned_to"])
+    if "state" in done.columns:
+        done = done[done["state"].isin(states)]
+    done = done[done["closed_date"].dt.year == year]
+    if person:
+        done = done[done["assigned_to"].astype(str) == person]
+    if done.empty:
+        return empty
+
+    services = CAPACITY_PLAN.get("services") or []
+    route = _plan_router(services)
+    work = done.copy()
+    for col in ("sub_category", "team", "ticket_number", "short_description", "state"):
+        if col not in work.columns:
+            work[col] = ""
+    work = work.fillna({"sub_category": "", "team": ""})
+    keep = work.apply(lambda r: route(r["sub_category"], r["team"]) == service, axis=1)
+    work = work[keep].sort_values("closed_date", ascending=False)
+
+    def tally(col):
+        vals = work[col].astype(str).str.strip().replace("", "—").value_counts()
+        return [{"name": k, "count": int(v)} for k, v in vals.items()]
+
+    rows = [{
+        "number": str(r.get("ticket_number") or ""),
+        "summary": str(r.get("short_description") or ""),
+        "sub_category": str(r.get("sub_category") or ""),
+        "team": str(r.get("team") or ""),
+        "state": str(r.get("state") or ""),
+        "closed": r["closed_date"].date().isoformat() if pd.notna(r["closed_date"]) else None,
+    } for _, r in work.head(limit).iterrows()]
+
+    return _json_safe({
+        "year": year, "person": person, "service": service,
+        "rows": rows, "total": int(len(work)),
+        "sub_categories": tally("sub_category"), "teams": tally("team"),
+        "hours": _plan_hours(service, year),
+        "manual": ((CAPACITY_PLAN.get("manual_days") or {}).get(str(year), {})
+                   .get(person, {}).get(service)),
     })
 
 

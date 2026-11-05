@@ -212,6 +212,82 @@ pwr = next(s for s in dm["services"] if s["short"] == "PWR/KDB")
 check("and the page is told how it is routed",
       pwr["routed_by"] == "team PWR or KDB", str(pwr["routed_by"]))
 
+print("\nPWR and KDB are matched in the sub-category too, not only the team")
+# ServiceNow files them in whichever column the exporting view carries, and
+# the sheet people read shows them as a sub-category.
+subbed = ([ticket(i, 2026) for i in range(10)]
+          + [ticket(100 + i, 2026, sub="PWR") for i in range(6)]
+          + [ticket(200 + i, 2026, sub="KDB Update") for i in range(4)]
+          + [ticket(300 + i, 2026, sub="Random Thing") for i in range(5)])
+for r in subbed[300 - 300 + 20:]:
+    r["Team"] = "Brand"
+dsub = plan(subbed)
+psub = next(r for r in dsub["people"] if r["name"] == WHO)
+print(f"   {psub['tickets']}")
+check("a sub-category that says PWR or KDB lands in that column",
+      psub["tickets"]["PWR/KDB"] == 10, str(psub["tickets"]["PWR/KDB"]))
+check("and the rest still falls to Adhoc", psub["tickets"]["Adhoc"] == 5,
+      str(psub["tickets"]["Adhoc"]))
+
+print("\nA cell opens on what is behind it, and can be set by hand")
+sid_cell = json.loads(urllib.request.urlopen(urllib.request.Request(
+    f"{BASE}/api/upload-json", data=json.dumps({"rows": subbed}).encode(),
+    headers={"Content-Type": "application/json"})).read())["session_id"]
+
+
+def cell(service, person=WHO, sid=None):
+    q = urllib.parse.urlencode({"year": 2026, "person": person, "service": service})
+    return json.loads(urllib.request.urlopen(
+        f"{BASE}/api/sessions/{sid or sid_cell}/capacity-plan/tickets?{q}").read())
+
+
+def manual(service, days, person=WHO):
+    req = urllib.request.Request(
+        f"{BASE}/api/capacity-plan/manual",
+        data=json.dumps({"year": 2026, "person": person,
+                         "service": service, "days": days}).encode(),
+        headers={"Content-Type": "application/json"}, method="PUT")
+    return json.loads(urllib.request.urlopen(req).read())
+
+
+c = cell("Adhoc")
+print(f"   Adhoc holds {c['total']}, from {[x['name'] for x in c['sub_categories']]}")
+check("the cell lists exactly what the table counted", c["total"] == 5, str(c["total"]))
+check("with the ticket numbers", c["rows"][0]["number"].startswith("CP"),
+      c["rows"][0]["number"])
+check("and what routed them there, which is how the next rule gets written",
+      [x["name"] for x in c["sub_categories"]] == ["Random Thing"]
+      and [x["name"] for x in c["teams"]] == ["Brand"],
+      str(c["sub_categories"]))
+check("a priced cell shows its rate", cell("WCM")["hours"] == 4.6,
+      str(cell("WCM")["hours"]))
+check("an unpriced one admits it has none", c["hours"] is None, str(c["hours"]))
+
+try:
+    manual("Adhoc", 70)
+    dh = plan(subbed)
+    ph = next(r for r in dh["people"] if r["name"] == WHO)
+    print(f"   Adhoc set to 70 → allocated {ph['allocated_days']}")
+    check("the typed figure replaces the computed one",
+          ph["by_service"]["Adhoc"] == 70.0, str(ph["by_service"]["Adhoc"]))
+    check("the row says which cells were typed", ph["manual"] == ["Adhoc"],
+          str(ph["manual"]))
+    check("and it counts towards the allocation",
+          ph["allocated_days"] == round(psub["allocated_days"] + 70, 1),
+          f"{psub['allocated_days']} → {ph['allocated_days']}")
+    check("only that cell moves",
+          ph["by_service"]["WCM"] == psub["by_service"]["WCM"],
+          str(ph["by_service"]["WCM"]))
+    check("and the dialog knows it is set", cell("Adhoc")["manual"] == 70.0,
+          str(cell("Adhoc")["manual"]))
+finally:
+    manual("Adhoc", None)
+
+dc = plan(subbed)
+pc = next(r for r in dc["people"] if r["name"] == WHO)
+check("clearing it goes back to the rate",
+      pc["by_service"]["Adhoc"] == 0.0 and pc["manual"] == [], str(pc["manual"]))
+
 print("\nServices with no route carry nothing")
 check("they are named rather than hidden",
       set(d["unmapped"]) == {"PM", "Local SEO"}, str(d["unmapped"]))
