@@ -29,13 +29,13 @@ const EXCLUDED_MEMBERS = new Set(['Dheera Sameera', 'Pooja V', 'Suresh Karthik']
 // Section accent colours — brand palette
 const COLOR = {
   indigo: '#1450f5',
-  blue:   '#0077a8',
-  green:  '#1e8a5e',
+  blue:   '#0d7f9e',
+  green:  '#0f9c52',
   amber:  '#b87d00',
-  red:    '#c0305a',
-  violet: '#0077a8',
-  pink:   '#c0305a',
-  teal:   '#0aa08f',
+  red:    '#a8336b',
+  violet: '#0d7f9e',
+  pink:   '#a8336b',
+  teal:   '#0d7f9e',
   slate:  '#9c9c9c',
 }
 
@@ -165,7 +165,7 @@ export default function AnalyticsPage({ sessionId, onSessionExpired }) {
   if (loadError) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 12 }}>
-        <div style={{ fontSize: 13, color: '#c0305a', background: '#fff0f3', border: '1px solid #ffcdd7', borderRadius: 10, padding: '12px 20px', maxWidth: 500, textAlign: 'center' }}>
+        <div style={{ fontSize: 13, color: '#a8336b', background: '#fff0f3', border: '1px solid #ffcdd7', borderRadius: 10, padding: '12px 20px', maxWidth: 500, textAlign: 'center' }}>
           <strong>Could not load analytics data</strong><br />
           <span style={{ fontSize: 12, color: '#6e6e6e' }}>{loadError}</span>
         </div>
@@ -517,9 +517,9 @@ function Controls({ children }) {
 }
 
 const TIER = {
-  good:    { bar: '#1e8a5e', numColor: '#141414', bg: '#edf8f2', border: '#aae1c8' },
+  good:    { bar: '#0f9c52', numColor: '#141414', bg: '#edf8f2', border: '#aae1c8' },
   warn:    { bar: '#b87d00', numColor: '#141414', bg: '#fffde8', border: '#ffe141' },
-  bad:     { bar: '#c0305a', numColor: '#141414', bg: '#fff0f3', border: '#ffcdd7' },
+  bad:     { bar: '#a8336b', numColor: '#141414', bg: '#fff0f3', border: '#ffcdd7' },
   neutral: { bar: '#1450f5', numColor: '#1450f5', bg: '#eef3fe', border: '#d2f5ff' },
 }
 

@@ -64,7 +64,7 @@ export default function DashboardExtrasPage({ sessionId, onSessionExpired }) {
       </div>
 
       {/* Resolved by Specialist */}
-      <Card title="Resolved by Specialist" subtitle="Closed tickets per team member · stacked by sub-category" accent="#1e8a5e">
+      <Card title="Resolved by Specialist" subtitle="Closed tickets per team member · stacked by sub-category" accent="#0f9c52">
         <StackedBarChart data={bySpecialist} dimKey="assigned_to" />
       </Card>
 
@@ -73,13 +73,13 @@ export default function DashboardExtrasPage({ sessionId, onSessionExpired }) {
         <Card title="Weekly Ticket Inflow" subtitle="Created tickets · last 26 weeks" accent="#1450f5">
           <StackedColumnChart data={inflow} xKey="label" height={300} />
         </Card>
-        <Card title="Weekly Ticket Outflow" subtitle="Closed tickets · last 26 weeks" accent="#1e8a5e">
+        <Card title="Weekly Ticket Outflow" subtitle="Closed tickets · last 26 weeks" accent="#0f9c52">
           <StackedColumnChart data={outflow} xKey="label" height={300} />
         </Card>
       </div>
 
       {/* Backlog Age */}
-      <Card title="Backlog Age Distribution" subtitle="How long active tickets have been open" accent="#c0305a">
+      <Card title="Backlog Age Distribution" subtitle="How long active tickets have been open" accent="#a8336b">
         <BacklogAgeChart data={backlogAge} />
       </Card>
 

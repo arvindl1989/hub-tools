@@ -1,6 +1,7 @@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { INK } from '../../kone/chartTheme'
 
 export default function WeeklyChart({ data = [], limit = 26 }) {
   const visible = data.slice(-limit)
@@ -22,9 +23,9 @@ export default function WeeklyChart({ data = [], limit = 26 }) {
           contentStyle={{ borderRadius: 10, border: '1px solid #e8e3da', fontSize: 12, fontFamily: 'Inter' }}
           cursor={{ fill: '#f5f3ef' }}
         />
-        <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8, fontFamily: 'Inter' }} />
+        <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8, fontFamily: 'Inter' }}  formatter={(v) => <span style={{ color: INK.secondary }}>{v}</span>} />
         <Bar dataKey="created" name="Created" fill="#1450f5" radius={[3, 3, 0, 0]} />
-        <Bar dataKey="closed" name="Closed" fill="#1e8a5e" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="closed" name="Closed" fill="#0f9c52" radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )

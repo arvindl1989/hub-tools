@@ -2,10 +2,10 @@
 
 function _rateStyle(rate) {
   if (rate === null || rate === undefined) return {}
-  if (rate < 50)   return { background: '#ffdee5', color: '#8c1a2e' }
-  if (rate < 80)   return { background: '#ffd4dd', color: '#c0305a' }
+  if (rate < 50)   return { background: '#ffdee5', color: '#a8336b' }
+  if (rate < 80)   return { background: '#ffd4dd', color: '#a8336b' }
   if (rate < 100)  return { background: '#fff6c4', color: '#7a5400' }
-  if (rate <= 150) return { background: '#d3efe0', color: '#147a50' }
+  if (rate <= 150) return { background: '#d3efe0', color: '#0f9c52' }
   return { background: '#aae1c8', color: '#0f5132' }
 }
 
@@ -46,8 +46,8 @@ function _filterTitle(filters) {
 
 function _pipelineStyle(val, prev) {
   if (val == null) return {}
-  if (prev != null && val < prev)  return { background: '#d3efe0', color: '#147a50' }  // shrinking — good
-  if (prev != null && val > prev)  return { background: '#ffdee5', color: '#8c1a2e' }  // growing — bad
+  if (prev != null && val < prev)  return { background: '#d3efe0', color: '#0f9c52' }  // shrinking — good
+  if (prev != null && val > prev)  return { background: '#ffdee5', color: '#a8336b' }  // growing — bad
   return { background: '#fff6c4', color: '#7a5400' }                                  // no change / first period
 }
 
@@ -222,7 +222,7 @@ export default function InflowOutflowTable({ data = [], filters = {} }) {
           {/* ── Closed Break Up (by closed date) ── */}
           <tr style={{ borderTop: '2px solid #e8e2d6' }}>
             <td style={{ ...numCell('#edf8f2'), ...stickyBase(0, '#edf8f2'), padding: '8px 12px', borderRight: '1px solid #e8e2d6' }} />
-            <td style={{ ...numCell('#edf8f2'), ...stickyBase(NAME_W, '#edf8f2'), padding: '8px 12px', fontWeight: 700, color: '#147a50', borderRight: '2px solid #e8e2d6' }}>
+            <td style={{ ...numCell('#edf8f2'), ...stickyBase(NAME_W, '#edf8f2'), padding: '8px 12px', fontWeight: 700, color: '#0f9c52', borderRight: '2px solid #e8e2d6' }}>
               Closed Break Up
             </td>
             <td style={{ ...numCell('#edf8f2') }} />
@@ -231,8 +231,8 @@ export default function InflowOutflowTable({ data = [], filters = {} }) {
             ))}
           </tr>
           {[
-            { key: 'closed_completed', label: 'Closed Completed', color: '#147a50' },
-            { key: 'closed_rejected',  label: 'Closed Rejected',  color: '#8c1a2e' },
+            { key: 'closed_completed', label: 'Closed Completed', color: '#0f9c52' },
+            { key: 'closed_rejected',  label: 'Closed Rejected',  color: '#a8336b' },
           ].map(({ key, label, color }) => (
             <tr key={key}>
               <td style={{ ...numCell('#fbfefc'), ...stickyBase(0, '#fbfefc'), padding: '6px 12px', borderRight: '1px solid #e8e2d6' }} />

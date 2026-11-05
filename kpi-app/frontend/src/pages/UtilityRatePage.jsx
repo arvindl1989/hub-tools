@@ -33,16 +33,16 @@ const BAU_SHORT = {
 }
 const BAU_COLORS = {
   'Website Content Management':          '#1450f5',
-  'Demand Engagement Activations':       '#0077a8',
-  'Content Production – Graphic Design': '#c0305a',
+  'Demand Engagement Activations':       '#0d7f9e',
+  'Content Production – Graphic Design': '#a8336b',
 }
 
 // Original sub-category colors (used in ticket detail rows)
 const SUBCAT_COLORS = {
   'Website Content Management':          '#1450f5',
-  'Content Production – Graphic Design': '#c0305a',
-  'Demand Creation – Global':            '#0077a8',
-  'Email – Local':                       '#1e8a5e',
+  'Content Production – Graphic Design': '#a8336b',
+  'Demand Creation – Global':            '#0d7f9e',
+  'Email – Local':                       '#0f9c52',
   'Retention – Activations':             '#b87d00',
 }
 const SUBCAT_SHORT = {
@@ -54,37 +54,37 @@ const SUBCAT_SHORT = {
 }
 
 const STATUS_CFG = {
-  Available:  { color: '#1e8a5e', bg: '#edf8f2', border: '#aae1c8' },
+  Available:  { color: '#0f9c52', bg: '#edf8f2', border: '#aae1c8' },
   Busy:       { color: '#b87d00', bg: '#fffae3', border: '#ffe141' },
-  Overloaded: { color: '#c0305a', bg: '#fff0f3', border: '#f28ba0' },
+  Overloaded: { color: '#a8336b', bg: '#fff0f3', border: '#a8336b' },
 }
 
 const NON_BAU = ['Performance Analytics', 'Local SEO', 'PWR', 'Adhoc/Others']
 const NON_BAU_COLORS = {
-  'Performance Analytics': '#0aa08f',
-  'Local SEO':             '#e86427',
+  'Performance Analytics': '#0d7f9e',
+  'Local SEO':             '#d9400a',
   'PWR':                   '#1450f5',
-  'Adhoc/Others':          '#c0305a',
+  'Adhoc/Others':          '#a8336b',
 }
 
 function utilColor(pct) {
-  if (pct >= 85) return '#c0305a'
+  if (pct >= 85) return '#a8336b'
   if (pct >= 60) return '#b87d00'
-  return '#1e8a5e'
+  return '#0f9c52'
 }
 function dtcColor(d) {
   if (d == null) return '#9c9c9c'
-  if (d <= 7)  return '#1e8a5e'
+  if (d <= 7)  return '#0f9c52'
   if (d <= 14) return '#b87d00'
-  if (d <= 30) return '#e86427'
-  return '#c0305a'
+  if (d <= 30) return '#d9400a'
+  return '#a8336b'
 }
 function attStyle(pct) {
   if (pct == null) return { color: '#9c9c9c', bg: 'transparent' }
   if (pct >= 100) return { color: '#005f86', bg: '#eafaff' }
-  if (pct >= 80)  return { color: '#147a50', bg: '#d3efe0' }
+  if (pct >= 80)  return { color: '#0f9c52', bg: '#d3efe0' }
   if (pct >= 50)  return { color: '#7a5400', bg: '#fff6c4' }
-  return { color: '#8c1a2e', bg: '#ffdee5' }
+  return { color: '#a8336b', bg: '#ffdee5' }
 }
 
 /* ── Shared primitives ──────────────────────────────────────────────────────── */
@@ -228,8 +228,8 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
   const ALL_SVC_BOXES = [
     { key: 'Website Content Management',          label: 'Web Content Mgt',   allocH: wcmAllocH, utilH: svcMap['Website Content Management'] ?? 0,          color: '#0d3ac2', bg: '#dbe6fd', bc: '#1450f5', light: true },
-    { key: 'Demand Engagement Activations',       label: 'Demand Engagement', allocH: deaAllocH, utilH: svcMap['Demand Engagement Activations'] ?? 0,        color: '#005f86', bg: '#d2f5ff', bc: '#0077a8', light: true },
-    { key: 'Content Production – Graphic Design', label: 'Graphic Design',    allocH: gdAllocH,  utilH: svcMap['Content Production – Graphic Design'] ?? 0,  color: '#8c1a2e', bg: '#ffcdd7', bc: '#c0305a', light: true },
+    { key: 'Demand Engagement Activations',       label: 'Demand Engagement', allocH: deaAllocH, utilH: svcMap['Demand Engagement Activations'] ?? 0,        color: '#005f86', bg: '#d2f5ff', bc: '#0d7f9e', light: true },
+    { key: 'Content Production – Graphic Design', label: 'Graphic Design',    allocH: gdAllocH,  utilH: svcMap['Content Production – Graphic Design'] ?? 0,  color: '#a8336b', bg: '#ffcdd7', bc: '#a8336b', light: true },
   ]
   const visibleSvcBoxes = serviceF ? ALL_SVC_BOXES.filter(s => s.key === serviceF) : ALL_SVC_BOXES
 
@@ -240,9 +240,9 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
 
   function utilPctStyle(pct) {
     if (pct == null) return null
-    if (pct >= 100) return { color: '#c0305a', bg: '#fff0f3' }
+    if (pct >= 100) return { color: '#a8336b', bg: '#fff0f3' }
     if (pct >= 60)  return { color: '#a86f00', bg: '#fffae3' }
-    return { color: '#1e8a5e', bg: '#edf8f2' }
+    return { color: '#0f9c52', bg: '#edf8f2' }
   }
 
   function NumBox({ label, value, sub, color, bg = '#1450f5', borderColor, light = false }) {
@@ -303,7 +303,7 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
         {/* Utilized Hours */}
         <div style={cardStyle}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#141414', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1e8a5e', flexShrink: 0 }} />
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0f9c52', flexShrink: 0 }} />
             Utilized Hours
             <span style={{ fontSize: 11, color: '#9c9c9c', fontWeight: 400 }}>{periodLabel}</span>
           </div>
@@ -337,7 +337,7 @@ function AllocUtilWidgets({ capSettings, cadenceSettings, trainingSettings, data
             const usedPct = allocH > 0 ? Math.min(Math.round(utilizedH / allocH * 100), 999) : 0
             const freePct = Math.max(0, 100 - usedPct)
             const bg = usedPct > 55 ? '#ffcdd7' : usedPct >= 45 ? '#ffe141' : '#aae1c8'
-            const textColor = usedPct > 55 ? '#8c1a2e' : usedPct >= 45 ? '#5c4200' : '#0f5132'
+            const textColor = usedPct > 55 ? '#a8336b' : usedPct >= 45 ? '#5c4200' : '#0f5132'
             return (
               <div key={label} style={{ flex: 1, minWidth: 0, background: bg, borderRadius: 9, padding: '10px 14px' }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: textColor, opacity: 0.65, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
@@ -472,7 +472,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
             { label: 'Utilized', val: utilH, color: '#1450f5', bg: '#eef3fe', border: '#c7d7fd', sub: `${pct}% of allocated · from activities below` },
             { label: remaining >= 0 ? 'Remaining' : 'Over budget',
               val: Math.abs(remaining),
-              color: remaining >= 0 ? '#147a50' : '#c0305a',
+              color: remaining >= 0 ? '#0f9c52' : '#a8336b',
               bg:    remaining >= 0 ? '#edf8f2' : '#fff0f3',
               border: remaining >= 0 ? '#aae1c8' : '#ffd4dd',
               sub: remaining >= 0 ? `${Math.abs(remaining)}h headroom` : `${Math.abs(remaining)}h over` },
@@ -536,7 +536,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
                 </div>
                 <button onClick={() => removeAct(i)} style={{
                   height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  color: '#c0305a', background: '#fff0f3', border: '1px solid #ffd4dd', borderRadius: 6,
+                  color: '#a8336b', background: '#fff0f3', border: '1px solid #ffd4dd', borderRadius: 6,
                   fontFamily: 'Inter, sans-serif', flexShrink: 0,
                 }}>Remove</button>
               </div>
@@ -628,7 +628,7 @@ function CadenceModal({ cadenceSettings, spanWeeks, capSettings = {}, onClose, o
 
         {/* Footer */}
         <div style={{ padding: '12px 20px', borderTop: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#c0305a' }}>{err}</span>}{saved && <span style={{ color: '#147a50' }}>✓ Saved</span>}</div>
+          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#a8336b' }}>{err}</span>}{saved && <span style={{ color: '#0f9c52' }}>✓ Saved</span>}</div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#404040', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
             <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#9c9c9c' : '#1450f5', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
@@ -750,11 +750,11 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
         {/* Summary bar */}
         <div style={{ display: 'flex', borderBottom: '1px solid #f1ede3' }}>
           {[
-            { label: 'Allocated', val: allocH, color: '#0077a8', bg: '#eafaff', border: '#c4ecfa', sub: '5% of available' },
-            { label: 'Utilized', val: utilH, color: '#0077a8', bg: '#eafaff', border: '#c4ecfa', sub: `${pct}% of allocated · from training below` },
+            { label: 'Allocated', val: allocH, color: '#0d7f9e', bg: '#eafaff', border: '#c4ecfa', sub: '5% of available' },
+            { label: 'Utilized', val: utilH, color: '#0d7f9e', bg: '#eafaff', border: '#c4ecfa', sub: `${pct}% of allocated · from training below` },
             { label: remaining >= 0 ? 'Remaining' : 'Over budget',
               val: Math.abs(remaining),
-              color: remaining >= 0 ? '#147a50' : '#c0305a',
+              color: remaining >= 0 ? '#0f9c52' : '#a8336b',
               bg:    remaining >= 0 ? '#edf8f2' : '#fff0f3',
               border: remaining >= 0 ? '#aae1c8' : '#ffd4dd',
               sub: remaining >= 0 ? `${Math.abs(remaining)}h headroom` : `${Math.abs(remaining)}h over` },
@@ -775,8 +775,8 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
               <button key={name} onClick={() => { setActiveTab(name); setAdding(false) }} style={{
                 padding: '9px 14px', fontSize: 12, fontWeight: isActive ? 700 : 500, cursor: 'pointer',
                 background: 'none', border: 'none', whiteSpace: 'nowrap',
-                borderBottom: isActive ? '2px solid #0077a8' : '2px solid transparent',
-                marginBottom: -2, color: isActive ? '#0077a8' : '#6e6e6e',
+                borderBottom: isActive ? '2px solid #0d7f9e' : '2px solid transparent',
+                marginBottom: -2, color: isActive ? '#0d7f9e' : '#6e6e6e',
                 fontFamily: 'Inter, sans-serif',
               }}>
                 {name.split(' ')[0]}
@@ -798,26 +798,26 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
             const freq = TRAINING_FREQS.find(f => f.key === (s.frequency || 'annual'))?.label || 'Annual'
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f1ede3', gap: 12 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0077a8', flexShrink: 0 }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0d7f9e', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#141414' }}>{s.name}</div>
                   <div style={{ fontSize: 11, color: '#9c9c9c', marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                     {isOneTime
-                      ? <span style={{ background: '#eafaff', color: '#0077a8', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>one-time</span>
+                      ? <span style={{ background: '#eafaff', color: '#0d7f9e', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>one-time</span>
                       : <span style={{ background: '#f1ede3', borderRadius: 4, padding: '1px 6px' }}>{freq}</span>
                     }
                     {isOneTime && s.quarter && (
                       <span style={{ background: '#fff3b0', color: '#7a5400', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>{s.quarter}</span>
                     )}
                     <span>{s.duration_hours}h {isOneTime ? 'total' : '/session'}</span>
-                    <span style={{ color: '#0077a8', fontWeight: 700 }}>
+                    <span style={{ color: '#0d7f9e', fontWeight: 700 }}>
                       {isOneTime ? `${hpy}h one-time` : `${hpy}h/yr · ${Math.round(hpy * pf)}h this period`}
                     </span>
                   </div>
                 </div>
                 <button onClick={() => removeSession(activeTab, i)} style={{
                   height: 26, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  color: '#c0305a', background: '#fff0f3', border: '1px solid #ffd4dd', borderRadius: 6,
+                  color: '#a8336b', background: '#fff0f3', border: '1px solid #ffd4dd', borderRadius: 6,
                   fontFamily: 'Inter, sans-serif', flexShrink: 0,
                 }}>Remove</button>
               </div>
@@ -828,7 +828,7 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
           {!adding ? (
             <button onClick={() => { setAdding(true); setDraft({ name: '', duration_hours: 1, frequency: 'annual', quarter: '' }) }} style={{
               width: '100%', padding: '13px 20px', background: '#eafaff', border: 'none',
-              borderTop: '1px solid #e8e2d6', color: '#0077a8', fontSize: 13, fontWeight: 600,
+              borderTop: '1px solid #e8e2d6', color: '#0d7f9e', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               fontFamily: 'Inter, sans-serif',
             }}>
@@ -874,7 +874,7 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
                 </div>
                 {previewHpy > 0 && (
                   <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 10px', background: '#7c3aed18', borderRadius: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#0077a8' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#0d7f9e' }}>
                       {isOneTimeDraft ? `${previewHpy}h${draft.quarter ? ' · ' + draft.quarter : ' one-time'}` : `${previewHpy}h/yr`}
                     </span>
                   </div>
@@ -883,7 +883,7 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
                   <button onClick={() => setAdding(false)}
                     style={{ height: 34, padding: '0 14px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6e6e6e', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
                   <button onClick={confirmAdd}
-                    style={{ height: 34, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#0077a8', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
+                    style={{ height: 34, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#0d7f9e', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Add</button>
                 </div>
               </div>
             </div>
@@ -892,10 +892,10 @@ function TrainingModal({ trainingSettings, spanDays, capSettings = {}, onClose, 
 
         {/* Footer */}
         <div style={{ padding: '12px 20px', borderTop: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#c0305a' }}>{err}</span>}{saved && <span style={{ color: '#147a50' }}>✓ Saved</span>}</div>
+          <div style={{ fontSize: 12 }}>{err && <span style={{ color: '#a8336b' }}>{err}</span>}{saved && <span style={{ color: '#0f9c52' }}>✓ Saved</span>}</div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#404040', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
-            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#9c9c9c' : '#0077a8', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={save} disabled={saving} style={{ height: 34, padding: '0 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: saving ? '#9c9c9c' : '#0d7f9e', color: '#fff', border: 'none', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -951,7 +951,7 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates, teamPeople = DE
   const HDR = { padding: '8px 12px', fontWeight: 700, color: '#6e6e6e', fontSize: 11, borderBottom: '2px solid #e8e2d6', whiteSpace: 'nowrap', background: '#faf8f3' }
 
   return (
-    <SectionCard title="Capacity Planning" subtitle="BAU ticket quota vs actual, plus non-BAU time reservations. Denominator = productivity days (75% of availability)." accent="#0077a8">
+    <SectionCard title="Capacity Planning" subtitle="BAU ticket quota vs actual, plus non-BAU time reservations. Denominator = productivity days (75% of availability)." accent="#0d7f9e">
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
@@ -994,7 +994,7 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates, teamPeople = DE
                     </td>
                     {ri === 0 && (
                       <td rowSpan={totalSpan} style={{ padding: '8px 12px', textAlign: 'center', verticalAlign: 'middle' }}>
-                        <div style={{ fontWeight: 700, color: '#0077a8' }}>{prodDays}d</div>
+                        <div style={{ fontWeight: 700, color: '#0d7f9e' }}>{prodDays}d</div>
                         <div style={{ fontSize: 10, color: '#9c9c9c' }}>of {avail}d avail</div>
                       </td>
                     )}
@@ -1028,7 +1028,7 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates, teamPeople = DE
                   </tr>
                 ),
                 <tr key={`${name}-eff`} style={{ background: ntPct > 0 ? '#fff0f3' : personBg, borderBottom: '2px solid #e8e2d6' }}>
-                  <td colSpan={7} style={{ padding: '7px 12px', fontSize: 11, color: '#0077a8', fontWeight: 600 }}>
+                  <td colSpan={7} style={{ padding: '7px 12px', fontSize: 11, color: '#0d7f9e', fontWeight: 600 }}>
                     {`Productivity: ${prodDays}d (${wd}d working − ${wd - avail}d holidays = ${avail}d avail × 75%)`}
                     {ntPct > 0 && ` · ${ntPct}% reserved for non-BAU`}
                   </td>
@@ -1039,7 +1039,7 @@ function CapacityPlanSection({ capSettings, byAssignee, bwRates, teamPeople = DE
         </table>
       </div>
       <div style={{ marginTop: 10, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        {[['≥ 100%', '#005f86', '#eafaff', 'Over target'], ['80–99%', '#147a50', '#d3efe0', 'On track'], ['50–79%', '#7a5400', '#fff6c4', 'Under target'], ['< 50%', '#8c1a2e', '#ffdee5', 'Far under']].map(([lbl, col, bg, desc]) => (
+        {[['≥ 100%', '#005f86', '#eafaff', 'Over target'], ['80–99%', '#0f9c52', '#d3efe0', 'On track'], ['50–79%', '#7a5400', '#fff6c4', 'Under target'], ['< 50%', '#a8336b', '#ffdee5', 'Far under']].map(([lbl, col, bg, desc]) => (
           <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: col, background: bg, borderRadius: 5, padding: '1px 7px' }}>{lbl}</span>
             <span style={{ fontSize: 11, color: '#6e6e6e' }}>{desc}</span>
@@ -1188,7 +1188,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                   display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
                 }}>
                   Annual
-                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#1e8a5e', background: '#d3efe0', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
+                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#0f9c52', background: '#d3efe0', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
                 </button>
               )
             })()}
@@ -1199,7 +1199,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                 <button key={key} onClick={() => setMode(key)} style={{
                   height: 36, padding: '0 16px', fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
                   background: active ? '#fff' : 'transparent',
-                  color: active ? '#0077a8' : '#6e6e6e',
+                  color: active ? '#0d7f9e' : '#6e6e6e',
                   border: '1px solid transparent',
                   borderColor: active ? '#e8e2d6' : 'transparent',
                   borderBottom: active ? '1px solid #fff' : undefined,
@@ -1209,7 +1209,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                   display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
                 }}>
                   {p.label}
-                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#1e8a5e', background: '#d3efe0', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
+                  {active && <span style={{ fontSize: 9, fontWeight: 700, color: '#0f9c52', background: '#d3efe0', padding: '1px 5px', borderRadius: 8 }}>Active</span>}
                 </button>
               )
             })}
@@ -1246,7 +1246,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
             </div>
           ) : presets[mode] ? (
             <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#0077a8' }}>{presets[mode].label}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#0d7f9e' }}>{presets[mode].label}</span>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#404040' }}>
                 Working days
                 <NumInput value={presets[mode].default_working_days} onChange={v => updatePreset(mode, 'default_working_days', v ?? 250)} min={1} max={365} width={72} />
@@ -1255,13 +1255,13 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                 Holidays
                 <NumInput value={presets[mode].default_holidays} onChange={v => updatePreset(mode, 'default_holidays', v ?? 0)} min={0} max={60} width={60} />
               </label>
-              <button onClick={() => deletePreset(mode)} style={{ height: 28, padding: '0 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#fff', color: '#c0305a', border: '1px solid #f28ba0', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Delete period</button>
+              <button onClick={() => deletePreset(mode)} style={{ height: 28, padding: '0 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: '#fff', color: '#a8336b', border: '1px solid #a8336b', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Delete period</button>
             </div>
           ) : null}
           {/* New period form */}
           {showNew && (
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: mode !== 'annual' && !presets[mode] ? 0 : 10, flexWrap: 'wrap', padding: '10px 14px', background: '#edf8f2', borderRadius: 8, border: '1px solid #aae1c8' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#147a50' }}>New period:</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#0f9c52' }}>New period:</span>
               <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. Q1 2025"
                 style={{ height: 30, padding: '0 10px', fontSize: 12, border: '1px solid #d8d8d8', borderRadius: 6, outline: 'none', fontFamily: 'Inter, sans-serif', width: 140 }} />
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#404040' }}>
@@ -1270,7 +1270,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#404040' }}>
                 Holidays <NumInput value={newH} onChange={v => setNewH(v ?? 0)} min={0} max={60} width={60} />
               </label>
-              <button onClick={addPreset} style={{ height: 30, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#147a50', color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Create &amp; Activate</button>
+              <button onClick={addPreset} style={{ height: 30, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#0f9c52', color: '#fff', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Create &amp; Activate</button>
               <button onClick={() => setShowNew(false)} style={{ height: 30, padding: '0 12px', fontSize: 12, cursor: 'pointer', background: '#fff', color: '#6e6e6e', border: '1px solid #d8d8d8', borderRadius: 6, fontFamily: 'Inter, sans-serif' }}>Cancel</button>
             </div>
           )}
@@ -1284,17 +1284,17 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
               <tr style={{ background: '#eef3fe' }}>
                 <th style={{ ...THL, borderBottom: '1px solid #e8e2d6' }} rowSpan={2}>Person</th>
                 <th colSpan={6} style={{ ...TH, color: '#1450f5', borderBottom: '1px solid #c7d7fd', borderLeft: '2px solid #c7d7fd' }}>Capacity Breakdown</th>
-                <th colSpan={3} style={{ ...TH, color: '#1e8a5e', borderBottom: '1px solid #aae1c8', borderLeft: '2px solid #aae1c8' }}>BAU Allocation (% of Productivity)</th>
-                <th colSpan={4} style={{ ...TH, color: '#0077a8', borderBottom: '1px solid #c4ecfa', borderLeft: '2px solid #c4ecfa' }}>Non-BAU Allocation (% of Productivity)</th>
+                <th colSpan={3} style={{ ...TH, color: '#0f9c52', borderBottom: '1px solid #aae1c8', borderLeft: '2px solid #aae1c8' }}>BAU Allocation (% of Productivity)</th>
+                <th colSpan={4} style={{ ...TH, color: '#0d7f9e', borderBottom: '1px solid #c4ecfa', borderLeft: '2px solid #c4ecfa' }}>Non-BAU Allocation (% of Productivity)</th>
                 <th style={{ ...TH, borderBottom: '1px solid #e8e2d6', borderLeft: '2px solid #e8e2d6' }} rowSpan={2}>Total %</th>
               </tr>
               <tr style={{ background: '#faf8f3' }}>
                 <th style={{ ...TH, borderLeft: '2px solid #c7d7fd' }}>Working Days</th>
                 <th style={TH}>Holidays</th>
                 <th style={{ ...TH, color: '#1450f5' }}>Availability</th>
-                <th style={{ ...TH, color: '#0077a8' }}>Cadence<br/><span style={{ fontWeight: 400, fontSize: 10 }}>20%</span></th>
-                <th style={{ ...TH, color: '#0077a8' }}>Training/<br/>Upskilling<br/><span style={{ fontWeight: 400, fontSize: 10 }}>5%</span></th>
-                <th style={{ ...TH, color: '#1e8a5e' }}>Productivity<br/><span style={{ fontWeight: 400, fontSize: 10 }}>75%</span></th>
+                <th style={{ ...TH, color: '#0d7f9e' }}>Cadence<br/><span style={{ fontWeight: 400, fontSize: 10 }}>20%</span></th>
+                <th style={{ ...TH, color: '#0d7f9e' }}>Training/<br/>Upskilling<br/><span style={{ fontWeight: 400, fontSize: 10 }}>5%</span></th>
+                <th style={{ ...TH, color: '#0f9c52' }}>Productivity<br/><span style={{ fontWeight: 400, fontSize: 10 }}>75%</span></th>
                 {BAU_SERVICES.map((sv, i) => (
                   <th key={sv} style={{ ...TH, color: BAU_COLORS[sv], borderLeft: i === 0 ? '2px solid #aae1c8' : undefined }}>{BAU_SHORT[sv]}</th>
                 ))}
@@ -1307,7 +1307,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
               {teamPeople.map((name, pi) => {
                 const d = derived(name)
                 const total = d.bauPct + d.nonBauPct
-                const totalColor = total > 100 ? '#8c1a2e' : total === 100 ? '#147a50' : '#7a5400'
+                const totalColor = total > 100 ? '#a8336b' : total === 100 ? '#0f9c52' : '#7a5400'
                 const p = people[name] || {}
                 return (
                   <tr key={name} style={{ background: pi % 2 === 0 ? '#fff' : '#faf8f3', borderBottom: '1px solid #f3eee6' }}>
@@ -1329,9 +1329,9 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                     </td>
                     {/* Calculated columns */}
                     <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{d.av}d</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#0077a8' }}>{d.cadence}d</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#0077a8' }}>{d.training}d</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#1e8a5e' }}>{d.productivity}d</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#0d7f9e' }}>{d.cadence}d</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#0d7f9e' }}>{d.training}d</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#0f9c52' }}>{d.productivity}d</td>
                     {/* BAU % */}
                     {BAU_SERVICES.map((sv, i) => (
                       <td key={sv} style={{ padding: '6px 6px', textAlign: 'center', borderLeft: i === 0 ? '2px solid #aae1c8' : undefined }}>
@@ -1351,7 +1351,7 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                     {/* Total % */}
                     <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: totalColor, borderLeft: '2px solid #e8e2d6' }}>
                       {total}%
-                      {total > 100 && <div style={{ fontSize: 9, fontWeight: 400, color: '#8c1a2e' }}>↑ over</div>}
+                      {total > 100 && <div style={{ fontSize: 9, fontWeight: 400, color: '#a8336b' }}>↑ over</div>}
                     </td>
                   </tr>
                 )
@@ -1364,9 +1364,9 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
                 <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#404040', borderLeft: '2px solid #eef3fe' }}>{totals.wd}d</td>
                 <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#404040' }}>{totals.h}d</td>
                 <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#1450f5' }}>{totals.av}d</td>
-                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#0077a8' }}>{totals.cadence}d</td>
-                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#0077a8' }}>{totals.training}d</td>
-                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#1e8a5e' }}>{totals.productivity}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#0d7f9e' }}>{totals.cadence}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#0d7f9e' }}>{totals.training}d</td>
+                <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: '#0f9c52' }}>{totals.productivity}d</td>
                 {BAU_SERVICES.map((sv, i) => (
                   <td key={sv} style={{ padding: '9px 10px', textAlign: 'center', color: '#9c9c9c', borderLeft: i === 0 ? '2px solid #aae1c8' : undefined }}>—</td>
                 ))}
@@ -1382,8 +1382,8 @@ function CapacityModal({ capSettings, onClose, onSaved, teamPeople = DEFAULT_PEO
         {/* Footer */}
         <div style={{ padding: '14px 24px', borderTop: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12 }}>
-            {err  && <span style={{ color: '#c0305a' }}>{err}</span>}
-            {saved && <span style={{ color: '#147a50' }}>✓ Saved</span>}
+            {err  && <span style={{ color: '#a8336b' }}>{err}</span>}
+            {saved && <span style={{ color: '#0f9c52' }}>✓ Saved</span>}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#404040', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
@@ -1491,8 +1491,8 @@ function RatesSlaModal({ bwRates, slaRules, onClose, onSaved }) {
         </div>
         <div style={{ padding: '14px 24px', borderTop: '1px solid #f1ede3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12 }}>
-            {err  && <span style={{ color: '#c0305a' }}>{err}</span>}
-            {saved && <span style={{ color: '#147a50' }}>✓ Saved</span>}
+            {err  && <span style={{ color: '#a8336b' }}>{err}</span>}
+            {saved && <span style={{ color: '#0f9c52' }}>✓ Saved</span>}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onClose} style={{ height: 34, padding: '0 16px', fontSize: 13, cursor: 'pointer', background: '#fff', color: '#404040', border: '1px solid #d8d8d8', borderRadius: 8, fontFamily: 'Inter, sans-serif' }}>Close</button>
@@ -1558,7 +1558,7 @@ function AssigneeMultiSelect({ options, selected, onChange }) {
           {hasSelected && (
             <div style={{ borderTop: '1px solid #f3eee6', padding: '6px 14px' }}>
               <button onClick={() => { onChange([]); setOpen(false) }}
-                style={{ fontSize: 11, color: '#c0305a', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Inter, sans-serif' }}>
+                style={{ fontSize: 11, color: '#a8336b', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Inter, sans-serif' }}>
                 Clear selection
               </button>
             </div>
@@ -1774,15 +1774,15 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
           <div style={{ flex: 1 }} />
           <button onClick={() => setShowCapacity(true)} style={{
             ...btnStyle,
-            borderColor: capSettings.mode && capSettings.mode !== 'annual' ? '#0077a8' : undefined,
-            color:       capSettings.mode && capSettings.mode !== 'annual' ? '#0077a8' : undefined,
+            borderColor: capSettings.mode && capSettings.mode !== 'annual' ? '#0d7f9e' : undefined,
+            color:       capSettings.mode && capSettings.mode !== 'annual' ? '#0d7f9e' : undefined,
           }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
             Capacity
             {capSettings.mode && capSettings.mode !== 'annual' && (
-              <span style={{ fontSize: 10, background: '#0077a8', color: '#fff', borderRadius: 4, padding: '1px 5px', marginLeft: 2 }}>
+              <span style={{ fontSize: 10, background: '#0d7f9e', color: '#fff', borderRadius: 4, padding: '1px 5px', marginLeft: 2 }}>
                 {capSettings.presets?.[capSettings.mode]?.label ?? capSettings.mode}
               </span>
             )}
@@ -1793,13 +1793,13 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             </svg>
             Rates & SLA
           </button>
-          <button onClick={() => setShowCadence(true)} style={{ ...btnStyle, color: '#0077a8', borderColor: '#a8e8fa' }}>
+          <button onClick={() => setShowCadence(true)} style={{ ...btnStyle, color: '#0d7f9e', borderColor: '#a8e8fa' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
             Cadence
           </button>
-          <button onClick={() => setShowTraining(true)} style={{ ...btnStyle, color: '#0077a8', borderColor: '#c4ecfa' }}>
+          <button onClick={() => setShowTraining(true)} style={{ ...btnStyle, color: '#0d7f9e', borderColor: '#c4ecfa' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
             </svg>
@@ -1852,7 +1852,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
             sub={`${data.total_committed_h}h committed of ${data.total_capacity_h}h capacity`}
             color={utilColor(data.team_util_pct)}
             bg={data.team_util_pct >= 85 ? '#fff0f3' : data.team_util_pct >= 60 ? '#fffae3' : '#edf8f2'}
-            border={data.team_util_pct >= 85 ? '#f28ba0' : data.team_util_pct >= 60 ? '#ffe141' : '#aae1c8'}
+            border={data.team_util_pct >= 85 ? '#a8336b' : data.team_util_pct >= 60 ? '#ffe141' : '#aae1c8'}
           />
           <StatCard label={isClosed ? 'Hours Delivered' : 'Committed Hours'} value={`${data.total_committed_h}h`}
             sub={isClosed ? 'estimated hours across closed tickets' : 'estimated hours in tracked tickets'}
@@ -1863,14 +1863,14 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
               sub="calendar days from created to closed"
               color={dtcColor(data.overall_avg_days_to_close)}
               bg={data.overall_avg_days_to_close <= 7 ? '#edf8f2' : data.overall_avg_days_to_close <= 14 ? '#fffae3' : '#fff0f3'}
-              border={data.overall_avg_days_to_close <= 7 ? '#aae1c8' : data.overall_avg_days_to_close <= 14 ? '#ffe141' : '#f28ba0'} />
+              border={data.overall_avg_days_to_close <= 7 ? '#aae1c8' : data.overall_avg_days_to_close <= 14 ? '#ffe141' : '#a8336b'} />
           ) : (
             <StatCard label="Available Capacity" value={`${Math.round((Math.max(0, data.total_capacity_h - data.total_committed_h)) * 10) / 10}h`}
               sub={`${data.team_size} people · ${data.span_weeks}w`}
               color="#0d3ac2" bg="#dbe6fd" border="#1450f5" />
           )}
           <StatCard label="Time Span" value={`${data.span_weeks}w`} sub={`${data.span_days} calendar days`}
-            color="#005f86" bg="#d2f5ff" border="#0077a8" />
+            color="#005f86" bg="#d2f5ff" border="#0d7f9e" />
           <StatCard label="Team Size" value={data.team_size} sub="assignees with tracked tickets"
             color="#141414" bg="#f3eee6" border="#141414" />
         </div>
@@ -1902,7 +1902,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                 })}
               </div>
               <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-                {[['< 60%', '#1e8a5e', 'Available'], ['60–84%', '#b87d00', 'Busy'], ['≥ 85%', '#c0305a', 'Overloaded']].map(([range, col, label]) => (
+                {[['< 60%', '#0f9c52', 'Available'], ['60–84%', '#b87d00', 'Busy'], ['≥ 85%', '#a8336b', 'Overloaded']].map(([range, col, label]) => (
                   <div key={label} style={{ fontSize: 11, color: col, background: col + '15', border: `1px solid ${col}40`, borderRadius: 20, padding: '2px 10px' }}>
                     {range} = {label}
                   </div>
@@ -1975,7 +1975,7 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                     </BarChart>
                   </ResponsiveContainer>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
-                    {[['≤ 7d', '#1e8a5e'], ['8–14d', '#b87d00'], ['15–30d', '#e86427'], ['> 30d', '#c0305a']].map(([lbl, col]) => (
+                    {[['≤ 7d', '#0f9c52'], ['8–14d', '#b87d00'], ['15–30d', '#d9400a'], ['> 30d', '#a8336b']].map(([lbl, col]) => (
                       <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <div style={{ width: 8, height: 8, borderRadius: 2, background: col }} />
                         <span style={{ fontSize: 11, color: '#6e6e6e' }}>{lbl}</span>
@@ -2062,11 +2062,11 @@ export default function UtilityRatePage({ sessionId, onSessionExpired }) {
                 <YAxis yAxisId="h" tick={{ fontSize: 11, fill: '#9c9c9c' }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="p" orientation="right" tick={{ fontSize: 11, fill: '#9c9c9c' }} axisLine={false} tickLine={false} unit="%" />
                 <Tooltip />
-                <ReferenceLine yAxisId="p" y={85} stroke="#c0305a" strokeDasharray="4 4" label={{ value: '85%', position: 'insideTopRight', fontSize: 10, fill: '#c0305a' }} />
+                <ReferenceLine yAxisId="p" y={85} stroke="#a8336b" strokeDasharray="4 4" label={{ value: '85%', position: 'insideTopRight', fontSize: 10, fill: '#a8336b' }} />
                 <ReferenceLine yAxisId="p" y={60} stroke="#b87d00" strokeDasharray="4 4" label={{ value: '60%', position: 'insideTopRight', fontSize: 10, fill: '#b87d00' }} />
                 <Bar yAxisId="h" dataKey="committed_hours" name="Committed hrs" fill="#d0dcfd" radius={[3, 3, 0, 0]} />
                 <Line yAxisId="p" type="monotone" dataKey="utility_pct" name="Utility %" stroke="#1450f5" strokeWidth={2.5} dot={{ r: 3, fill: '#1450f5' }} activeDot={{ r: 5 }} />
-                {isClosed && <Line yAxisId="h" type="monotone" dataKey="avg_days_to_close" name="Avg Days to Close" stroke="#0077a8" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: '#0077a8' }} activeDot={{ r: 5 }} />}
+                {isClosed && <Line yAxisId="h" type="monotone" dataKey="avg_days_to_close" name="Avg Days to Close" stroke="#0d7f9e" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: '#0d7f9e' }} activeDot={{ r: 5 }} />}
               </LineChart>
             </ResponsiveContainer>
           </SectionCard>

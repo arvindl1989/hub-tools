@@ -9,13 +9,16 @@ import csv
 import io
 import json
 import pathlib
+import tempfile
 import sys
 
 from playwright.sync_api import sync_playwright
 
 PAGE = pathlib.Path("/home/user/hub-tools/kpi-app/web/sn-master/index.html")
-OUT = pathlib.Path("/tmp/claude-0/-home-user-hub-tools/"
-                   "82e410bb-e079-52f1-bbcc-05d4911973ee/scratchpad")
+# Somewhere to drop the downloaded CSV. Anywhere writable will do; a
+# path outside the repo only has to exist, so it is made rather than
+# assumed.
+OUT = pathlib.Path(tempfile.mkdtemp(prefix="sn-master-export-"))
 
 ROWS = [
     {"number": "PC001", "service": "Email – Local", "who": "Martina Kotoučová",

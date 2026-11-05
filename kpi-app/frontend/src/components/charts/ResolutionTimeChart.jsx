@@ -2,8 +2,8 @@ import { useState } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList,
 } from 'recharts'
+import { seriesColor, INTER, KONE_FONT } from '../../kone/chartTheme'
 
-const COLORS = ['#1450f5','#b87d00','#1e8a5e','#c0305a','#1450f5','#0077a8','#c0305a','#0aa08f','#e86427','#6b8f00']
 
 const VIEWS = [
   { id: 'by_sub_category', label: 'By Sub Category', key: 'sub_category' },
@@ -31,15 +31,15 @@ export default function ResolutionTimeChart({ data }) {
       <ResponsiveContainer width="100%" height={Math.max(180, rows.length * 40)} className="mt-4">
         <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 60, left: 130, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1ede3" horizontal={false} />
-          <XAxis type="number" tick={{ fontSize: 11, fill: '#6e6e6e' }} allowDecimals={false}
+          <XAxis type="number" tick={{ fontSize: 11, fill: '#6e6e6e', fontFamily: KONE_FONT}} allowDecimals={false}
             label={{ value: 'days', position: 'insideRight', offset: 10, fontSize: 11, fill: '#9c9c9c' }} />
-          <YAxis type="category" dataKey={cfg.key} tick={{ fontSize: 11, fill: '#404040' }} width={125} />
+          <YAxis type="category" dataKey={cfg.key} tick={{ fontSize: 11, fill: '#404040', fontFamily: INTER}} width={125} />
           <Tooltip
             formatter={(v, name) => [`${v} days`, name]}
-            contentStyle={{ borderRadius: 8, border: '1px solid #e8e2d6', fontSize: 12 }}
+            contentStyle={{ borderRadius: 8, border: '1px solid #e8e2d6', fontSize: 12, fontFamily: INTER}}
           />
           <Bar dataKey="avg_days" name="Avg resolution" radius={[0, 4, 4, 0]}>
-            {rows.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+            {rows.map((_, i) => <Cell key={i} fill={seriesColor(i)} />)}
             <LabelList dataKey="avg_days" position="right" style={{ fontSize: 11, fill: '#6e6e6e' }}
               formatter={(v) => `${v}d`} />
           </Bar>

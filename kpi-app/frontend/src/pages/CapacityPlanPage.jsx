@@ -69,8 +69,8 @@ const edge = { borderLeft: `1px solid ${LINE}` }
 function utilityTone(pct) {
   if (pct == null) return { bg: 'transparent', fg: FAINT }
   if (pct > 105) return { bg: '#cdeedd', fg: '#0f5c3c' }   // over the line
-  if (pct >= 85) return { bg: '#e6f6ee', fg: '#1e8a5e' }   // about right
-  if (pct >= 60) return { bg: '#fff1f4', fg: '#c0305a' }   // light
+  if (pct >= 85) return { bg: '#e6f6ee', fg: '#0f9c52' }   // about right
+  if (pct >= 60) return { bg: '#fff1f4', fg: '#a8336b' }   // light
   return { bg: '#ffdde3', fg: '#8c1f3d' }                  // very light
 }
 
@@ -135,7 +135,7 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
         {bar}
         <Card title="Capacity">
           {error
-            ? <div style={{ padding: 22, color: '#c0305a', fontSize: 13,
+            ? <div style={{ padding: 22, color: '#a8336b', fontSize: 13,
                             fontFamily: INTER }}>{error}</div>
             : !data
               ? <div style={{ padding: 22, color: DIM, fontSize: 13,

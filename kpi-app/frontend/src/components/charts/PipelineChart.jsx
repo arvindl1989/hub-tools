@@ -2,6 +2,7 @@ import {
   ComposedChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { INTER } from '../../kone/chartTheme'
 
 // ── Chart ─────────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ function PipelineTooltip({ active, payload, label }) {
     }}>
       <p style={{ fontWeight: 700, color: '#404040', marginBottom: 8, marginTop: 0 }}>{label}</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <TRow color="#1e8a5e" label="Cumul. Completed" value={completed} />
+        <TRow color="#0f9c52" label="Cumul. Completed" value={completed} />
         <TRow color="#9c9c9c" label="Cumul. Rejected"  value={rejected}  />
         <TRow color="#b87d00" label="Open Pipeline"    value={open}      bold />
         <div style={{ borderTop: '1px solid #f1ede3', marginTop: 3, paddingTop: 5 }}>
@@ -68,20 +69,20 @@ export default function PipelineChart({ data = [] }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#f1ede3" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 10, fill: '#6e6e6e' }}
+            tick={{ fontSize: 10, fill: '#6e6e6e', fontFamily: INTER}}
             angle={-40}
             textAnchor="end"
             interval={0}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: '#6e6e6e' }}
+            tick={{ fontSize: 11, fill: '#6e6e6e', fontFamily: INTER}}
             allowDecimals={false}
             domain={[0, Math.ceil(maxY * 1.1)]}
           />
           <Tooltip content={<PipelineTooltip />} />
           <Legend
             verticalAlign="top"
-            wrapperStyle={{ fontSize: 12, paddingBottom: 8 }}
+            wrapperStyle={{ fontSize: 12, paddingBottom: 8, fontFamily: INTER}}
             formatter={(v) =>
               v === 'completed' ? 'Cumul. Completed' :
               v === 'rejected'  ? 'Cumul. Rejected'  :
@@ -90,8 +91,8 @@ export default function PipelineChart({ data = [] }) {
           />
           {/* Stacked: completed (green) + rejected (gray) + open pipeline (amber) */}
           <Area type="monotone" dataKey="completed" name="completed" stackId="pl"
-            fill="#d3efe0" stroke="#1e8a5e" strokeWidth={2} fillOpacity={0.85} dot={false}
-            activeDot={{ r: 4, fill: '#1e8a5e' }} />
+            fill="#d3efe0" stroke="#0f9c52" strokeWidth={2} fillOpacity={0.85} dot={false}
+            activeDot={{ r: 4, fill: '#0f9c52' }} />
           <Area type="monotone" dataKey="rejected"  name="rejected"  stackId="pl"
             fill="#f1ede3" stroke="#9c9c9c" strokeWidth={1.5} fillOpacity={0.75} dot={false}
             activeDot={{ r: 4, fill: '#9c9c9c' }} />
@@ -129,9 +130,9 @@ const METRIC_W = 140
 function pipelineColor(open, totalCreated) {
   if (!totalCreated) return {}
   const pct = open / totalCreated * 100
-  if (pct > 60) return { background: '#ffdee5', color: '#8c1a2e' }
+  if (pct > 60) return { background: '#ffdee5', color: '#a8336b' }
   if (pct > 30) return { background: '#fff6c4', color: '#7a5400' }
-  return { background: '#d3efe0', color: '#147a50' }
+  return { background: '#d3efe0', color: '#0f9c52' }
 }
 
 export function PipelineTable({ data = [] }) {
@@ -159,7 +160,7 @@ export function PipelineTable({ data = [] }) {
 
   const metrics = [
     { key: 'inflow',           label: 'Created',         total: totalCreated,   color: '#1450f5', bg: '#eef3fe' },
-    { key: 'closed_completed', label: 'Closed Completed',total: totalCompleted, color: '#147a50', bg: '#d3efe0' },
+    { key: 'closed_completed', label: 'Closed Completed',total: totalCompleted, color: '#0f9c52', bg: '#d3efe0' },
     { key: 'closed_rejected',  label: 'Closed Rejected', total: totalRejected,  color: '#6e6e6e', bg: '#f1ede3' },
     { key: 'open_pipeline',    label: 'Open Pipeline',   total: finalOpen,      color: '#8a5f00', bg: '#fff3b0', derived: true },
   ]

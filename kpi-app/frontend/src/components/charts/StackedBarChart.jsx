@@ -3,6 +3,7 @@ import {
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { scColor } from '../../utils/colors'
+import { INK } from '../../kone/chartTheme'
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -45,7 +46,7 @@ export default function StackedBarChart({ data, dimKey, height }) {
             tickFormatter={(v) => v?.length > 18 ? v.slice(0, 16) + '…' : v}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }} />
+          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }}  formatter={(v) => <span style={{ color: INK.secondary }}>{v}</span>} />
           {sub_categories.map((sc, i) => (
             <Bar key={sc} dataKey={sc} stackId="a" fill={scColor(sc, i)}
               radius={i === sub_categories.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]} />

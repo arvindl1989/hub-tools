@@ -332,7 +332,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
             ? <ComparisonBarChart dataA={byAssignee} dataB={byAssigneeB} labelKey="assigned_to" labelA={labelA} labelB={labelB} />
             : <MiniPieChart data={byAssignee} labelKey="assigned_to" />}
         </Card>
-        <Card title="Tickets by Area" subtitle={comparing ? `${labelA} vs ${labelB}` : 'Volume per area'} accent="#c0305a" icon={<MapIcon />}>
+        <Card title="Tickets by Area" subtitle={comparing ? `${labelA} vs ${labelB}` : 'Volume per area'} accent="#a8336b" icon={<MapIcon />}>
           {comparing
             ? <ComparisonBarChart dataA={byArea} dataB={byAreaB} labelKey="area" labelA={labelA} labelB={labelB} />
             : <MiniPieChart data={byArea} labelKey="area" />}
@@ -349,7 +349,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
                 labelKey="team" labelA={labelA} labelB={labelB} />
             : <StackedColumnChart data={byTeam} xKey="team" height={300} />}
         </Card>
-        <Card title="Tickets by Requested By" subtitle={comparing ? `${labelA} vs ${labelB}` : 'Top 15 requestors · stacked by sub-category'} accent="#0aa08f" icon={<InboxIcon />}>
+        <Card title="Tickets by Requested By" subtitle={comparing ? `${labelA} vs ${labelB}` : 'Top 15 requestors · stacked by sub-category'} accent="#0d7f9e" icon={<InboxIcon />}>
           {comparing
             ? <ComparisonBarChart
                 dataA={byCreator.rows.map(r => ({ ticket_creator: r.ticket_creator, count: rowTotal(r, byCreator.sub_categories) }))}
@@ -360,7 +360,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
       </div>
 
       {/* Row 3: Monthly Trend */}
-      <Card title="Monthly Inflow Trend" subtitle={comparing ? `${labelA} vs ${labelB} — aligned by month within period` : 'Ticket creation over time · stacked by sub-category'} accent="#0077a8" icon={<TrendIcon />}>
+      <Card title="Monthly Inflow Trend" subtitle={comparing ? `${labelA} vs ${labelB} — aligned by month within period` : 'Ticket creation over time · stacked by sub-category'} accent="#0d7f9e" icon={<TrendIcon />}>
         {comparing
           ? <PeriodOverlayChart
               seriesA={monthly.rows.map(r => ({ label: r.label, value: rowTotal(r, monthly.sub_categories) }))}
@@ -408,7 +408,7 @@ export default function DashboardPage({ sessionId, onSessionExpired, onOpenExper
           <p style={{ fontSize: 12, color: '#6e6e6e', margin: '4px 0 0', fontFamily: INTER }}>
             Fills the KPIs, requests and feedback highlights for the selected period ({labelForRange(range.from, range.to) || 'pick a range above'}) into the Marketing Hub sharing template.
           </p>
-          {deckError && <p style={{ fontSize: 12, color: '#c0305a', margin: '6px 0 0',
+          {deckError && <p style={{ fontSize: 12, color: '#a8336b', margin: '6px 0 0',
                                     fontWeight: 600, fontFamily: INTER }}>{deckError}</p>}
         </div>
         <button

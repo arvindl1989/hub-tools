@@ -39,12 +39,12 @@ export default function PasswordGateModal({ onSubmit, onCancel, title = 'Passwor
           placeholder="Password"
           style={{
             width: '100%', height: 38, padding: '0 12px', fontSize: 13,
-            border: `1px solid ${error ? '#c0305a' : '#e8e2d6'}`, borderRadius: 8, outline: 'none',
+            border: `1px solid ${error ? '#a8336b' : '#e8e2d6'}`, borderRadius: 8, outline: 'none',
             fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
           }}
         />
         {error && (
-          <p style={{ fontSize: 11.5, color: '#c0305a', margin: '6px 0 0' }}>Incorrect password — try again.</p>
+          <p style={{ fontSize: 11.5, color: '#a8336b', margin: '6px 0 0' }}>Incorrect password — try again.</p>
         )}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>

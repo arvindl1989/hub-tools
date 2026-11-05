@@ -141,7 +141,7 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
         </div>
 
         {error && (
-          <div style={{ padding: '10px 20px', color: '#c0305a', fontSize: 12,
+          <div style={{ padding: '10px 20px', color: '#a8336b', fontSize: 12,
                         fontFamily: INTER }}>{error}</div>
         )}
 

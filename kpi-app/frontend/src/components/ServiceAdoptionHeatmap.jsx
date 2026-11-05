@@ -192,7 +192,7 @@ function CellUsers({ cell, band = 0, onClose }) {
                   <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: '#1450f5' }}>{u.count}</td>
                   <td style={{
                     ...td, textAlign: 'right', fontWeight: 600,
-                    color: u.days_since_last > 90 ? '#c0305a' : u.days_since_last > 30 ? '#b87d00' : '#1e8a5e',
+                    color: u.days_since_last > 90 ? '#a8336b' : u.days_since_last > 30 ? '#b87d00' : '#0f9c52',
                   }}>{u.days_since_last}d ago</td>
                 </tr>
               ))}
@@ -452,7 +452,7 @@ export default function ServiceAdoptionHeatmap({ data, effort = false }) {
                   <td style={{ ...td, color: '#404040', whiteSpace: 'nowrap' }}>{fmtDate(r.last_request_date)}</td>
                   <td style={{
                     ...td, textAlign: 'right', fontWeight: 700,
-                    color: r.days_since_last > 90 ? '#c0305a' : r.days_since_last > 30 ? '#b87d00' : '#1e8a5e',
+                    color: r.days_since_last > 90 ? '#a8336b' : r.days_since_last > 30 ? '#b87d00' : '#0f9c52',
                   }}>{r.days_since_last}d</td>
                   <td style={{ ...td, textAlign: 'center', color: '#404040' }}>
                     {r.services_used} of {r.services_offered}

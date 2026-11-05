@@ -15,8 +15,8 @@ const FORECAST_OPTIONS = {
 
 const SERVICES = {
   'Website Content Management': '#1450f5',
-  'Demand Engagement Activations': '#0077a8',
-  'Content Production - Graphic Design': '#c0305a',
+  'Demand Engagement Activations': '#0d7f9e',
+  'Content Production - Graphic Design': '#a8336b',
 }
 
 export default function InflowOutflowProjections({ data, groupBy = 'week', onForecastChange }) {
@@ -125,7 +125,7 @@ export default function InflowOutflowProjections({ data, groupBy = 'week', onFor
       {/* Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         <div style={{ background: '#eafaff', border: '1px solid #c7d7fd', borderRadius: 8, padding: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#0077a8', textTransform: 'uppercase' }}>Avg Inflow (Historical)</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#0d7f9e', textTransform: 'uppercase' }}>Avg Inflow (Historical)</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#005f86', marginTop: 4 }}>{avgHistoricalInflow}</div>
           <div style={{ fontSize: 11, color: '#005f86', marginTop: 2 }}>Last {historical.length} {groupBy}s</div>
         </div>
@@ -133,21 +133,21 @@ export default function InflowOutflowProjections({ data, groupBy = 'week', onFor
         <div style={{ background: '#fff3b0', border: '1px solid #ffe141', borderRadius: 8, padding: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#7a5400', textTransform: 'uppercase' }}>Projected Inflow</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#5c4200', marginTop: 4 }}>{projectedAvgInflow}</div>
-          <div style={{ fontSize: 11, color: growthInflow > 0 ? '#147a50' : '#8c1a2e', marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: growthInflow > 0 ? '#0f9c52' : '#a8336b', marginTop: 2 }}>
             {growthInflow > 0 ? '+' : ''}{growthInflow}% growth
           </div>
         </div>
 
-        <div style={{ background: '#ffd4dd', border: '1px solid #f28ba0', borderRadius: 8, padding: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#8c1a2e', textTransform: 'uppercase' }}>Avg Outflow (Historical)</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#8c1a2e', marginTop: 4 }}>{avgHistoricalOutflow}</div>
-          <div style={{ fontSize: 11, color: '#8c1a2e', marginTop: 2 }}>Last {historical.length} {groupBy}s</div>
+        <div style={{ background: '#ffd4dd', border: '1px solid #a8336b', borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#a8336b', textTransform: 'uppercase' }}>Avg Outflow (Historical)</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#a8336b', marginTop: 4 }}>{avgHistoricalOutflow}</div>
+          <div style={{ fontSize: 11, color: '#a8336b', marginTop: 2 }}>Last {historical.length} {groupBy}s</div>
         </div>
 
         <div style={{ background: '#edf8f2', border: '1px solid #aae1c8', borderRadius: 8, padding: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#147a50', textTransform: 'uppercase' }}>Projected Outflow</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#0f9c52', textTransform: 'uppercase' }}>Projected Outflow</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#0f5132', marginTop: 4 }}>{projectedAvgOutflow}</div>
-          <div style={{ fontSize: 11, color: growthOutflow > 0 ? '#147a50' : '#8c1a2e', marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: growthOutflow > 0 ? '#0f9c52' : '#a8336b', marginTop: 2 }}>
             {growthOutflow > 0 ? '+' : ''}{growthOutflow}% growth
           </div>
         </div>
@@ -161,12 +161,12 @@ export default function InflowOutflowProjections({ data, groupBy = 'week', onFor
               <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#404040', minWidth: 120 }}>Period</th>
               <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#404040' }}>Inflow Total</th>
               <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#1450f5' }}>Website CM</th>
-              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#0077a8' }}>Demand Engage</th>
-              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#c0305a' }}>Content Prod</th>
+              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#0d7f9e' }}>Demand Engage</th>
+              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#a8336b' }}>Content Prod</th>
               <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#404040' }}>Outflow Total</th>
               <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#1450f5' }}>Website CM</th>
-              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#0077a8' }}>Demand Engage</th>
-              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#c0305a' }}>Content Prod</th>
+              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#0d7f9e' }}>Demand Engage</th>
+              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#a8336b' }}>Content Prod</th>
               <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#404040' }}>Net</th>
               <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#404040', minWidth: 80 }}>Type</th>
             </tr>
@@ -190,15 +190,15 @@ export default function InflowOutflowProjections({ data, groupBy = 'week', onFor
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid #e8e2d6', background: period.is_projected ? '#fff3b0' : '#fff' }}>
                       <td style={{ padding: '8px 12px', color: '#404040', fontWeight: period.is_projected ? 600 : 400 }}>{period.label}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0077a8', fontWeight: 600 }}>{period.inflow}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0d7f9e', fontWeight: 600 }}>{period.inflow}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#1450f5', fontWeight: 500 }}>{websiteCmInflow || '—'}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0077a8', fontWeight: 500 }}>{demandEngInflow || '—'}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#c0305a', fontWeight: 500 }}>{contentProdInflow || '—'}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#8c1a2e', fontWeight: 600 }}>{period.outflow}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0d7f9e', fontWeight: 500 }}>{demandEngInflow || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#a8336b', fontWeight: 500 }}>{contentProdInflow || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#a8336b', fontWeight: 600 }}>{period.outflow}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#1450f5', fontWeight: 500 }}>{websiteCmOutflow || '—'}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0077a8', fontWeight: 500 }}>{demandEngOutflow || '—'}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#c0305a', fontWeight: 500 }}>{contentProdOutflow || '—'}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: period.net > 0 ? '#8c1a2e' : '#147a50' }}>{period.net}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0d7f9e', fontWeight: 500 }}>{demandEngOutflow || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#a8336b', fontWeight: 500 }}>{contentProdOutflow || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: period.net > 0 ? '#a8336b' : '#0f9c52' }}>{period.net}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center', color: '#9c9c9c', fontSize: 10 }}>
                         {period.is_projected ? '📊' : 'Historical'}
                       </td>
@@ -210,28 +210,28 @@ export default function InflowOutflowProjections({ data, groupBy = 'week', onFor
                 {filteredData.length > 0 && (
                   <tr style={{ borderTop: '2px solid #e8e2d6', borderBottom: '2px solid #e8e2d6', background: '#f1ede3', fontWeight: 700 }}>
                     <td style={{ padding: '10px 12px', color: '#141414' }}>TOTAL</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0077a8', fontWeight: 700 }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0d7f9e', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.inflow || 0), 0)}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: '#1450f5', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.services?.['Website Content Management']?.inflow || 0), 0) || '—'}
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0077a8', fontWeight: 700 }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0d7f9e', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.services?.['Demand Engagement Activations']?.inflow || 0), 0) || '—'}
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#c0305a', fontWeight: 700 }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#a8336b', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.services?.['Content Production – Graphic Design']?.inflow || 0), 0) || '—'}
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8c1a2e', fontWeight: 700 }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#a8336b', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.outflow || 0), 0)}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: '#1450f5', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.services?.['Website Content Management']?.outflow || 0), 0) || '—'}
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0077a8', fontWeight: 700 }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0d7f9e', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.services?.['Demand Engagement Activations']?.outflow || 0), 0) || '—'}
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#c0305a', fontWeight: 700 }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#a8336b', fontWeight: 700 }}>
                       {filteredData.reduce((sum, p) => sum + (p.services?.['Content Production – Graphic Design']?.outflow || 0), 0) || '—'}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#141414' }}>
@@ -309,8 +309,8 @@ function EnhancedTrendChart({ data, groupBy }) {
       <stop offset="100%" style="stop-color:#1450f5;stop-opacity:0" />
     </linearGradient>
     <linearGradient id="outflowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#c0305a;stop-opacity:0.3" />
-      <stop offset="100%" style="stop-color:#c0305a;stop-opacity:0" />
+      <stop offset="0%" style="stop-color:#a8336b;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#a8336b;stop-opacity:0" />
     </linearGradient>
   </defs>`
 
@@ -327,8 +327,8 @@ function EnhancedTrendChart({ data, groupBy }) {
             <stop offset="100%" stopColor="#1450f5" stopOpacity={0} />
           </linearGradient>
           <linearGradient id="outflowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#c0305a" stopOpacity={0.2} />
-            <stop offset="100%" stopColor="#c0305a" stopOpacity={0} />
+            <stop offset="0%" stopColor="#a8336b" stopOpacity={0.2} />
+            <stop offset="100%" stopColor="#a8336b" stopOpacity={0} />
           </linearGradient>
         </defs>
 
@@ -356,7 +356,7 @@ function EnhancedTrendChart({ data, groupBy }) {
           <path d={inflowPath} fill="none" stroke="#1450f5" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
 
           {/* Outflow line */}
-          <path d={outflowPath} fill="none" stroke="#c0305a" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={outflowPath} fill="none" stroke="#a8336b" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
 
           {/* Y-axis labels */}
           {Array.from({ length: 5 }, (_, i) => {
@@ -407,7 +407,7 @@ function EnhancedTrendChart({ data, groupBy }) {
           <rect x={0} y={0} width={200} height={60} fill="#fff" stroke="#e8e2d6" strokeWidth={1} rx={6} />
           <line x1={10} y1={15} x2={30} y2={15} stroke="#1450f5" strokeWidth={3} />
           <text x={40} y={20} fontSize={12} fill="#404040" fontWeight={500}>Projected Inflow</text>
-          <line x1={10} y1={40} x2={30} y2={40} stroke="#c0305a" strokeWidth={3} />
+          <line x1={10} y1={40} x2={30} y2={40} stroke="#a8336b" strokeWidth={3} />
           <text x={40} y={45} fontSize={12} fill="#404040" fontWeight={500}>Projected Outflow</text>
         </g>
       </svg>

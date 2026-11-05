@@ -5,8 +5,8 @@
 
 const STATUS = {
   on_time:  { label: 'On time',  bg: '#aae1c8', fg: '#0f5132' },
-  late:     { label: 'Late',     bg: '#ffcdd7', fg: '#8c1a2e' },
-  breached: { label: 'Breached', bg: '#ffdee5', fg: '#8c1a2e' },
+  late:     { label: 'Late',     bg: '#ffcdd7', fg: '#a8336b' },
+  breached: { label: 'Breached', bg: '#ffdee5', fg: '#a8336b' },
   open:     { label: 'Open',     bg: '#d2f5ff', fg: '#005f86' },
 }
 
@@ -119,7 +119,7 @@ export default function SlaTicketTable({ data, status, onStatus }) {
                     </td>
                     <td style={{
                       ...td, textAlign: 'right', fontWeight: 700,
-                      color: v == null ? '#9c9c9c' : v > 0 ? '#8c1a2e' : '#0f5132',
+                      color: v == null ? '#9c9c9c' : v > 0 ? '#a8336b' : '#0f5132',
                     }}>
                       {v == null ? '—' : v > 0 ? `+${v}d` : `${v}d`}
                     </td>

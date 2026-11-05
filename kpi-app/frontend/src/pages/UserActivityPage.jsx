@@ -27,7 +27,7 @@ const SERVICE_SHORT = [
   'Retention',
   'Graphic Design',
 ]
-const SERVICE_COLORS = ['#1450f5', '#0077a8', '#1e8a5e', '#b87d00', '#c0305a']
+const SERVICE_COLORS = ['#1450f5', '#0d7f9e', '#0f9c52', '#b87d00', '#a8336b']
 
 
 // Lifecycle segments reuse the sentiment triad: Active→mint, Regular→yellow,
@@ -59,9 +59,9 @@ const fmtDate = (s) => {
 const pct = (v) => (v == null ? null : `${v}%`)
 
 const TIER_CONFIG = {
-  Active:          { color: '#1e8a5e', bg: '#edf8f2', border: '#aae1c8' },
+  Active:          { color: '#0f9c52', bg: '#edf8f2', border: '#aae1c8' },
   'At Risk':       { color: '#b87d00', bg: '#fffae3', border: '#ffe141' },
-  'Review Access': { color: '#c0305a', bg: '#fff0f3', border: '#f28ba0' },
+  'Review Access': { color: '#a8336b', bg: '#fff0f3', border: '#a8336b' },
 }
 
 function TierBadge({ tier }) {
@@ -337,7 +337,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
         {(user || service || area || fl || range.from || range.to) && (
           <button
             onClick={() => { setUser(''); setService(''); setArea(''); setFl(''); setRange({ from: '', to: '' }) }}
-            style={{ border: 'none', background: 'none', color: '#c0305a', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: INTER }}
+            style={{ border: 'none', background: 'none', color: '#a8336b', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: INTER }}
           >
             Reset all
           </button>
@@ -345,7 +345,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
       </div>
 
       {error && (
-        <div style={{ background: '#ffdee5', border: '1px solid #ffcdd7', color: '#8c1a2e', borderRadius: 12, padding: '14px 18px', fontSize: 13 }}>
+        <div style={{ background: '#ffdee5', border: '1px solid #ffcdd7', color: '#a8336b', borderRadius: 12, padding: '14px 18px', fontSize: 13 }}>
           <b>Could not load user activity.</b> {String(error)}
         </div>
       )}
@@ -593,7 +593,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
               {(search || tierFilter) && (
                 <button
                   onClick={() => { setSearch(''); setTierFilter('') }}
-                  style={{ border: 'none', background: 'none', color: '#c0305a', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: INTER }}
+                  style={{ border: 'none', background: 'none', color: '#a8336b', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: INTER }}
                 >
                   Reset
                 </button>
@@ -725,7 +725,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
                       <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                         <span style={{
                           fontWeight: 700,
-                          color: row.days_since_last > 56 ? '#c0305a' : row.days_since_last > 27 ? '#b87d00' : '#1e8a5e',
+                          color: row.days_since_last > 56 ? '#a8336b' : row.days_since_last > 27 ? '#b87d00' : '#0f9c52',
                         }}>
                           {row.days_since_last}d
                         </span>

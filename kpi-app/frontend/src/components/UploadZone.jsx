@@ -196,7 +196,7 @@ export default function UploadZone({ onUpload }) {
         <div style={{
           marginTop: 16, padding: '12px 16px',
           background: '#fff0f3', border: '1px solid #ffcdd7',
-          borderRadius: 10, fontSize: 13, color: '#c0305a',
+          borderRadius: 10, fontSize: 13, color: '#a8336b',
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

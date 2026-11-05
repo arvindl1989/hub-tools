@@ -2,9 +2,10 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { INK } from '../../kone/chartTheme'
 
 const COLOR_A = '#1450f5'
-const COLOR_B = '#e86427'
+const COLOR_B = '#d9400a'
 
 function CustomTooltip({ active, payload, unitLabel, labelA, labelB }) {
   if (!active || !payload?.length) return null
@@ -52,7 +53,7 @@ export default function PeriodOverlayChart({ seriesA = [], seriesB = [], labelA,
         />
         <YAxis tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }} allowDecimals={false} />
         <Tooltip content={<CustomTooltip unitLabel={unitLabel} labelA={labelA} labelB={labelB} />} />
-        <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }} />
+        <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }}  formatter={(v) => <span style={{ color: INK.secondary }}>{v}</span>} />
         <Line type="monotone" dataKey="aValue" name={labelA} stroke={COLOR_A} strokeWidth={2.5} dot={false} connectNulls />
         <Line type="monotone" dataKey="bValue" name={labelB} stroke={COLOR_B} strokeWidth={2.5} dot={false} connectNulls />
       </LineChart>

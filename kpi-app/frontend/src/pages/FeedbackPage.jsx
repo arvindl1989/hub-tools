@@ -11,10 +11,10 @@ import {
 function scoreTone(score, max = 5) {
   if (score == null) return { fg: '#6e6e6e', bg: '#f1ede3', bar: '#9c9c9c' }
   const r = score / max
-  if (r >= 0.9)  return { fg: '#0f5132', bg: '#aae1c8', bar: '#1e8a5e' }
-  if (r >= 0.7)  return { fg: '#1e8a5e', bg: '#d3efe0', bar: '#1e8a5e' }
+  if (r >= 0.9)  return { fg: '#0f5132', bg: '#aae1c8', bar: '#0f9c52' }
+  if (r >= 0.7)  return { fg: '#0f9c52', bg: '#d3efe0', bar: '#0f9c52' }
   if (r >= 0.5)  return { fg: '#7a5400', bg: '#ffe141', bar: '#b87d00' }
-  return { fg: '#8c1a2e', bg: '#ffcdd7', bar: '#c0305a' }
+  return { fg: '#a8336b', bg: '#ffcdd7', bar: '#a8336b' }
 }
 
 // NPS_BUCKET_STYLES (imported) are the sentiment colors for the
@@ -187,7 +187,7 @@ export default function FeedbackPage({ sessionId }) {
         {(user || service || area || fl || range.from || range.to) && (
           <button
             onClick={() => { setUser(''); setService(''); setArea(''); setFl(''); setRange({ from: '', to: '' }) }}
-            style={{ border: 'none', background: 'none', color: '#c0305a', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+            style={{ border: 'none', background: 'none', color: '#a8336b', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
           >
             Reset all
           </button>
@@ -195,7 +195,7 @@ export default function FeedbackPage({ sessionId }) {
       </div>
 
       {error && (
-        <div style={{ background: '#ffdee5', border: '1px solid #ffcdd7', color: '#8c1a2e', borderRadius: 12, padding: '14px 18px', fontSize: 13 }}>
+        <div style={{ background: '#ffdee5', border: '1px solid #ffcdd7', color: '#a8336b', borderRadius: 12, padding: '14px 18px', fontSize: 13 }}>
           <b>Could not load the feedback sheet.</b> {String(error)}
         </div>
       )}
@@ -273,7 +273,7 @@ export default function FeedbackPage({ sessionId }) {
                 {(entriesUser || entriesService) && (
                   <button
                     onClick={() => { setEntriesUser(''); setEntriesService('') }}
-                    style={{ border: 'none', background: 'none', color: '#c0305a', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+                    style={{ border: 'none', background: 'none', color: '#a8336b', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
                   >
                     Reset
                   </button>
@@ -562,11 +562,11 @@ function ScoreTrend({ data = [], max = 5 }) {
             <text x={PAD.l - 6} y={y(v) + 3} textAnchor="end" fontSize={10} fill="#9c9c9c">{v}</text>
           </g>
         ))}
-        <path d={`${path} L ${x(pts.length - 1)},${PAD.t + ch} L ${x(0)},${PAD.t + ch} Z`} fill="#1e8a5e" opacity={0.08} />
-        <path d={path} fill="none" stroke="#1e8a5e" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={`${path} L ${x(pts.length - 1)},${PAD.t + ch} L ${x(0)},${PAD.t + ch} Z`} fill="#0f9c52" opacity={0.08} />
+        <path d={path} fill="none" stroke="#0f9c52" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
         {pts.map((d, i) => (
           <g key={d.period}>
-            <circle cx={x(i)} cy={y(d.avg_score)} r={3.5} fill="#fff" stroke="#1e8a5e" strokeWidth={2} />
+            <circle cx={x(i)} cy={y(d.avg_score)} r={3.5} fill="#fff" stroke="#0f9c52" strokeWidth={2} />
             {/* column-wide hover target */}
             <rect x={x(i) - colW / 2} y={PAD.t} width={colW} height={ch} fill="transparent"
               onMouseMove={e => show(e, [
@@ -806,7 +806,7 @@ function RecentList({ rows = [], scaleMax }) {
                 </span>
               )}
               {r.requester && (
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#0077a8' }}>{r.requester}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#0d7f9e' }}>{r.requester}</span>
               )}
               {r.requester && r.user && <span style={{ fontSize: 11, color: '#9c9c9c' }}>→</span>}
               {r.user && <span style={{ fontSize: 12, fontWeight: 600, color: '#141414' }}>{r.user}</span>}

@@ -118,7 +118,7 @@ export default function GenerateDeckModal({ sessionId, dateFrom, dateTo, periodL
         <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
           {loading && <div style={{ padding: 40, textAlign: 'center', color: '#9c9c9c', fontSize: 13 }}>Loading candidate tickets…</div>}
           {loadError && (
-            <div style={{ background: '#ffdee5', border: '1px solid #ffcdd7', color: '#8c1a2e', borderRadius: 10, padding: '12px 16px', fontSize: 13, marginBottom: 16 }}>
+            <div style={{ background: '#ffdee5', border: '1px solid #ffcdd7', color: '#a8336b', borderRadius: 10, padding: '12px 16px', fontSize: 13, marginBottom: 16 }}>
               {loadError}
             </div>
           )}
@@ -219,7 +219,7 @@ export default function GenerateDeckModal({ sessionId, dateFrom, dateTo, periodL
 
         {/* Footer */}
         <div style={{ padding: '14px 24px', borderTop: '1px solid #e8e2d6', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
-          {genError && <span style={{ fontSize: 12, color: '#c0305a', fontWeight: 600, marginRight: 'auto' }}>{genError}</span>}
+          {genError && <span style={{ fontSize: 12, color: '#a8336b', fontWeight: 600, marginRight: 'auto' }}>{genError}</span>}
           <button onClick={onClose} style={{
             height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid #e8e2d6', background: '#fff',
             color: '#6e6e6e', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif',

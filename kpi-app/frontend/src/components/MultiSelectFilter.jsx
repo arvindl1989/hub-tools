@@ -69,7 +69,7 @@ export default function MultiSelectFilter({ label, value, onChange, options = []
             <button
               onClick={() => onChange('')}
               style={{
-                flex: 1, fontSize: 11, fontWeight: 600, color: '#c0305a',
+                flex: 1, fontSize: 11, fontWeight: 600, color: '#a8336b',
                 background: '#fff0f3', border: '1px solid #ffcdd7', borderRadius: 6,
                 padding: '4px 6px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
               }}

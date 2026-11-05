@@ -32,7 +32,7 @@ export default function TeamPerformanceTable({ data = [] }) {
                     ● {r.overdue}
                   </span>
                 ) : (
-                  <span style={{ color: '#1e8a5e', fontSize: 12, fontWeight: 600 }}>✓ Clear</span>
+                  <span style={{ color: '#0f9c52', fontSize: 12, fontWeight: 600 }}>✓ Clear</span>
                 )}
               </td>
 
@@ -57,18 +57,18 @@ export default function TeamPerformanceTable({ data = [] }) {
                           height: 6,
                           borderRadius: 99,
                           width: `${r.sla_compliance_pct}%`,
-                          backgroundColor: r.sla_compliance_pct >= 80 ? '#1e8a5e'
+                          backgroundColor: r.sla_compliance_pct >= 80 ? '#0f9c52'
                             : r.sla_compliance_pct >= 60 ? '#b87d00'
-                            : '#c0305a',
+                            : '#a8336b',
                           transition: 'width 0.4s ease',
                         }}
                       />
                     </div>
                     <span style={{
                       fontSize: 12, fontWeight: 700, width: 36, textAlign: 'right',
-                      color: r.sla_compliance_pct >= 80 ? '#1e8a5e'
+                      color: r.sla_compliance_pct >= 80 ? '#0f9c52'
                         : r.sla_compliance_pct >= 60 ? '#b87d00'
-                        : '#c0305a',
+                        : '#a8336b',
                     }}>
                       {r.sla_compliance_pct}%
                     </span>

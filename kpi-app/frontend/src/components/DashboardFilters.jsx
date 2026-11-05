@@ -55,7 +55,7 @@ export default function DashboardFilters({ overview, filters, range, onFilter, o
         <button
           onClick={() => { onFilter('__reset__'); onRange({ from: '', to: '' }) }}
           style={{
-            border: 'none', background: 'none', color: '#c0305a',
+            border: 'none', background: 'none', color: '#a8336b',
             fontSize: 12, fontWeight: 600, cursor: 'pointer',
             fontFamily: 'Inter, sans-serif',
           }}

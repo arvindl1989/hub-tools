@@ -15,7 +15,7 @@ const C = {
   ours: '#1450f5',
   waiting: '#ffcdd7',
   terminal: '#aae1c8',
-  saved: '#1e8a5e',
+  saved: '#0f9c52',
   ink: '#141414',
   muted: '#6e6e6e',
   line: '#e8e2d6',

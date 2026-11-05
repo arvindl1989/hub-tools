@@ -1,12 +1,12 @@
 const stateColor = (state = '') => {
   const s = state.toLowerCase()
-  if (s.includes('completed') || s.includes('resolved')) return '#1e8a5e'
-  if (s.includes('rejected'))  return '#c0305a'
+  if (s.includes('completed') || s.includes('resolved')) return '#0f9c52'
+  if (s.includes('rejected'))  return '#a8336b'
   if (s.includes('confirmation')) return '#aae1c8'
   if (s.includes('in progress') || s.includes('progress')) return '#1450f5'
-  if (s.includes('assigned'))  return '#0077a8'
+  if (s.includes('assigned'))  return '#0d7f9e'
   if (s.includes('hold') || s.includes('pending')) return '#b87d00'
-  if (s.includes('review'))    return '#0077a8'
+  if (s.includes('review'))    return '#0d7f9e'
   if (s.includes('open'))      return '#6e6e6e'
   return '#9c9c9c'
 }

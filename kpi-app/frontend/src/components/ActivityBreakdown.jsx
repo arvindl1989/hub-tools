@@ -110,7 +110,7 @@ export default function ActivityBreakdown({
                     behind it travel with it: nobody should have to take a
                     percentage about a person on trust. */}
                 <td style={{ padding: '9px 6px', textAlign: 'right', fontWeight: 700, fontFamily: INTER,
-                             color: utilisation && (r.utility_pct ?? 0) > 100 ? '#c0305a' : '#1450f5' }}
+                             color: utilisation && (r.utility_pct ?? 0) > 100 ? '#a8336b' : '#1450f5' }}
                     title={utilisation
                       ? (r.available_days
                           ? `${Math.round(r.hours_spent ?? 0)} hours over `

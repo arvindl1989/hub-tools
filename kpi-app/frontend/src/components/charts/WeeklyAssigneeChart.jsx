@@ -2,11 +2,8 @@ import { useState } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { INK, seriesColor, INTER, KONE_FONT } from '../../kone/chartTheme'
 
-const COLORS = [
-  '#1450f5','#b87d00','#1e8a5e','#0077a8','#c0305a',
-  '#0077a8','#e86427','#0aa08f','#a63d5f','#6b8f00',
-]
 
 export default function WeeklyAssigneeChart({ data = [], assignees = [], limit = 16 }) {
   const [selected, setSelected] = useState([])
@@ -29,7 +26,7 @@ export default function WeeklyAssigneeChart({ data = [], assignees = [], limit =
               onClick={() => toggle(a)}
               className="text-xs px-2.5 py-1 rounded-full border transition-colors"
               style={people.includes(a)
-                ? { backgroundColor: COLORS[i % COLORS.length], color: '#ffffff', borderColor: 'transparent' }
+                ? { backgroundColor: seriesColor(i), color: '#ffffff', borderColor: 'transparent' }
                 : { backgroundColor: '#ffffff', color: '#6e6e6e', borderColor: '#e8e2d6' }
               }
             >
@@ -59,9 +56,9 @@ export default function WeeklyAssigneeChart({ data = [], assignees = [], limit =
             contentStyle={{ borderRadius: 10, border: '1px solid #e8e3da', fontSize: 12, fontFamily: 'Inter' }}
             cursor={{ fill: '#f5f3ef' }}
           />
-          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }} />
+          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }}  formatter={(v) => <span style={{ color: INK.secondary }}>{v}</span>} />
           {people.map((a, i) => (
-            <Bar key={a} dataKey={a} stackId="a" fill={COLORS[i % COLORS.length]} />
+            <Bar key={a} dataKey={a} stackId="a" fill={seriesColor(i)} />
           ))}
         </BarChart>
       </ResponsiveContainer>

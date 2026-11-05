@@ -3,12 +3,13 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
+import { INK, INTER } from '../../kone/chartTheme'
 
 // Each series keeps the colour it has always had here, so switching views does
 // not repaint the same quantity a different colour.
 const SERIES = {
   inflow:  { key: 'inflow',  label: 'Inflow (Created)', colour: '#1450f5' },
-  outflow: { key: 'outflow', label: 'Outflow (Closed)', colour: '#1e8a5e' },
+  outflow: { key: 'outflow', label: 'Outflow (Closed)', colour: '#0f9c52' },
   net:     { key: 'net',     label: 'Net',              colour: '#b87d00' },
 }
 
@@ -144,17 +145,17 @@ export default function InflowOutflowChart({ data = [], noDateCols = false }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#f1ede3" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 10, fill: '#6e6e6e' }}
+            tick={{ fontSize: 10, fill: '#6e6e6e', fontFamily: INTER}}
             angle={-40}
             textAnchor="end"
             interval={0}
           />
-          <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#6e6e6e' }} allowDecimals={false} />
+          <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#6e6e6e', fontFamily: INTER}} allowDecimals={false} />
           {splitAxis && (
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#9c9c9c' }} allowDecimals={false} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: INTER}} allowDecimals={false} />
           )}
           <Tooltip content={<CustomTooltip />} />
-          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
+          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8, fontFamily: INTER}}  formatter={(v) => <span style={{ color: INK.secondary }}>{v}</span>} />
           {showNet && (
             <ReferenceLine yAxisId={splitAxis ? 'right' : 'left'} y={0} stroke="#d8d8d8" strokeDasharray="4 4" />
           )}
@@ -189,7 +190,7 @@ function Empty({ noDateCols }) {
     <div style={{ height: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
       <span style={{ fontSize: 13, color: '#9c9c9c' }}>No data for this range</span>
       {noDateCols && (
-        <span style={{ fontSize: 11, color: '#c0305a', background: '#fff0f3', border: '1px solid #ffcdd7', borderRadius: 6, padding: '4px 10px' }}>
+        <span style={{ fontSize: 11, color: '#a8336b', background: '#fff0f3', border: '1px solid #ffcdd7', borderRadius: 6, padding: '4px 10px' }}>
           No "Created" date column recognised — check your Google Sheet column names
         </span>
       )}

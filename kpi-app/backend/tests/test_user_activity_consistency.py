@@ -6,12 +6,16 @@ re-scaled itself whenever the filter moved so two screenshots of the same estate
 could not be compared.
 """
 import json
+import pathlib
 import sys
 import urllib.parse
 import urllib.request
 
-sys.path.insert(0, "/tmp/claude-0/-home-user-hub-tools/82e410bb-e079-52f1-bbcc-05d4911973ee/scratchpad")
-import ua_fixture  # noqa: E402
+# The fixture lives beside this file. It used to be loaded from a
+# scratch directory outside the repo, which worked until the container
+# was recycled and took it with it.
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+import fixture_tickets as ua_fixture  # noqa: E402
 
 BASE = "http://127.0.0.1:8822"
 

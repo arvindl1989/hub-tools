@@ -19,8 +19,8 @@ const DIM = '#6e6e6e'
 const LINE = '#e8e2d6'
 
 const TONE = {
-  overloaded:        { fg: '#c0305a', bg: '#fff0f3', border: '#f28ba0' },
-  appropriate:       { fg: '#1e8a5e', bg: '#edf8f2', border: '#aae1c8' },
+  overloaded:        { fg: '#a8336b', bg: '#fff0f3', border: '#a8336b' },
+  appropriate:       { fg: '#0f9c52', bg: '#edf8f2', border: '#aae1c8' },
   'under-utilised':  { fg: '#b87d00', bg: '#fffae3', border: '#ffe141' },
   unknown:           { fg: '#9c9c9c', bg: '#faf8f3', border: '#e8e2d6' },
 }
@@ -89,7 +89,7 @@ export default function GrowthForecastPage({ sessionId, onSessionExpired }) {
   }, [data])
 
   if (error) {
-    return <Card title="Growth & capacity"><div style={{ padding: 24, color: '#c0305a',
+    return <Card title="Growth & capacity"><div style={{ padding: 24, color: '#a8336b',
       fontSize: 13, fontFamily: INTER }}>{error}</div></Card>
   }
   if (!data) {
@@ -190,7 +190,7 @@ export default function GrowthForecastPage({ sessionId, onSessionExpired }) {
                       )}
                     </td>
                     {/* 100 is an average month of the base year. */}
-                    <td style={{ ...td, color: season?.index >= 115 ? '#c0305a'
+                    <td style={{ ...td, color: season?.index >= 115 ? '#a8336b'
                       : season?.index <= 85 ? '#9c9c9c' : DIM }}>
                       {season?.index ?? '—'}
                     </td>

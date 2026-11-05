@@ -2,9 +2,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { INK, INTER } from '../../kone/chartTheme'
 
 const COLOR_A = '#1450f5'
-const COLOR_B = '#e86427'
+const COLOR_B = '#d9400a'
 
 // Grouped bar chart merging two period datasets (each [{ [labelKey]: name, count }])
 // into one row per category, so A vs B is directly comparable per category.
@@ -28,8 +29,8 @@ export default function ComparisonBarChart({ dataA = [], dataB = [], labelKey, l
         <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }} angle={-35} textAnchor="end" interval={0} />
         <YAxis tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }} allowDecimals={false} />
-        <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e8e2d6', fontSize: 12 }} />
-        <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }} />
+        <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e8e2d6', fontSize: 12, fontFamily: INTER}} />
+        <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }}  formatter={(v) => <span style={{ color: INK.secondary }}>{v}</span>} />
         <Bar dataKey="a" name={labelA} fill={COLOR_A} radius={[3, 3, 0, 0]} />
         <Bar dataKey="b" name={labelB} fill={COLOR_B} radius={[3, 3, 0, 0]} />
       </BarChart>

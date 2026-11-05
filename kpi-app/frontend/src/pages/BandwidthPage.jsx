@@ -8,9 +8,9 @@ import { getBandwidth, updateBandwidthRates } from '../api'
 const WEEKLY_CAPACITY = 40
 
 const STATUS = {
-  Available:  { color: '#1e8a5e', bg: '#edf8f2', border: '#aae1c8', bar: '#1e8a5e' },
+  Available:  { color: '#0f9c52', bg: '#edf8f2', border: '#aae1c8', bar: '#0f9c52' },
   Busy:       { color: '#b87d00', bg: '#fffae3', border: '#ffe141', bar: '#b87d00' },
-  Overloaded: { color: '#c0305a', bg: '#fff0f3', border: '#f28ba0', bar: '#c0305a' },
+  Overloaded: { color: '#a8336b', bg: '#fff0f3', border: '#a8336b', bar: '#a8336b' },
 }
 
 function StatusBadge({ status }) {
@@ -243,11 +243,11 @@ export default function BandwidthPage({ sessionId, onSessionExpired }) {
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
         <StatCard label="Specialists"      value={stats.total}          sub="with active tickets" />
         <StatCard label="Avg Team Load"    value={`${stats.avgLoad}%`}  sub="of 40h weekly capacity"
-          color={stats.avgLoad >= 85 ? '#c0305a' : stats.avgLoad >= 60 ? '#b87d00' : '#1e8a5e'}
+          color={stats.avgLoad >= 85 ? '#a8336b' : stats.avgLoad >= 60 ? '#b87d00' : '#0f9c52'}
           bg={stats.avgLoad >= 85 ? '#fff0f3' : stats.avgLoad >= 60 ? '#fffae3' : '#edf8f2'} />
-        <StatCard label="Available"        value={stats.available}      sub="< 60% load"  color="#1e8a5e" bg="#edf8f2" />
+        <StatCard label="Available"        value={stats.available}      sub="< 60% load"  color="#0f9c52" bg="#edf8f2" />
         <StatCard label="Busy"             value={stats.busy}           sub="60–85% load" color="#b87d00" bg="#fffae3" />
-        <StatCard label="Overloaded"       value={stats.overloaded}     sub="> 85% load"  color="#c0305a" bg="#fff0f3" />
+        <StatCard label="Overloaded"       value={stats.overloaded}     sub="> 85% load"  color="#a8336b" bg="#fff0f3" />
       </div>
 
       {/* Charts row */}
@@ -279,7 +279,7 @@ export default function BandwidthPage({ sessionId, onSessionExpired }) {
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#404040' }} axisLine={false} tickLine={false} width={70} />
               <Tooltip content={<BarTooltip />} cursor={{ fill: '#f3eee6' }} />
               <Bar dataKey="committed" name="Committed" stackId="a" radius={[0, 0, 0, 0]}>
-                {chartData.map((e) => <Cell key={e.fullName} fill={STATUS[e.status]?.bar || '#1e8a5e'} />)}
+                {chartData.map((e) => <Cell key={e.fullName} fill={STATUS[e.status]?.bar || '#0f9c52'} />)}
               </Bar>
               <Bar dataKey="available" name="Available" stackId="a" fill="#e8e2d6" radius={[4, 4, 4, 4]} />
             </BarChart>
@@ -432,7 +432,7 @@ export default function BandwidthPage({ sessionId, onSessionExpired }) {
                   <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <span style={{
                       fontWeight: 700,
-                      color: m.available_hours > 10 ? '#1e8a5e' : m.available_hours > 0 ? '#b87d00' : '#c0305a',
+                      color: m.available_hours > 10 ? '#0f9c52' : m.available_hours > 0 ? '#b87d00' : '#a8336b',
                     }}>
                       {m.available_hours}h
                     </span>
@@ -441,7 +441,7 @@ export default function BandwidthPage({ sessionId, onSessionExpired }) {
                   {/* Can take */}
                   <td style={{ padding: '10px 14px', minWidth: 180 }}>
                     {m.available_hours <= 0 ? (
-                      <span style={{ fontSize: 12, color: '#c0305a', fontWeight: 600 }}>At capacity</span>
+                      <span style={{ fontSize: 12, color: '#a8336b', fontWeight: 600 }}>At capacity</span>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         {Object.entries(m.capacity_by_type)
@@ -451,7 +451,7 @@ export default function BandwidthPage({ sessionId, onSessionExpired }) {
                           .map(([sc, n]) => (
                             <div key={sc} style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
                               <span style={{ fontSize: 10, color: '#6e6e6e', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>{sc}</span>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: '#1e8a5e' }}>+{Math.floor(n)}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#0f9c52' }}>+{Math.floor(n)}</span>
                             </div>
                           ))}
                       </div>

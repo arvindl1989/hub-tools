@@ -17,29 +17,22 @@ export const KONE = {
   mint:      '#aae1c8',
 }
 
-// Dark, mark-safe steps of each accent (for text on tints and chart marks)
+// Dark, mark-safe steps of each accent, for text sitting on a tint. The chart
+// marks come from chartTheme's SERIES instead; these two sets used to disagree.
 export const KONE_DARK = {
-  gold:  '#b87d00',   // from yellow
-  green: '#1e8a5e',   // from mint
-  cyan:  '#0077a8',   // from light blue
-  rose:  '#c0305a',   // from pink
+  gold:  '#b87d00',
+  green: '#0f9c52',
+  cyan:  '#0d7f9e',
+  rose:  '#a8336b',
 }
 
-// Sub-category colours — brand-aligned, dark enough for chart bars
-export const SUB_CAT_COLORS = {
-  'Website Content Management':          '#1450f5',  // brand primary
-  'Demand Creation – Global':            '#b87d00',  // dark gold (from brand yellow)
-  'Retention – Activations':             '#1e8a5e',  // dark mint (from brand mint)
-  'Email – Local':                       '#0077a8',  // deep cyan (from brand lightblue)
-  'Content Production – Graphic Design': '#c0305a',  // deep rose (from brand pink)
-}
+// Sub-category colours and the categorical order both live in
+// kone/chartTheme.js now — one definition, validated there. Re-exported here
+// so the modules that already import from this path keep working.
+export {
+  SERIES as PALETTE, SUB_CATEGORY as SUB_CAT_COLORS, seriesColor,
+} from '../kone/chartTheme'
 
-// Fixed categorical order — validated for lightness band, chroma floor,
-// CVD separation and contrast on white. Never cycle or reshuffle.
-export const PALETTE = [
-  '#1450f5', '#b87d00', '#1e8a5e', '#0077a8', '#c0305a',
-  '#e86427', '#0aa08f', '#a63d5f', '#6b8f00', '#5c66c2',
-]
+import { SUB_CATEGORY, seriesColor as _seriesColor } from '../kone/chartTheme'
 
-export const scColor = (name, idx) =>
-  SUB_CAT_COLORS[name] ?? PALETTE[idx % PALETTE.length]
+export const scColor = (name, idx) => SUB_CATEGORY[name] ?? _seriesColor(idx)

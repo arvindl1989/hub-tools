@@ -21,7 +21,7 @@ export default function DeltaBadge({ current, previous, size = 'md' }) {
   }
   const isUp = rounded > 0
   return (
-    <span style={badgeStyle(isUp ? '#0f5132' : '#8c1a2e', isUp ? '#d3efe0' : '#ffdee5', small)}>
+    <span style={badgeStyle(isUp ? '#0f5132' : '#a8336b', isUp ? '#d3efe0' : '#ffdee5', small)}>
       {isUp ? <UpArrow /> : <DownArrow />}
       {isUp ? '+' : ''}{rounded}%
     </span>

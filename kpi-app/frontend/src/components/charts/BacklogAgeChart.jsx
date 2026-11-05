@@ -4,7 +4,7 @@ const BUCKET_COLORS = {
   '0–7 days':   '#d2f5ff',
   '8–30 days':  '#ffe141',
   '31–90 days': '#ffcdd7',
-  '91+ days':   '#c0305a',
+  '91+ days':   '#a8336b',
 }
 
 function getBucketColor(label, fallback) {

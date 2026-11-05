@@ -1,6 +1,7 @@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { INK, INTER } from '../../kone/chartTheme'
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -35,14 +36,14 @@ export default function SlaPerformanceChart({ data = [] }) {
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={display} margin={{ top: 5, right: 10, left: 0, bottom: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1ede3" />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6e6e6e' }} />
-          <YAxis tick={{ fontSize: 11, fill: '#6e6e6e' }} allowDecimals={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6e6e6e', fontFamily: INTER}} />
+          <YAxis tick={{ fontSize: 11, fill: '#6e6e6e', fontFamily: INTER}} allowDecimals={false} />
           <Tooltip content={<CustomTooltip />} />
-          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
-          <Bar dataKey="closed_on_time"  name="Closed On Time"   fill="#1e8a5e" stackId="a" radius={[0,0,0,0]} />
-          <Bar dataKey="closed_late"     name="Closed Late"      fill="#c0305a" stackId="a" radius={[0,0,0,0]} />
+          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8, fontFamily: INTER}}  formatter={(v) => <span style={{ color: INK.secondary }}>{v}</span>} />
+          <Bar dataKey="closed_on_time"  name="Closed On Time"   fill="#0f9c52" stackId="a" radius={[0,0,0,0]} />
+          <Bar dataKey="closed_late"     name="Closed Late"      fill="#a8336b" stackId="a" radius={[0,0,0,0]} />
           <Bar dataKey="active_on_track" name="Active – On Track" fill="#1450f5" stackId="b" radius={[0,0,0,0]} />
-          <Bar dataKey="active_breached" name="Active – Breached" fill="#e86427" stackId="b" radius={[3,3,0,0]} />
+          <Bar dataKey="active_breached" name="Active – Breached" fill="#d9400a" stackId="b" radius={[3,3,0,0]} />
         </BarChart>
       </ResponsiveContainer>
 

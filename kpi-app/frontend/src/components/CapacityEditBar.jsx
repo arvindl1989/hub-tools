@@ -102,14 +102,14 @@ export default function CapacityEditBar({ year, onSaved }) {
           Working days, holidays, the cadence and training shares, the days spent
           per service — everything on this page that is not calculated
         </span>
-        {saved && <span style={{ fontSize: 11, color: '#1e8a5e', fontFamily: INTER }}>
+        {saved && <span style={{ fontSize: 11, color: '#0f9c52', fontFamily: INTER }}>
           Saved
         </span>}
       </div>
 
       {open && (
         <div style={{ borderTop: `1px solid ${LINE}`, padding: '14px 16px' }}>
-          {error && <div style={{ color: '#c0305a', fontSize: 12, fontFamily: INTER,
+          {error && <div style={{ color: '#a8336b', fontSize: 12, fontFamily: INTER,
                                   marginBottom: 10 }}>{error}</div>}
           {!s ? (
             <div style={{ color: DIM, fontSize: 12, fontFamily: INTER }}>Loading…</div>

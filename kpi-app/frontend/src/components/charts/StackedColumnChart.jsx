@@ -3,6 +3,7 @@ import {
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { scColor } from '../../utils/colors'
+import { INK } from '../../kone/chartTheme'
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -41,7 +42,7 @@ export default function StackedColumnChart({ data, xKey = 'label', height = 320 
         />
         <YAxis tick={{ fontSize: 11, fill: '#9c9c9c', fontFamily: 'Inter' }} allowDecimals={false} />
         <Tooltip content={<CustomTooltip />} />
-        <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }} />
+        <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8, fontFamily: 'Inter' }}  formatter={(v) => <span style={{ color: INK.secondary }}>{v}</span>} />
         {sub_categories.map((sc, i) => (
           <Bar
             key={sc}

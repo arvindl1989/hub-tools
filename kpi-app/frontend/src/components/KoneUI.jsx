@@ -42,7 +42,7 @@ export const fmt1 = (v) => (v == null ? null : Number(v).toFixed(1))
 export const NPS_BUCKET_STYLES = {
   promoter:  { fg: '#0f5132', bg: '#aae1c8' },
   passive:   { fg: '#7a5400', bg: '#ffe141' },
-  detractor: { fg: '#8c1a2e', bg: '#ffcdd7' },
+  detractor: { fg: '#a8336b', bg: '#ffcdd7' },
 }
 
 // KONE Blue as a tinted accent — the pale-blue/blue pair already used by the

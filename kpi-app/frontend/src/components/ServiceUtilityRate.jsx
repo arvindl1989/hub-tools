@@ -7,9 +7,9 @@ import ListModal from './ListModal'
 // service twice to compare them; here each service is one row with both
 // denominators side by side.
 const TONE = {
-  active:  { fg: '#1e8a5e', bg: '#edf8f2', border: '#aae1c8' },
+  active:  { fg: '#0f9c52', bg: '#edf8f2', border: '#aae1c8' },
   regular: { fg: '#b87d00', bg: '#fffae3', border: '#ffe141' },
-  dormant: { fg: '#c0305a', bg: '#fff0f3', border: '#f28ba0' },
+  dormant: { fg: '#a8336b', bg: '#fff0f3', border: '#a8336b' },
 }
 
 // Fifteen columns now, since the SLA record joined the two reach halves, so

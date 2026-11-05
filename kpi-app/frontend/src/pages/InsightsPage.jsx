@@ -10,9 +10,9 @@ const SERVICES = [
 ]
 
 const CATEGORIES = [
-  { key: 'positives',    label: 'Positives',     icon: '✅', color: '#1e8a5e', bg: '#edf8f2', border: '#aae1c8', headerBg: '#d3efe0' },
+  { key: 'positives',    label: 'Positives',     icon: '✅', color: '#0f9c52', bg: '#edf8f2', border: '#aae1c8', headerBg: '#d3efe0' },
   { key: 'negatives',    label: 'Concerns',       icon: '⚠️', color: '#8a5f00', bg: '#fffae3', border: '#ffe141', headerBg: '#fff3b0' },
-  { key: 'anomalies',    label: 'Anomalies',      icon: '🔍', color: '#0077a8', bg: '#eafaff', border: '#79c7e3', headerBg: '#c4ecfa' },
+  { key: 'anomalies',    label: 'Anomalies',      icon: '🔍', color: '#0d7f9e', bg: '#eafaff', border: '#0d7f9e', headerBg: '#c4ecfa' },
   { key: 'improvements', label: 'Improvements',   icon: '💡', color: '#0d3ac2', bg: '#eef3fe', border: '#a1b9fb', headerBg: '#dbe6fd' },
 ]
 
@@ -36,7 +36,7 @@ function DateInput({ label, value, onChange }) {
 
 function SummaryBanner({ insights, label, accent }) {
   const bg   = accent === 'indigo' ? '#d2f5ff' : '#e2f3ea'
-  const border = accent === 'indigo' ? '#79c7e3' : '#aae1c8'
+  const border = accent === 'indigo' ? '#0d7f9e' : '#aae1c8'
   const color  = accent === 'indigo' ? '#0d3ac2' : '#0f5132'
   return (
     <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '18px 22px' }}>
@@ -300,8 +300,8 @@ export default function InsightsPage({ sessionId, onSessionExpired }) {
       {/* Error */}
       {error && !loading && (
         <div style={{
-          background: '#fff0f3', border: '1px solid #f28ba0', borderRadius: 12,
-          padding: '18px 20px', color: '#8c1a2e', fontSize: 13,
+          background: '#fff0f3', border: '1px solid #a8336b', borderRadius: 12,
+          padding: '18px 20px', color: '#a8336b', fontSize: 13,
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <span style={{ fontSize: 18 }}>⚠️</span>
@@ -331,7 +331,7 @@ export default function InsightsPage({ sessionId, onSessionExpired }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={{
               background: '#d2f5ff',
-              border: '1px solid #79c7e3', borderRadius: 10,
+              border: '1px solid #0d7f9e', borderRadius: 10,
               padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8,
             }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#0d3ac2' }}>Period A</span>
