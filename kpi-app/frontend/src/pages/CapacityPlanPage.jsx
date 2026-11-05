@@ -401,7 +401,17 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                 {shown.map(s => (
                   <Fragment key={s.short}>
                     <td style={{ ...td, fontWeight: 700,
-                                 borderLeft: `2px solid ${LINE}` }}>{n0(s.goal_capacity)}</td>
+                                 borderLeft: `2px solid ${LINE}`,
+                                 color: s.goal_capacity == null ? AMBER : INK,
+                                 fontSize: s.goal_capacity == null ? 10.5 : 12.5 }}
+                        title={s.goal_capacity == null
+                          ? (s.projected
+                            ? `No goal typed for ${s.short} yet. At this year's rate so far `
+                              + `it lands near ${s.projected}.`
+                            : `No goal typed for ${s.short} yet.`)
+                          : `Typed, summed across the team`}>
+                      {s.goal_capacity == null ? 'not set' : n0(s.goal_capacity)}
+                    </td>
                     <td style={{ ...td, fontWeight: 700 }}>{n0(s.actual)}</td>
                     <td style={{ ...td, fontWeight: 700, color: DIM }}>{n0(s.previous)}</td>
                   </Fragment>
@@ -430,7 +440,10 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
                                        cursor: 'pointer',
                                        color: c.goal == null ? '#ddd8cf' : BLUE }}
                               title={c.goal == null
-                                ? `No ${year} goal set for ${p.name} — click to set one`
+                                ? (c.projected
+                                  ? `No ${year} goal set for ${p.name}. At this rate they `
+                                    + `land near ${c.projected} — click to set one`
+                                  : `No ${year} goal set for ${p.name} — click to set one`)
                                 : `Goal for ${year}, set by hand — click to change it`}>
                             {c.goal == null ? '–' : n0(c.goal)}
                           </td>
@@ -468,11 +481,16 @@ export default function CapacityPlanPage({ sessionId, onSessionExpired, filters 
           Set the hours in the bar above.</Note>
         ) : null}
         <br />
-        <b>Goal</b> is what the team anticipates finishing by the end of the year — typed,
-        per person, because nothing in the tickets implies it. <b>Avg TAT</b> for {year} and
+        <b>Goal</b> is what the team anticipates finishing by the end of the year. It is
+        typed, per person, because nothing in the tickets implies it — set it in the grid in
+        the edit bar, or by clicking a Goal cell. Until then it reads
+        {' '}<span style={{ color: '#b87d00' }}>not set</span>, and hovering a cell offers
+        where this year&rsquo;s rate so far would land. <b>Avg TAT</b> for {year} and
         {' '}{year - 1} is measured rather than typed: the days that went into a service over
-        the tickets that came out of it. Where every cell is priced from the rate it restates
-        the rate; where days have been set by hand it shows what the work actually came to.
+        the tickets that came out of it. While every day on the page is priced from the rate
+        in the edit bar that calculation is circular and simply restates that rate — which is
+        what it is doing now. It only becomes a measurement once days are set by hand, cell
+        by cell, from what the work actually took.
         <br />
         <b>Click any service cell</b>, or a Goal cell, to see the tickets behind it, and the sub-categories
         and teams that put them there — and to type the days in by hand, with a note

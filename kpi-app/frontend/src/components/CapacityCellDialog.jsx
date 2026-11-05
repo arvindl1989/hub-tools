@@ -148,12 +148,15 @@ export default function CapacityCellDialog({ sessionId, year, person, service,
           <span style={{ fontSize: 12, fontFamily: INTER, color: INK }}>
             Goal for {year}
           </span>
-          <input type="number" step="1" min="0" value={goal} placeholder="—"
+          <input type="number" step="1" min="0" value={goal}
+                 placeholder={d?.projected == null ? '—' : String(d.projected)}
                  onChange={e => setGoal(e.target.value)}
                  style={{ width: 90, padding: '6px 8px', fontSize: 13, fontFamily: KONE_FONT,
                           border: `1px solid ${LINE}`, borderRadius: 6, textAlign: 'right' }} />
           <span style={{ fontSize: 11, color: DIM, fontFamily: INTER }}>
-            tickets anticipated by the end of the year — Save writes this too
+            tickets anticipated by the end of the year
+            {d?.projected != null && ` — at this rate it lands near ${d.projected}`}
+            . Save writes this too.
           </span>
         </div>
 

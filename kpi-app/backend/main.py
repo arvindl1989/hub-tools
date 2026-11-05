@@ -3063,6 +3063,7 @@ def get_capacity_plan_settings(year: int = 2026):
         "working_days": wd,
         "holidays": (CAPACITY_PLAN.get("holidays") or {}).get(str(year)) or {},
         "training_days": (CAPACITY_PLAN.get("training_days") or {}).get(str(year)) or {},
+        "goal_tickets": (CAPACITY_PLAN.get("goal_tickets") or {}).get(str(year)) or {},
         "services": [{"name": s_["name"], "short": s_["short"], "subs": s_.get("subs") or []}
                      for s_ in (CAPACITY_PLAN.get("services") or [])],
         "people": sorted(set(wd) | set(DEFAULT_PEOPLE)),
@@ -3079,6 +3080,7 @@ class CapacitySettingsBody(BaseModel):
     working_days: Optional[dict] = None   # {person: days}  gross, before holidays
     holidays: Optional[dict] = None       # {person: days}
     training_days: Optional[dict] = None  # {person: days}
+    goal_tickets: Optional[dict] = None   # {person: {service: tickets}}
 
 
 @app.put("/api/capacity-plan/settings")
@@ -3101,6 +3103,12 @@ def update_capacity_plan_settings(body: CapacitySettingsBody):
         if sent is not None:
             CAPACITY_PLAN.setdefault(store, {})[y] = {
                 k: float(v) for k, v in sent.items() if v not in (None, "")}
+    if body.goal_tickets is not None:
+        CAPACITY_PLAN.setdefault("goal_tickets", {})[y] = {
+            person: {svc: float(n) for svc, n in (row or {}).items()
+                     if n not in (None, "")}
+            for person, row in body.goal_tickets.items()
+            if any(n not in (None, "") for n in (row or {}).values())}
     _save_setting("capacity_plan", dict(CAPACITY_PLAN))
 
     # Working days live with the utilisation settings, so By Specialist and
@@ -3328,6 +3336,14 @@ def capacity_plan(sid: str, year: int = 2026,
     this_year, last_year = closed_in(year), closed_in(year - 1)
     as_of = (pd.Timestamp(this_year["closed_date"].max()).date().isoformat()
              if not this_year.empty else None)
+    # How much of the year has been seen. A goal is the team's to set, but
+    # starting from "this rate, carried to December" beats starting from
+    # nothing, so it is offered as the placeholder and never as the value.
+    y_start = pd.Timestamp(year=year, month=1, day=1)
+    y_end = pd.Timestamp(year=year, month=12, day=31)
+    elapsed = _business_days(y_start, pd.Timestamp(as_of)) if as_of else 0
+    whole_year = _business_days(y_start, y_end)
+    run_rate = (whole_year / elapsed) if elapsed else None
 
     def counts(frame):
         """tickets[person][service short]"""
@@ -3389,6 +3405,8 @@ def capacity_plan(sid: str, year: int = 2026,
             "manual": alloc["manual"],
             "manual_notes": alloc["manual_notes"],
             "tickets": alloc["tickets"],
+            "projected": {k: int(round(v * run_rate)) if (run_rate and v) else None
+                          for k, v in alloc["tickets"].items()},
             "prev_by_service": prev_alloc["by_service"],
         })
     people.sort(key=lambda r: -r["allocated_days"])
@@ -3433,10 +3451,12 @@ def capacity_plan(sid: str, year: int = 2026,
             # a projection, and nothing in the tickets implies it.
             "goal_capacity": int(round(sum(float(v.get(short) or 0)
                                            for v in goals.values()))) or None,
+            "projected": int(sum(p["projected"].get(short) or 0 for p in people)) or None,
             "actual": int(actual), "previous": int(prev),
             "people": {p["name"]: {
                 "goal": (float((goals.get(p["name"]) or {}).get(short))
                          if (goals.get(p["name"]) or {}).get(short) is not None else None),
+                "projected": p["projected"].get(short),
                 "actual": p["tickets"].get(short, 0),
                 "previous": int(prev_counts.get(p["name"], {}).get(short, 0)),
             } for p in people},
@@ -3455,6 +3475,7 @@ def capacity_plan(sid: str, year: int = 2026,
         "totals": totals, "cadence_pct": cadence_pct, "training_pct": training_pct,
         "hours_per_day": per_day,
         "closed_states": sorted(states),
+        "as_of_business_days": elapsed, "year_business_days": whole_year,
         "unmapped": [svc["short"] for svc in services
                      if not (svc.get("subs") or svc.get("teams") or svc.get("catch"))],
         # Reaching the page but worth nothing on it, which is a different
@@ -3509,6 +3530,20 @@ def set_capacity_manual_days(body: ManualDaysBody):
     _save_setting("capacity_plan", dict(CAPACITY_PLAN))
     return {"year": body.year, "manual_days": store, "manual_notes": notes,
             "goal_tickets": goals}
+
+
+
+def _project_to_year_end(n: int, year: int, frame) -> Optional[int]:
+    """This rate, carried to December. A starting point for a goal, no more."""
+    if not n or frame is None or frame.empty or "closed_date" not in frame.columns:
+        return None
+    last = pd.Timestamp(frame["closed_date"].max())
+    if pd.isna(last):
+        return None
+    y0 = pd.Timestamp(year=year, month=1, day=1)
+    elapsed = _business_days(y0, last)
+    whole = _business_days(y0, pd.Timestamp(year=year, month=12, day=31))
+    return int(round(n * whole / elapsed)) if elapsed else None
 
 
 @app.get("/api/sessions/{sid}/capacity-plan/tickets")
@@ -3578,6 +3613,7 @@ def capacity_plan_tickets(sid: str, year: int = 2026, person: str = '', service:
                  .get(person, {}).get(service)),
         "goal": ((CAPACITY_PLAN.get("goal_tickets") or {}).get(str(year), {})
                  .get(person, {}).get(service)),
+        "projected": _project_to_year_end(len(work), year, done),
     })
 
 

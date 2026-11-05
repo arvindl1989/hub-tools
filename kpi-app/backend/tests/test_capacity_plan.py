@@ -98,6 +98,10 @@ check("per day is the other way up", wcm["year_per_day"] == round(100 / 57.5, 2)
       str(wcm["year_per_day"]))
 check("the goal is typed, so nothing is claimed until somebody types it",
       wcm["goal_capacity"] is None, str(wcm["goal_capacity"]))
+# Not the value — the starting point offered beside the empty box.
+check("but this year's rate carried to December is offered",
+      wcm["projected"] and wcm["projected"] >= wcm["actual"],
+      f"{wcm['actual']} closed → {wcm['projected']} projected")
 check("last year is counted separately", wcm["previous"] == 40, str(wcm["previous"]))
 
 print("\nA hand-set figure parts the measured rate from the one set for pricing")
@@ -409,6 +413,28 @@ restored = plan(rows)
 pr = next(r for r in restored["people"] if r["name"] == WHO)
 check("and it goes back", pr["productivity_days"] == p["productivity_days"],
       str(pr["productivity_days"]))
+
+print("\nThe goal grid fills a whole year in one pass")
+before_goals = json.loads(urllib.request.urlopen(
+    f"{BASE}/api/capacity-plan/settings?year=2026").read()).get("goal_tickets") or {}
+try:
+    save({"year": 2026, "goal_tickets": {WHO: {"WCM": 130}, "Nitish JK": {"WCM": 40}}})
+    dg = plan(rows)
+    wg = next(s for s in dg["services"] if s["short"] == "WCM")
+    print(f"   130 + 40 typed → team capacity {wg['goal_capacity']}")
+    check("team capacity is the sum of what was typed", wg["goal_capacity"] == 170,
+          str(wg["goal_capacity"]))
+    check("and it is kept per person", wg["people"][WHO]["goal"] == 130.0,
+          str(wg["people"][WHO]["goal"]))
+    check("the grid reads back what it wrote",
+          (json.loads(urllib.request.urlopen(
+              f"{BASE}/api/capacity-plan/settings?year=2026").read())["goal_tickets"]
+           [WHO]["WCM"]) == 130.0)
+finally:
+    save({"year": 2026, "goal_tickets": before_goals})
+check("and clearing the grid empties the column",
+      next(s for s in plan(rows)["services"]
+           if s["short"] == "WCM")["goal_capacity"] is None)
 
 # The Utility Rate page owns /api/capacity-settings; this page must not have
 # taken that path from it.
