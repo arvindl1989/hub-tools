@@ -68,6 +68,20 @@ print(f"  service denominator: {denominator}   reach card: {m['reach']['frontlin
 assert denominator == len(fl_rows) == m["reach"]["frontlines"], \
     (denominator, len(fl_rows), m["reach"]["frontlines"])
 
+# Every team is one, Global's included. Holding Global out cut this table to
+# the markets and dropped the rest of the estate from the denominators, and
+# the reach card worked it out its own way, so the two agreed only by
+# accident of which teams the data happened to hold.
+teams_in_data = {str(r["Team"]).strip() for r in rows if str(r.get("Team") or "").strip()}
+listed = {r["name"] for r in m["activity_groups"]["by_frontline"]}
+missing = teams_in_data - listed
+print(f"  {len(teams_in_data)} teams in the data, {len(listed)} on the table")
+assert not missing, f"teams dropped from the frontline table: {sorted(missing)}"
+assert not non_fl, f"no team is held out any more, but these were: {non_fl}"
+global_teams = {t["name"] for t in m["reach"]["global_team_list"]}
+assert global_teams <= listed, f"Global teams missing: {sorted(global_teams - listed)}"
+print(f"  Global's {len(global_teams)} teams are among them: {sorted(global_teams)}")
+
 print("\nTEST 4 — the top tier needs a sample to be a quartile of")
 thin = [t for t in m["service_adoption"]["totals"]]
 for t in thin:

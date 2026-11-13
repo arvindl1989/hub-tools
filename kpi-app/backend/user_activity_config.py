@@ -44,14 +44,17 @@ NEW_USER_WINDOW_DAYS = 90
 SERVICE_MODEL = 3
 
 # ── Frontlines ───────────────────────────────────────────────────────────────
-# Global is the hub's own area rather than a market, so its teams are counted
-# on their own card and left out of frontline figures.
+# Every team is a frontline, Global's included. Global used to be held out as
+# the hub's own area rather than a market, which cut the service utility table
+# to thirteen rows and quietly dropped the rest of the estate's work from the
+# denominators. The hub asks for all of it, so the only thing Global means now
+# is which area a team sits in, and its own card counts how many are there.
 GLOBAL_AREA = "Global"
-FRONTLINE_INCLUDES_GLOBAL = False
+FRONTLINE_INCLUDES_GLOBAL = True
 
-# Teams that are not a frontline whatever area they sit in. They still appear,
-# but marked, so their rows are not read as a market's performance.
-NON_FRONTLINE_TEAMS = ["Other"]
+# Teams that are not a frontline whatever area they sit in. Empty: "Other" was
+# held out here for the same reason and is a team like any other.
+NON_FRONTLINE_TEAMS = []
 
 # One person trying a service once does not make the frontline a user of it.
 # A frontline counts as using a service when it clears either bar.

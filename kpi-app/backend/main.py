@@ -5111,7 +5111,12 @@ def user_metrics(
     global_only = scoped[is_global] if has_area else scoped.iloc[0:0]
 
     areas_list = [a for a in _reach_list("area", scoped) if not _is_global(a["name"])]
-    frontlines_list = _reach_list("team", non_global)
+    # Whether Global's teams are frontlines is a setting, and this list used
+    # to ignore it: the card counted the non-Global teams while the service
+    # utility table asked ua_config, so the two boards disagreed about how
+    # big the estate was.
+    frontlines_list = [t for t in _reach_list("team", scoped)
+                       if ua_config.is_frontline(t["name"], t.get("area"))]
     global_teams_list = _reach_list("team", global_only)
 
     # ── Every user, busiest first: the list behind the Total Users card ──────

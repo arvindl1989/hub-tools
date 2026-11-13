@@ -203,7 +203,7 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
     },
     frontlines: {
       title: 'Frontlines',
-      subtitle: 'Frontlines outside Global with at least one request, busiest first',
+      subtitle: 'Every team with at least one request, Global included, busiest first',
       columns: [{ key: 'name', label: 'Frontline' }, { key: 'area', label: 'Area' },
                 { key: 'requests', label: 'Requests', align: 'right' },
                 { key: 'users', label: 'Users', align: 'right' }],
@@ -356,18 +356,18 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
 
       {metrics && (<>
 
-        {/* Rows 1 and 2 — every card opens the list behind its number. Global
-             is the hub's own area rather than a market, so it is counted by
-             its own card and left out of the other two. */}
+        {/* Rows 1 and 2 — every card opens the list behind its number. Every
+             team counts as a frontline, Global's included; the Global card
+             says how many of them sit there, it no longer holds them out. */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <MetricCard label="Global Teams" value={reach.global_teams}
-            sub="Teams in the Global area with ≥1 request"
+            sub="Of the frontlines, those in the Global area"
             onClick={() => openList('global')} />
           <MetricCard label="Areas"        value={reach.areas}
             sub="Areas with ≥1 request, excluding Global"
             onClick={() => openList('areas')} />
           <MetricCard label="Frontlines"   value={reach.frontlines}
-            sub="Frontlines with ≥1 request, outside Global"
+            sub="Every team with ≥1 request, Global included"
             onClick={() => openList('frontlines')} />
         </div>
 
