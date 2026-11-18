@@ -528,6 +528,8 @@ export default function UserActivityPage({ sessionId, onSessionExpired }) {
              rate boxes used to: the same questions, answered per service and
              per frontline instead of as one number for the whole hub. ─────── */}
         <ServiceUtilityRate rows={metrics.service_utility ?? []}
+          minUsers={cfg.frontline_uses_service_min_users}
+          minRequests={cfg.frontline_uses_service_min_requests}
           ignoresServiceFilter={!!metrics.reach_ignores_service_filter} />
 
         {/* ── The same four cuts the Feedback page makes, asked of activity:

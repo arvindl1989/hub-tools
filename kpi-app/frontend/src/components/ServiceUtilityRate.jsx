@@ -75,13 +75,29 @@ function ReachCells({ row }) {
 // The people and frontlines that have never asked for this one. It is a list
 // to go and work through rather than a number to look at, so it opens as a
 // dialog instead of unfolding the page underneath it.
+// Not used, in both of its senses. A frontline is outside Used / Total either
+// because it has never raised the service, or because it has but stayed below
+// the adoption bar. Only the first was shown, so a row could read 18 / 19 with
+// nought never-used beside it and nothing on the page accounting for the
+// nineteenth.
 function NeverUsed({ row, onOpen }) {
-  const never = row.users.not_used.length + row.frontlines.not_used.length
+  const below = row.frontlines.below_threshold?.length ?? 0
+  const never = row.users.not_used.length + row.frontlines.not_used.length + below
+  const label = [
+    `${row.users.not_used.length} users`,
+    `${row.frontlines.not_used.length} FLs`,
+    below ? `${below} below bar` : null,
+  ].filter(Boolean).join(' · ')
   return (
     <td style={{ ...td, textAlign: 'center' }}>
       <button
         onClick={() => onOpen(row.service)}
         disabled={!never}
+        title={below
+          ? `${below} frontline${below > 1 ? 's have' : ' has'} raised `
+            + `${row.short} but stayed under the adoption bar, so ${below > 1 ? 'they are' : 'it is'} `
+            + 'outside Used / Total too'
+          : undefined}
         style={{
           background: never ? '#1450f5' : '#f3eee6',
           color: never ? '#fff' : '#b9b1a3',
@@ -90,13 +106,15 @@ function NeverUsed({ row, onOpen }) {
           cursor: never ? 'pointer' : 'default', whiteSpace: 'nowrap',
         }}
       >
-        {never ? `${row.users.not_used.length} users · ${row.frontlines.not_used.length} FLs` : 'None'}
+        {never ? label : 'None'}
       </button>
     </td>
   )
 }
 
-export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = false }) {
+export default function ServiceUtilityRate({
+  rows = [], ignoresServiceFilter = false, minUsers, minRequests,
+}) {
   const [open, setOpen] = useState(null)   // the service whose non-users are shown
   // Demand Engagement Activations is three separate offers with three separate
   // audiences. The roll-up's reach is the union of theirs, and a union cannot
@@ -122,14 +140,22 @@ export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = f
 
   // Both populations in one dialog: the people who have never asked for the
   // service, then the frontlines where nobody has.
+  // Frontlines first, and the ones below the bar before those: they are the
+  // answer to the question that brings somebody here, and underneath several
+  // dozen users they would never be found.
   const modalRows = current ? [
+    ...(current.frontlines.below_threshold ?? []).map(f => ({
+      key: `b:${f.frontline}`, kind: 'Frontline — below the bar', name: f.frontline,
+      where: f.area, requests: f.total_requests,
+      tried: `${f.requests} from ${f.users} user${f.users === 1 ? '' : 's'}`,
+    })),
+    ...current.frontlines.not_used.map(f => ({
+      key: `f:${f.frontline}`, kind: 'Frontline — never used', name: f.frontline,
+      where: f.area, requests: f.total_requests,
+    })),
     ...current.users.not_used.map(u => ({
       key: `u:${u.user}`, kind: 'User', name: u.user,
       where: `${u.frontline} · ${u.area}`, requests: u.count,
-    })),
-    ...current.frontlines.not_used.map(f => ({
-      key: `f:${f.frontline}`, kind: 'Frontline', name: f.frontline,
-      where: f.area, requests: f.total_requests,
     })),
   ] : []
 
@@ -232,21 +258,33 @@ export default function ServiceUtilityRate({ rows = [], ignoresServiceFilter = f
         and the three add up to the users, or frontlines, that have used it. Demand Engagement
         Activations opens to the three services inside it, each measured the same way against the
         same denominators — the roll-up's reach is the union of theirs, so it cannot show which of
-        the three nobody has taken up.
+        the three nobody has taken up.{(minUsers || minRequests) && (
+          <> <b>Used counts adoption, not contact</b>: a frontline is counted once it reaches
+          {' '}{minUsers} users or {minRequests} requests for that service, since one person
+          trying it once is a trial. A frontline under that bar is outside Used / Total without
+          being never-used, which is why the two can disagree; it is listed in the last column
+          and named in the panel it opens.</>
+        )}
       </p>
 
       {current && (
         <ListModal
-          title={`Never used ${current.short}`}
+          title={`Not using ${current.short}`}
           subtitle={`${current.users.not_used.length} of ${current.users.total} users and `
                     + `${current.frontlines.not_used.length} of ${current.frontlines.total} frontlines `
-                    + `have never raised a request for ${current.service}`}
+                    + `have never raised a request for ${current.service}`
+                    + ((current.frontlines.below_threshold?.length)
+                      ? `. A further ${current.frontlines.below_threshold.length} `
+                        + 'have raised one but stayed under the adoption bar, which is why '
+                        + 'Used / Total can fall short without anything showing as never used'
+                      : '')}
           onClose={() => setOpen(null)}
           rows={modalRows}
           columns={[
             { key: 'name', label: 'Name' },
             { key: 'kind', label: 'Type' },
             { key: 'where', label: 'Where' },
+            { key: 'tried', label: `Raised of ${current.short}` },
             { key: 'requests', label: 'Requests elsewhere', align: 'right' },
           ]}
         />

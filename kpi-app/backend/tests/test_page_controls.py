@@ -10,6 +10,7 @@ Needs the built frontend served at /kpi/ by the instance under test, not just
 the API — it is the rendered page being clicked.
 """
 import json
+import re
 import sys
 import urllib.request
 
@@ -64,6 +65,27 @@ def run(page):
             continue
         act(f"card: {label}", lambda c=card: c.click())
         act(f"card: {label} — escape", lambda: page.keyboard.press("Escape"))
+
+    # ── Used / Total has two ways of falling short ──────────────────────────
+    # A frontline sits outside it either because it never raised the service,
+    # or because it raised it and stayed under the adoption bar. Only the
+    # first was on screen, so a row could read 13 of 18 with three never-used
+    # beside it and nothing accounting for the other two. Both are shown now,
+    # and the panel names the ones below the bar.
+    below = page.get_by_role("button", name=re.compile("below bar"))
+    if below.count():
+        act("not-using cell counts the ones below the bar", lambda: None)
+        act("not-using panel opens", lambda: below.first.click())
+        text = page.evaluate("() => document.body.innerText")
+        if "below the bar" not in text:
+            problems.append("not-using panel: the below-the-bar rows are not named in it")
+        if "under the adoption bar" not in text:
+            problems.append("not-using panel: nothing explains why Used / Total falls short")
+        print(f"  {'FAIL' if 'below the bar' not in text else 'ok  '}  "
+              "not-using panel names the frontlines below the bar")
+        act("not-using panel — escape", lambda: page.keyboard.press("Escape"))
+    else:
+        print("  --    no service has a frontline below the bar in this data")
 
     # ── The effort toggle, and everything again underneath it ────────────────
     for mode in ["Est. hours", "Tickets"]:
