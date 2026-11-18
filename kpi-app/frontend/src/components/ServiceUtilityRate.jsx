@@ -258,12 +258,15 @@ export default function ServiceUtilityRate({
         and the three add up to the users, or frontlines, that have used it. Demand Engagement
         Activations opens to the three services inside it, each measured the same way against the
         same denominators — the roll-up's reach is the union of theirs, so it cannot show which of
-        the three nobody has taken up.{(minUsers || minRequests) && (
-          <> <b>Used counts adoption, not contact</b>: a frontline is counted once it reaches
-          {' '}{minUsers} users or {minRequests} requests for that service, since one person
-          trying it once is a trial. A frontline under that bar is outside Used / Total without
-          being never-used, which is why the two can disagree; it is listed in the last column
-          and named in the panel it opens.</>
+        the three nobody has taken up. <b>Used means used inside the selected period</b>: a
+        frontline or user whose last request for a service falls before the range has not used
+        it in that range, and reads as never used rather than as dormant. Widen the range and
+        they come back.{(minUsers > 1 || minRequests > 1) && (
+          <> A frontline also has to clear the adoption bar — {minUsers} users or
+          {' '}{minRequests} requests for that service — since one person trying it once is a
+          trial. One under that bar is outside Used / Total without being never-used, which is
+          why the two can disagree; it is counted in the last column and named in the panel it
+          opens.</>
         )}
       </p>
 

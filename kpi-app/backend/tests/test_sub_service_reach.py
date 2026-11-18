@@ -78,15 +78,17 @@ check("Email reaches everyone, like the parent", email["users"]["rate_pct"] == 1
       f"{email['users']['rate_pct']}%")
 check("Demand Creation reaches one user in five", demand["users"]["used"] == 1,
       f"{demand['users']['used']} of {demand['users']['total']}")
-# The adoption bar applies to a child exactly as it does to a parent: one
-# person raising one ticket is a trial, not a frontline taking a service up.
-# EEM therefore counts as neither a user nor a stranger — it is listed apart.
-check("but no frontline has taken it up on one ticket from one person",
-      demand["frontlines"]["used"] == 0,
+# One ticket is enough, for a child exactly as for a parent: the bar came down
+# to a single request once "used" was scoped to the selected period, on the
+# grounds that a frontline which raised the service inside the period has used
+# it inside the period. EEM's one ticket puts it in, and the below-the-bar
+# group is empty by construction while the bar sits at one.
+check("one ticket from one person is take-up",
+      demand["frontlines"]["used"] == 1,
       f"{demand['frontlines']['used']} of {demand['frontlines']['total']}")
-check("EEM is listed as below the bar, not as never having asked",
-      [f["frontline"] for f in demand["frontlines"]["below_threshold"]] == ["EEM"]
-      and "EEM" not in [f["frontline"] for f in demand["frontlines"]["not_used"]],
+check("so EEM is a user of it, neither a stranger nor below the bar",
+      "EEM" not in [f["frontline"] for f in demand["frontlines"]["not_used"]]
+      and not demand["frontlines"]["below_threshold"],
       str(demand["frontlines"]["below_threshold"]))
 check("Retention is the one nobody takes up", retention["users"]["used"] == 0
       and retention["frontlines"]["used"] == 0,

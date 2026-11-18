@@ -56,10 +56,19 @@ FRONTLINE_INCLUDES_GLOBAL = True
 # held out here for the same reason and is a team like any other.
 NON_FRONTLINE_TEAMS = []
 
-# One person trying a service once does not make the frontline a user of it.
-# A frontline counts as using a service when it clears either bar.
-FRONTLINE_USES_SERVICE_MIN_USERS = 2
-FRONTLINE_USES_SERVICE_MIN_REQUESTS = 3
+# The adoption bar on the Service Utility Rate table, and nowhere else — these
+# two are read by that table alone. It was two requesters or three requests, on
+# the grounds that one person trying once is a trial rather than take-up. One
+# ticket counts now: with "used" scoped to the selected period, a frontline
+# that raised the service inside the period has used it inside the period, and
+# a second test on top of that one was answering a different question from the
+# one the column asks.
+#
+# At 1 the below-the-bar group is empty by construction — anything with a
+# request clears. The group is kept, with its column and its panel, because
+# raising either number brings it straight back.
+FRONTLINE_USES_SERVICE_MIN_USERS = 1
+FRONTLINE_USES_SERVICE_MIN_REQUESTS = 1
 
 # ── Engagement and concentration ─────────────────────────────────────────────
 # Engaged means came back, so it needs a second request inside the window —

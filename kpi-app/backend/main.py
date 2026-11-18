@@ -4012,7 +4012,6 @@ def kpi_3d(sid: str, months: int = 12):
 
 
 def _service_utility(scoped: pd.DataFrame, users: list, period_end,
-                     as_of: Optional[pd.DataFrame] = None,
                      items: Optional[list] = None, by_column: str = "service") -> list:
     """Per service: how many of the user base have ever asked for it, and how
     recently — plus, by name, the ones who never have.
@@ -4051,15 +4050,17 @@ def _service_utility(scoped: pd.DataFrame, users: list, period_end,
         return [{"service": s, "short": SERVICE_ABBREV.get(s, s), "count": mine.get(s, 0)}
                 for s in order]
 
-    # Recency comes from everything up to the as-of date; the counts beside it
-    # are the window's. Asking "when did they last use this service" off the
-    # window alone can only ever answer "inside the window".
+    # Used means used INSIDE the selected period, so recency comes from the
+    # window like the counts beside it. It used to come from everything up to
+    # the end date, which meant somebody who raised a service in 2025 and
+    # nothing since still counted as a user of it under a 2026 filter — shown
+    # as Dormant, but inside the numerator all the same. The rate then read as
+    # this period's reach while being the reach of all time.
+    #
+    # Active, Regular and Dormant still work: they are measured from the last
+    # request in the window against the period end, so somebody who came once
+    # in January of a full-year window is Dormant in December.
     recency_frame = frame
-    if as_of is not None and not as_of.empty and "sub_category" in as_of.columns:
-        recency_frame = as_of.dropna(subset=["sub_category"]).copy()
-        recency_frame["service"] = _service_column(recency_frame)
-        if by_column != "service":
-            recency_frame["service"] = recency_frame[by_column]
 
     out = []
     for service in (items or BAU_SERVICES_DISPLAY):
@@ -4103,7 +4104,6 @@ def _service_utility(scoped: pd.DataFrame, users: list, period_end,
 
 
 def _service_utility_fl(scoped: pd.DataFrame, period_end,
-                        as_of: Optional[pd.DataFrame] = None,
                         items: Optional[list] = None, by_column: str = "service") -> list:
     """The same reach question asked of frontlines instead of people.
 
@@ -4136,14 +4136,11 @@ def _service_utility_fl(scoped: pd.DataFrame, period_end,
     frontlines = sorted(fl for fl in frame["team"].unique()
                         if ua_config.is_frontline(fl, area_of.get(fl)))
 
+    # The window, not all of history — see the note in _service_utility. This
+    # also ends a state that could not be read: a frontline with pre-window
+    # activity and nothing inside it was in `last` but had no rows, so it fell
+    # through to "below the bar" and printed 0 requests from 0 users.
     recency_frame = frame
-    if as_of is not None and not as_of.empty and {"sub_category", "team"} <= set(as_of.columns):
-        recency_frame = as_of.dropna(subset=["sub_category", "team"]).copy()
-        recency_frame["team"] = recency_frame["team"].astype(str).str.strip()
-        recency_frame = recency_frame[recency_frame["team"] != ""]
-        recency_frame["service"] = _service_column(recency_frame)
-        if by_column != "service":
-            recency_frame["service"] = recency_frame[by_column]
 
     out = []
     for service in (items or BAU_SERVICES_DISPLAY):
@@ -4304,8 +4301,7 @@ def _utility_per_frontline(scoped: pd.DataFrame) -> dict:
     }
 
 
-def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
-                            as_of: Optional[pd.DataFrame] = None) -> list:
+def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end) -> list:
     """One row per service, with both denominators side by side.
 
     Reach across people and reach across frontlines are the same question
@@ -4319,13 +4315,13 @@ def _service_utility_merged(scoped: pd.DataFrame, users: list, period_end,
     nobody has taken up: a frontline that uses Email every week makes the
     parent look adopted while Retention sits untouched.
     """
-    by_user = {r["service"]: r for r in _service_utility(scoped, users, period_end, as_of)}
-    by_fl = {r["service"]: r for r in _service_utility_fl(scoped, period_end, as_of)}
+    by_user = {r["service"]: r for r in _service_utility(scoped, users, period_end)}
+    by_fl = {r["service"]: r for r in _service_utility_fl(scoped, period_end)}
     kids = sorted(DEMAND_ENGAGEMENT_SUBS)
     kid_by_user = {r["service"]: r for r in _service_utility(
-        scoped, users, period_end, as_of, items=kids, by_column="sub_category")}
+        scoped, users, period_end, items=kids, by_column="sub_category")}
     kid_by_fl = {r["service"]: r for r in _service_utility_fl(
-        scoped, period_end, as_of, items=kids, by_column="sub_category")}
+        scoped, period_end, items=kids, by_column="sub_category")}
 
     def row(name: str, u: Optional[dict], f: Optional[dict]) -> dict:
         return {
@@ -5269,8 +5265,7 @@ def user_metrics(
             "services_used":        services_used,
             "services_offered":     len(CANONICAL_SERVICES),
         },
-        "service_utility":  _service_utility_merged(reach_scoped, reach_users, period_end,
-                                                   reach_as_of),
+        "service_utility":  _service_utility_merged(reach_scoped, reach_users, period_end),
         # These four tables now read share of volume, which stays meaningful
         # under a Service filter — filtering to WCM gives each area's share of
         # WCM. The old rate degenerated to 100% everywhere under that filter,

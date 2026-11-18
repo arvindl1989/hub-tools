@@ -10,7 +10,7 @@ import json
 import sys
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 BASE = "http://127.0.0.1:8822"
 TODAY = datetime(2026, 9, 25)
@@ -121,11 +121,39 @@ one = metrics(area="EUR")
 assert base["period_end"] == one["period_end"], (base["period_end"], one["period_end"])
 print(f"  anchor {base['period_end']} unchanged by the Area filter")
 
-print("\nTEST 6 — per-service recency is as-of, not in-window")
+print("\nTEST 6 — the utility table counts use inside the window, not ever")
+# It used to measure per-service recency as-of the window's end, so somebody
+# whose only request for a service was years before the window still counted
+# as a user of it — shown as Dormant, but inside the numerator all the same,
+# which made a period's reach read as the reach of all time.
 for label, p in WINDOWS:
     m = metrics(**p)
     dormant = sum(r["users"]["dormant"] for r in m["service_utility"])
-    print(f"  {label:<10} dormant service-users {dormant}")
-    assert dormant > 0, f"{label}: no service has a dormant user"
+    used = sum(r["users"]["used"] for r in m["service_utility"])
+    print(f"  {label:<10} used {used}, of which dormant {dormant}")
+    if not p:
+        assert dormant > 0, "over all time, somebody should be dormant on a service"
+    else:
+        # Nothing inside a 30- or 90-day window can be more than 90 days old.
+        span = (TODAY.date() - date.fromisoformat(p["date_from"])).days
+        if span <= 90:
+            assert dormant == 0, f"{label}: dormant needs a request older than the window"
+
+# The case that names the rule: a user whose only requests are far older than
+# the window. They stay in the denominator throughout; they count as a user of
+# that service only over all time. Picked by index so the service is one the
+# table has a row for — the middle one rolls up into Demand Engagement.
+idx = max(i for i, (_, age) in enumerate(PEOPLE) if age > 90 and i % 3 != 1)
+OLDEST, OLDEST_AGE = PEOPLE[idx]
+service = SERVICES[idx % 3]
+print(f"  {OLDEST} last asked for {service} {OLDEST_AGE} days ago")
+wide = next(r for r in metrics()["service_utility"] if r["service"] == service)
+narrow = next(r for r in metrics(**WINDOWS[1][1])["service_utility"]
+              if r["service"] == service)
+assert OLDEST not in {u["user"] for u in wide["users"]["not_used"]}, \
+    "over all time they have used it"
+assert OLDEST in {u["user"] for u in narrow["users"]["not_used"]}, \
+    "inside a 30-day window they have not"
+print("  counted over all time, not counted in the 30-day window — as asked")
 
 print("\nALL CHECKS PASSED")
