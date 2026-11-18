@@ -44,6 +44,8 @@ TESTS = [
      "the field's arithmetic, and the canvas it is drawn on"),
     ("attendance repeat", "test_attendance_repeat.py",
      "a standing arrangement written in one go, holidays skipped"),
+    ("attendance lock", "test_attendance_lock.py",
+     "a closed period that refuses every way in, not just the click"),
     ("SN Master export", "test_sn_master_export.py",
      "the CSV is what the table shows, awkward characters and all"),
     ("email calendar", "test_email_sla_calendar.py",

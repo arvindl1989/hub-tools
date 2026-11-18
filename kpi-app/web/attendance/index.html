@@ -153,6 +153,11 @@
     .date-num { font-size: 0.9rem; font-weight: 700; color: #999; margin-bottom: 5px; }
     .day-cell.all-present { border: 2px solid var(--status-present); }
     .all-present-badge { position: absolute; top: 7px; right: 7px; background: var(--status-present); color: #1b5e20; font-size: 0.58rem; font-weight: 800; padding: 2px 4px; border-radius: 4px; }
+    /* A closed day. Legible, not hidden — the month still has to read as the
+       month — but plainly not something you can click. */
+    .locked-cell { background: repeating-linear-gradient(135deg, #f4f2ee, #f4f2ee 7px, #eceae4 7px, #eceae4 14px); cursor: not-allowed; opacity: 0.85; }
+    .locked-cell .status-row { color: #6e6e6e; }
+    .lock-badge { position: absolute; top: 7px; right: 7px; background: #141414; color: #fff; font-size: 0.54rem; font-weight: 800; letter-spacing: 0.06em; padding: 2px 5px; border-radius: 4px; }
     .status-rows { flex-grow: 1; }
     .status-row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .status-dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); flex-shrink: 0; }
@@ -471,6 +476,36 @@
     function isValidEmp(emp, dateStr) { const v = empValidity[emp]; if (!v) return true; if (v.start && dateStr < v.start) return false; if (v.end && dateStr > v.end) return false; return true; }
     function isWorkDay(dateStr) { const d = new Date(dateStr); return d.getDay() !== 0 && d.getDay() !== 6 && !holidays[dateStr]; }
 
+    // ── Closed periods ──────────────────────────────────────────────────────
+    // Spans that have been signed off and must not move. Inclusive at both
+    // ends, dates as YYYY-MM-DD so they compare as strings.
+    //
+    // Enforced in four places, because the calendar is not the only way in:
+    // the cell takes no click, and each of the three write paths — apply
+    // status, the repeat-weekly tool, and the important-note box — filters
+    // locked days out before it writes. A selection made before the lock
+    // existed, or carried over from another month, would otherwise walk
+    // straight through a check that only lived in the click handler.
+    const LOCKED_PERIODS = [
+      { from: '2026-12-18', to: '2026-12-31', why: 'December 2026 closed' },
+    ];
+
+    function lockOn(dateStr) {
+      return LOCKED_PERIODS.find(p => dateStr >= p.from && dateStr <= p.to) || null;
+    }
+    const isLocked = (dateStr) => lockOn(dateStr) !== null;
+
+    // What a bulk action silently skipped. Saying nothing would leave somebody
+    // believing a locked day had been written.
+    function reportLocked(keys, what) {
+      const blocked = keys.filter(isLocked);
+      if (blocked.length) {
+        alert(`${blocked.length} day${blocked.length === 1 ? '' : 's'} left unchanged — `
+              + `${lockOn(blocked[0]).why}.\n\n${blocked.sort().join(', ')}`);
+      }
+      return keys.filter(k => !isLocked(k));
+    }
+
     function renderCalendar() {
       const grid = document.getElementById('calendar-grid');
       grid.innerHTML = '';
@@ -494,11 +529,37 @@
       dateNum.className = 'date-num';
       dateNum.textContent = day;
       cell.appendChild(dateNum);
+      // A weekend or a holiday inside a closed period cannot be edited anyway,
+      // but it has to look closed: a fortnight marked LOCKED that renders as
+      // nine hatched days with ordinary gaps between them reads as a bug, and
+      // nobody should have to know which days were uneditable already.
+      const closed = lockOn(dateKey);
+      if (closed) {
+        cell.classList.add('locked-cell');
+        cell.title = closed.why + ' — this day cannot be edited';
+      }
       if (holidays[dateKey]) {
         cell.classList.add('holiday-cell');
         cell.innerHTML += `<div style="font-size:0.78rem">${holidays[dateKey]}</div>`;
       } else if (!isWorkDay(dateKey)) {
-        cell.style.background = '#f9f9f9';
+        if (!closed) cell.style.background = '#f9f9f9';
+      } else if (closed) {
+        // Shown in full, and not selectable. Hiding the day would be worse:
+        // the month has to still read as the month.
+        const activeEmps = employees.filter(e => isValidEmp(e, dateKey));
+        const dayData = attendanceData[dateKey] || {};
+        const sc = document.createElement('div'); sc.className = 'status-rows';
+        activeEmps.forEach(e => {
+          const st = (dayData[e] || {}).status || 'present';
+          const row = document.createElement('div'); row.className = 'status-row';
+          row.innerHTML = `<span class="status-dot" style="background:${statusColors[st] || statusColors['present']}"></span>${e}`;
+          sc.appendChild(row);
+        });
+        cell.appendChild(sc);
+        const tag = document.createElement('div');
+        tag.className = 'lock-badge';
+        tag.textContent = 'LOCKED';
+        cell.appendChild(tag);
       } else {
         cell.onclick = () => handleDayClick(dateKey);
         if (selectedDates.includes(dateKey)) cell.classList.add('selected');
@@ -686,8 +747,10 @@
     document.getElementById('applyStatusBtn').onclick = () => {
       if (!selectedDates.length) return alert('Select days first');
       const emp=document.getElementById('employeeSelect').value, stat=document.getElementById('statusSelect').value;
-      selectedDates.forEach(k => { if (isWorkDay(k)&&isValidEmp(emp,k)) set(ref(db,`attendance/${k}/${emp}`),{status:stat}); });
-      push(ref(db,'logs'),{timestamp:Date.now(),details:`${emp} marked as ${stat} on ${selectedDates.sort().join(', ')}`});
+      const writable = reportLocked(selectedDates, 'marked');
+      if (!writable.length) return;
+      writable.forEach(k => { if (isWorkDay(k)&&isValidEmp(emp,k)) set(ref(db,`attendance/${k}/${emp}`),{status:stat}); });
+      push(ref(db,'logs'),{timestamp:Date.now(),details:`${emp} marked as ${stat} on ${writable.sort().join(', ')}`});
     };
     document.getElementById('clearBtn').onclick = () => { selectedDates=[]; renderCalendar(); renderDailyBreakdown(); updateEditor(); };
 
@@ -756,6 +819,7 @@
         for (let t = start; t <= end; t += 86400000) {
           const d = new Date(t);
           const key = d.toISOString().slice(0, 10);
+          if (isLocked(key)) { skip.push(key); continue; }
           const usable = isWorkDay(key) && isValidEmp(emp, key);
           const existing = attendanceData[key]?.[emp]?.status;
           if (repeatPicked.has(d.getUTCDay())) {
@@ -904,11 +968,11 @@
     document.getElementById('toggleNoteEditBtn').onclick = function() { editMode=!editMode; updateEditor(); };
     document.getElementById('saveImpNoteBtn').onclick = () => {
       const notes=[document.getElementById('noteInput1').value,document.getElementById('noteInput2').value,document.getElementById('noteInput3').value];
-      selectedDates.forEach(k=>set(ref(db,`importantNotes/${k}`),{notes,colorKey:noteColorSelected}));
+      reportLocked(selectedDates, 'noted').forEach(k=>set(ref(db,`importantNotes/${k}`),{notes,colorKey:noteColorSelected}));
       push(ref(db,'logs'),{timestamp:Date.now(),details:`Notes updated on ${selectedDates.sort().join(', ')}`});
       alert('Note Saved'); renderCalendar();
     };
-    document.getElementById('clearImpNoteBtn').onclick = () => { selectedDates.forEach(k=>remove(ref(db,`importantNotes/${k}`))); renderCalendar(); };
+    document.getElementById('clearImpNoteBtn').onclick = () => { reportLocked(selectedDates, 'cleared').forEach(k=>remove(ref(db,`importantNotes/${k}`))); renderCalendar(); };
     document.getElementById('viewAnnualBtn').onclick = () => { renderAnnualReport(); document.getElementById('annualModal').style.display='block'; };
     document.getElementById('viewLogBtn').onclick = () => {
       const list=document.getElementById('logList'); list.innerHTML='';

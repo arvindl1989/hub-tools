@@ -90,8 +90,11 @@ with sync_playwright() as p:
     print("   preview:", preview.replace("\n", " | "))
     # 26 Wednesdays and Fridays in the range. Three are holidays that fall on
     # a Friday — Christmas, New Year's Day and Pongal — and two more are days
-    # he is already on leave or on duty.
-    check("the preview counts the days", "21" in preview, preview)
+    # he is already on leave or on duty. Three more fall inside the closed
+    # fortnight at the end of December, which the repeat tool now skips with
+    # the weekends and the holidays.
+    check("the preview counts the days, the closed ones left out",
+          "18" in preview, preview)
     check("it warns about the removal", "removed" in preview.lower(), preview)
     check("and says what it leaves alone", "left alone" in preview.lower(), preview)
     check("and says what it will skip", "skipped" in preview, preview)
@@ -108,8 +111,12 @@ with sync_playwright() as p:
     days = sorted(w[0].split('/')[1] for w in sets)
     print(f"   wrote {len(writes)} days, {days[0]} → {days[-1]}")
     # 24 matching days, less the Friday he is already on leave and the Friday
-    # he is on duty — both left exactly as they are.
-    check("21 days written", len(sets) == 21, str(len(sets)))
+    # he is on duty — both left exactly as they are — and less the three that
+    # fall inside December's closed fortnight.
+    check("18 days written", len(sets) == 18, str(len(sets)))
+    check("and none of them inside the closed period",
+          not [d for d in days if "2026-12-18" <= d <= "2026-12-31"],
+          str([d for d in days if "2026-12-18" <= d <= "2026-12-31"]))
     check("all of them WFH", all(w[1] == {"status": "wfh"} for w in sets))
     check("all of them Ajith", all(w[0].endswith("/Ajith A") for w in sets))
     check("the leave day was not overwritten", "2026-11-06" not in days)
