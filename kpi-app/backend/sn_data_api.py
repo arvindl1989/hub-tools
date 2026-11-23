@@ -14,6 +14,7 @@ re-applied after every sync, so a correction outlives any number of them.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Callable, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -29,7 +30,35 @@ DATASETS = {
     # Feedback has no ServiceNow ticket number in its export — an assessment
     # instance ID (AINST...) is what uniquely identifies one survey response.
     "feedback": {"key": "Instance Number",  "label": "ServiceNow feedback"},
+    # The NPI survey. It does not come from a sync at all: it is a one-off
+    # export that ships with the app, seeded below. It is here so the hub can
+    # correct it and, above all, fill in the "Ticket user" column — which
+    # respondent is which "Requested by" in the ticket data. The names in a
+    # survey and the names in ServiceNow are not reliably the same string, and
+    # a guess is worse than a mapping somebody made.
+    "npi":      {"key": "Name",             "label": "NPI 2026",
+                 "seed": "npi_2026.json"},
 }
+
+
+def _seed_rows(dataset: str) -> list:
+    """The rows a dataset ships with, for one that no sync feeds.
+
+    Read fresh each time rather than cached: the file is a few tens of
+    kilobytes, and a stale copy in memory after an edit is a worse trade than
+    the read.
+    """
+    name = (DATASETS.get(dataset) or {}).get("seed")
+    if not name:
+        return []
+    path = Path(__file__).resolve().parent / name
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("rows") or []
+    except Exception as exc:                      # noqa: BLE001 - reported, not raised
+        print(f"[SN-DATA] Could not read the {dataset} seed: {exc}")
+        return []
 
 _get_conn: Optional[Callable] = None
 _diagnose: Optional[Callable] = None
@@ -180,7 +209,19 @@ def load_rows(dataset: str) -> tuple[list, dict]:
     """
     cfg = _check(dataset)
     key_col = cfg["key"]
-    c = _conn()
+    # A seeded dataset has to read without a database: the file is the data,
+    # and the database only ever holds corrections on top of it. Without this
+    # the NPI sheet would be empty wherever DATABASE_URL is not set, which is
+    # every local run and every test.
+    try:
+        c = _conn()
+    except NoDatabase:
+        seeded = _seed_rows(dataset)
+        if not seeded:
+            raise
+        return ([name_repair.repair_row(r) for r in seeded],
+                {"row_count": len(seeded), "synced_at": None, "synced_by": None,
+                 "manual_row_count": 0, "overrides_applied": 0, "seeded": True})
     try:
         with c, c.cursor() as cur:
             _ensure(cur)
@@ -192,7 +233,10 @@ def load_rows(dataset: str) -> tuple[list, dict]:
             rows = (snap[0] if isinstance(snap[0], list) else json.loads(snap[0])) if snap else []
             manual = _manual_rows(cur, dataset)
             if not rows and not manual:
-                return [], {}
+                seeded = _seed_rows(dataset)
+                if not seeded:
+                    return [], {}
+                rows = seeded
             meta = {
                 "row_count": snap[1] if snap else 0,
                 "synced_at": snap[2].isoformat() if snap and snap[2] else None,

@@ -28,6 +28,18 @@ sys.path.insert(0, str(HERE))
 import main  # noqa: E402
 
 app = FastAPI()
+
+# The static pages — SN Master, the attendance tracker — live in kpi-app/web
+# and are copied to backend/web by the Dockerfile, so locally there is nothing
+# at the path the app serves them from. Mounting the real directory here is
+# what makes a browser test of those pages possible at all.
+WEB = BACKEND.parent / "web"
+for _name in ("sn-master", "attendance"):
+    _dir = WEB / _name
+    if _dir.is_dir():
+        app.mount(f"/{_name}", StaticFiles(directory=str(_dir), html=True),
+                  name=f"web-{_name}")
+
 if (DIST / "assets").is_dir():
     app.mount("/kpi/assets", StaticFiles(directory=str(DIST / "assets")), name="fresh-assets")
 

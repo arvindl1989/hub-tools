@@ -46,6 +46,8 @@ TESTS = [
      "a standing arrangement written in one go, holidays skipped"),
     ("attendance lock", "test_attendance_lock.py",
      "a closed period that refuses every way in, not just the click"),
+    ("NPI 2026", "test_npi.py",
+     "the survey scored, and joined to the tickets behind it"),
     ("SN Master export", "test_sn_master_export.py",
      "the CSV is what the table shows, awkward characters and all"),
     ("email calendar", "test_email_sla_calendar.py",

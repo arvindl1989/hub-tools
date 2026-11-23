@@ -439,3 +439,18 @@ export async function setCapacityManualDays({ year, person, service, days, note 
                                     { year, person, service, days, note })
   return data
 }
+
+// ── NPI 2026 ─────────────────────────────────────────────────────────────────
+// The survey stands on its own; the session id is only used to join each
+// respondent to the tickets they raised, so it is optional.
+export async function getNpi(sid, { area, frontline } = {}) {
+  const { data } = await client.get(`/sessions/${sid || 'none'}/npi`,
+                                    { params: _clean({ area, frontline }) })
+  return data
+}
+
+export async function getNpiPerson(sid, name) {
+  const { data } = await client.get(`/sessions/${sid || 'none'}/npi/person`,
+                                    { params: { name } })
+  return data
+}

@@ -8,6 +8,7 @@ import UserActivityPage  from './pages/UserActivityPage'
 import FeedbackPage      from './pages/FeedbackPage'
 import CapacityPlanPage  from './pages/CapacityPlanPage'
 import ExperimentalReportsPage from './pages/ExperimentalReportsPage'
+import NpiPage from './pages/NpiPage'
 import RatesConfigModal  from './components/RatesConfigModal'
 import PasswordGateModal from './components/PasswordGateModal'
 
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'user-activity', label: 'User Activity',    icon: <UsersIcon /> },
   { id: 'feedback',      label: 'Feedback',         icon: <SmileIcon /> },
   { id: 'capacity',      label: 'Capacity',         icon: <ScaleIcon /> },
+  { id: 'npi',           label: 'NPI 2026',         icon: <StarIcon /> },
 ]
 
 // Two locks, each with its own key and its own session flag, so unlocking one
@@ -211,6 +213,7 @@ export default function App() {
           {activeTab === 'user-activity' && <UserActivityPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
           {activeTab === 'feedback'      && <FeedbackPage sessionId={sessionId} />}
           {activeTab === 'capacity'      && unlocked.capacity && <CapacityPlanPage sessionId={sessionId} onSessionExpired={handleSessionExpired} />}
+          {activeTab === 'npi'           && <NpiPage sessionId={sessionId} />}
           {activeTab === 'experimental'  && unlocked.experimental && <ExperimentalReportsPage sessionId={sessionId} onSessionExpired={handleSessionExpired} onBack={() => setActiveTab('dashboard')} />}
         </div>
       </main>
@@ -375,6 +378,17 @@ function GridIcon() {
 function UsersIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
 }
+function StarIcon() {
+  // A rating. The survey asks people to score the service, and this is the
+  // plainest mark for that.
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2.8l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.6l6.5-.9z" />
+    </svg>
+  )
+}
+
 function ScaleIcon() {
   // A balance — what was delivered against the time there was to deliver it.
   return (

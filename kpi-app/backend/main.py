@@ -3612,6 +3612,284 @@ def _verdict(ratio: Optional[float]) -> str:
     return "appropriate"
 
 
+# ── NPI 2026 ─────────────────────────────────────────────────────────────────
+# A one-off survey rather than a feed: 85 people asked, 25 who answered. The
+# rows live in npi_2026.json and are served through SN Master as the "npi"
+# dataset, so corrections and — above all — the "Ticket user" mapping are made
+# there and read from there.
+#
+# Two scales, not one. Q2 is "how likely are you to recommend us", 0–10, and is
+# read the way the Feedback page reads its own: promoter, passive, detractor.
+# The five Q4 parameters are 1–5 ratings of the service itself. Averaging the
+# two together would produce a number with no unit, so they stay apart.
+NPI_PARAMETERS = [
+    ("Q4_Timeliness",    "Timeliness"),
+    ("Q4_Communication", "Communication"),
+    ("Q4_ProcessStd",    "Process standards"),
+    ("Q4_Digital",       "Digital tools"),
+    ("Q4_Outcomes",      "Outcomes"),
+]
+NPI_SCALE_MAX = 5
+NPI_RECOMMEND_MAX = 10
+
+
+def _npi_rows() -> tuple[list, dict]:
+    """Every surveyed person, corrections and mapping applied."""
+    try:
+        rows, meta = sn_data_api.load_rows("npi")
+        return rows or [], meta or {}
+    except Exception as exc:                      # noqa: BLE001 - reported, not raised
+        print(f"[NPI] Could not read the survey: {exc}")
+        return [], {}
+
+
+def _npi_num(value, lo, hi):
+    """A score, or None. The export has a stray '5' as text among the ints."""
+    try:
+        n = float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return n if lo <= n <= hi else None
+
+
+def _npi_bucket(score: Optional[float]) -> Optional[str]:
+    """The recommend score's band. Same cuts as the Feedback page uses."""
+    if score is None:
+        return None
+    return "promoter" if score >= 9 else "passive" if score >= 7 else "detractor"
+
+
+def _npi_mean(values: list) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    return round(sum(vals) / len(vals), 2) if vals else None
+
+
+@app.get("/api/sessions/{sid}/npi")
+def npi_2026(sid: str = "", area: str = "", frontline: str = ""):
+    """The NPI survey, scored, and joined to the ticket history where it can be.
+
+    The session id is optional and only used for the join: the survey stands on
+    its own, and a reader who has not uploaded tickets should still see the
+    scores rather than an error.
+    """
+    rows, meta = _npi_rows()
+    if not rows:
+        return {"responses": [], "invited": 0, "completed": 0, "parameters": [],
+                "by_area": [], "by_frontline": [], "comments": [],
+                "recommend": {}, "source": meta, "matching": {}}
+
+    if area:
+        rows = [r for r in rows if str(r.get("Area", "")).strip() == area]
+    if frontline:
+        rows = [r for r in rows if str(r.get("Frontline", "")).strip() == frontline]
+
+    done = [r for r in rows if str(r.get("Status", "")).strip().lower() == "completed"]
+
+    # ── The join ────────────────────────────────────────────────────────────
+    # "Ticket user" is what the hub typed on the SN Master sheet. Where it is
+    # blank the respondent's own name is tried, which works for the ones whose
+    # survey name and ServiceNow name happen to agree. Which respondents are
+    # matched and which are not is reported rather than hidden: a dashboard
+    # that silently shows ticket history for two thirds of the people on it is
+    # worse than one that says so.
+    df = None
+    if sid:
+        try:
+            df = _get_session(sid)
+        except Exception:                          # noqa: BLE001 - the join is optional
+            df = None
+
+    history: dict = {}
+    known_creators: set = set()
+    if df is not None and "ticket_creator" in df.columns:
+        known_creators = {str(u).strip() for u in df["ticket_creator"].dropna().unique()}
+        norm = {u.casefold(): u for u in known_creators}
+        for r in rows:
+            mapped = str(r.get("Ticket user", "")).strip()
+            name = str(r.get("Name", "")).strip()
+            hit = (mapped if mapped in known_creators
+                   else norm.get(mapped.casefold())
+                   or (name if name in known_creators else norm.get(name.casefold())))
+            if not hit:
+                continue
+            mine = df[df["ticket_creator"].astype(str).str.strip() == hit]
+            if mine.empty:
+                continue
+            specialists = []
+            if "assigned_to" in mine.columns:
+                specialists = [{"name": str(k), "requests": int(v)} for k, v in
+                               mine["assigned_to"].dropna().value_counts().items()]
+            services = []
+            if "sub_category" in mine.columns:
+                services = [{"name": str(k), "requests": int(v)} for k, v in
+                            mine["sub_category"].dropna().value_counts().items()]
+            tickets = []
+            for _, t in mine.sort_values("created_date", ascending=False).head(200).iterrows():
+                tickets.append({
+                    "number": str(t.get("ticket_number") or ""),
+                    "summary": str(t.get("short_description") or ""),
+                    "service": str(t.get("sub_category") or ""),
+                    "specialist": str(t.get("assigned_to") or ""),
+                    "state": str(t.get("state") or ""),
+                    "created": (t["created_date"].date().isoformat()
+                                if pd.notna(t.get("created_date")) else None),
+                    "closed": (t["closed_date"].date().isoformat()
+                               if "closed_date" in mine.columns and pd.notna(t.get("closed_date"))
+                               else None),
+                })
+            history[name] = {"matched_as": hit, "by_mapping": bool(mapped),
+                             "requests": int(len(mine)), "tickets": tickets,
+                             "specialists": specialists, "services": services}
+
+    # ── Per respondent ──────────────────────────────────────────────────────
+    responses = []
+    for r in rows:
+        name = str(r.get("Name", "")).strip()
+        params = {key: _npi_num(r.get(key), 1, NPI_SCALE_MAX) for key, _ in NPI_PARAMETERS}
+        rec = _npi_num(r.get("Q2_KBS"), 0, NPI_RECOMMEND_MAX)
+        h = history.get(name)
+        responses.append({
+            "name": name,
+            "frontline": str(r.get("Frontline", "")).strip(),
+            "area": str(r.get("Area", "")).strip(),
+            "completed": str(r.get("Status", "")).strip().lower() == "completed",
+            "outreach": str(r.get("Outreach", "")).strip(),
+            "submitted": str(r.get("Created", "")).strip()[:10] or None,
+            "recommend": rec,
+            "bucket": _npi_bucket(rec),
+            "parameters": params,
+            "average": _npi_mean(list(params.values())),
+            "strengths": str(r.get("Q5_Strengths", "")).strip(),
+            "improvements": str(r.get("Q5_Improvements", "")).strip(),
+            "follow_up": str(r.get("Q6_FollowUp", "")).strip().lower() == "yes",
+            "ticket_user": str(r.get("Ticket user", "")).strip(),
+            "requests": (h or {}).get("requests"),
+            "specialists": (h or {}).get("specialists") or [],
+            "matched_as": (h or {}).get("matched_as"),
+            "matched_by_mapping": (h or {}).get("by_mapping", False),
+        })
+
+    def _group(field: str) -> list:
+        out = []
+        for value in sorted({r[field] for r in responses if r[field]}):
+            mine = [r for r in responses if r[field] == value]
+            answered = [r for r in mine if r["completed"]]
+            out.append({
+                "name": value,
+                "invited": len(mine),
+                "completed": len(answered),
+                "recommend": _npi_mean([r["recommend"] for r in answered]),
+                "average": _npi_mean([r["average"] for r in answered]),
+                "parameters": {key: _npi_mean([r["parameters"][key] for r in answered])
+                               for key, _ in NPI_PARAMETERS},
+                "promoters": sum(1 for r in answered if r["bucket"] == "promoter"),
+                "passives": sum(1 for r in answered if r["bucket"] == "passive"),
+                "detractors": sum(1 for r in answered if r["bucket"] == "detractor"),
+            })
+        return sorted(out, key=lambda g: (-(g["completed"] or 0), g["name"]))
+
+    answered = [r for r in responses if r["completed"]]
+    parameters = [{
+        "key": key, "label": label,
+        "average": _npi_mean([r["parameters"][key] for r in answered]),
+        "responses": sum(1 for r in answered if r["parameters"][key] is not None),
+        "spread": {str(v): sum(1 for r in answered if r["parameters"][key] == v)
+                   for v in range(1, NPI_SCALE_MAX + 1)},
+    } for key, label in NPI_PARAMETERS]
+
+    comments = [{
+        "name": r["name"], "frontline": r["frontline"], "area": r["area"],
+        "recommend": r["recommend"], "bucket": r["bucket"], "average": r["average"],
+        "strengths": r["strengths"], "improvements": r["improvements"],
+        "follow_up": r["follow_up"],
+    } for r in answered if r["strengths"] or r["improvements"]]
+
+    matched = [r for r in answered if r["matched_as"]]
+    return _json_safe({
+        "invited": len(rows),
+        "completed": len(answered),
+        "response_rate_pct": _safe_div(len(answered), len(rows), pct=True, nd=0),
+        "recommend": {
+            "average": _npi_mean([r["recommend"] for r in answered]),
+            "max": NPI_RECOMMEND_MAX,
+            "promoters": sum(1 for r in answered if r["bucket"] == "promoter"),
+            "passives": sum(1 for r in answered if r["bucket"] == "passive"),
+            "detractors": sum(1 for r in answered if r["bucket"] == "detractor"),
+            # Promoters less detractors, as a share of those who answered: the
+            # figure the survey is named after.
+            "nps": (round((sum(1 for r in answered if r["bucket"] == "promoter")
+                           - sum(1 for r in answered if r["bucket"] == "detractor"))
+                          / len(answered) * 100)
+                    if answered else None),
+        },
+        "overall_average": _npi_mean([r["average"] for r in answered]),
+        "scale_max": NPI_SCALE_MAX,
+        "parameters": parameters,
+        "by_area": _group("area"),
+        "by_frontline": _group("frontline"),
+        "responses": sorted(responses, key=lambda r: (not r["completed"], r["name"])),
+        "comments": comments,
+        "follow_up_wanted": [r["name"] for r in answered if r["follow_up"]],
+        # Said plainly, because the join is only as good as the mapping.
+        "matching": {
+            "matched": len(matched),
+            "of": len(answered),
+            "by_mapping": sum(1 for r in matched if r["matched_by_mapping"]),
+            "by_name": sum(1 for r in matched if not r["matched_by_mapping"]),
+            "unmatched": [r["name"] for r in answered if not r["matched_as"]],
+            "ticket_users_known": len(known_creators),
+        },
+        "source": meta,
+        "areas": sorted({r["area"] for r in responses if r["area"]}),
+        "frontlines": sorted({r["frontline"] for r in responses if r["frontline"]}),
+    })
+
+
+@app.get("/api/sessions/{sid}/npi/person")
+def npi_person(sid: str, name: str):
+    """The tickets one respondent raised, and who worked on them."""
+    data = npi_2026(sid)
+    who = next((r for r in data["responses"] if r["name"] == name), None)
+    if who is None:
+        raise HTTPException(404, f"No NPI response for {name!r}")
+    rows, _ = _npi_rows()
+    row = next((r for r in rows if str(r.get("Name", "")).strip() == name), {})
+    mapped = str(row.get("Ticket user", "")).strip()
+    df = None
+    try:
+        df = _get_session(sid)
+    except Exception:                              # noqa: BLE001 - the join is optional
+        pass
+    out = {"name": name, "ticket_user": mapped, "response": who,
+           "tickets": [], "specialists": [], "services": [], "matched_as": None}
+    if df is None or "ticket_creator" not in df.columns:
+        return _json_safe(out)
+    known = {str(u).strip(): str(u).strip() for u in df["ticket_creator"].dropna().unique()}
+    norm = {k.casefold(): v for k, v in known.items()}
+    hit = (known.get(mapped) or norm.get(mapped.casefold())
+           or known.get(name) or norm.get(name.casefold()))
+    if not hit:
+        return _json_safe(out)
+    mine = df[df["ticket_creator"].astype(str).str.strip() == hit]
+    out["matched_as"] = hit
+    out["specialists"] = [{"name": str(k), "requests": int(v)} for k, v in
+                          mine["assigned_to"].dropna().value_counts().items()] \
+        if "assigned_to" in mine.columns else []
+    out["services"] = [{"name": str(k), "requests": int(v)} for k, v in
+                       mine["sub_category"].dropna().value_counts().items()] \
+        if "sub_category" in mine.columns else []
+    out["tickets"] = [{
+        "number": str(t.get("ticket_number") or ""),
+        "summary": str(t.get("short_description") or ""),
+        "service": str(t.get("sub_category") or ""),
+        "specialist": str(t.get("assigned_to") or ""),
+        "state": str(t.get("state") or ""),
+        "created": (t["created_date"].date().isoformat()
+                    if pd.notna(t.get("created_date")) else None),
+    } for _, t in mine.sort_values("created_date", ascending=False).iterrows()]
+    return _json_safe(out)
+
+
 @app.get("/api/sessions/{sid}/growth-forecast")
 def growth_forecast(sid: str, growth: float = 10.0, base_year: Optional[int] = None,
                     target_year: Optional[int] = None):
