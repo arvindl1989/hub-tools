@@ -3737,9 +3737,21 @@ def npi_2026(sid: str = "", area: str = "", frontline: str = ""):
                                if "closed_date" in mine.columns and pd.notna(t.get("closed_date"))
                                else None),
                 })
+            # Who should pick up the phone: whoever has handled most of this
+            # person's work. value_counts already ordered them, so the first
+            # is the answer — unless two are level, in which case saying so is
+            # better than picking one and letting it read as a decision.
+            top = specialists[0] if specialists else None
+            tied = [s["name"] for s in specialists
+                    if top and s["requests"] == top["requests"]]
             history[name] = {"matched_as": hit, "by_mapping": bool(mapped),
                              "requests": int(len(mine)), "tickets": tickets,
-                             "specialists": specialists, "services": services}
+                             "specialists": specialists, "services": services,
+                             "owner": ({"name": top["name"],
+                                        "requests": top["requests"],
+                                        "share_pct": _safe_div(top["requests"], len(mine),
+                                                               pct=True, nd=0),
+                                        "tied_with": tied[1:]} if top else None)}
 
     # ── Per respondent ──────────────────────────────────────────────────────
     responses = []
@@ -3767,6 +3779,7 @@ def npi_2026(sid: str = "", area: str = "", frontline: str = ""):
             "specialists": (h or {}).get("specialists") or [],
             "matched_as": (h or {}).get("matched_as"),
             "matched_by_mapping": (h or {}).get("by_mapping", False),
+            "owner": (h or {}).get("owner"),
         })
 
     def _group(field: str) -> list:
