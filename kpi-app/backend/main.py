@@ -3738,12 +3738,24 @@ def npi_2026(sid: str = "", area: str = "", frontline: str = ""):
                                else None),
                 })
             # Who should pick up the phone: whoever has handled most of this
-            # person's work. value_counts already ordered them, so the first
-            # is the answer — unless two are level, in which case saying so is
-            # better than picking one and letting it read as a decision.
-            top = specialists[0] if specialists else None
-            tied = [s["name"] for s in specialists
-                    if top and s["requests"] == top["requests"]]
+            # person's work AND is still here. value_counts already ordered
+            # them, so the first is the answer — unless two are level, in which
+            # case saying so is better than picking one and letting it read as
+            # a decision.
+            #
+            # The leavers stay in `specialists`: they did the work and the
+            # history should say so. They are only skipped here, because the
+            # one thing this column is for is naming somebody to contact.
+            for sp in specialists:
+                sp["has_left"] = ua_config.has_left(sp["name"])
+            here = [sp for sp in specialists if not sp["has_left"]]
+            top = here[0] if here else None
+            tied = [sp["name"] for sp in here
+                    if top and sp["requests"] == top["requests"]]
+            # Everybody who worked with this person has since left. That is
+            # worth saying rather than leaving blank: it means nobody still on
+            # the team has met them, which is a different conversation.
+            all_gone = bool(specialists) and not here
             history[name] = {"matched_as": hit, "by_mapping": bool(mapped),
                              "requests": int(len(mine)), "tickets": tickets,
                              "specialists": specialists, "services": services,
@@ -3751,7 +3763,8 @@ def npi_2026(sid: str = "", area: str = "", frontline: str = ""):
                                         "requests": top["requests"],
                                         "share_pct": _safe_div(top["requests"], len(mine),
                                                                pct=True, nd=0),
-                                        "tied_with": tied[1:]} if top else None)}
+                                        "tied_with": tied[1:]} if top else None),
+                             "owner_gone": all_gone}
 
     # ── Per respondent ──────────────────────────────────────────────────────
     responses = []
@@ -3780,6 +3793,7 @@ def npi_2026(sid: str = "", area: str = "", frontline: str = ""):
             "matched_as": (h or {}).get("matched_as"),
             "matched_by_mapping": (h or {}).get("by_mapping", False),
             "owner": (h or {}).get("owner"),
+            "owner_all_left": (h or {}).get("owner_gone", False),
         })
 
     def _group(field: str) -> list:

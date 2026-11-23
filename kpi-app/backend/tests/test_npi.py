@@ -170,6 +170,64 @@ if none_["matched_as"] is None:
 else:
     check("that one happened to match, which is fine", True)
 
+print("\nWhoever is suggested is somebody still on the team")
+# Pooja V handled most of Srinivasan's work but has left, so the suggestion
+# has to be the next person who has not.
+left_rows = ([ticket(i, "Srinivasan V", "Website Content Management", "Pooja V")
+              for i in range(7)]
+             + [ticket(10 + i, "Srinivasan V", "Website Content Management", "Ajith A")
+                for i in range(3)]
+             + [ticket(20 + i, "Srinivasan V", "Email – Local", "Nitish JK")
+                for i in range(1)]
+             # Everybody who worked with this one has gone.
+             + [ticket(30 + i, "Manisha Ghule", "Website Content Management", "Pooja V")
+                for i in range(2)]
+             + [ticket(40 + i, "Manisha Ghule", "Website Content Management",
+                       "Dheera Sameera") for i in range(2)]
+             # A clean tie between two who are still here.
+             + [ticket(50 + i, "Yunchi Chen", "Website Content Management", "Ajith A")
+                for i in range(2)]
+             + [ticket(60 + i, "Yunchi Chen", "Email – Local", "Jerlin Jeba")
+                for i in range(2)])
+lsid = upload(left_rows)
+lj = get(f"/api/sessions/{lsid}/npi")
+who = {r["name"]: r for r in lj["responses"]}
+
+srini = who["Srinivasan V"]
+print(f"   Srinivasan V: {[(s['name'], s['requests'], s['has_left']) for s in srini['specialists']]}")
+print(f"      reach out -> {srini['owner']['name']}")
+check("the leaver who did most of the work is not the suggestion",
+      srini["owner"]["name"] == "Ajith A", str(srini["owner"]))
+check("but their work is still counted", srini["requests"] == 11, str(srini["requests"]))
+check("and they are still named in the history, marked as gone",
+      [s["name"] for s in srini["specialists"] if s["has_left"]] == ["Pooja V"],
+      str([(s["name"], s["has_left"]) for s in srini["specialists"]]))
+check("the share is of all their requests, not just the ones left over",
+      srini["owner"]["share_pct"] == round(3 / 11 * 100),
+      str(srini["owner"]["share_pct"]))
+
+gone = who["Manisha Ghule"]
+print(f"   Manisha Ghule: everyone who worked with her has left -> "
+      f"owner {gone['owner']}, flag {gone['owner_all_left']}")
+check("where everybody has left there is no suggestion", gone["owner"] is None,
+      str(gone["owner"]))
+check("and the page is told why, rather than shown a blank",
+      gone["owner_all_left"] is True, str(gone["owner_all_left"]))
+check("their requests are still counted", gone["requests"] == 4, str(gone["requests"]))
+
+tie = who["Yunchi Chen"]
+check("a tie between two who are here names one and says so",
+      tie["owner"]["tied_with"] == ["Jerlin Jeba"], str(tie["owner"]))
+check("and nobody with a live owner is flagged as abandoned",
+      tie["owner_all_left"] is False and srini["owner_all_left"] is False)
+
+# The list itself is a setting rather than a literal buried in the join, so
+# the page can name who it is skipping and one edit moves every use of it.
+cfg = get(f"/api/sessions/{lsid}/user-metrics")["config"]
+check("the former members are declared in the config",
+      set(cfg["former_members"]) == {"Pooja V", "Dheera Sameera"},
+      str(cfg.get("former_members")))
+
 print("\nFilters narrow the survey")
 eur = get("/api/sessions/none/npi?area=EUR")
 check("an area filter cuts it to that area",

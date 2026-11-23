@@ -334,7 +334,7 @@ export default function NpiPage({ sessionId }) {
                 <SortHead label="Requests" col="requests" sort={sort} setSort={setSort} />
                 <SortHead label="Who should reach out" col="owner" sort={sort} setSort={setSort}
                           align="left"
-                          title="The specialist who has handled most of this person's requests" />
+                          title="The specialist who has handled most of this person's requests and is still on the team" />
                 <SortHead label="Status" col="status" sort={sort} setSort={setSort}
                           align="left" />
               </tr>
@@ -368,21 +368,29 @@ export default function NpiPage({ sessionId }) {
                         : 'Not linked to a requester yet'}>
                     {r.requests ?? '–'}
                   </td>
-                  {/* Whoever has handled most of their work. Not an assignment,
-                      a starting point — and a tie says so rather than picking. */}
-                  <td style={{ ...tdL, color: r.owner ? INK.primary : GHOST }}
+                  {/* Whoever has handled most of their work and is still here.
+                      Not an assignment, a starting point — a tie says so
+                      rather than picking, and where everybody who worked with
+                      them has left that is said too, because it means nobody
+                      on the team has met them. */}
+                  <td style={{ ...tdL,
+                               color: r.owner ? INK.primary : r.owner_all_left ? AMBER : GHOST }}
                       title={r.owner
                         ? `${r.owner.requests} of ${r.requests} requests (${r.owner.share_pct}%)`
                           + (r.owner.tied_with?.length
                             ? `, level with ${r.owner.tied_with.join(', ')}` : '')
-                        : undefined}>
+                        : r.owner_all_left
+                          ? 'Everyone who handled their requests has left the team'
+                          : undefined}>
                     {r.owner ? <>
                       {r.owner.name}
                       <span style={{ color: FAINT, fontSize: 11 }}> {r.owner.share_pct}%</span>
                       {r.owner.tied_with?.length > 0 && (
                         <span style={{ color: AMBER, fontSize: 10 }}> +{r.owner.tied_with.length}</span>
                       )}
-                    </> : '–'}
+                    </> : r.owner_all_left
+                      ? <span style={{ fontSize: 11 }}>nobody still here</span>
+                      : '–'}
                   </td>
                   <td style={{ ...tdL, fontSize: 11,
                                color: r.completed ? INK.primary : FAINT }}>
@@ -497,8 +505,10 @@ function PeopleDialog({ title, subtitle, rows, onPick, onClose, scaleMax }) {
               <td style={{ ...td, color: r.requests == null ? GHOST : INK.primary }}>
                 {r.requests ?? '–'}
               </td>
-              <td style={{ ...tdL, color: r.owner ? INK.primary : GHOST }}>
-                {r.owner?.name ?? '–'}
+              <td style={{ ...tdL,
+                           color: r.owner ? INK.primary : r.owner_all_left ? AMBER : GHOST,
+                           fontSize: r.owner ? 12.5 : 11 }}>
+                {r.owner?.name ?? (r.owner_all_left ? 'nobody still here' : '–')}
               </td>
             </tr>
           ))}
@@ -596,11 +606,19 @@ function PersonDialog({ name, detail, onClose }) {
                         none recorded
                       </span>
                     : xs.map(x => (
+                      // A leaver did the work and the history says so; the
+                      // chip just does not pretend they are reachable.
                       <span key={x.name}
-                            style={{ fontSize: 11.5, fontFamily: INTER, color: INK.primary,
-                                     background: '#f2f5fe', border: '1px solid #e1e9fd',
+                            title={x.has_left ? `${x.name} has left the team` : undefined}
+                            style={{ fontSize: 11.5, fontFamily: INTER,
+                                     color: x.has_left ? DIM : INK.primary,
+                                     background: x.has_left ? '#f3eee6' : '#f2f5fe',
+                                     border: `1px solid ${x.has_left ? '#e8e2d6' : '#e1e9fd'}`,
                                      borderRadius: 999, padding: '3px 9px' }}>
-                        {x.name} <b style={{ color: BLUE }}>{x.requests}</b>
+                        {x.name} <b style={{ color: x.has_left ? DIM : BLUE }}>{x.requests}</b>
+                        {x.has_left && (
+                          <span style={{ color: FAINT, fontSize: 10 }}> · left</span>
+                        )}
                       </span>
                     ))}
                 </div>

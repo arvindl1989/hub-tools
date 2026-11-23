@@ -56,6 +56,22 @@ FRONTLINE_INCLUDES_GLOBAL = True
 # held out here for the same reason and is a team like any other.
 NON_FRONTLINE_TEAMS = []
 
+# ── People who have left ─────────────────────────────────────────────────────
+# Their work stays in the history — they did it, and a ticket does not stop
+# having been handled — so they are still counted and still named wherever the
+# past is being described. What they are not is somebody to go and talk to, so
+# anything that suggests a person to contact skips them.
+#
+# Matched case- and space-insensitively, because a name typed into ServiceNow
+# and the same name typed here will not always agree on either.
+FORMER_MEMBERS = ["Pooja V", "Dheera Sameera"]
+
+
+def has_left(name) -> bool:
+    key = " ".join(str(name or "").split()).casefold()
+    return bool(key) and key in {" ".join(n.split()).casefold() for n in FORMER_MEMBERS}
+
+
 # The adoption bar on the Service Utility Rate table, and nowhere else — these
 # two are read by that table alone. It was two requesters or three requests, on
 # the grounds that one person trying once is a trial rather than take-up. One
@@ -185,6 +201,7 @@ def as_payload() -> dict:
         "service_model": SERVICE_MODEL,
         "frontline_includes_global": FRONTLINE_INCLUDES_GLOBAL,
         "non_frontline_teams": list(NON_FRONTLINE_TEAMS),
+        "former_members": list(FORMER_MEMBERS),
         "frontline_uses_service_min_users": FRONTLINE_USES_SERVICE_MIN_USERS,
         "frontline_uses_service_min_requests": FRONTLINE_USES_SERVICE_MIN_REQUESTS,
         "engaged_min_requests": ENGAGED_MIN_REQUESTS,
