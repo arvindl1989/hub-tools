@@ -50,6 +50,8 @@ TESTS = [
      "the survey scored, and joined to the tickets behind it"),
     ("NPI page", "test_npi_page.py",
      "every count opens its people, and every column sorts"),
+    ("Power BI model", "test_powerbi_model.py",
+     "every definition already a column, agreeing with the app's own pages"),
     ("SN Master export", "test_sn_master_export.py",
      "the CSV is what the table shows, awkward characters and all"),
     ("email calendar", "test_email_sla_calendar.py",

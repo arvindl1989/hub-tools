@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import pandas as pd
 import xlsxwriter
 import numpy as np
+import asyncio
 import io
 import math
 import os
@@ -3210,8 +3211,16 @@ def _plan_productive_days(name: str, date_from=None, date_to=None,
     if not seen:
         return None
     for k in ("working_days", "holidays", "availability", "cadence_days",
-              "training_days", "productivity_days"):
+              "training_days"):
         out[k] = round(out[k], 1)
+    # Productivity is taken from the rounded parts, not rounded separately from
+    # the unrounded ones. They are printed side by side — on the capacity sheet
+    # and as columns in the Power BI model — and a reader who subtracts them
+    # has to land on the total. Pooja V's 19 days came to 14.2 while the three
+    # columns beside it said 14.3, which is the kind of discrepancy that costs
+    # an afternoon and earns no trust back.
+    out["productivity_days"] = round(
+        max(0.0, out["availability"] - out["cadence_days"] - out["training_days"]), 1)
     return out
 
 
@@ -3915,6 +3924,239 @@ def npi_person(sid: str, name: str):
                     if pd.notna(t.get("created_date")) else None),
     } for _, t in mine.sort_values("created_date", ascending=False).iterrows()]
     return _json_safe(out)
+
+
+# ── Power BI model ───────────────────────────────────────────────────────────
+# One workbook, a star schema, every definition already a column.
+#
+# The point is that Power BI never re-derives anything. Which service a ticket
+# belongs to, whether PWR's work beats its sub-category, what a ticket is
+# reckoned to cost, when its SLA fell due and whether it was missed, how many
+# productive days a person had after holidays, cadence and training — all of
+# that is settled here, in the same code the app's own pages read, and lands
+# in the sheet as a plain column. The report's DAX is then sums and divides,
+# and the two cannot drift apart, which is the only way a second front end is
+# worth having.
+#
+# Power Automate already drops the ServiceNow export in SharePoint on a
+# schedule. One more action in that flow — an HTTP GET of this, saved beside
+# it — and the refresh picks it up. No gateway, no credentials in Power BI.
+POWERBI_SHEETS = ["fact_ticket", "dim_person", "dim_service", "dim_date",
+                  "fact_npi", "dim_setting"]
+
+
+def _powerbi_tables(sid: str = "") -> dict:
+    """Every sheet of the model, as DataFrames.
+
+    With no session id the live ticket source is read, which is what the
+    scheduled flow wants: one call, current data, no session to keep alive.
+    With one, that upload is used instead — handy for pinning a model to a
+    known set of rows, and the only way to build this where the live source
+    cannot be reached.
+    """
+    if sid:
+        df, source = _get_session(sid), f"session {sid}"
+    else:
+        try:
+            rows, source = asyncio.run(_fetch_ticket_rows())
+        except Exception as exc:                   # noqa: BLE001 - reported as 503
+            raise HTTPException(
+                503, "Could not read the ticket source for the model. Pass ?sid= to "
+                     f"build it from an upload instead. ({exc})") from exc
+        df = process_dataframe(normalize_columns(pd.DataFrame(rows)))
+
+    services = CAPACITY_PLAN.get("services") or []
+    route = _plan_router(services)
+    short_of = {s["short"]: s["name"] for s in services}
+
+    # ── fact_ticket ─────────────────────────────────────────────────────────
+    f = pd.DataFrame(index=df.index)
+    f["ticket"] = df.get("ticket_number")
+    f["summary"] = df.get("short_description")
+    f["requested_by"] = df.get("ticket_creator")
+    f["specialist"] = df.get("assigned_to")
+    f["frontline"] = df.get("team")
+    f["area"] = df.get("area")
+    f["sub_category"] = df.get("sub_category")
+    f["state"] = df.get("state")
+    f["created"] = pd.to_datetime(df.get("created_date"), errors="coerce")
+    f["closed"] = pd.to_datetime(df.get("closed_date"), errors="coerce")
+    f["sla_due"] = pd.to_datetime(df.get("sla_due_date"), errors="coerce")
+
+    # The display service the dashboards group by, and the capacity column the
+    # sheet counts in — they are different questions and the model keeps both.
+    f["service"] = _service_column(df) if "sub_category" in df.columns else None
+    f["capacity_column"] = [route(sc, tm) for sc, tm in
+                            zip(df.get("sub_category", pd.Series(index=df.index, dtype=object)),
+                                df.get("team", pd.Series(index=df.index, dtype=object)))]
+    f["capacity_service"] = f["capacity_column"].map(lambda c: short_of.get(c, c))
+
+    closed_states = set(_plan_closed_states())
+    f["is_closed"] = df.get("state", pd.Series(index=df.index, dtype=object)).isin(closed_states)
+    f["is_open"] = df.get("is_active", pd.Series(True, index=df.index))
+
+    # Effort, at the rate for the year the ticket closed in, falling back to
+    # the year it was raised for work still open.
+    per_day = float(BANDWIDTH_HOURS_PER_DAY)
+    years = [(c.year if pd.notna(c) else (r.year if pd.notna(r) else None))
+             for c, r in zip(f["closed"], f["created"])]
+    f["effort_hours"] = [
+        (_plan_hours(col, yr) or 0.0) if (col and yr) else 0.0
+        for col, yr in zip(f["capacity_column"], years)]
+    f["effort_days"] = [round(h / per_day, 4) for h in f["effort_hours"]]
+
+    # SLA. Breached only where there is a due date to miss and the work is
+    # finished or the date has passed — an open ticket inside its window is
+    # not a breach, and counting it as one is how a board turns red by itself.
+    today = pd.Timestamp(date.today())
+    f["sla_working_days"] = df.get("sla_wd")
+    end = f["closed"].fillna(today)
+    f["sla_breached"] = f["sla_due"].notna() & (end > f["sla_due"])
+    f["sla_days_over"] = [
+        int((e - d).days) if (pd.notna(d) and e > d) else 0
+        for e, d in zip(end, f["sla_due"])]
+    f["turnaround_days"] = [
+        int((c - r).days) if (pd.notna(c) and pd.notna(r)) else None
+        for c, r in zip(f["closed"], f["created"])]
+    f["age_days"] = [
+        int((today - r).days) if (pd.notna(r) and pd.isna(c)) else None
+        for r, c in zip(f["created"], f["closed"])]
+    f["year"] = [c.year if pd.notna(c) else None for c in f["created"]]
+    f["month"] = [c.strftime("%Y-%m") if pd.notna(c) else None for c in f["created"]]
+
+    # ── dim_person ──────────────────────────────────────────────────────────
+    people = []
+    wd_all = UTILISATION_SETTINGS.get("working_days") or {}
+    for year in sorted({int(y) for y in wd_all if str(y).isdigit()}):
+        for who in sorted(wd_all.get(str(year)) or {}):
+            avail = _plan_productive_days(who, year=year) or {}
+            people.append({
+                "person": who, "year": year,
+                "working_days": avail.get("working_days"),
+                "holidays": avail.get("holidays"),
+                "availability": avail.get("availability"),
+                "cadence_days": avail.get("cadence_days"),
+                "training_days": avail.get("training_days"),
+                "productive_days": avail.get("productivity_days"),
+                "has_left": ua_config.has_left(who),
+            })
+
+    # ── dim_service ─────────────────────────────────────────────────────────
+    svc = []
+    goal = CAPACITY_PLAN.get("goal_hours") or {}
+    for year in sorted({int(y) for y in (CAPACITY_PLAN.get("years") or {}) if str(y).isdigit()}):
+        for s_ in services:
+            svc.append({
+                "year": year, "capacity_column": s_["short"], "service": s_["name"],
+                "goal_hours": goal.get(s_["short"]),
+                "year_hours": _plan_hours(s_["short"], year),
+                "routed_by": ("sub-category" if s_.get("subs")
+                              else "team" if s_.get("teams")
+                              else "everything else" if s_.get("catch") else "unrouted"),
+                "sub_categories": ", ".join(s_.get("subs") or []),
+                "teams": ", ".join(s_.get("teams") or []),
+            })
+
+    # ── dim_date ────────────────────────────────────────────────────────────
+    # A real date table, so the report can mark it as one and get time
+    # intelligence. Working day and holiday are on it because every working-day
+    # figure in the app comes off this same calendar.
+    years = sorted(HOLIDAYS_BY_YEAR)
+    days = pd.date_range(f"{years[0]}-01-01", f"{years[-1]}-12-31", freq="D")
+    holidays = {d: n for y in years for d, n in (_HOLIDAY_NAMES.get(y) or {}).items()} \
+        if "_HOLIDAY_NAMES" in globals() else {}
+    hol_dates = {str(d) for y in years for d in (HOLIDAYS_BY_YEAR.get(y) or [])}
+    dim_date = pd.DataFrame({
+        "date": days,
+        "year": days.year,
+        "month": days.strftime("%Y-%m"),
+        "month_name": days.strftime("%b %Y"),
+        "quarter": [f"{d.year} Q{(d.month - 1) // 3 + 1}" for d in days],
+        "weekday": days.strftime("%a"),
+        "is_weekend": days.dayofweek >= 5,
+        "is_holiday": [d.strftime("%Y-%m-%d") in hol_dates for d in days],
+    })
+    dim_date["is_working_day"] = ~(dim_date["is_weekend"] | dim_date["is_holiday"])
+    dim_date["holiday"] = [holidays.get(d.date(), "") for d in days] if holidays else ""
+
+    # ── fact_npi ────────────────────────────────────────────────────────────
+    npi_rows, _ = _npi_rows()
+    npi = pd.DataFrame([{
+        "name": str(r.get("Name", "")).strip(),
+        "ticket_user": str(r.get("Ticket user", "")).strip(),
+        "frontline": str(r.get("Frontline", "")).strip(),
+        "area": str(r.get("Area", "")).strip(),
+        "answered": str(r.get("Status", "")).strip().lower() == "completed",
+        "outreach": str(r.get("Outreach", "")).strip(),
+        "submitted": str(r.get("Created", "")).strip()[:10] or None,
+        "recommend": _npi_num(r.get("Q2_KBS"), 0, NPI_RECOMMEND_MAX),
+        "band": _npi_bucket(_npi_num(r.get("Q2_KBS"), 0, NPI_RECOMMEND_MAX)) or "",
+        **{label.lower().replace(" ", "_"): _npi_num(r.get(key), 1, NPI_SCALE_MAX)
+           for key, label in NPI_PARAMETERS},
+        "service_average": _npi_mean([_npi_num(r.get(k), 1, NPI_SCALE_MAX)
+                                      for k, _ in NPI_PARAMETERS]),
+        "strengths": str(r.get("Q5_Strengths", "")).strip(),
+        "improvements": str(r.get("Q5_Improvements", "")).strip(),
+        "wants_follow_up": str(r.get("Q6_FollowUp", "")).strip().lower() == "yes",
+    } for r in npi_rows])
+
+    # ── dim_setting ─────────────────────────────────────────────────────────
+    # The report states its own definitions rather than leaving a reader to
+    # guess which rules produced the numbers in front of them.
+    setting = pd.DataFrame([{"setting": k, "value": str(v)} for k, v in [
+        ("Closed means", " + ".join(sorted(closed_states))),
+        ("Hours in a working day", BANDWIDTH_HOURS_PER_DAY),
+        ("Cadence share", f"{(_plan_year(date.today().year).get('cadence_pct', 20))}%"),
+        ("Training share", f"{(_plan_year(date.today().year).get('training_pct', 5))}%"),
+        ("Service adoption bar",
+         f"{ua_config.FRONTLINE_USES_SERVICE_MIN_USERS} users or "
+         f"{ua_config.FRONTLINE_USES_SERVICE_MIN_REQUESTS} requests"),
+        ("Frontlines include Global", ua_config.FRONTLINE_INCLUDES_GLOBAL),
+        ("Former members", ", ".join(ua_config.FORMER_MEMBERS)),
+        ("Ticket source", source),
+        ("Built", pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")),
+        ("Tickets in model", len(f)),
+    ]])
+
+    return {"fact_ticket": f, "dim_person": pd.DataFrame(people),
+            "dim_service": pd.DataFrame(svc), "dim_date": dim_date,
+            "fact_npi": npi, "dim_setting": setting}
+
+
+@app.get("/api/powerbi/model.xlsx")
+def powerbi_model(sid: str = ""):
+    """The whole model as one workbook, for Power Automate to drop in SharePoint."""
+    tables = _powerbi_tables(sid)
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="xlsxwriter",
+                        datetime_format="yyyy-mm-dd", date_format="yyyy-mm-dd") as writer:
+        for name in POWERBI_SHEETS:
+            t = tables.get(name)
+            if t is not None:
+                t.to_excel(writer, sheet_name=name, index=False)
+    buf.seek(0)
+    stamp = date.today().isoformat()
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition":
+                 f'attachment; filename="marketing-hub-model-{stamp}.xlsx"'})
+
+
+@app.get("/api/powerbi/{table}.csv")
+def powerbi_table_csv(table: str, sid: str = ""):
+    """One table, for a flow that would rather keep the sheets as separate files."""
+    if table not in POWERBI_SHEETS:
+        raise HTTPException(404, f"Unknown table {table!r}. "
+                                 f"Expected one of: {', '.join(POWERBI_SHEETS)}")
+    t = _powerbi_tables(sid).get(table)
+    buf = io.StringIO()
+    # BOM, so Excel opens the accented names correctly rather than as mojibake.
+    buf.write("\ufeff")
+    t.to_csv(buf, index=False, lineterminator="\r\n")
+    return StreamingResponse(io.BytesIO(buf.getvalue().encode("utf-8")),
+                             media_type="text/csv",
+                             headers={"Content-Disposition":
+                                      f'attachment; filename="{table}.csv"'})
 
 
 @app.get("/api/sessions/{sid}/growth-forecast")
