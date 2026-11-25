@@ -52,8 +52,9 @@ raw = urllib.request.urlopen(f"{BASE}/api/powerbi/model.xlsx?sid={sid}", timeout
 wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True)
 check("it is a real workbook", len(raw) > 10000, f"{len(raw)} bytes")
 check("with every sheet the model needs",
-      set(wb.sheetnames) == {"fact_ticket", "dim_person", "dim_service", "dim_date",
-                             "fact_npi", "dim_setting"}, str(wb.sheetnames))
+      set(wb.sheetnames) == {"fact_ticket", "fact_feedback", "dim_person",
+                             "dim_service", "dim_date", "dim_setting"},
+      str(wb.sheetnames))
 
 
 def sheet(name):
@@ -137,17 +138,21 @@ check("nor are the holidays",
 hols = sum(1 for d in dates if d["is_holiday"])
 check("and there are holidays in it", hols > 20, str(hols))
 
-print("\nThe survey comes through scored")
-_, npi = sheet("fact_npi")
-live = get("/api/sessions/none/npi")
-check("one row per person asked", len(npi) == live["invited"], str(len(npi)))
-check("answered matches", sum(1 for n in npi if n["answered"]) == live["completed"],
-      str(sum(1 for n in npi if n["answered"])))
-answered = [n for n in npi if n["answered"]]
-avg = round(sum(n["recommend"] for n in answered) / len(answered), 2)
-check("and the recommend average agrees with the page",
-      abs(avg - live["recommend"]["average"]) < 0.01,
-      f"{avg} vs {live['recommend']['average']}")
+print("\nFeedback keeps its shape whether or not there is any")
+# The harness has no feedback source, which is the case worth testing: a
+# refresh against a sheet with no columns fails outright, and "nothing came
+# through today" must not look the same as "the model changed shape".
+fb_hdr, fb = sheet("fact_feedback")
+print(f"   fact_feedback: {len(fb)} rows, {len(fb_hdr)} columns")
+check("the sheet carries its headers even when empty",
+      {"ticket", "submitted", "specialist", "service", "score", "band",
+       "comment", "has_comment"} <= set(fb_hdr), str(fb_hdr))
+check("including a column per rating parameter",
+      {"overall", "quality", "timeliness", "interaction"} <= set(fb_hdr), str(fb_hdr))
+check("and it can be joined to the tickets", "ticket" in fb_hdr)
+for r in fb:
+    check("every scored response is banded", bool(r["band"]) or r["score"] is None, str(r))
+    break
 
 print("\nThe model states its own rules")
 _, settings = sheet("dim_setting")

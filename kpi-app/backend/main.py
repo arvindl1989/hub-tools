@@ -3941,8 +3941,8 @@ def npi_person(sid: str, name: str):
 # Power Automate already drops the ServiceNow export in SharePoint on a
 # schedule. One more action in that flow — an HTTP GET of this, saved beside
 # it — and the refresh picks it up. No gateway, no credentials in Power BI.
-POWERBI_SHEETS = ["fact_ticket", "dim_person", "dim_service", "dim_date",
-                  "fact_npi", "dim_setting"]
+POWERBI_SHEETS = ["fact_ticket", "fact_feedback", "dim_person", "dim_service",
+                  "dim_date", "dim_setting"]
 
 
 def _powerbi_tables(sid: str = "") -> dict:
@@ -4079,26 +4079,45 @@ def _powerbi_tables(sid: str = "") -> dict:
     dim_date["is_working_day"] = ~(dim_date["is_weekend"] | dim_date["is_holiday"])
     dim_date["holiday"] = [holidays.get(d.date(), "") for d in days] if holidays else ""
 
-    # ── fact_npi ────────────────────────────────────────────────────────────
-    npi_rows, _ = _npi_rows()
-    npi = pd.DataFrame([{
-        "name": str(r.get("Name", "")).strip(),
-        "ticket_user": str(r.get("Ticket user", "")).strip(),
-        "frontline": str(r.get("Frontline", "")).strip(),
-        "area": str(r.get("Area", "")).strip(),
-        "answered": str(r.get("Status", "")).strip().lower() == "completed",
-        "outreach": str(r.get("Outreach", "")).strip(),
-        "submitted": str(r.get("Created", "")).strip()[:10] or None,
-        "recommend": _npi_num(r.get("Q2_KBS"), 0, NPI_RECOMMEND_MAX),
-        "band": _npi_bucket(_npi_num(r.get("Q2_KBS"), 0, NPI_RECOMMEND_MAX)) or "",
-        **{label.lower().replace(" ", "_"): _npi_num(r.get(key), 1, NPI_SCALE_MAX)
-           for key, label in NPI_PARAMETERS},
-        "service_average": _npi_mean([_npi_num(r.get(k), 1, NPI_SCALE_MAX)
-                                      for k, _ in NPI_PARAMETERS]),
-        "strengths": str(r.get("Q5_Strengths", "")).strip(),
-        "improvements": str(r.get("Q5_Improvements", "")).strip(),
-        "wants_follow_up": str(r.get("Q6_FollowUp", "")).strip().lower() == "yes",
-    } for r in npi_rows])
+    # ── fact_feedback ───────────────────────────────────────────────────────
+    # The Feedback page's own source, which is a different export from the
+    # tickets. It joins to fact_ticket on the ticket number where there is
+    # one, so a response can be read beside the work it is about.
+    # The columns are declared up front so the sheet has its headers even when
+    # there is no feedback to put in it. A refresh against a sheet with no
+    # columns fails outright, and "the source had nothing today" must not look
+    # the same as "the model changed shape".
+    FB_COLS = (["ticket", "submitted", "specialist", "service", "area", "frontline",
+                "score"] + list(_FEEDBACK_PARAM_ORDER)
+               + ["comment", "has_comment", "band", "year", "month"])
+    fb = pd.DataFrame(columns=FB_COLS)
+    try:
+        fdf, _cols = _load_feedback_df()
+    except Exception as exc:                       # noqa: BLE001 - reported, not raised
+        print(f"[POWERBI] No feedback to model: {exc}")
+        fdf = None
+    if fdf is not None and not fdf.empty:
+        fb = pd.DataFrame(index=fdf.index)
+        fb["ticket"] = fdf.get("ticket")
+        fb["submitted"] = pd.to_datetime(fdf.get("date"), errors="coerce")
+        fb["specialist"] = fdf.get("user")
+        fb["service"] = fdf.get("service")
+        fb["area"] = fdf.get("area")
+        fb["frontline"] = fdf.get("team") if "team" in fdf.columns else None
+        fb["score"] = pd.to_numeric(fdf.get("score"), errors="coerce")
+        for key in _FEEDBACK_PARAM_ORDER:
+            col = f"param_{key}"
+            fb[key] = (pd.to_numeric(fdf[col], errors="coerce")
+                       if col in fdf.columns else pd.NA)
+        fb["comment"] = fdf.get("comment")
+        fb["has_comment"] = fb["comment"].fillna("").astype(str).str.strip() != ""
+        # The same bands the Feedback page reads its score in, so a report
+        # cannot invent its own cut between a promoter and a passive.
+        fb["band"] = [("promoter" if v >= 9 else "passive" if v >= 7 else "detractor")
+                      if pd.notna(v) else "" for v in fb["score"]]
+        fb["year"] = [d.year if pd.notna(d) else None for d in fb["submitted"]]
+        fb["month"] = [d.strftime("%Y-%m") if pd.notna(d) else None for d in fb["submitted"]]
+        fb = fb[FB_COLS]
 
     # ── dim_setting ─────────────────────────────────────────────────────────
     # The report states its own definitions rather than leaving a reader to
@@ -4116,11 +4135,12 @@ def _powerbi_tables(sid: str = "") -> dict:
         ("Ticket source", source),
         ("Built", pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")),
         ("Tickets in model", len(f)),
+        ("Feedback responses in model", len(fb)),
     ]])
 
-    return {"fact_ticket": f, "dim_person": pd.DataFrame(people),
+    return {"fact_ticket": f, "fact_feedback": fb, "dim_person": pd.DataFrame(people),
             "dim_service": pd.DataFrame(svc), "dim_date": dim_date,
-            "fact_npi": npi, "dim_setting": setting}
+            "dim_setting": setting}
 
 
 @app.get("/api/powerbi/model.xlsx")

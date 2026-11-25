@@ -43,22 +43,25 @@ do the same thing one table at a time and can be fetched with a plain
 | `dim_person` | person × year | working, holiday, cadence, training and **productive** days |
 | `dim_service` | service × year | goal and actual hours a ticket is reckoned to take |
 | `dim_date` | one row per day, 2024–27 | the working-day calendar every day count is measured on |
-| `fact_npi` | one row per surveyed person | the NPI 2026 survey, scored |
+| `fact_feedback` | one row per survey response | everything the Feedback page reads |
 | `dim_setting` | key/value | the rules that produced the numbers, so a report can state them |
 
 ### Relationships
 
 ```
-dim_date[date]              1 → *  fact_ticket[created]      (active)
-dim_date[date]              1 → *  fact_ticket[closed]       (inactive — see below)
-dim_service[capacity_column] 1 → * fact_ticket[capacity_column]   *
-dim_person[person]          1 → *  fact_ticket[specialist]        *
-fact_npi[ticket_user]       1 → *  fact_ticket[requested_by]
+dim_date[date]              1 → *  fact_ticket[created_date]  (active)
+dim_date[date]              1 → *  fact_ticket[closed_date]   (inactive — see below)
+dim_service[service_year]   1 → *  fact_ticket[capacity_column] + year  *
+dim_person[person_year]     1 → *  fact_ticket[specialist] + year       *
+fact_ticket[ticket]         1 → *  fact_feedback[ticket]
+dim_date[date]              1 → *  fact_feedback[submitted_date]
 ```
 
-\* `dim_service` and `dim_person` are keyed on **column × year**, so either make
-a composite key column in Power Query (`capacity_column & "|" & year`) or treat
-them as lookup tables and use `LOOKUPVALUE`. The composite key is tidier.
+\* `dim_service` and `dim_person` are at **column × year** and **person × year**.
+The queries already build `service_year` and `person_year` keys; add the
+matching column on `fact_ticket` the same way (`capacity_column & "|" & year`)
+and relate on that. Relating on the name alone would make every year's days
+apply to every year's work.
 
 Mark `dim_date` as the date table. Two date relationships to one fact is normal:
 keep `created` active and reach the other with `USERELATIONSHIP`.
@@ -82,45 +85,46 @@ These are the ones that exist so Power BI does not have to think:
 
 ---
 
+## Building it
+
+Two files beside this one do the work:
+
+- **`powerbi/queries.pq`** — the six Power Query blocks. Paste each into
+  Desktop (Transform data → New Source → Blank Query → Advanced Editor) and
+  name it exactly as the comment says. Edit `ModelFile` to point at your
+  SharePoint path; it is the only thing to change.
+- **`powerbi/measures.dax`** — 33 measures. Make a blank table called
+  `Measures`, then paste them in one at a time.
+
+Then mark `dim_date` as the date table, draw the five relationships above, and
+build the pages.
+
+### About the .pbit
+
+A template is the last step, not the first: once the model is loaded, it is
+**File → Save as → Power BI template**. That takes a click and produces a file
+that is correct by construction, which is not true of one assembled by hand
+from outside Power BI. Save it beside this folder and the next person starts
+from the model rather than from these instructions.
+
 ## Measures
 
-Because the hard part is already a column, these are the whole of it.
+They are this short because the deciding is already done — see
+`powerbi/measures.dax` for all of them with their notes. The shape:
 
 ```dax
-Requests          = COUNTROWS ( fact_ticket )
-Closed            = CALCULATE ( [Requests], fact_ticket[is_closed] = TRUE )
-Open              = CALCULATE ( [Requests], fact_ticket[is_open] = TRUE )
-
-Effort days       = SUM ( fact_ticket[effort_days] )
-Productive days   = SUM ( dim_person[productive_days] )
-Utility rate      = DIVIDE ( [Effort days], [Productive days] )
-
-SLA breached      = CALCULATE ( [Requests], fact_ticket[sla_breached] = TRUE )
-SLA met %         = DIVIDE ( [Requests] - [SLA breached], [Requests] )
-Avg turnaround    = AVERAGE ( fact_ticket[turnaround_days] )
-
--- Avg TAT the capacity sheet's way: the days that went in over the tickets
--- that came out. Eight is the hours in a working day.
-Avg TAT hours     = DIVIDE ( [Effort days] * 8, [Closed] )
-Tickets per day   = DIVIDE ( [Closed], [Effort days] )
-
-Requesters        = DISTINCTCOUNT ( fact_ticket[requested_by] )
-Frontlines        = DISTINCTCOUNT ( fact_ticket[frontline] )
-
--- Closed in a period, using the inactive relationship on closed date.
-Closed in period  =
-CALCULATE ( [Closed], USERELATIONSHIP ( dim_date[date], fact_ticket[closed] ) )
-
--- NPI
-Answered          = CALCULATE ( COUNTROWS ( fact_npi ), fact_npi[answered] = TRUE )
-Recommend         = AVERAGE ( fact_npi[recommend] )
-Service score     = AVERAGE ( fact_npi[service_average] )
-Promoters         = CALCULATE ( [Answered], fact_npi[band] = "promoter" )
-Detractors        = CALCULATE ( [Answered], fact_npi[band] = "detractor" )
-NPI score         = DIVIDE ( [Promoters] - [Detractors], [Answered] ) * 100
+Requests        = COUNTROWS ( fact_ticket )
+Closed          = CALCULATE ( [Requests], fact_ticket[is_closed] = TRUE )
+Effort days     = SUM ( fact_ticket[effort_days] )
+Productive days = SUM ( dim_person[productive_days] )
+Utility rate    = DIVIDE ( [Effort days], [Productive days] )
+SLA breached    = CALCULATE ( [Requests], fact_ticket[sla_breached] = TRUE )
+SLA met %       = DIVIDE ( [Requests] - [SLA breached], [Requests] )
+Avg TAT hours   = DIVIDE ( [Effort days] * 8, [Closed] )
+NPS             = DIVIDE ( [Promoters] - [Detractors], [Responses] ) * 100
 ```
 
-Two that are deliberately **not** here, because they cannot be a simple
+Two that are deliberately **not** there, because they cannot be a simple
 aggregate and getting them wrong is how the two systems start disagreeing:
 
 - **Service utility rate** — used ÷ total frontlines, where "used" means at
@@ -131,8 +135,6 @@ aggregate and getting them wrong is how the two systems start disagreeing:
 - **Hand-set capacity days** — the capacity sheet lets somebody type a figure
   over the computed one, with a note saying why. Power BI cannot write back, so
   those stay in the app. `effort_days` here is always the computed figure.
-
----
 
 ## Keeping them honest
 

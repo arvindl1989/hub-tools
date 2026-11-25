@@ -1,0 +1,115 @@
+// ── Marketing Hub — measures ─────────────────────────────────────────────────
+// Create a blank table called "Measures" (Home → Enter data → name it Measures
+// → Load), then add each of these: right-click it → New measure → paste one
+// line. Keeping them off the fact tables means the field list stays readable.
+//
+// They are this short because the deciding is already done. Which column a
+// ticket counts in, whether an SLA was missed, how many productive days
+// somebody had — those are columns in the model, computed by the app. Nothing
+// below re-derives a definition, which is the only reason these numbers cannot
+// drift from the ones on the app's own pages.
+
+
+// ═══ Volume ══════════════════════════════════════════════════════════════════
+Requests = COUNTROWS ( fact_ticket )
+
+Closed = CALCULATE ( [Requests], fact_ticket[is_closed] = TRUE )
+
+Open = CALCULATE ( [Requests], fact_ticket[is_open] = TRUE )
+
+Requesters = DISTINCTCOUNT ( fact_ticket[requested_by] )
+
+Frontlines = DISTINCTCOUNT ( fact_ticket[frontline] )
+
+Specialists = DISTINCTCOUNT ( fact_ticket[specialist] )
+
+// Closed inside the period rather than raised inside it — the inactive
+// relationship on closed_date. Inflow and outflow are different questions and
+// a single date relationship can only answer one of them.
+Closed in period =
+CALCULATE ( [Closed], USERELATIONSHIP ( dim_date[date], fact_ticket[closed_date] ) )
+
+Net flow = [Requests] - [Closed in period]
+
+
+// ═══ Effort and capacity ═════════════════════════════════════════════════════
+Effort days = SUM ( fact_ticket[effort_days] )
+
+Effort hours = SUM ( fact_ticket[effort_hours] )
+
+// dim_person is at person × year, so a plain SUM over a filtered context is
+// right. Slicing by anything the person table does not know about — a service,
+// an area — will repeat the whole figure, which is why utility rate belongs on
+// a page sliced by person, year or neither.
+Productive days = SUM ( dim_person[productive_days] )
+
+Utility rate = DIVIDE ( [Effort days], [Productive days] )
+
+// The capacity sheet's own arithmetic: the days that went in over the tickets
+// that came out, at eight hours a day.
+Avg TAT hours = DIVIDE ( [Effort days] * 8, [Closed] )
+
+Tickets per day = DIVIDE ( [Closed], [Effort days] )
+
+// What those same days would finish at the target rate.
+Goal capacity =
+VAR Goal = AVERAGE ( dim_service[goal_hours] )
+RETURN DIVIDE ( [Effort days] * 8, Goal )
+
+
+// ═══ SLA ═════════════════════════════════════════════════════════════════════
+SLA breached = CALCULATE ( [Requests], fact_ticket[sla_breached] = TRUE )
+
+SLA met = [Requests] - [SLA breached]
+
+SLA met % = DIVIDE ( [SLA met], [Requests] )
+
+Avg days over SLA =
+CALCULATE ( AVERAGE ( fact_ticket[sla_days_over] ), fact_ticket[sla_breached] = TRUE )
+
+Avg turnaround days = AVERAGE ( fact_ticket[turnaround_days] )
+
+Median turnaround days = MEDIAN ( fact_ticket[turnaround_days] )
+
+// Only open work has an age; closed work has a turnaround. Averaging the two
+// together answers nothing.
+Avg age of open = CALCULATE ( AVERAGE ( fact_ticket[age_days] ), fact_ticket[is_open] = TRUE )
+
+
+// ═══ Feedback ════════════════════════════════════════════════════════════════
+Responses = COUNTROWS ( fact_feedback )
+
+Avg score = AVERAGE ( fact_feedback[score] )
+
+Promoters = CALCULATE ( [Responses], fact_feedback[band] = "promoter" )
+
+Passives = CALCULATE ( [Responses], fact_feedback[band] = "passive" )
+
+Detractors = CALCULATE ( [Responses], fact_feedback[band] = "detractor" )
+
+NPS = DIVIDE ( [Promoters] - [Detractors], [Responses] ) * 100
+
+With a comment = CALCULATE ( [Responses], fact_feedback[has_comment] = TRUE )
+
+// Responses over the tickets closed in the same filter. Not over all tickets:
+// somebody is asked once the work is finished.
+Feedback rate = DIVIDE ( [Responses], [Closed] )
+
+Avg quality = AVERAGE ( fact_feedback[quality] )
+Avg timeliness = AVERAGE ( fact_feedback[timeliness] )
+Avg interaction = AVERAGE ( fact_feedback[interaction] )
+
+
+// ═══ Two that are deliberately absent ════════════════════════════════════════
+//
+// Service utility rate — used frontlines over all frontlines, where "used"
+// means at least one request INSIDE the selected period. It is a
+// DISTINCTCOUNT under the period filter, not a column, and the app computes it
+// with an adoption bar that can be raised again. Build it only if you need it,
+// and check it against the app's own figure before anybody quotes it.
+//
+// Hand-set capacity days — the capacity sheet lets somebody type a figure over
+// the computed one with a note saying why. Power BI cannot write back, so
+// those stay in the app. [Effort days] here is always the computed figure, so
+// a page built on it will differ from the capacity sheet wherever a cell has
+// been set by hand.
